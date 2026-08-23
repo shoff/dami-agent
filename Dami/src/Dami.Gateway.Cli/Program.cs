@@ -3,6 +3,7 @@ using Dami.Contracts.Models;
 using Dami.Persistence;
 using Dami.Core.Context;
 using Dami.Core.Turns;
+using Dami.Proactive.Librarian;
 using Dami.Providers;
 using Dami.Vision;
 using Microsoft.Extensions.Configuration;
@@ -42,6 +43,8 @@ services.AddSingleton<VisionCommands>();
 services.AddSingleton<StatsCommands>();
 services.AddSingleton<ChatCommands>();
 services.AddSingleton<FrontierCommands>();
+services.AddSingleton<ApprovalCommands>();
+services.AddSingleton<ManifestExecutor>();
 services.AddOptions<CodexOptions>();
 services.Configure<CodexOptions>(configuration.GetSection(CodexOptions.SECTION_NAME));
 services.AddSingleton<ICodexProcess, CodexProcess>();
@@ -75,4 +78,5 @@ return await CommandRouter.RunAsync(
     provider.GetRequiredService<VisionCommands>(),
     provider.GetRequiredService<StatsCommands>(),
     provider.GetRequiredService<ChatCommands>(),
-    provider.GetRequiredService<FrontierCommands>());
+    provider.GetRequiredService<FrontierCommands>(),
+    provider.GetRequiredService<ApprovalCommands>());

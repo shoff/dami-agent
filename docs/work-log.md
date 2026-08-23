@@ -3377,3 +3377,21 @@ Dami.sln --no-restore --nologo` passed **331/331** across twelve assemblies; `do
 format Dami.sln --verify-no-changes --no-restore --verbosity minimal` exited 0 without
 diagnostics. No migration is involved. F2 remains in progress with F2b and F2c open;
 only F2a is flipped to `[x]`.
+
+## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
+
+Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,
+**single-resolution guarded in SQL** — only a Pending row can change, so a denial can
+never become an approval and two answers cannot both win (tests pin all of it; 97
+persistence tests). The librarian now files a first-class approval per manifest;
+`ManifestExecutor` is the only component that moves files and refuses anything not
+Approved — move-only, skip-not-overwrite, no delete anywhere in the type (executor
+tests against a real temp tree). CLI: `dami approvals/approve/deny`.
+
+Live end to end: seeded 10 real files, the librarian pass filed approval `1a85660a`,
+`dami approve` resolved it and executed — 10 moved into kind/month directories, 0
+skipped, everything traced. The charter's propose→approve→act loop is real.
+
+Also fixed: Codex had reformatted the test fixture's DDL list so my one-line append
+missed and 62 tests failed on a missing table — the failure was mine to notice, the
+lesson is the usual one about editing shared files by exact-match.

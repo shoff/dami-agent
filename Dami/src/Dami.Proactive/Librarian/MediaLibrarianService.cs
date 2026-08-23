@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dami.Contracts.Approvals;
 using Dami.Contracts.Models;
 using Dami.Contracts.Proactive;
 using Microsoft.Extensions.Logging;
@@ -45,6 +46,7 @@ public sealed class MediaLibrarianService : IProactiveService
         };
 
     private readonly IVisionClient visionClient;
+    private readonly IApprovalService approvalService;
     private readonly MediaLibrarianOptions librarianOptions;
     private readonly TimeProvider clock;
     private readonly ILogger<MediaLibrarianService> logger;
@@ -52,16 +54,19 @@ public sealed class MediaLibrarianService : IProactiveService
     /// <summary>Creates the service.</summary>
     public MediaLibrarianService(
         IVisionClient visionClient,
+        IApprovalService approvalService,
         IOptions<MediaLibrarianOptions> librarianOptions,
         TimeProvider clock,
         ILogger<MediaLibrarianService> logger)
     {
         ArgumentNullException.ThrowIfNull(visionClient);
+        ArgumentNullException.ThrowIfNull(approvalService);
         ArgumentNullException.ThrowIfNull(librarianOptions);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.visionClient = visionClient;
+        this.approvalService = approvalService;
         this.librarianOptions = librarianOptions.Value;
         this.clock = clock;
         this.logger = logger;
@@ -90,13 +95,32 @@ public sealed class MediaLibrarianService : IProactiveService
         }
 
         await this.EnrichWithVisionAsync(proposals, cancellationToken).ConfigureAwait(false);
+        return await this.ProposeAsync(context, proposals, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ProactiveResult> ProposeAsync(
+        ProactiveContext context,
+        List<MoveProposal> proposals,
+        CancellationToken cancellationToken)
+    {
         var manifestPath = await this.WriteManifestAsync(proposals, cancellationToken).ConfigureAwait(false);
+
+        // The manifest becomes a first-class approval request (charter §10.2). Until a
+        // human approves it, the executor will not touch it; if denied, it never runs.
+        var approvalId = Guid.NewGuid();
+        await this.approvalService.RequestAsync(
+            new ApprovalRequest(
+                approvalId, context.TraceId, this.ServiceName,
+                $"Execute the proposed organization of {proposals.Count} file(s)",
+                "filesystem", manifestPath, this.clock.GetUtcNow()),
+            cancellationToken).ConfigureAwait(false);
 
         var surfacing = new Surfacing(
             Guid.NewGuid(),
             this.ServiceName,
             $"Proposed organization for {proposals.Count} loose file(s)",
-            $"Manifest at {manifestPath}. Nothing has been moved; nothing will be without approval.",
+            $"Manifest at {manifestPath}. Nothing moves without approval: "
+            + $"dami approve {approvalId.ToString("N")[..8]} (or deny).",
             0.9,
             this.clock.GetUtcNow());
 

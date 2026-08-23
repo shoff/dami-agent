@@ -50,7 +50,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] B5 Interim embedder ADR-0009 (bge-m3, versioned per row, re-embed path exercised)
 - [ ] B6 **Close D-010**: Steve reviews `tools/eval/REVIEW.md` (37 draft pairs, 13 top-3 misses annotated) → re-run 3-model eval → record decision `[STEVE: review]`
 - [ ] B7 Kokoro classes (772 memories / 3,811 concepts / 718 entities): import into corpus or leave preserved? `[STEVE: whose memories are they]`
-- [ ] B8 Belief embedding: only-active-conclusions embedded for retrieval (D-009 second half; currently beliefs enter context by subject, not similarity)
+- [~ Claude 2026-08-23] B8 Belief embedding: only-active-conclusions embedded for retrieval (D-009 second half; currently beliefs enter context by subject, not similarity)
 - [ ] B9 Observation retention/compaction policy for `chat`-source growth (register open item)
 - [ ] B10 Repair/flag the 267 epoch-zero timestamps (dates sometimes recoverable from body text)
 
@@ -98,7 +98,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [ ] G4 **Sessions**: multi-turn conversation with a recent window in context; start/resume/interrupt/reconnect without duplication — acceptance item 1 (natural Codex continuation from transport; unclaimed)
 - [ ] G5 Runtime API on localhost (D-005) so CLI/GUI/voice become thin clients; retire the CLI's direct-store deviation
 - [ ] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4 `[BLOCKED: F1-F2]`
-- [~ Claude 2026-08-23] G7 Approval contract: first-class blocking approval nodes, CLI + (later) GUI respond through the same contract — acceptance item 5 (consumer: librarian manifest execution)
+- [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
 - [ ] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6
 - [ ] G9 Frontier-informed turns once C4 exists (redacted context → Egressable)
 - [ ] G10 Identity/prompt: port the Dami identity charter into the stable prompt (§9.1); verify identity across local + frontier — acceptance item 9

@@ -10,6 +10,7 @@ public static class TestDdl
         "006_surfacings.sql",
         "007_proactive_runs.sql",
         "008_observation_embeddings.sql",
+        "009_approvals.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
     ];
@@ -42,6 +43,7 @@ public static class TestDdl
         ArgumentNullException.ThrowIfNull(schema);
 
         return $"""
+            drop table if exists {schema}.approvals cascade;
             drop table if exists {schema}.observation_embeddings cascade;
             drop table if exists {schema}.proactive_run_leases cascade;
             drop table if exists {schema}.proactive_runs cascade;
@@ -70,6 +72,7 @@ public static class TestDdl
         // guard dropped deliberately. That the fixture has to do this is the guarantee
         // working, not a workaround for it.
         return $"""
+            delete from {schema}.approvals;
             delete from {schema}.observation_embeddings;
             delete from {schema}.proactive_run_leases;
             delete from {schema}.proactive_runs;

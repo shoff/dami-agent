@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dami.Contracts.Approvals;
 using Dami.Contracts.Models;
 using Dami.Contracts.Proactive;
 using NSubstitute;
@@ -126,7 +127,7 @@ public sealed class MediaLibrarianServiceTests : IDisposable
     public async Task RunPassAsync_Should_Stay_Quiet_With_No_Roots_Configured()
     {
         var service = new MediaLibrarianService(
-            Substitute.For<IVisionClient>(),
+            Substitute.For<IVisionClient>(), Substitute.For<IApprovalService>(),
             Options.Create(new MediaLibrarianOptions { ManifestDirectory = this.manifests }),
             new FakeTimeProvider(now), NullLogger<MediaLibrarianService>.Instance);
 
@@ -153,6 +154,20 @@ public sealed class MediaLibrarianServiceTests : IDisposable
     }
 
     private readonly IVisionClient visionClient = Substitute.For<IVisionClient>();
+    private readonly IApprovalService approvalService = Substitute.For<IApprovalService>();
+
+    [Fact]
+    public async Task RunPassAsync_Should_File_An_Approval_For_The_Manifest()
+    {
+        this.SeedMany();
+
+        await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        await this.approvalService.Received(1).RequestAsync(
+            Arg.Is<ApprovalRequest>(request =>
+                request.RequestedBy == "media-librarian" && request.Scope == "filesystem"),
+            Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task RunPassAsync_Should_Enrich_Image_Proposals_When_Vision_Is_Enabled()
@@ -192,7 +207,7 @@ public sealed class MediaLibrarianServiceTests : IDisposable
         options.RootPaths.Add(this.root);
 
         return new MediaLibrarianService(
-            this.visionClient, Options.Create(options),
+            this.visionClient, this.approvalService, Options.Create(options),
             new FakeTimeProvider(now), NullLogger<MediaLibrarianService>.Instance);
     }
 }

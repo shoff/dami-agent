@@ -20,6 +20,9 @@ public static class CommandRouter
           dami correct <id-prefix> <corrected statement>
                                          replace a belief - supersession, the audit trail kept
           dami note <text>               record an observation into the corpus
+          dami approvals                 what awaits your yes or no
+          dami approve <id-prefix>       approve (librarian manifests also execute)
+          dami deny <id-prefix> [note]   deny; it never runs
           dami health                    check postgres, sidecars, GPU placement, tier
           dami stats                     vital signs: corpus, beliefs, passes, egress
           dami recall <query>            semantic search over everything Dami has seen
@@ -44,7 +47,8 @@ public static class CommandRouter
         VisionCommands vision,
         StatsCommands stats,
         ChatCommands chat,
-        FrontierCommands frontier)
+        FrontierCommands frontier,
+        ApprovalCommands approvals)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
@@ -58,6 +62,7 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(stats);
         ArgumentNullException.ThrowIfNull(chat);
         ArgumentNullException.ThrowIfNull(frontier);
+        ArgumentNullException.ThrowIfNull(approvals);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -69,7 +74,7 @@ public static class CommandRouter
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
             args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            chat, frontier, cancellation.Token).ConfigureAwait(false);
+            chat, frontier, approvals, cancellation.Token).ConfigureAwait(false);
     }
 
     private static async Task<int> DispatchAsync(
@@ -86,6 +91,7 @@ public static class CommandRouter
         StatsCommands stats,
         ChatCommands chat,
         FrontierCommands frontier,
+        ApprovalCommands approvals,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -106,11 +112,31 @@ public static class CommandRouter
             "recall" or "ask" or "context" or "caption" or "chat" when args.Length > 1 =>
                 await DispatchModelAsync(verb, args, recall, ask, contextCommands, vision, chat,
                     cancellationToken).ConfigureAwait(false),
+            "approvals" or "approve" or "deny" =>
+                await DispatchApprovalsAsync(verb, args, approvals, cancellationToken).ConfigureAwait(false),
             "frontier" when args.Length > 1 =>
                 await frontier.AskAsync(string.Join(' ', args[1..]), cancellationToken)
                     .ConfigureAwait(false),
             "beliefs" or "correct" or "retract" or "note" =>
                 await DispatchBeliefsAsync(verb, args, beliefs, cancellationToken).ConfigureAwait(false),
+            _ => Usage(),
+        };
+    }
+
+    private static async Task<int> DispatchApprovalsAsync(
+        string verb,
+        string[] args,
+        ApprovalCommands approvals,
+        CancellationToken cancellationToken)
+    {
+        return verb switch
+        {
+            "approvals" => await approvals.ListAsync(cancellationToken).ConfigureAwait(false),
+            "approve" when args.Length > 1 =>
+                await approvals.ApproveAsync(args[1], cancellationToken).ConfigureAwait(false),
+            "deny" when args.Length > 1 =>
+                await approvals.DenyAsync(args[1], args.Length > 2 ? string.Join(' ', args[2..]) : null,
+                    cancellationToken).ConfigureAwait(false),
             _ => Usage(),
         };
     }

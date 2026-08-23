@@ -1,6 +1,8 @@
 using Dami.Contracts.Events;
 using Dami.Contracts.Memory;
+using Dami.Contracts.Approvals;
 using Dami.Contracts.Proactive;
+using Dami.Persistence.Approvals;
 using Dami.Persistence.Events;
 using Dami.Persistence.Memory;
 using Dami.Persistence.Proactive;
@@ -44,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IConclusionLedger, PostgresConclusionLedger>();
         services.TryAddSingleton<IPushbackLedger, PostgresPushbackLedger>();
         services.TryAddSingleton<IObservationEmbeddingStore, PostgresObservationEmbeddingStore>();
+        services.TryAddSingleton<IApprovalService, PostgresApprovalService>();
 
         return services;
     }
