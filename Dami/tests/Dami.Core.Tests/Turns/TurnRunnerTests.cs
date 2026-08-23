@@ -1,5 +1,6 @@
 using Dami.Contracts.Context;
 using Dami.Contracts.Events;
+using Dami.Contracts.Memory;
 using Dami.Contracts.Models;
 using Dami.Core.Turns;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,6 +19,7 @@ public sealed class TurnRunnerTests
     private readonly IModelRouter modelRouter = Substitute.For<IModelRouter>();
     private readonly IChatClient chatClient = Substitute.For<IChatClient>();
     private readonly IExecutionEventStore eventStore = Substitute.For<IExecutionEventStore>();
+    private readonly IObservationCorpus observationCorpus = Substitute.For<IObservationCorpus>();
 
     [Fact]
     public async Task RunAsync_Should_Emit_A_UserTurn_Trace_From_Start_To_Completion()
@@ -110,6 +112,32 @@ public sealed class TurnRunnerTests
         Assert.Equal(ModelTier.Local, result.Route.Tier);
     }
 
+    [Fact]
+    public async Task RunAsync_Should_Record_The_Interaction_Into_The_Corpus()
+    {
+        this.Arrange();
+
+        await this.CreateRunner().RunAsync("a question", CancellationToken.None);
+
+        await this.observationCorpus.Received(1).RecordAsync(
+            Arg.Is<Observation>(item => item.Source == "chat" && item.Body.Contains("a question")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Not_Record_A_Failed_Turn_As_An_Interaction()
+    {
+        this.Arrange();
+        this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Task<string>>(_ => throw new InvalidOperationException("down"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => this.CreateRunner().RunAsync("a question", CancellationToken.None));
+
+        await this.observationCorpus.DidNotReceive().RecordAsync(
+            Arg.Any<Observation>(), Arg.Any<CancellationToken>());
+    }
+
     private void Arrange(string[]? beliefs = null, string[]? memories = null)
     {
         var beliefItems = (beliefs ?? [])
@@ -129,6 +157,6 @@ public sealed class TurnRunnerTests
     {
         return new TurnRunner(
             this.contextBuilder, this.modelRouter, this.chatClient, this.eventStore,
-            new FakeTimeProvider(now), NullLogger<TurnRunner>.Instance);
+            this.observationCorpus, new FakeTimeProvider(now), NullLogger<TurnRunner>.Instance);
     }
 }

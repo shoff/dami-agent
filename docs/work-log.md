@@ -3127,3 +3127,19 @@ passed, 0 failed** across twelve assemblies; format verification exit 0.
 surfacing, an already-delivered idempotent retry, and an invalid suppressed→delivered
 transition. That contract needs an explicit state decision rather than reusing this
 mechanical check.
+
+## 2026-08-23 — Claude Code — Turns feed the corpus (F-05)
+
+Every completed interactive turn now records itself as an observation (source `chat`,
+trace id in metadata): "Steve asked: … — Dami answered: …". The next turn — and the
+weekly reflection — can see this one happened, and the nightly embedder will index it
+without being told. A failed turn is deliberately NOT recorded as an interaction (the
+event stream already holds the failure); test pins both behaviours. 24 Core tests.
+
+Verified live, and the verification exposed the next honest limit: asked "what did we
+fix about your sense of time today", the model had nothing relevant to retrieve
+(today's work lives in git, not the corpus) and confabulated an answer from March
+health memories rather than obeying the prompt's "say plainly when it is not
+sufficient". The recording mechanism worked — the turn is in the corpus — but
+**qwen3:8b's instruction-following on insufficiency is weak**, recorded as a
+model-quality limitation the frontier tier or a stronger local model would address.

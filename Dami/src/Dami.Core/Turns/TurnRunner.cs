@@ -1,6 +1,7 @@
 using System.Text;
 using Dami.Contracts.Context;
 using Dami.Contracts.Events;
+using Dami.Contracts.Memory;
 using Dami.Contracts.Models;
 using Microsoft.Extensions.Logging;
 
@@ -26,6 +27,7 @@ public sealed class TurnRunner : ITurnRunner
     private readonly IModelRouter modelRouter;
     private readonly IChatClient chatClient;
     private readonly IExecutionEventStore eventStore;
+    private readonly IObservationCorpus observationCorpus;
     private readonly TimeProvider clock;
     private readonly ILogger<TurnRunner> logger;
 
@@ -35,6 +37,7 @@ public sealed class TurnRunner : ITurnRunner
         IModelRouter modelRouter,
         IChatClient chatClient,
         IExecutionEventStore eventStore,
+        IObservationCorpus observationCorpus,
         TimeProvider clock,
         ILogger<TurnRunner> logger)
     {
@@ -42,6 +45,7 @@ public sealed class TurnRunner : ITurnRunner
         ArgumentNullException.ThrowIfNull(modelRouter);
         ArgumentNullException.ThrowIfNull(chatClient);
         ArgumentNullException.ThrowIfNull(eventStore);
+        ArgumentNullException.ThrowIfNull(observationCorpus);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
 
@@ -49,6 +53,7 @@ public sealed class TurnRunner : ITurnRunner
         this.modelRouter = modelRouter;
         this.chatClient = chatClient;
         this.eventStore = eventStore;
+        this.observationCorpus = observationCorpus;
         this.clock = clock;
         this.logger = logger;
     }
@@ -65,12 +70,7 @@ public sealed class TurnRunner : ITurnRunner
 
         try
         {
-            var result = await this.ExecuteAsync(traceId, request, cancellationToken).ConfigureAwait(false);
-
-            await this.EmitAsync(
-                traceId, ExecutionEventType.TraceCompleted, ExecutionStatus.Succeeded,
-                $"answered in {result.Answer.Length} chars", cancellationToken).ConfigureAwait(false);
-            return result;
+            return await this.CompleteTurnAsync(traceId, request, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -96,6 +96,24 @@ public sealed class TurnRunner : ITurnRunner
         // CancellationToken.None: the turn's token may already be cancelled, and the
         // record of how it ended must still be written.
         return this.EmitAsync(traceId, type, status, label, CancellationToken.None);
+    }
+
+    private async Task<TurnResult> CompleteTurnAsync(
+        Guid traceId,
+        string request,
+        CancellationToken cancellationToken)
+    {
+        var result = await this.ExecuteAsync(traceId, request, cancellationToken).ConfigureAwait(false);
+
+        // F-05: interactions are continuously recorded. The turn joins the corpus so
+        // the next turn - and the weekly reflection - can see this one happened.
+        await this.RecordInteractionAsync(traceId, request, result.Answer, cancellationToken)
+            .ConfigureAwait(false);
+
+        await this.EmitAsync(
+            traceId, ExecutionEventType.TraceCompleted, ExecutionStatus.Succeeded,
+            $"answered in {result.Answer.Length} chars", cancellationToken).ConfigureAwait(false);
+        return result;
     }
 
     private async Task<TurnResult> ExecuteAsync(
@@ -155,6 +173,23 @@ public sealed class TurnRunner : ITurnRunner
         prompt.AppendLine();
         prompt.Append("Steve: ").AppendLine(request);
         return prompt.ToString();
+    }
+
+    private Task RecordInteractionAsync(
+        Guid traceId,
+        string request,
+        string answer,
+        CancellationToken cancellationToken)
+    {
+        var summary = answer.Length <= 240 ? answer : answer[..240] + "…";
+        var observation = new Observation(
+            Guid.NewGuid(),
+            this.clock.GetUtcNow(),
+            "chat",
+            $"Steve asked: {request} — Dami answered: {summary}",
+            new Dictionary<string, string> { ["trace_id"] = traceId.ToString() });
+
+        return this.observationCorpus.RecordAsync(observation, cancellationToken);
     }
 
     private Task<long> EmitAsync(
