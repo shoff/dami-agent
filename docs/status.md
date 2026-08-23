@@ -4,9 +4,9 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 22:05 CDT (`2026-08-23T03:05Z`)
-- **Updated by:** Claude Code session, from direct inspection of this workstation
-- **Current phase:** 0 and 1, both in progress
+- **Last updated:** 2026-08-22 22:07 CDT (`2026-08-23T03:07Z`)
+- **Updated from:** direct workstation inspection and solution test evidence
+- **Current phases:** 0, 1, and 3 in progress
 
 > **`docs/workstation-runbook.md` is the operational companion to this file** — service
 > inventory, health checks, host-specific traps, and the protocol for working alongside
@@ -26,9 +26,11 @@ This file holds only observed state.
 
 ## 1. State of play
 
-The repository holds planning documents and no source code. The workstation has a
-verified GPU with working container passthrough, a .NET 10 SDK, and Docker. The data
-layer is mid-migration and currently not running. Nothing in Phase 2 has started.
+The repository contains a .NET 10 solution with contracts, transport, analyzer, and
+architecture-test foundations. The transport slice has versioned framing,
+`ITransport`, loopback delivery, framed pipelines delivery, and one connected TCP
+adapter. The workstation has a verified GPU with working container passthrough, local
+inference sidecars, and PostgreSQL. Phase 2 application schemas have not started.
 
 Two ADRs are open and both block Phase 2 in the sense that reversing either after data
 lands is far more expensive than reversing it now. Neither is mine to accept.
@@ -95,15 +97,26 @@ rather than assuming — but nothing else blocks the phase.
 | Local reranker service | **done** — TEI cross-encoder on `127.0.0.1:8081` |
 | Retrieval pipeline verified end to end | **done** — embed → ANN top-5 → cross-encoder rerank → top-3, reordering confirmed |
 
-### Phases 3–10 · *not started*
+### Phase 3 — Transport and runtime port · *in progress*
 
-Transport and runtime port · privacy boundary and interest scout · model of Steve ·
-vision and media librarian · GUI · reflection pass and domains · self-improvement ·
-voice and presence · gateways and cutover.
+| Item | State | Evidence |
+|---|---|---|
+| Versioned frame reader/writer | done | `FrameCodec`; split-buffer round trip tested at every byte offset |
+| `ITransport` and `LoopbackTransport` | done | bounded loopback send/receive tests pass |
+| Pipelines framed connection | done | `PipeTransport` send and receive tests pass |
+| TCP connection, one connection | done | loopback TCP peer verified in both directions through `TcpDuplexPipe` |
+| Reconnect, heartbeat, sequence-gap detection | not started | — |
+| Backpressure and flow control beyond bounded loopback | not started | — |
+| Capability registry, model routing, sessions, events, CLI | not started | — |
 
-No source code exists in this repository. The first code, per architecture §7.5.5, is
-the frame reader/writer over `ReadOnlySequence<byte>` with round-trip property tests
-across deliberately split buffers, then `ITransport` and `LoopbackTransport`.
+Verification on 2026-08-22: `Dami.Transport.Tests` executed 10 tests with 0 failures;
+`dotnet test Dami.sln --no-restore` executed 32 tests across four suites with 0 failures.
+
+### Phases 4–10 · *not started*
+
+Privacy boundary and interest scout · model of Steve · vision and media librarian ·
+GUI · reflection pass and domains · self-improvement · voice and presence · gateways
+and cutover.
 
 ---
 

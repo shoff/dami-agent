@@ -1,0 +1,8 @@
+{"query":"which background job connects information from different areas of life?","relevant":["d01"]}
+{"query":"how does the system avoid becoming a yes-man over time?","relevant":["d07","d08"]}
+{"query":"what stops my private data being sent to a model provider?","relevant":["d10"]}
+{"query":"can it reorganise my files on its own?","relevant":["d09"]}
+{"query":"how do I get it to start listening?","relevant":["d05"]}
+{"query":"why did we stop using a dedicated vector database?","relevant":["d15"]}
+{"query":"what happens to a belief about me that turns out to be wrong?","relevant":["d03","d02"]}
+{"query":"how are search results improved after the initial lookup?","relevant":["d11"]}

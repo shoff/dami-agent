@@ -1,0 +1,15 @@
+{"id":"d01","text":"The reflection pass runs weekly and correlates signals across health, workshop, code and civic data."}
+{"id":"d02","text":"Observations are append-only and never edited; the record of what happened is not revisable."}
+{"id":"d03","text":"Conclusions are versioned and supersedable, and only currently active ones are embedded."}
+{"id":"d04","text":"The interest scout scans YouTube, news and feeds nightly against a local model of what Steve finds interesting."}
+{"id":"d05","text":"Wake detection listens for the phrase Hey Dami, pronounced DAH-mee, before recording an utterance."}
+{"id":"d06","text":"Scale model kits need primer before airbrushing acrylic paint, and the fuselage halves cure overnight."}
+{"id":"d07","text":"The pushback ledger records every challenge Dami makes, whether Steve accepted it, and what followed."}
+{"id":"d08","text":"A system that tunes on reactions learns that challenge produces negative reactions, so the auditor decays."}
+{"id":"d09","text":"The media librarian proposes file moves and tags but executes nothing until a human approves the manifest."}
+{"id":"d10","text":"Personal photos, the conclusions ledger and health data never leave the host; only queries cross the boundary."}
+{"id":"d11","text":"Reranking retrieves fifty candidates by cosine distance then reorders them to eight with a cross-encoder."}
+{"id":"d12","text":"Frames carry a protocol version, message type, sequence number, correlation id and flags before the payload."}
+{"id":"d13","text":"Proactive output is scarce by design; most passes produce conclusions and no surfacings at all."}
+{"id":"d14","text":"Native C# plugins are the privileged tier because MCP is an egress surface with a process boundary."}
+{"id":"d15","text":"Postgres with pgvector replaced Weaviate so embeddings can be joined transactionally against domain rows."}

@@ -535,6 +535,48 @@ but if a real runtime dependency is ever added there, the layering tests will no
 - Production does not yet contain `TcpDuplexPipe`; the narrow run is expected to fail
   at that missing type.
 
+### Cycle 3 — establish one TCP/Pipelines connection — red
+
+- Ran only the new loopback TCP test as OS user `steve`.
+- Observed red: `CS0246` and `CS0103`; `TcpDuplexPipe` did not exist. Exit code 1; no
+  test executed.
+- Added the minimum adapter: connect one socket, own it through `NetworkStream`, and
+  expose a `PipeReader` and `PipeWriter`. Both pipes leave the stream open so the
+  adapter has one clear owner and closes the socket exactly once during disposal.
+
+### Cycle 3 — establish one TCP/Pipelines connection — green
+
+- Ran only the new outbound TCP test as OS user `steve`.
+- Observed green: 1 test executed, 1 passed, 0 failed, 0 skipped; test duration 184 ms
+  and exit code 0.
+
+### Inbound TCP characterization
+
+- Added one test requiring bytes written by the accepted TCP peer to appear through
+  the adapter's `PipeReader`.
+- This input surface was necessarily introduced with the `IDuplexPipe` adapter during
+  Cycle 3. Its first run is expected to characterize existing behavior; it will be
+  recorded as coverage if it passes immediately, not as a fabricated TDD cycle.
+
+### Inbound characterization and slice verification
+
+- Ran only the inbound TCP test as OS user `steve`.
+- It passed on its first execution: 1 test executed, 1 passed, 0 failed. This is
+  characterization coverage, not a red/green TDD cycle, because the input pipe was
+  necessarily added with the duplex adapter in Cycle 3.
+- Ran the complete transport suite: 10 passed, 0 failed, 0 skipped.
+- Ran `dotnet test Dami.sln --no-restore --verbosity minimal`: 32 passed across four
+  suites, 0 failed, 0 skipped.
+- Ran the solution-wide formatting gate. It failed only on pre-existing placeholder
+  files `Dami/src/Dami/Program.cs` and `Dami/tests/Dami.Tests/UnitTest1.cs` for BOM and
+  final-newline rules. Those unrelated files were not modified.
+- Ran formatting verification separately for `Dami.Transport` and
+  `Dami.Transport.Tests`; both exited 0 with no required changes.
+- Updated `docs/status.md` to replace its stale claim that no source code exists and to
+  record Phase 3 transport progress with command-backed evidence.
+- A concurrent untracked `tools/eval/` tree appeared during this work. It was neither
+  read nor modified and will not be staged with the transport changes.
+
 ## 2026-08-22 — Claude Code — Mandatory build/test rule in CLAUDE.md
 
 Proposed GitHub Actions CI to gate the enforcement layer. **Steve declined on cost** —
@@ -609,3 +651,63 @@ for, and it is more than ADR-0002's Timeshift path can currently claim.
 ADR-0003 is accepted **as an interim measure** and explicitly does not close the
 register's open decision on destinations, encryption, and retention. PITR is the right
 answer and the natural trigger is the corpus landing in Phase 2.
+
+## 2026-08-22 — Claude Code — D-010 retrieval eval harness
+
+`bge-m3` is serving because it was a sensible default, which is exactly what D-010 says
+must not decide the embedder. Built the instrument so the decision becomes one command
+when the corpus exports off the Mac.
+
+### What was built
+
+- `tools/eval/retrieval_eval.py` — a `uv` script with PEP 723 inline dependencies, so
+  there is no virtualenv to create. Embeds a corpus through TEI, stores it in a
+  per-label table, scores a query set, and reports **ANN only** against **ANN + rerank**.
+- `tools/eval/README.md` — input format, how to swap models, and what the numbers mean.
+- `tools/eval/sample-{corpus,queries}.jsonl` — 15 synthetic documents and 8 queries,
+  clearly labelled as a smoke test and not an eval set.
+
+### Design decisions
+
+- **Exact search, no HNSW index, deliberately.** The question D-010 asks is how good the
+  embedding model is; an index would confound that with index recall. A useful
+  consequence: **a model too large to index can still be evaluated.**
+  Qwen3-Embedding-8B at 4096 dims exceeds `halfvec`'s 4000-dim ceiling on this cluster
+  but will still score. That separates "is it good" from "can we deploy it", which had
+  been conflated.
+- Dimension is probed from the running service rather than configured, so a model swap
+  needs no edit.
+- One table per `--label`, so runs do not overwrite each other.
+- Requests chunked at 32 (TEI's `max_client_batch_size`). A 50-candidate rerank is two
+  calls whose scores are merged; cross-encoder scores are independent per pair, so
+  chunking does not change ordering.
+- Connects as `dami_ddl` because it creates tables; credentials from `~/.pgpass`.
+
+### Observed result, and why it is not a finding
+
+```
+stage              recall@5          mrr       ndcg@5  p50_seconds
+ANN only             0.9375       0.8750       0.8619       0.0272
+ANN + rerank         0.9375       0.8167       0.8213       0.0739
+rerank delta : recall@5 +0.0000  mrr -0.0583  ndcg@5 -0.0405
+```
+
+Reranking scored worse and cost 2.7× the latency. **This is not evidence against
+D-008.** With 15 documents and 15 candidates the ANN stage already returns the whole
+corpus, so the reranker has no filtering job — it can only reorder, and every mistake is
+a pure regression with no recall to win back. Reranking earns its place when top-50 is
+drawn from thousands, which this sample cannot create.
+
+Recorded prominently in the README because a number in a repository gets quoted, and
+this one would be quoted wrongly.
+
+What it does demonstrate is that the harness detects a regression rather than assuming
+an improvement. D-008 claims reranking is "the largest single quality gain available";
+this is the instrument that will confirm or refute that on real data.
+
+### Still blocked
+
+The eval set itself. D-010 wants 50 queries with known-good answers built from the 7,000
+memories, and that corpus is Phase 0 on the Mac. The harness is ready; the data is not.
+
+Verified no eval tables were left behind: `pg_tables where schemaname='dami'` → 0.
