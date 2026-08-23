@@ -67,7 +67,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] D1 Local clients behind contracts: `IEmbeddingClient`, `IRerankClient`, `IChatClient` (Ollama, thinking-mode default documented), `IVisionClient` (qwen2.5vl, 1.4 s warm)
 - [x] D2 `IModelRouter` with D-012 as the unconditional first rule; degrade-to-local when no frontier
 - [x] D3 Frontier adapters: Codex-subscription (live) + Anthropic (built, dormant)
-- [ ] D4 Streaming completion contract (`IAsyncEnumerable<string>` alongside `CompleteAsync`) — prerequisite for G3
+- [~ Claude 2026-08-23] D4 Streaming completion contract (`IAsyncEnumerable<string>` alongside `CompleteAsync`) — prerequisite for G3
 - [ ] D5 Cheap-model-assisted routing (replace the static work-kind table when it misroutes in practice)
 - [ ] D6 VRAM budget plan for simultaneous residents (embed+rerank+LLM+vision+TTS vs 16 GB) — measure, then pin `[BLOCKED: needs L-phase TTS choice]`
 
@@ -91,7 +91,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 - [x] G1 `TurnRunner`: context → route → local model → traced `UserTurn` answer; `dami chat` live (**the charter's Phase 2 exit, demonstrated**)
 - [x] G2 Context assembly (`ContextBuilder`): hard token budget (~2.5k vs Hermes's 90–126k), recency-reserved slots, grounding gate (distance ceiling + explicit emptiness), beliefs-beat-memories under pressure; turns feed the corpus (F-05)
-- [ ] G3 **Streaming turns** end to end (model → runtime → CLI as tokens arrive; needs D4) — acceptance item 2
+- [~ Claude 2026-08-23] G3 **Streaming turns** end to end (model → runtime → CLI as tokens arrive; needs D4) — acceptance item 2
 - [ ] G4 **Sessions**: multi-turn conversation with a recent window in context; start/resume/interrupt/reconnect without duplication — acceptance item 1 (natural Codex continuation from transport; unclaimed)
 - [ ] G5 Runtime API on localhost (D-005) so CLI/GUI/voice become thin clients; retire the CLI's direct-store deviation
 - [ ] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4 `[BLOCKED: F1-F2]`
