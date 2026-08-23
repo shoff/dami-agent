@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 19:49 CDT (`2026-08-23T00:49Z`)
+- **Last updated:** 2026-08-22 19:54 CDT (`2026-08-23T00:54Z`)
 - **Updated by:** Claude Code session, from direct inspection of this workstation
 - **Current phase:** 0 and 1, both in progress
 
@@ -62,7 +62,10 @@ the instrumentation gates the claim that Dami Core is faster than Hermes — arc
 | GPU passthrough into containers | done | `docker run --rm --gpus all ubuntu:24.04 nvidia-smi` → RTX 4080 visible |
 | CUDA compute proven from a pinned container | **not done** | `nvidia-smi` in a container proves device visibility and driver injection only. No kernel has been launched. |
 | .NET SDK | done | `dotnet --version` → 10.0.400 |
-| PostgreSQL + pgvector | **in flux** | See §3. No cluster running as of the timestamp above. |
+| PostgreSQL on bare metal | done | `pg_lsclusters` → `16 main 5432 online`; listening on `127.0.0.1:5432` |
+| pgvector extension present | done | `select installed_version ... where name='vector'` → `0.6.0` |
+| pgvector usable for the planned corpus | **no** | 0.6.0 caps HNSW at 2000 dimensions; two of three D-010 candidates fail. See §3. |
+| PostgreSQL from PGDG (D-004) | **not met** | all packages from `noble/universe`; PGDG repo not configured |
 | `uv` for Python sidecars | not installed | `command -v uv` → nothing |
 | SSH and remote access | unknown | Not verified by this session |
 
@@ -133,27 +136,56 @@ Captured 2026-08-22 19:49 CDT. Everything here was read off the machine.
 Images pulled: `pgvector/pgvector:pg18`, `postgres:latest`, `dpage/pgadmin4:latest`,
 `ubuntu:24.04`, `hello-world:latest`.
 
-### PostgreSQL — unresolved, in flux
+### PostgreSQL — running on bare metal, but the extension version blocks Phase 2
 
-At the capture timestamp there is **no PostgreSQL running anywhere on this machine**:
+Confirmed 2026-08-22 19:54 CDT. The container route was abandoned; Postgres now runs
+as a host service, which is what D-004 asked for.
 
-- `dami-data` no longer exists.
-- `postgresql.service` is `active (exited)` — the Ubuntu meta-unit — and
-  `pg_lsclusters` lists **zero clusters**. `active (exited)` here means the wrapper ran
-  and found nothing to start; it does not mean a database is up.
-- Nothing is listening on 5432.
-- Data from the removed container survives at
-  `/home/steve/Data/pgsql-dami-data` with a sibling `.pg18-container-backup`.
+| | |
+|---|---|
+| Cluster | `16 / main`, online, `127.0.0.1:5432` |
+| Version | PostgreSQL **16.15** (`16.15-0ubuntu0.24.04.1`) |
+| Data directory | `/home/steve/Data/pgsql-dami-data`, owned `postgres:postgres`, mode `0700` |
+| pgvector | **0.6.0** (`postgresql-16-pgvector 0.6.0-1`) |
+| Package source | `archive.ubuntu.com/ubuntu noble/universe` — **PGDG is not configured** |
+| Databases | `postgres` only; no Dami schema yet |
 
-Observed facts, not conclusions about intent: `pgvector/pgvector:pg18` has been pulled,
-and a PostgreSQL 16 client from Ubuntu's archive is installed while no PGDG repository
-is configured. **Ask the other agent or Steve what the target shape is before touching
-any of it.**
+**D-004 is half met.** Bare metal: yes. From PGDG: no. That is not pedantry, because
+the repository choice is what pins the extension version, and the extension version is
+what blocks the work:
 
-Also recorded: the removed `dami-data` ran `postgres:latest`, which ships **no
-pgvector** — `select ... from pg_available_extensions where name like '%vector%'`
-returned zero rows. Whatever replaces it must be verified for the extension, not
-assumed to have it.
+```
+$ create index on t1024 using hnsw (v vector_cosine_ops);   -- BGE-M3, 1024 dims
+CREATE INDEX
+$ create index on t2560 using hnsw (v vector_cosine_ops);   -- Qwen3-Embedding-4B, 2560 dims
+ERROR:  column cannot have more than 2000 dimensions for hnsw index
+$ create index on t4096 using hnsw (v vector_cosine_ops);   -- Qwen3-Embedding-8B, 4096 dims
+ERROR:  column cannot have more than 2000 dimensions for hnsw index
+$ select 1 from pg_type where typname='halfvec';            -- added in pgvector 0.7.0
+(0 rows)
+```
+
+**Consequences, stated plainly:**
+
+- **Two of D-010's three embedding candidates cannot be indexed at native dimension.**
+  D-010 requires the embedder be chosen by eval evidence. On 0.6.0 the tooling picks it
+  instead, and the answer is BGE-M3 by default rather than by measurement.
+- `halfvec` does not exist. Added in 0.7.0, it stores at half precision and raises the
+  index dimension ceiling — the direct fix for the errors above, and it halves index
+  size on a machine where VRAM and disk both matter.
+- **Iterative index scans, added in 0.8.0, are absent.** Architecture §9.3 specifies
+  `ANN top-50 → optional relational filter (domain, date, source) → rerank top-8`.
+  Pre-0.8 HNSW retrieves k candidates and *then* applies the filter, so a selective
+  filter can return far fewer than 50 rows — sometimes near zero. Iterative scans exist
+  precisely to fix this. The planned retrieval pipeline is the exact shape that suffers.
+
+**The fix is small.** PGDG builds `postgresql-16-pgvector` at current versions, so
+adding the repository upgrades the extension in place with no major-version change and
+no data migration. It also brings D-004 into full compliance. Whether to also move to
+PostgreSQL 17/18 is a separate and much larger question — the removed container was
+18.6, so this cluster is two major versions behind what was briefly running.
+
+Not yet decided, and worth deciding before any schema is created.
 
 ---
 
@@ -165,7 +197,7 @@ Nothing below can be settled by inspection. Each blocks work that is expensive t
 |---|---|---|---|
 | 1 | Accept or reject **ADR-0001** — Linux Mint 22.3 as host, reversing D-003's Debian 13 | Phase 1 close | Reversal is a reinstall now, a data migration after Phase 2 |
 | 2 | Accept or reject **ADR-0002** — Timeshift rsync snapshots for rollback on ext4 | Phase 1 exit | Requires one rehearsed restore before Phase 1 is called done |
-| 3 | **Does Postgres run in a container or on bare metal?** | Phase 2 | D-004 says bare metal from PGDG and gives reasons. The machine has been going the container route. One of the two must change, and the change needs an ADR either way. |
+| 3 | **Add the PGDG repository and upgrade pgvector past 0.7/0.8?** | Phase 2 schema | Resolves the D-010 blocker and the D-004 shortfall together. In-place extension upgrade, no data migration. Separately: stay on PostgreSQL 16 or move to 17/18? |
 | 4 | **Which embedding container** — TEI, Infinity, Ollama, or vLLM | Phase 2 | Options and tradeoffs were presented; recommendation was TEI with Ollama kept separate for the LLM sidecar |
 | 5 | Split `D-001`…`D-022` into individual ADR files, or leave them in the register | doc hygiene | `CLAUDE.md` says decisions live in `docs/decisions/`; the register is a parallel structure |
 | 6 | Retarget `docs/csharpcodestandards.md` from MAI to Dami | before first code | It still says `MAI.sln`, `MAI.Core`, `MA.RoslynAnalyzers`, `mai_dev`. `MA.RoslynAnalyzers` does not exist for this project. |
@@ -182,8 +214,11 @@ change, or an ADR — not silence.
 |---|---|---|
 | Host is Debian 13 + Cinnamon (D-003) | Linux Mint 22.3 + Cinnamon | ADR-0001 proposed |
 | Rollback via Btrfs/Snapper or LVM (charter, architecture §10) | ext4, no snapshots configured | ADR-0002 proposed |
-| Postgres on bare metal from PGDG, containers only for inference (D-004) | went into a container; now in flux | **no ADR — unresolved** |
-| Containers are pinned | `postgres:latest`, `dpage/pgadmin4:latest` | **unresolved** |
+| Postgres on bare metal (D-004) | bare metal, cluster `16/main` online | **resolved 2026-08-22** |
+| Postgres from the PGDG repository (D-004) | `noble/universe`; PGDG not configured | **open** — pins pgvector at 0.6.0 |
+| Embedding candidates Qwen3-4B/8B and BGE-M3 (D-010) | pgvector 0.6.0 caps HNSW at 2000 dims; only BGE-M3 fits | **open** — tooling would decide what D-010 says evidence must |
+| Retrieval is ANN top-50 then relational filter (arch §9.3) | pre-0.8 pgvector filters after retrieval; no iterative scans | **open** — filtered queries can return far fewer than 50 |
+| Containers are pinned | `dpage/pgadmin4:latest` | **unresolved** |
 | Embedding candidates are Qwen3-Embedding-4B/8B, BGE-M3 (D-010) | — | 8B at fp16 ≈ 16 GB, which is the entire card. The eval should include smaller variants or 8B is undeployable alongside a reranker, vision, TTS, and an LLM sidecar. |
 | Acceptance suite of 14 items (charter §14) | — | Predates the proactive layer and tests none of it: no entry for surfacing quality, scarcity, supersession, pushback rate, or egress enforcement |
 
@@ -191,8 +226,8 @@ change, or an ADR — not silence.
 
 ## 6. Next actions, in order
 
-1. **Settle the Postgres shape** (§4 #3). Everything in Phase 2 sits on it, and it is
-   being actively changed right now.
+1. **Add PGDG and upgrade pgvector** (§4 #3). Two of three embedding candidates are
+   unindexable until then, and the retrieval pipeline's filter step is degraded.
 2. **Accept or reject ADR-0001 and ADR-0002.** Both get more expensive after Phase 2.
 3. **Configure Timeshift and rehearse one restore.** Phase 1 cannot close without it,
    and an untested restore is an assumption rather than a rollback path.
