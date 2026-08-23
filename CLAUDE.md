@@ -41,6 +41,35 @@ planning and workstation validation. No source code exists yet.
 - Consequential actions require explicit approval; a reported success needs
   verifiable evidence.
 
+## Build and test — mandatory
+
+There is no CI. Nothing runs the analyzers, the architecture tests, or the
+zero-warning bar except you, deliberately, before you commit. Treat this as the
+gate a pipeline would otherwise be.
+
+**Before committing any change under `Dami/`, and before reporting C# work as
+done, you MUST run both from the `Dami/` directory:**
+
+```bash
+dotnet build Dami.sln     # must be 0 warnings, 0 errors
+dotnet test  Dami.sln     # must be all green
+```
+
+- **`TreatWarningsAsErrors` is on.** A warning is a failure, not a note.
+- Quote the actual counts when you report. "Builds clean" without numbers is not
+  evidence, and this repository treats unevidenced claims as defects.
+- **Never claim an interrupted, cancelled, or timed-out run passed.** If it did
+  not finish, say it did not finish.
+- If the build or tests were already broken when you arrived, say so before you
+  commit rather than absorbing someone else's red into your change.
+- A failure you did not cause is still a failure. Report it; do not silence a
+  rule, delete a test, or add a suppression to get to green.
+
+Enforcement lives in `.editorconfig`, `Dami/Directory.Build.props`,
+`Dami/BannedSymbols.txt`, `Dami/src/Dami.Analyzers`, and
+`Dami/tests/Dami.Architecture.Tests`. `docs/csharpcodestandards.md` §12 is the
+authority on what those catch and what is review-only.
+
 ## Architecture invariants
 
 - C#/.NET runtime; runtime concerns separate from interface concerns.

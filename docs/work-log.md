@@ -461,3 +461,24 @@ but if a real runtime dependency is ever added there, the layering tests will no
 - Standards §12 rewritten: the `DAMI****` rules are listed as build errors, and the
   remaining gap is reduced to things not decidable from syntax (SRP, OCP, ISP, hot-path
   LINQ) plus two deliberate not-yets (`CA2254`, `CS1591`).
+
+## 2026-08-22 — Claude Code — Mandatory build/test rule in CLAUDE.md
+
+Proposed GitHub Actions CI to gate the enforcement layer. **Steve declined on cost** —
+Actions minutes on a private repository add up quickly — and asked for a rule instead.
+
+Added a "Build and test — mandatory" section to `CLAUDE.md`: `dotnet build Dami.sln` at
+0 warnings / 0 errors and `dotnet test Dami.sln` all green, run from `Dami/`, before
+committing anything under `Dami/` or reporting C# work done. It also requires quoting
+the actual counts, forbids claiming an interrupted or timed-out run passed, and forbids
+reaching green by silencing a rule, deleting a test, or adding a suppression.
+
+**Known weakness, stated plainly:** a rule in a document is honour-system. A `pre-push`
+hook in `.githooks/` would run the same two commands automatically and costs nothing —
+the hooks directory and `core.hooksPath` already exist from the ownership fix. Offered;
+not built, because Steve asked for the rule specifically.
+
+**The rule is in `CLAUDE.md` only.** `AGENTS.md` is the agent-rules file Codex reads and
+does not currently mandate a full-solution build and test before commit — its TDD section
+covers narrow and affected suites. Flagged for Steve rather than edited, since `AGENTS.md`
+is Codex's.
