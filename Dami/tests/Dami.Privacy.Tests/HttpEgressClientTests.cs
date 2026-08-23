@@ -12,6 +12,15 @@ namespace Dami.Privacy.Tests;
 /// <summary>The egress boundary: allowlist, tripwire, and the durable event trail.</summary>
 public sealed class HttpEgressClientTests
 {
+    private readonly IEgressBudget egressBudget = Substitute.For<IEgressBudget>();
+
+    public HttpEgressClientTests()
+    {
+        // NSubstitute's auto-stub for Task<string?> is "", which reads as a refusal.
+        this.egressBudget.FindRefusalAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+    }
+
     private static readonly DateTimeOffset now = new(2026, 8, 23, 3, 0, 0, TimeSpan.Zero);
     private static readonly Guid traceId = Guid.NewGuid();
 
@@ -22,6 +31,7 @@ public sealed class HttpEgressClientTests
     {
         Assert.Throws<ArgumentNullException>(() => new HttpEgressClient(
             new HttpClient(new FakeHttpMessageHandler(HttpStatusCode.OK, "")),
+            this.egressBudget,
             Options.Create(new EgressOptions()), null!, new FakeTimeProvider(now),
             NullLogger<HttpEgressClient>.Instance));
     }
@@ -33,6 +43,7 @@ public sealed class HttpEgressClientTests
 
         Assert.Throws<ArgumentOutOfRangeException>("egressOptions", () => new HttpEgressClient(
             new HttpClient(new FakeHttpMessageHandler(HttpStatusCode.OK, "")),
+            this.egressBudget,
             options,
             this.eventStore,
             new FakeTimeProvider(now),
@@ -56,6 +67,19 @@ public sealed class HttpEgressClientTests
 
         await Assert.ThrowsAsync<EgressRefusedException>(
             () => client.SendAsync(Ask("https://tracker.example.com/beacon"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Refuse_When_The_Budget_Is_Exhausted_Without_Touching_The_Network()
+    {
+        this.egressBudget.FindRefusalAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>("Egress budget exhausted"));
+        var client = this.CreateClient(out var handler, allowed: "news.ycombinator.com");
+
+        await Assert.ThrowsAsync<EgressRefusedException>(
+            () => client.SendAsync(Ask("https://news.ycombinator.com/"), CancellationToken.None));
+
+        Assert.Empty(handler.Sent);
     }
 
     [Fact]
@@ -125,6 +149,7 @@ public sealed class HttpEgressClientTests
         var handler = new RedirectHandler(new Uri("https://tracker.example.com/beacon"));
         var client = new HttpEgressClient(
             new HttpClient(handler),
+            this.egressBudget,
             Options.Create(options),
             this.eventStore,
             new FakeTimeProvider(now),
@@ -150,6 +175,7 @@ public sealed class HttpEgressClientTests
         options.AllowedHosts.Add("news.ycombinator.com");
         var client = new HttpEgressClient(
             new HttpClient(new FailingHandler()),
+            this.egressBudget,
             Options.Create(options),
             this.eventStore,
             new FakeTimeProvider(now),
@@ -214,7 +240,7 @@ public sealed class HttpEgressClientTests
         }
 
         return new HttpEgressClient(
-            new HttpClient(handler), Options.Create(options), this.eventStore,
+            new HttpClient(handler), this.egressBudget, Options.Create(options), this.eventStore,
             new FakeTimeProvider(now), NullLogger<HttpEgressClient>.Instance);
     }
 

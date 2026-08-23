@@ -52,7 +52,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [ ] B7 Kokoro classes (772 memories / 3,811 concepts / 718 entities): import into corpus or leave preserved? `[STEVE: whose memories are they]`
 - [x] B8 Belief embedding: only-active-conclusions embedded for retrieval (D-009 second half; currently beliefs enter context by subject, not similarity)
 - [ ] B9 Observation retention/compaction policy for `chat`-source growth (register open item)
-- [ ] B10 Repair/flag the 267 epoch-zero timestamps (dates sometimes recoverable from body text)
+- [~ Claude 2026-08-23] B10 Repair/flag the 267 epoch-zero timestamps (dates sometimes recoverable from body text)
 
 ## C · Privacy & egress (D-012)
 
@@ -60,7 +60,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] C2 Frontier gate ADR-0010: `IFrontierChat`, prompt-never-in-labels, LocalOnly unreachable-by-construction for context-bearing turns
 - [x] C3 Subscription frontier ADR-0011: `CodexChatClient` via `codex exec` (browser login, zero API cost), read-only sandboxed, live-verified
 - [ ] C4 **Redaction/consent step** so memory-informed prompts can become Egressable deliberately (unlocks frontier `chat`; needs its own ADR — the highest-leverage open design in the suite)
-- [~ Claude 2026-08-23] C5 Egress budget/rate alarm (a runaway proactive loop calling frontier nightly should trip something)
+- [x] C5 Egress budget/rate alarm (a runaway proactive loop calling frontier nightly should trip something)
 
 ## D · Model layer (§7.4)
 

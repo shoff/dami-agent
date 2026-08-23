@@ -50,6 +50,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IObservationEmbeddingStore, PostgresObservationEmbeddingStore>();
         services.TryAddSingleton<IApprovalService, PostgresApprovalService>();
         services.TryAddSingleton<IConclusionEmbeddingStore, PostgresConclusionEmbeddingStore>();
+        services.TryAddSingleton<IEgressMeter, PostgresEgressMeter>();
         services.TryAddSingleton<ICapabilityEmbeddingStore, PostgresCapabilityEmbeddingStore>();
 
         return services;

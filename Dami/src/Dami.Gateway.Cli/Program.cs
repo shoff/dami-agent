@@ -48,6 +48,9 @@ services.AddSingleton<ManifestExecutor>();
 services.AddOptions<CodexOptions>();
 services.Configure<CodexOptions>(configuration.GetSection(CodexOptions.SECTION_NAME));
 services.AddSingleton<ICodexProcess, CodexProcess>();
+services.Configure<Dami.Privacy.EgressBudgetOptions>(
+    configuration.GetSection(Dami.Privacy.EgressBudgetOptions.SECTION_NAME));
+services.AddSingleton<Dami.Contracts.Privacy.IEgressBudget, Dami.Privacy.EventCountEgressBudget>();
 services.AddSingleton<Dami.Contracts.Models.IFrontierChat, CodexChatClient>();
 services.AddOptions<RoutingOptions>();
 services.AddSingleton<Dami.Contracts.Models.IModelRouter, ModelRouter>();
@@ -66,17 +69,26 @@ services.AddOptions<TeiRerankOptions>();
 
 await using var provider = services.BuildServiceProvider();
 
-return await CommandRouter.RunAsync(
-    args,
-    provider.GetRequiredService<InboxCommands>(),
-    provider.GetRequiredService<TraceCommands>(),
-    provider.GetRequiredService<BeliefCommands>(),
-    provider.GetRequiredService<HealthCommands>(),
-    provider.GetRequiredService<RecallCommands>(),
-    provider.GetRequiredService<AskCommands>(),
-    provider.GetRequiredService<ContextCommands>(),
-    provider.GetRequiredService<VisionCommands>(),
-    provider.GetRequiredService<StatsCommands>(),
-    provider.GetRequiredService<ChatCommands>(),
-    provider.GetRequiredService<FrontierCommands>(),
-    provider.GetRequiredService<ApprovalCommands>());
+try
+{
+    return await CommandRouter.RunAsync(
+        args,
+        provider.GetRequiredService<InboxCommands>(),
+        provider.GetRequiredService<TraceCommands>(),
+        provider.GetRequiredService<BeliefCommands>(),
+        provider.GetRequiredService<HealthCommands>(),
+        provider.GetRequiredService<RecallCommands>(),
+        provider.GetRequiredService<AskCommands>(),
+        provider.GetRequiredService<ContextCommands>(),
+        provider.GetRequiredService<VisionCommands>(),
+        provider.GetRequiredService<StatsCommands>(),
+        provider.GetRequiredService<ChatCommands>(),
+        provider.GetRequiredService<FrontierCommands>(),
+        provider.GetRequiredService<ApprovalCommands>());
+}
+catch (Dami.Contracts.Privacy.EgressRefusedException exception)
+{
+    // A boundary refusal is an answer, not a crash. The event stream already has it.
+    Console.Error.WriteLine($"refused: {exception.Message}");
+    return 1;
+}

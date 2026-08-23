@@ -13,6 +13,15 @@ namespace Dami.Providers.Tests;
 /// <summary>The subscription frontier's gate: refuse before spawning, sandbox always.</summary>
 public sealed class CodexChatClientTests
 {
+    private readonly IEgressBudget egressBudget = Substitute.For<IEgressBudget>();
+
+    public CodexChatClientTests()
+    {
+        // NSubstitute's auto-stub for Task<string?> is "", which reads as a refusal.
+        this.egressBudget.FindRefusalAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+    }
+
     private static readonly DateTimeOffset now = new(2026, 8, 23, 15, 0, 0, TimeSpan.Zero);
     private static readonly Guid traceId = Guid.NewGuid();
 
@@ -26,6 +35,20 @@ public sealed class CodexChatClientTests
 
         await Assert.ThrowsAsync<EgressRefusedException>(() => client.CompleteAsync(
             Prompt(PrivacyClass.LocalOnly), CancellationToken.None));
+
+        await this.codexProcess.DidNotReceiveWithAnyArgs().RunAsync(
+            default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_Should_Refuse_When_The_Budget_Is_Exhausted_Without_Spawning()
+    {
+        this.egressBudget.FindRefusalAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>("Egress budget exhausted"));
+        var client = this.CreateClient(enabled: true);
+
+        await Assert.ThrowsAsync<EgressRefusedException>(() => client.CompleteAsync(
+            Prompt(PrivacyClass.Egressable), CancellationToken.None));
 
         await this.codexProcess.DidNotReceiveWithAnyArgs().RunAsync(
             default!, default!, default, default);
@@ -117,6 +140,7 @@ public sealed class CodexChatClientTests
             this.codexProcess,
             Options.Create(new CodexOptions { Enabled = enabled }),
             this.eventStore,
+            this.egressBudget,
             new FakeTimeProvider(now),
             NullLogger<CodexChatClient>.Instance);
     }

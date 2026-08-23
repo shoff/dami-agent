@@ -35,8 +35,11 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ProactivePassRunner>();
 builder.Services.AddSingleton<ProactiveScheduler>();
 
-// Egress: one client, allowlist-gated, every send a durable event.
+// Egress: one client, allowlist-gated, every send a durable event, rate-bounded (C5).
 builder.Services.Configure<EgressOptions>(builder.Configuration.GetSection(EgressOptions.SECTION_NAME));
+builder.Services.Configure<EgressBudgetOptions>(
+    builder.Configuration.GetSection(EgressBudgetOptions.SECTION_NAME));
+builder.Services.AddSingleton<IEgressBudget, EventCountEgressBudget>();
 builder.Services.AddHttpClient<IEgressClient, HttpEgressClient>()
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 

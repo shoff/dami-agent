@@ -23,6 +23,7 @@ public sealed class CodexChatClient : IFrontierChat
     private readonly ICodexProcess codexProcess;
     private readonly CodexOptions codexOptions;
     private readonly IExecutionEventStore eventStore;
+    private readonly IEgressBudget egressBudget;
     private readonly TimeProvider clock;
     private readonly ILogger<CodexChatClient> logger;
 
@@ -31,18 +32,21 @@ public sealed class CodexChatClient : IFrontierChat
         ICodexProcess codexProcess,
         IOptions<CodexOptions> codexOptions,
         IExecutionEventStore eventStore,
+        IEgressBudget egressBudget,
         TimeProvider clock,
         ILogger<CodexChatClient> logger)
     {
         ArgumentNullException.ThrowIfNull(codexProcess);
         ArgumentNullException.ThrowIfNull(codexOptions);
         ArgumentNullException.ThrowIfNull(eventStore);
+        ArgumentNullException.ThrowIfNull(egressBudget);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.codexProcess = codexProcess;
         this.codexOptions = codexOptions.Value;
         this.eventStore = eventStore;
+        this.egressBudget = egressBudget;
         this.clock = clock;
         this.logger = logger;
     }
@@ -56,7 +60,8 @@ public sealed class CodexChatClient : IFrontierChat
             prompt, ExecutionEventType.EgressRequested, ExecutionStatus.Running,
             $"{prompt.Purpose} -> codex subscription", cancellationToken).ConfigureAwait(false);
 
-        var refusal = this.FindRefusal(prompt);
+        var refusal = this.FindRefusal(prompt)
+            ?? await this.egressBudget.FindRefusalAsync(cancellationToken).ConfigureAwait(false);
         if (refusal is not null)
         {
             await this.EmitAsync(

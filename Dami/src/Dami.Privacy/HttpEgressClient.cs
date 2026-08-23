@@ -18,6 +18,7 @@ public sealed class HttpEgressClient : IEgressClient
     private const int MAX_REDIRECTS = 5;
 
     private readonly HttpClient httpClient;
+    private readonly IEgressBudget egressBudget;
     private readonly EgressOptions egressOptions;
     private readonly IExecutionEventStore eventStore;
     private readonly TimeProvider clock;
@@ -26,18 +27,21 @@ public sealed class HttpEgressClient : IEgressClient
     /// <summary>Creates the client.</summary>
     public HttpEgressClient(
         HttpClient httpClient,
+        IEgressBudget egressBudget,
         IOptions<EgressOptions> egressOptions,
         IExecutionEventStore eventStore,
         TimeProvider clock,
         ILogger<HttpEgressClient> logger)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
+        ArgumentNullException.ThrowIfNull(egressBudget);
         ArgumentNullException.ThrowIfNull(egressOptions);
         ArgumentNullException.ThrowIfNull(eventStore);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.httpClient = httpClient;
+        this.egressBudget = egressBudget;
         this.egressOptions = egressOptions.Value;
 
         if (this.egressOptions.MaxResponseBytes <= 0)
@@ -61,6 +65,8 @@ public sealed class HttpEgressClient : IEgressClient
         await this.EmitAsync(
             request, ExecutionEventType.EgressRequested, ExecutionStatus.Running,
             $"{request.Purpose} -> {request.Destination.Host}", cancellationToken).ConfigureAwait(false);
+
+        await this.ThrowIfOverBudgetAsync(request, cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -152,6 +158,22 @@ public sealed class HttpEgressClient : IEgressClient
         await content
             .LoadIntoBufferAsync(this.egressOptions.MaxResponseBytes, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private async Task ThrowIfOverBudgetAsync(
+        EgressRequest request,
+        CancellationToken cancellationToken)
+    {
+        var refusal = await this.egressBudget.FindRefusalAsync(cancellationToken).ConfigureAwait(false);
+        if (refusal is not null)
+        {
+            await this.EmitAsync(
+                request, ExecutionEventType.EgressRefused, ExecutionStatus.Failed,
+                refusal, cancellationToken).ConfigureAwait(false);
+
+            this.logger.LogWarning("Egress refused: {Reason}", refusal);
+            throw new EgressRefusedException(refusal);
+        }
     }
 
     private string? FindRefusal(Uri destination)

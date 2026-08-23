@@ -3517,3 +3517,24 @@ Caught by adding the test that was missing: the first wiring left
 the call site). `EmbedderServiceTests` now pins that the pass reaches both indexes.
 Also added Codex's 011 to the shared test fixture — same one-line trap as 009, other
 direction this time. Full gate: 12 suites, 354 tests, 0 warnings.
+
+## 2026-08-23 — Claude — C5: the egress budget, and the alarm that actually fires
+
+D-012 already makes every egress attempt a durable `EgressRequested` event before any
+gate runs, so the stream is the meter: `PostgresEgressMeter` counts attempts in a
+rolling window and `EventCountEgressBudget` refuses past a bound (30/hour, 200/day by
+default) at both doors — `HttpEgressClient` before any network I/O, `CodexChatClient`
+before any spawn, tests asserting neither is touched. Refused attempts still count,
+which is what makes a runaway loop visible while it is being refused.
+
+The first alarm design was wrong and the live demo caught it: surfacing "exactly at
+the crossing" (`count == bound`) never fires when attempts jump past the bound —
+demonstrated with 3 attempts against bound 1, refused silently. Replaced with
+edge-transition detection in the singleton: one surfacing on the allowed→refused
+transition, quiet while tripped, re-arms on recovery (all three states pinned in
+tests). Also: the CLI now prints `refused: <reason>` instead of a stack trace.
+
+Live: bound forced to 1 → `refused: Egress budget exhausted: 4 attempt(s) in the
+last hour (bound 1)`, `EgressRefused` in the event stream, `Egress budget tripped`
+Pending in the surfacing queue; at normal bounds the frontier answers as before.
+Full gate: 12 suites, 366 tests, 0 warnings.
