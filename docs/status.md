@@ -4,10 +4,14 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 21:00 CDT (`2026-08-23T02:00Z`)
+- **Last updated:** 2026-08-22 21:19 CDT (`2026-08-23T02:19Z`)
 - **Updated by:** Claude Code session, from direct inspection of this workstation
 - **Current phase:** 0 and 1, both in progress
 
+> **`docs/workstation-runbook.md` is the operational companion to this file** — service
+> inventory, health checks, host-specific traps, and the protocol for working alongside
+> another agent. Read its §7 before touching shared state.
+>
 > **Two warnings about reading this file.**
 >
 > A second agent is actively provisioning infrastructure on this machine. Anything in
@@ -69,9 +73,10 @@ the instrumentation gates the claim that Dami Core is faster than Hermes — arc
 | pgvector usable for the planned corpus | mostly | 0.8.6 + `halfvec` indexes Qwen3-4B (2560d) and BGE-M3; Qwen3-8B (4096d) exceeds the 4000d halfvec ceiling |
 | PostgreSQL from PGDG (D-004) | done | `postgresql-16 16.15-1.pgdg24.04+2`, `postgresql-16-pgvector 0.8.6-1.pgdg24.04+1` |
 | Least-privilege database roles | done | `dami_ddl` owns schema `dami`; `dami_app` DML only — both verified non-superuser and DDL-denied |
-| `uv` for Python sidecars | not installed | `command -v uv` → nothing |
+| `uv` for Python sidecars | done | `uv 0.12.5` at `/usr/local/bin`, checksum-verified from the GitHub release |
 | Embedding service | done | TEI `89-1.9.0` on GPU, `BAAI/bge-m3`, 1024 dims, ~46 ms per embed |
-| Reranker service | done | TEI `89-1.9.0` on GPU, `BAAI/bge-reranker-v2-m3`; both services 3262 MiB of 16376 |
+| Reranker service | done | TEI `89-1.9.0` on GPU, `BAAI/bge-reranker-v2-m3`; both TEI services 3254 MiB |
+| LLM sidecar (arch §7.4) | done | `ollama/ollama:0.32.15` on GPU, `qwen3:8b`, 87–128 tok/s warm |
 | SSH and remote access | unknown | Not verified by this session |
 
 **Phase 1's stated exit conditions are met:** stable host, GPU compute verified, rollback
@@ -158,7 +163,8 @@ attached to nothing. Worth deleting.
 | Arch | `89` = Ada / sm89, correct for the RTX 4080. `89-1.9.0` is newest; `89-1.10.0` returns 404. |
 | `dami-embed` | `127.0.0.1:8080`, `BAAI/bge-m3`, fp16, CLS pooling, 1024 dims, 8192 max input |
 | `dami-rerank` | `127.0.0.1:8081`, `BAAI/bge-reranker-v2-m3`, fp16, cross-encoder, 8192 max input |
-| VRAM, both resident | **3262 MiB of 16376** — leaves ~12.8 GiB for an LLM sidecar, vision, and TTS |
+| `dami-llm` | `127.0.0.1:11434`, `ollama/ollama:0.32.15`, `qwen3:8b`, unloads after `KEEP_ALIVE=5m` |
+| VRAM | TEI pair resident **3254 MiB**; `qwen3:8b` adds ~5.6 GiB when loaded → **8865 MiB** with all three, leaving ~7.3 GiB for vision and a resident TTS |
 | Latency | 5 sequential single embeds in 0.228 s wall, curl overhead included |
 | Restart | both `unless-stopped`; `docker.service` is enabled at boot, so they survive reboot |
 | Model cache | `/home/steve/Data/tei-models` — outside the Timeshift snapshot set, and re-downloadable |
@@ -283,7 +289,8 @@ Nothing below can be settled by inspection. Each blocks work that is expensive t
 | 1 | Accept or reject **ADR-0001** — Linux Mint 22.3 as host, reversing D-003's Debian 13 | Phase 1 close | Reversal is a reinstall now, a data migration after Phase 2 |
 | 2 | Rehearse one restore from the live USB — **recommended, not blocking** | acceptance item 13 | Downgraded from a Phase 1 gate by Steve on 2026-08-22. Cheap now while the host carries nothing; the same work against real data in Phase 10. |
 | 3 | **Stay on PostgreSQL 16, or move to 17/18?** | Phase 2 schema | PGDG is configured, so either is available. The removed container ran 18.6. Cheap now with two near-empty databases, expensive once the corpus lands. |
-| 4 | ~~Which embedding container~~ | — | **Decided 2026-08-22: TEI.** Running on GPU with `bge-m3`. Ollama stays separate for the LLM sidecar. |
+| 4 | ~~Which embedding container~~ | — | **Decided 2026-08-22: TEI.** Running on GPU with `bge-m3`; Ollama separate for the LLM sidecar, both now up. |
+| 8 | **Local-sidecar accuracy needs thinking mode.** `qwen3:8b` misclassified with `think:false` and was correct with `think:true` (0.02 s vs 3.3 s). | arch §7.4 routing | The cheap path is not the accurate path on this model. Either budget seconds for classification, or few-shot prompt and re-measure. |
 | 5 | Split `D-001`…`D-022` into individual ADR files, or leave them in the register | doc hygiene | `CLAUDE.md` says decisions live in `docs/decisions/`; the register is a parallel structure |
 | 6 | Retarget `docs/csharpcodestandards.md` from MAI to Dami | before first code | It still says `MAI.sln`, `MAI.Core`, `MA.RoslynAnalyzers`, `mai_dev`. `MA.RoslynAnalyzers` does not exist for this project. |
 | 7 | Add `apt-mark hold` on the NVIDIA toolkit and driver stack | host stability | ADR-0002 assumes controlled update windows; nothing enforces them yet |
@@ -317,7 +324,8 @@ change, or an ADR — not silence.
    cluster is covered only by a single manual dump. Backup destination, encryption, and
    retention are all still open decisions in the register.
 4. **Decide PostgreSQL 16 versus 17/18** while both databases are still near-empty.
-5. **Install `uv`** and stand up the Ollama sidecar for model routing (architecture §7.4).
+5. **Design the Phase 2 schema** — event store, observation corpus, conclusions ledger,
+   pushback ledger — as `dami_ddl`. First real use of the database.
 6. **Phase 0 on the Mac** — backups, corpus export, eval set, instrumentation. Phase 2
    is blocked on all four regardless of what happens on this workstation.
 7. *Recommended, not blocking:* rehearse a Timeshift restore from the live USB, and
