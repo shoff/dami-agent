@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Data;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -28,6 +29,28 @@ public sealed class PostgresCapabilityEmbeddingStore : ICapabilityEmbeddingStore
     private string Table => $"{this.storeOptions.SchemaName}.capability_embeddings";
 
     /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<Guid, string>> VersionsAsync(
+        string embeddingModel,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(embeddingModel);
+
+        await using var command = this.dataSource.CreateCommand(
+            $"select capability_id, capability_version from {this.Table} "
+            + "where embedding_model = @model;");
+        command.Parameters.AddWithValue("model", embeddingModel);
+        await using var reader = await command
+            .ExecuteReaderAsync(CommandBehavior.SingleResult, cancellationToken).ConfigureAwait(false);
+        var versions = new Dictionary<Guid, string>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            versions.Add(reader.GetGuid(0), reader.GetString(1));
+        }
+
+        return new ReadOnlyDictionary<Guid, string>(versions);
+    }
+
+    /// <inheritdoc />
     public async Task UpsertAsync(
         Guid capabilityId,
         string capabilityVersion,
@@ -50,6 +73,21 @@ public sealed class PostgresCapabilityEmbeddingStore : ICapabilityEmbeddingStore
         command.Parameters.AddWithValue("version", capabilityVersion);
         command.Parameters.AddWithValue("model", embeddingModel);
         command.Parameters.AddWithValue("embedding", ToVectorLiteral(embedding));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task RemoveAsync(
+        Guid capabilityId,
+        string embeddingModel,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(embeddingModel);
+
+        await using var command = this.dataSource.CreateCommand(
+            $"delete from {this.Table} where capability_id = @id and embedding_model = @model;");
+        command.Parameters.AddWithValue("id", capabilityId);
+        command.Parameters.AddWithValue("model", embeddingModel);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

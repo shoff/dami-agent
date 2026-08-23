@@ -3476,6 +3476,43 @@ intent embed → ANN → rerank → existing bundle expansion. F2c1 is claimed f
 split preserves the stated F2 outcome and makes both behaviors independently
 demonstrable.
 
+F2c1 was driven from the persistence boundary upward. The first live test required a
+model-filtered snapshot of indexed capability versions and failed red with CS1061 for
+the absent `VersionsAsync`; the minimum read-only contract and PostgreSQL query made it
+green 1/1. A second live test required stale cleanup to remove only one capability/model
+pair and failed red with CS1061 for `RemoveAsync`; the narrow delete made it green 1/1.
+This keeps version comparison in the orchestration layer while persistence owns only
+storage operations.
+
+The synchronizer test then pinned one complete plan: do not re-embed an unchanged
+version, batch changed/new descriptions in deterministic registry order, upsert their
+stable IDs and versions, and remove an indexed ID absent from the point-in-time
+snapshot. Its initial compile also found a test-double cancellation annotation error;
+after correcting the scaffold, the clean red was CS0246 for the missing synchronizer
+and result types. `CapabilityIndexSynchronizer` depends only on inventory, embedding
+store, and embedding-client abstractions. The first green attempt did not run because
+Steve cannot chown root-created files; ownership was corrected administratively. The
+next compile triggered DAMI0003 at 55 method lines, so planning, embedding, upsert, and
+cleanup were separated into focused helpers. The unchanged behavioral test then passed
+1/1.
+
+An adversarial concurrent-first-use test was added before locking. Its first attempt
+was stopped by test-only VSTHRD003 and xUnit2013 diagnostics; simplifying the delayed
+overlap and using `Assert.Single` produced the intended behavioral red: two callers
+made two embedding batches. An instance-local async gate around the complete sync made
+the test green: the second caller re-reads versions after the first upsert and performs
+no duplicate embedding or write. Cancellation while waiting does not acquire or
+release the gate, and acquired gates release in `finally`.
+
+F2c1 is demonstrated. The capability suite passed 23/23 and the five live capability
+store tests passed 5/5. Definitive verification ran in
+`/tmp/dami-f2c1-gate.LXeJ2F/repo` at released HEAD `63da2f2` with only the nine explicit
+F2c1 paths overlaid, isolating Claude's then-active C5 files. `dotnet build Dami.sln
+--nologo` produced 0 warnings and 0 errors; all twelve suites passed 358/358; and
+`dotnet format Dami.sln --verify-no-changes --no-restore --verbosity minimal` exited 0.
+No schema change is involved; migration 011 remains checksummed and applied. F2c1 is
+flipped to `[x]`, and F2c2 is claimed before its first test.
+
 ## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
 
 Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,

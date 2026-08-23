@@ -18,6 +18,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Dami.Capabilities\Dami.Capabilities.csproj" />
+        <ProjectReference Include="..\..\src\Dami.Contracts\Dami.Contracts.csproj" />
     </ItemGroup>
 
     <ItemGroup>
