@@ -1116,6 +1116,36 @@ with `TransportMessage`, keep received frames intact for diagnostics, assign seq
 serialized send order, and make Loopback mirror the real transport. Strict red–green TDD
 continues; Claude Code's proactive paths remain outside this change.
 
+### Outbound envelope red–green result
+
+1. The first Loopback test was compile-red because `TransportMessage` did not exist.
+2. After adding only that contract, it remained compile-red because
+   `SendAsync` still required `TransportFrame`.
+3. Migrated `ITransport`, Loopback, PipeTransport, and their tests. Loopback now snapshots
+   payload and assigns version 1/sequence 0 under a send gate. PipeTransport assigns its
+   sequence inside the existing gate and increments only after a successful flush.
+4. The original narrow test passed. The overlapping PipeTransport test also passed with
+   decoded wire sequences 0 and 1, and the payload-snapshot test remained green.
+
+Verification:
+
+```text
+dotnet format --verify-no-changes --include <changed outbound transport files>
+  passed with no output
+
+dotnet build Dami.sln
+  Build succeeded. 0 warnings, 0 errors.
+
+dotnet test Dami.sln --no-build
+  Dami.Tests             1/1
+  Architecture.Tests    10/10
+  Transport.Tests       33/33
+  Persistence.Tests     68/68
+  Proactive.Tests       10/10
+  Analyzers.Tests       12/12
+  Total                 134 passed, 0 failed, 0 skipped
+```
+
 ## 2026-08-22 — Claude Code — Conclusions and pushback ledgers
 
 The memory layer of D-009 and D-011, in C#. Red-first this time, both cycles.

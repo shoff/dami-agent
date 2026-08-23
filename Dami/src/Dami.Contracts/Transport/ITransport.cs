@@ -3,10 +3,10 @@ namespace Dami.Contracts.Transport;
 /// <summary>Provides serialization-independent frame delivery.</summary>
 public interface ITransport
 {
-    /// <summary>Sends one frame, snapshotting its payload before successful completion.</summary>
+    /// <summary>Frames and sends one message, snapshotting its payload before successful completion.</summary>
     /// <remarks>Overlapping calls are supported.</remarks>
     ValueTask SendAsync(
-        TransportFrame frame,
+        TransportMessage message,
         CancellationToken cancellationToken);
 
     /// <summary>Receives frames until the transport completes or cancellation is requested.</summary>

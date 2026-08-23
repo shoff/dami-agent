@@ -13,6 +13,7 @@ public sealed class PipeTransport : ITransport, IAsyncDisposable
     private readonly FrameSequenceTracker inboundSequence = new();
     private readonly CancellationTokenSource lifetimeCancellation = new();
     private readonly SemaphoreSlim sendGate = new(1, 1);
+    private uint nextOutboundSequence;
     private int disposed;
     private int receiveActive;
 
@@ -25,7 +26,7 @@ public sealed class PipeTransport : ITransport, IAsyncDisposable
 
     /// <inheritdoc />
     public async ValueTask SendAsync(
-        TransportFrame frame,
+        TransportMessage message,
         CancellationToken cancellationToken)
     {
         this.ThrowIfDisposed();
@@ -36,7 +37,9 @@ public sealed class PipeTransport : ITransport, IAsyncDisposable
             using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken,
                 this.lifetimeCancellation.Token);
+            TransportFrame frame = this.CreateOutboundFrame(message);
             await this.WriteFrameAsync(frame, linkedCancellation.Token).ConfigureAwait(false);
+            this.nextOutboundSequence = unchecked(this.nextOutboundSequence + 1);
         }
         catch (OperationCanceledException) when (
             Volatile.Read(ref this.disposed) != 0 &&
@@ -48,6 +51,17 @@ public sealed class PipeTransport : ITransport, IAsyncDisposable
         {
             this.sendGate.Release();
         }
+    }
+
+    private TransportFrame CreateOutboundFrame(TransportMessage message)
+    {
+        return new TransportFrame(
+            FrameCodec.INITIAL_PROTOCOL_VERSION,
+            message.MessageType,
+            this.nextOutboundSequence,
+            message.CorrelationId,
+            message.Flags,
+            message.Payload);
     }
 
     private async ValueTask WriteFrameAsync(

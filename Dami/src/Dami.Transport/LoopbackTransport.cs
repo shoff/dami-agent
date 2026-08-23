@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Dami.Contracts.Transport;
+using Dami.Transport.Framing;
 
 namespace Dami.Transport;
 
@@ -8,6 +9,8 @@ namespace Dami.Transport;
 public sealed class LoopbackTransport : ITransport, IAsyncDisposable
 {
     private readonly Channel<TransportFrame> frames;
+    private readonly SemaphoreSlim sendGate = new(1, 1);
+    private uint nextOutboundSequence;
 
     /// <summary>Initializes a loopback transport with bounded backpressure.</summary>
     public LoopbackTransport(int capacity = 256)
@@ -26,12 +29,27 @@ public sealed class LoopbackTransport : ITransport, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public ValueTask SendAsync(
-        TransportFrame frame,
+    public async ValueTask SendAsync(
+        TransportMessage message,
         CancellationToken cancellationToken)
     {
-        TransportFrame snapshot = frame with { Payload = frame.Payload.ToArray() };
-        return this.frames.Writer.WriteAsync(snapshot, cancellationToken);
+        await this.sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var frame = new TransportFrame(
+                FrameCodec.INITIAL_PROTOCOL_VERSION,
+                message.MessageType,
+                this.nextOutboundSequence,
+                message.CorrelationId,
+                message.Flags,
+                message.Payload.ToArray());
+            await this.frames.Writer.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
+            this.nextOutboundSequence = unchecked(this.nextOutboundSequence + 1);
+        }
+        finally
+        {
+            this.sendGate.Release();
+        }
     }
 
     /// <inheritdoc />

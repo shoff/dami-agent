@@ -15,9 +15,10 @@ public sealed class PipeTransportTests
         var outbound = new Pipe();
         var connection = new TestDuplexPipe(inbound.Reader, outbound.Writer);
         await using var transport = new PipeTransport(connection);
-        TransportFrame expected = CreateFrame();
+        TransportMessage message = CreateMessage();
+        TransportFrame expected = CreateOutboundFrame(message, 0);
 
-        await transport.SendAsync(expected, timeout.Token);
+        await transport.SendAsync(message, timeout.Token);
         TransportFrame actual = await ReadFrameAsync(outbound.Reader, timeout.Token);
 
         Assert.Equal(Describe(expected), Describe(actual));
@@ -47,8 +48,8 @@ public sealed class PipeTransportTests
         var outbound = new Pipe(new PipeOptions(pauseWriterThreshold: 1, resumeWriterThreshold: 1));
         var connection = new TestDuplexPipe(inbound.Reader, outbound.Writer);
         await using var transport = new PipeTransport(connection);
-        TransportFrame first = CreateFrame();
-        TransportFrame second = first with { Sequence = first.Sequence + 1 };
+        TransportMessage first = CreateMessage();
+        TransportMessage second = CreateMessage();
 
         ValueTask firstSend = transport.SendAsync(first, timeout.Token);
         Assert.False(firstSend.IsCompleted);
@@ -58,7 +59,9 @@ public sealed class PipeTransportTests
         await firstSend;
         await secondSend;
         TransportFrame[] actual = await receive;
-        Assert.Equal([first, second], actual);
+        Assert.Equal(
+            [CreateOutboundFrame(first, 0), CreateOutboundFrame(second, 1)],
+            actual);
     }
 
     [Fact]
@@ -72,7 +75,7 @@ public sealed class PipeTransportTests
         await outbound.Reader.CompleteAsync();
 
         EndOfStreamException exception = await Assert.ThrowsAsync<EndOfStreamException>(
-            () => transport.SendAsync(CreateFrame(), timeout.Token).AsTask());
+            () => transport.SendAsync(CreateMessage(), timeout.Token).AsTask());
 
         Assert.Equal("The transport output completed before the frame was accepted.", exception.Message);
     }
@@ -88,7 +91,7 @@ public sealed class PipeTransportTests
         outbound.Writer.CancelPendingFlush();
 
         OperationCanceledException exception = await Assert.ThrowsAsync<OperationCanceledException>(
-            () => transport.SendAsync(CreateFrame(), timeout.Token).AsTask());
+            () => transport.SendAsync(CreateMessage(), timeout.Token).AsTask());
 
         Assert.Equal("The transport output flush was canceled.", exception.Message);
     }
@@ -164,7 +167,7 @@ public sealed class PipeTransportTests
         await transport.DisposeAsync();
 
         ObjectDisposedException exception = await Assert.ThrowsAsync<ObjectDisposedException>(
-            () => transport.SendAsync(CreateFrame(), CancellationToken.None).AsTask());
+            () => transport.SendAsync(CreateMessage(), CancellationToken.None).AsTask());
 
         Assert.Equal(nameof(PipeTransport), exception.ObjectName);
     }
@@ -195,7 +198,7 @@ public sealed class PipeTransportTests
         var outbound = new Pipe(new PipeOptions(pauseWriterThreshold: 1, resumeWriterThreshold: 1));
         var connection = new TestDuplexPipe(inbound.Reader, outbound.Writer);
         var transport = new PipeTransport(connection);
-        ValueTask send = transport.SendAsync(CreateFrame(), CancellationToken.None);
+        ValueTask send = transport.SendAsync(CreateMessage(), CancellationToken.None);
         Assert.False(send.IsCompleted);
 
         await transport.DisposeAsync().AsTask().WaitAsync(timeout.Token);
@@ -237,6 +240,28 @@ public sealed class PipeTransportTests
             Guid.Parse("06756B26-357A-478C-A3CE-8AE55015DBA9"),
             FrameFlags.None,
             new byte[] { 8, 13, 21 });
+    }
+
+    private static TransportMessage CreateMessage()
+    {
+        return new TransportMessage(
+            17,
+            Guid.Parse("06756B26-357A-478C-A3CE-8AE55015DBA9"),
+            FrameFlags.None,
+            new byte[] { 8, 13, 21 });
+    }
+
+    private static TransportFrame CreateOutboundFrame(
+        TransportMessage message,
+        uint sequence)
+    {
+        return new TransportFrame(
+            FrameCodec.INITIAL_PROTOCOL_VERSION,
+            message.MessageType,
+            sequence,
+            message.CorrelationId,
+            message.Flags,
+            message.Payload);
     }
 
     private static async Task WriteFrameAsync(
