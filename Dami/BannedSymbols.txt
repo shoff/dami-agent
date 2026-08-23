@@ -1,0 +1,20 @@
+# Dami Core — banned APIs. Each entry is a build error.
+# Format: T:Type | M:Method | P:Property | F:Field  ; message
+# See docs/csharpcodestandards.md §5 and §8.
+
+# --- sync-over-async. Async at the core means async all the way down. ---
+P:System.Threading.Tasks.Task`1.Result; Sync-over-async deadlocks. Await the task.
+M:System.Threading.Tasks.Task.Wait; Sync-over-async deadlocks. Await the task.
+M:System.Threading.Tasks.Task.WaitAll; Use await Task.WhenAll.
+M:System.Threading.Tasks.Task.WaitAny; Use await Task.WhenAny.
+M:System.Threading.Thread.Sleep; Blocks a pool thread. Use await Task.Delay.
+
+# --- service location. Constructor injection only. ---
+M:System.Activator.CreateInstance; Service locator. Inject the dependency.
+M:System.IServiceProvider.GetService; Service locator. Inject the dependency.
+
+# --- ambient time. Inject ISystemClock so time is testable. ---
+P:System.DateTime.Now; Inject ISystemClock.
+P:System.DateTime.UtcNow; Inject ISystemClock.
+P:System.DateTimeOffset.Now; Inject ISystemClock.
+P:System.DateTimeOffset.UtcNow; Inject ISystemClock.

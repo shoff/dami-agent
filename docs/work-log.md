@@ -232,3 +232,98 @@ solution belongs to Codex.
   own SSH key and known-host configuration. Ran only the push as user `steve` so Git
   used the owner's existing credentials.
 - Push succeeded: `origin/main` advanced from `c45ecdf` to `fe3050f`.
+
+## 2026-08-22 — Claude Code — Build enforcement layer and standards retarget
+
+Scope was build configuration and documentation. No application source was touched;
+`Dami/src` and `Dami/tests` remain Codex's.
+
+### Why
+
+`docs/csharpcodestandards.md` described enforcement by `MA.RoslynAnalyzers`, which is
+MAI's package from a separate repository and **does not exist here**. There was no
+`.editorconfig` and no `Directory.Build.props`. Every rule the document called a "build
+error" — including the no-underscore-prefix and `this.` agreements Steve repeats most —
+was enforced by nothing but an agent remembering.
+
+### Commands and observed results
+
+- Baseline before any change: `dotnet build Dami.sln` → **0 warnings, 0 errors**. Recorded
+  first so any new error would be attributable.
+- Added `.editorconfig` (repo root), `Dami/Directory.Build.props`, `Dami/BannedSymbols.txt`.
+- Rebuild after: **0 warnings, 0 errors**. Codex's tree passes the full enforcement layer
+  unchanged; nothing was forced on it.
+- `dotnet test Dami.sln` → `Dami.Tests` 1/1 passed, `Dami.Transport.Tests` 6/6 passed.
+
+### Enforcement verified, not assumed
+
+A green build could equally mean the rules never ran. Compiled a throwaway project at
+`Dami/.probe/` containing deliberate violations and confirmed each rule fired **as an
+error**, then removed it:
+
+```
+8 error IDE1006   _ prefix; PascalCase const; PascalCase static readonly; interface without I
+4 error RS0030    DateTime.UtcNow banned; Task<T>.Result banned
+4 error IDE0009   missing this. qualification
+2 error VSTHRD002 synchronously waiting on a task
+2 error IDE0161   block-scoped namespace
+2 error IDE0011   missing braces on if
+```
+
+### Design choices
+
+- `EnforceCodeStyleInBuild=true` is what gives `.editorconfig` teeth; without it the
+  IDE**** rules never fail a build or a CI run.
+- `TreatWarningsAsErrors=true` implements §13's zero-warning bar and makes nullable
+  violations errors, satisfying C-05.
+- Banned APIs cover sync-over-async, service location, and ambient time. Adding one is a
+  single line in `BannedSymbols.txt`.
+- `AnalysisLevel=latest` with the SDK analyzers, but the full CA ruleset was **not**
+  enabled. That would likely have broken Codex's build mid-iteration, which is a
+  decision to take deliberately rather than as a side effect.
+
+### Standards document retargeted
+
+Rewrote `docs/csharpcodestandards.md` for Dami: project layout mapped onto architecture
+§8, Postgres roles corrected to `dami_ddl`/`dami_app`, MAI's canonical-implementation
+list marked as a shape to follow rather than things that exist here.
+
+Expanded §6 for Steve's instruction that SOLID is strict, with the four failure modes
+named explicitly: leaky abstractions, abstractions at the wrong layer, async at the core,
+constructor injection only.
+
+Replaced §12 with an honest accounting: a table of what is a build error today, and a
+table of the **enforcement gap** — SRP/OCP/LSP/ISP/DIP, layering, method length,
+`#region`, `dynamic`, hot-path LINQ, and structured-logging-only are all unenforced and
+rest on review.
+
+### Open decision raised, not taken
+
+Closing the SOLID gap: port or rewrite `MA.RoslynAnalyzers` for Dami, add architecture
+tests for layering only, or accept review-based enforcement. **Layering is the cheapest
+and highest-value** — one test project asserting dependency direction would mechanically
+close both "leaky abstractions" and "abstractions at the wrong layer". Recorded in §12;
+not decided.
+
+### Ownership fix (same session)
+
+Codex committed `fe3050f` and `b262f70` as root. That left **60 root-owned paths**
+including `.git/config` and four `.git/objects` subdirectories. The symptom was a hard
+failure on the next `git add`:
+
+```
+error: insufficient permission for adding an object to repository database .git/objects
+fatal: adding files failed
+```
+
+Steve would have hit the same wall editing any of those files in his own home directory.
+
+- Ran `chown -R steve:steve` on the repository. Root-owned paths: 60 → 0.
+- Added `.githooks/post-commit` and set `core.hooksPath = .githooks`. When a commit is
+  made by root, the hook restores the repository to its directory owner. It is a no-op
+  for non-root committers and when the repo is genuinely root-owned.
+- `core.hooksPath` is local config, so **Codex must set it too** if its clone or config
+  differs: `git config core.hooksPath .githooks`.
+- Rebuilt after Codex's two commits landed: `dotnet build Dami.sln` → **0 warnings, 0
+  errors** with the enforcement layer active. The earlier verification predated their
+  transport code; this one covers it.

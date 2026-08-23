@@ -1,0 +1,130 @@
+# Dami Core — mechanical enforcement of docs/csharpcodestandards.md
+# These are build errors, not suggestions. See Directory.Build.props for the
+# EnforceCodeStyleInBuild + TreatWarningsAsErrors switches that make them bite.
+
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.{cs,csx}]
+indent_size = 4
+
+[*.{json,yml,yaml,csproj,props,targets,sln}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+# ---------------------------------------------------------------------------
+# C# style — the working agreements
+# ---------------------------------------------------------------------------
+[*.cs]
+
+# "this." on every instance member access. Standards §2.
+dotnet_style_qualification_for_field = true:error
+dotnet_style_qualification_for_property = true:error
+dotnet_style_qualification_for_method = true:error
+dotnet_style_qualification_for_event = true:error
+dotnet_diagnostic.IDE0009.severity = error
+
+# File-scoped namespaces only. Standards §3.
+csharp_style_namespace_declarations = file_scoped:error
+dotnet_diagnostic.IDE0161.severity = error
+
+# Braces always — no single-line if/else/for/foreach/while. Standards §3.
+csharp_prefer_braces = true:error
+dotnet_diagnostic.IDE0011.severity = error
+
+# Naming violations are errors, not hints.
+dotnet_diagnostic.IDE1006.severity = error
+
+# Modern C# preferences from standards §3, kept as warnings: they are style
+# improvements rather than working agreements, and TreatWarningsAsErrors will
+# still stop the build on them.
+csharp_style_var_when_type_is_apparent = true:warning
+csharp_style_prefer_pattern_matching = true:warning
+csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
+csharp_style_expression_bodied_methods = false:silent
+dotnet_style_readonly_field = true:warning
+
+# Unused usings.
+dotnet_diagnostic.IDE0005.severity = error
+
+# ---------------------------------------------------------------------------
+# Naming rules. Order matters: first match wins, so most specific first.
+# ---------------------------------------------------------------------------
+
+# --- styles ---
+dotnet_naming_style.upper_snake.capitalization = all_upper
+dotnet_naming_style.upper_snake.word_separator = _
+
+dotnet_naming_style.camel.capitalization = camel_case
+
+dotnet_naming_style.pascal.capitalization = pascal_case
+
+dotnet_naming_style.i_prefixed.capitalization = pascal_case
+dotnet_naming_style.i_prefixed.required_prefix = I
+
+dotnet_naming_style.t_prefixed.capitalization = pascal_case
+dotnet_naming_style.t_prefixed.required_prefix = T
+
+# --- symbols ---
+# const at EVERY accessibility, per standards §1.
+dotnet_naming_symbols.const_fields.applicable_kinds = field
+dotnet_naming_symbols.const_fields.applicable_accessibilities = *
+dotnet_naming_symbols.const_fields.required_modifiers = const
+
+# static readonly at EVERY accessibility, per standards §1.
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.applicable_accessibilities = *
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static,readonly
+
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private,private_protected
+
+dotnet_naming_symbols.locals_and_parameters.applicable_kinds = parameter,local
+dotnet_naming_symbols.locals_and_parameters.applicable_accessibilities = *
+
+dotnet_naming_symbols.interfaces.applicable_kinds = interface
+dotnet_naming_symbols.interfaces.applicable_accessibilities = *
+
+dotnet_naming_symbols.type_parameters.applicable_kinds = type_parameter
+dotnet_naming_symbols.type_parameters.applicable_accessibilities = *
+
+dotnet_naming_symbols.types_and_members.applicable_kinds = class,struct,enum,delegate,method,property,event
+dotnet_naming_symbols.types_and_members.applicable_accessibilities = *
+
+# --- rules, most specific first ---
+dotnet_naming_rule.const_fields_are_upper_snake.symbols = const_fields
+dotnet_naming_rule.const_fields_are_upper_snake.style = upper_snake
+dotnet_naming_rule.const_fields_are_upper_snake.severity = error
+
+dotnet_naming_rule.static_readonly_fields_are_camel.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_fields_are_camel.style = camel
+dotnet_naming_rule.static_readonly_fields_are_camel.severity = error
+
+# No underscore prefix, ever. The camel style forbids it by construction.
+dotnet_naming_rule.private_fields_are_camel.symbols = private_fields
+dotnet_naming_rule.private_fields_are_camel.style = camel
+dotnet_naming_rule.private_fields_are_camel.severity = error
+
+dotnet_naming_rule.locals_and_parameters_are_camel.symbols = locals_and_parameters
+dotnet_naming_rule.locals_and_parameters_are_camel.style = camel
+dotnet_naming_rule.locals_and_parameters_are_camel.severity = error
+
+dotnet_naming_rule.interfaces_are_i_prefixed.symbols = interfaces
+dotnet_naming_rule.interfaces_are_i_prefixed.style = i_prefixed
+dotnet_naming_rule.interfaces_are_i_prefixed.severity = error
+
+dotnet_naming_rule.type_parameters_are_t_prefixed.symbols = type_parameters
+dotnet_naming_rule.type_parameters_are_t_prefixed.style = t_prefixed
+dotnet_naming_rule.type_parameters_are_t_prefixed.severity = error
+
+dotnet_naming_rule.types_and_members_are_pascal.symbols = types_and_members
+dotnet_naming_rule.types_and_members_are_pascal.style = pascal
+dotnet_naming_rule.types_and_members_are_pascal.severity = error

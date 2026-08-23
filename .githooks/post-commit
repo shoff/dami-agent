@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Agents in this repository run as root while the repository belongs to steve.
+# Without this, every root-made commit leaves root-owned blobs in .git/objects and
+# root-owned files in the tree. The symptom is another agent, or Steve, hitting
+# "insufficient permission for adding an object to repository database" on the next
+# git add -- and Steve being unable to edit files in his own home directory.
+#
+# Enabled by:  git config core.hooksPath .githooks
+set -euo pipefail
+[ "$(id -u)" -eq 0 ] || exit 0
+repo="$(git rev-parse --show-toplevel)"
+owner="$(stat -c '%U:%G' "$repo")"
+[ "$owner" = "root:root" ] && exit 0
+chown -R "$owner" "$repo"

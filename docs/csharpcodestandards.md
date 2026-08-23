@@ -1,13 +1,22 @@
-# MAI C# Code Styles & Standards
+# Dami Core — C# Code Styles & Standards
 
-The conventions used across every C# project in this solution. Most of them are not
-suggestions: they are enforced at build time by the `MA.RoslynAnalyzers` NuGet package
-(referenced by every C# project) and `.editorconfig`, and **violations are build errors,
-not warnings**. The solution builds with zero warnings; that is the bar for "done."
+Carried over from MAI and retargeted to Dami Core on 2026-08-22. The conventions are
+inherited wholesale; the enforcement is **not**, and §12 is explicit about the
+difference. Target framework is **net10.0** everywhere.
 
-Sources of truth, in precedence order: `CLAUDE.md` (root), `.editorconfig`,
-the `MA.RoslynAnalyzers` package (separate repo), and this guide as the narrative
-companion. Target framework is **net10.0** everywhere.
+Sources of truth, in precedence order: `AGENTS.md` and `CLAUDE.md` (root),
+`.editorconfig` and `Dami/Directory.Build.props`, and this guide as the narrative
+companion.
+
+> **What actually enforces these rules here.** MAI enforced them with the
+> `MA.RoslynAnalyzers` package from a separate repository. **That package does not exist
+> for Dami Core.** Everything mechanically enforceable without it is enforced — see §12
+> for exactly what is a build error today and what rests on review discipline. Do not
+> assume a rule in this document is checked by a machine unless §12 says so.
+
+The solution builds with **zero warnings**; that is the bar for "done."
+`TreatWarningsAsErrors` and `EnforceCodeStyleInBuild` are set solution-wide, so a style
+violation fails the build rather than decorating an IDE.
 
 ---
 
@@ -25,7 +34,7 @@ companion. Target framework is **net10.0** everywhere.
 ```csharp
 // const — always UPPER_CASE, regardless of visibility
 private const int MIN_SIGNIFICANT_CHARS = 4;
-public const string SETTINGS_PATH_ENV = "MAI_DESKTOP_SETTINGS_PATH";
+public const string SETTINGS_PATH_ENV = "DAMI_SETTINGS_PATH";
 
 // static readonly — always camelCase, regardless of visibility
 private static readonly TimeSpan clockSkewGrace = TimeSpan.FromMinutes(5);
@@ -38,9 +47,8 @@ private static readonly Regex trivialLinePattern = new(@"^[\s{}();,\[\]]*$", Reg
 ```
 
 **Known exception**: Avalonia resolves attached/styled properties by the PascalCase
-`{Name}Property` field convention, so those fields are PascalCase with a targeted
-`#pragma warning disable IDE1006` and a comment saying why
-(see `TextMateHighlighting.FilePathProperty`).
+`{Name}Property` field convention. If the GUI spike lands on Avalonia, those fields are
+PascalCase with a targeted `#pragma warning disable IDE1006` and a comment saying why.
 
 ## 2. Member access — `this.` always
 
@@ -53,7 +61,7 @@ this.startupTrustCheckPending = false;
 
 ## 3. Files, namespaces, structure
 
-- **File-scoped namespaces** only (`namespace MAI.Core.Models.Mutations;`).
+- **File-scoped namespaces** only (`namespace Dami.Contracts.Transport;`).
 - One public type per file; file named after the type.
 - **No `#region`** — banned by analyzer.
 - Prefer modern C# (11+): pattern matching, target-typed `new`, collection expressions,
@@ -96,7 +104,15 @@ public sealed record MutationRecord
 
 - `dynamic`
 - Service Locator / `IServiceProvider` injection / runtime service resolution /
-  `Activator.CreateInstance` — **constructor injection only**
+  `Activator.CreateInstance` — **constructor injection only** *(enforced: RS0030)*
+- **Sync-over-async**: `Task.Result`, `Task.Wait()`, `Task.WaitAll/WaitAny`,
+  `Thread.Sleep`, `GetAwaiter().GetResult()`. Async at the core means async all the way
+  down; a blocking call anywhere in the chain forfeits the property for everything above
+  it *(enforced: RS0030, VSTHRD002)*
+- `async void` outside event handlers — exceptions escape to the synchronization context
+  and cannot be caught *(enforced: VSTHRD100)*
+- Ambient time: `DateTime.Now`, `DateTime.UtcNow`, `DateTimeOffset.UtcNow`. Inject
+  `ISystemClock` so time is testable *(enforced: RS0030)*
 - `#region`
 - `NotImplementedException` on interface members (LSP: an implementation must honor the
   full contract or not implement the interface)
@@ -104,39 +120,73 @@ public sealed record MutationRecord
   the default and disables the feature (this bit us in production once; see the
   "greedy-ctor" incident). New dependencies are **required** leading parameters.
 
-## 6. SOLID + DRY (hard constraints, analyzer-backed)
+## 6. SOLID + DRY (hard constraints)
+
+**SOLID is mandatory, not aspirational**, and most of it is **not** machine-checked here
+(§12). It rests on review and on the layering rules in §7. Four failure modes are called
+out because they are the ones that actually happen:
+
+- **Leaky abstractions.** An interface must not expose the mechanism behind it. No
+  `NpgsqlConnection` on a repository interface, no `HttpResponseMessage` on a domain
+  service, no EF `IQueryable` escaping the persistence layer, no provider-specific
+  exception types crossing a boundary. If swapping the implementation forces a change to
+  the interface, the abstraction leaked.
+- **Abstractions at the wrong layer.** An abstraction belongs where it is *consumed*, not
+  where it is implemented. `Dami.Core` defines what it needs; `Dami.Persistence` and the
+  provider projects implement it. An interface that exists only to mirror one concrete
+  class, in the same project as that class, is not an abstraction — it is ceremony.
+- **Async at the core.** Async is a property of the whole call chain. Public APIs that do
+  I/O are `Task`/`ValueTask`/`IAsyncEnumerable<T>`, cancellation tokens are threaded
+  through every one of them (C-06, including proactive work), and no layer blocks to
+  adapt. Do not add a sync wrapper "for convenience."
+- **Constructor injection only.** Dependencies are required leading parameters. No
+  optional dependency parameters, no service location, no runtime resolution.
 
 - **SRP**: one reason to change per class. If describing it needs "and", split it.
 - **OCP**: extend via new implementations of existing abstractions (`ISkill`,
   `IBeforeCompletionHook`, `IArtifactSource<T>`), never by growing a switch.
 - **ISP**: small, focused interfaces — the write side (`IMutationLedger`) and the read
   side (`IAuthoredLineReader`) are separate interfaces even when one class implements both.
-- **DIP**: all dependencies flow through abstractions defined in `MAI.Core/Abstractions`.
+- **DIP**: all dependencies flow through abstractions defined in `Dami.Contracts` and
+  `Dami.Core`. A lower layer never names a higher one. See §7 for the direction.
 - **DRY**: before writing anything, search the solution for an existing implementation.
   One canonical implementation per capability; adapt/refactor the existing one rather
   than creating a parallel twin. Concrete standing rules:
   - `JsonDefaults.Web` — never `new JsonSerializerOptions(JsonSerializerDefaults.Web)`
   - `McpJsonDefaults.Indented` for MCP serialization
   - `AnsiCodes.*` for ANSI escapes; `ThinkingAnimationDefaults.*` for indicator timing
-  - `MAI_DIRECTORY` (`MAI.Core.Constants`) — never hardcode `".mai"`
-  - `SecretRedactor` (`MAI.Infrastructure/Security`) — the one redaction ruleset;
-    anything logging or persisting user-supplied command/args text runs through it
-  - Config section names live as `*_SECTION` constants in `MAI.Core/Constants.cs`
+  - Config section names live as `*_SECTION` constants in a single constants file
+  - A single `SecretRedactor` ruleset once one exists — anything logging or persisting
+    user-supplied command or argument text runs through it, and D-012's egress boundary
+    depends on there being exactly one
+
+  **These are MAI's standing rules, listed as the shape to follow. Dami Core has no
+  canonical implementations yet** — the first person to need one creates it and adds it
+  here rather than writing a second.
 
 ## 7. Abstraction placement — where code belongs
 
-- `MAI.Core/Abstractions` — business-capability interfaces (the "what"); no SDKs.
-- `MAI.Core/Models` — domain models shared by more than one project.
-- `MAI.Core/UseCases` — orchestration composing abstractions; pure, dependency-free
-  logic (e.g. `AuthoredLineHasher`, `CommitAttributionMatcher`).
-- `MAI.Contracts` — DTOs/events crossing process boundaries; simple types only.
-- `MAI.Infrastructure` — implementations of Core abstractions **and** shared plumbing
-  (resilience, health, DI helpers, serialization utilities).
-- `MAI.API` / `MAI.Worker` / clients — edge-only code. If another project could ever
-  need it, it does not belong in an edge project. Edge projects never reference each other.
+Mapped onto the solution layout in `dami-core-system-architecture.md` §8:
 
-Dependency rules are strict: `Core` never references Infrastructure or any external SDK;
-`Contracts` holds simple types only.
+- `Dami.Contracts` — events, tool contracts, approval contracts, memory and transport
+  interfaces crossing process boundaries. **No dependencies at all**, simple types only.
+  `ITransport` lives here so the runtime never learns what protocol carries its events.
+- `Dami.Core` — session lifecycle, context assembly, cancellation, turn orchestration.
+  Business-capability interfaces (the "what") and pure dependency-free logic. **Never
+  references an implementation project or an external SDK.**
+- `Dami.Persistence`, `Dami.Providers`, `Dami.Transport`, `Dami.Capabilities.*`,
+  `Dami.Memory`, `Dami.Vision`, `Dami.Voice` — implementations of abstractions declared
+  above them, plus shared plumbing.
+- `Dami.Privacy` — the egress boundary. Enforcement lives in the composition root and
+  must stay auditable in one file (D-012).
+- `Dami.Host`, `Dami.Host.Proactive`, `Dami.Gateway.*` — edge and composition roots
+  only. If another project could ever need it, it does not belong here. **Edge projects
+  never reference each other.**
+
+Dependency rules are strict and directional: `Contracts` depends on nothing; `Core`
+depends only on `Contracts`; implementations depend on `Core` and `Contracts`; only a
+composition root knows about implementations. **Nothing in this is currently enforced by
+a build check** — see §12.
 
 ## 8. Performance
 
@@ -171,16 +221,18 @@ Every Postgres store follows one shape (reference: `PostgresTierDecisionStore`,
 
 - Ctor `(NpgsqlDataSource dataSource, IOptions<PostgresOptions> storeOptions, ILogger<T> logger)`
   with `ThrowIfNull` guards.
-- Table names built from `PostgresOptions.SchemaName` — **never hardcode `mai`/`mai_dev`**
-  (`private string Table => $"{this.storeOptions.SchemaName}.agent_mutation_ledger";`).
+- Table names built from `PostgresOptions.SchemaName` — **never hardcode `dami`**
+  (`private string Table => $"{this.storeOptions.SchemaName}.execution_events";`).
 - SQL exposed as **pure static builders** — `public static string BuildUpsertSql(string table)` —
   so projections are unit-testable without a database.
 - Idempotent writes: `INSERT … ON CONFLICT … DO NOTHING/UPDATE`.
 - Parameters via `AddWithValue` with `(object?)value ?? DBNull.Value` for nullables;
   timestamps from injected `ISystemClock.UtcNow`, never `DateTimeOffset.UtcNow` inline.
-- DDL ships as a runner under `tools/ddl/` (Npgsql script, connect-retry,
-  `ALTER … OWNER TO ma_ddladmin_rw_mai_convo_dev` after every `CREATE`, explicit
-  `GRANT`s), applied to **`mai_dev` first**, `mai` only at prod promotion.
+- DDL ships as a runner under `tools/ddl/` (Npgsql script, connect-retry, explicit
+  `GRANT`s). On this workstation the roles are **`dami_ddl`** (owns schema `dami`,
+  runs migrations) and **`dami_app`** (runtime, DML only). The runtime never connects as
+  `postgres`. Credentials come from user-secrets or the environment — never a file in the
+  working tree.
 
 ## 11. Testing standards (STRICT)
 
@@ -195,8 +247,8 @@ Every Postgres store follows one shape (reference: `PostgresTierDecisionStore`,
   `ArgumentNullException`.
 - **No** `// Arrange` / `// Act` / `// Assert` comments.
 - Mocks are local variables or built by helper methods; explicit setup and `Received()`
-  verification. Infrastructure tests inherit `BaseTest` (ManageAmerica.UnitTest);
-  Core tests do **not**. No `InternalsVisibleTo` — test helpers are `public`.
+  verification. No `InternalsVisibleTo` — test helpers are `public`. MAI's shared
+  `BaseTest` has no Dami equivalent yet.
 - Fire-and-forget behavior is made testable by exposing the in-flight task
   (e.g. `SkillDispatcher.LastMutationRecord`), not by sleeping.
 - Tests never touch the developer's real environment: settings/tokens are redirected to
@@ -204,8 +256,10 @@ Every Postgres store follows one shape (reference: `PostgresTierDecisionStore`,
   window they show (`CloseAndDrain`), and the desktop suite pins serial execution +
   a raised thread-pool floor (`TestThreadPoolGuard`) — each guard documents the CI
   incident that motivated it.
-- No hardcoded telemetry values (analyzer `MAI6001` + its vitest twin): report and
-  measurement fields are computed or genuinely empty, never placeholder numbers.
+- No hardcoded telemetry values: report and measurement fields are computed or genuinely
+  empty, never placeholder numbers. MAI enforced this with analyzer `MAI6001`; **here it
+  is review discipline only**. It matters more in this project than it did in MAI, because
+  `status.md` and the work log both treat unevidenced numbers as a defect.
 
 ```csharp
 [Fact]
@@ -223,24 +277,58 @@ public async Task DispatchAsync_Should_Record_A_Failed_Mutation_With_Its_Error()
 }
 ```
 
-## 12. Analyzer categories (MA.RoslynAnalyzers — all build errors)
+## 12. What is actually enforced
 
-| Category | Enforces |
-|---|---|
-| `MAI.Style` | `this.` prefix, `_`-prefix ban, braces, file-scoped namespaces, `#region` ban, async suffix, no interpolated logging |
-| `MAI.SOLID` | SRP/OCP/LSP/ISP/DIP detectors |
-| `MAI.Guards` | null-guard patterns |
-| `MAI.Performance` | hot-path violations (LINQ, boxing, closures) |
-| `MAI.Security` | security pattern checks |
+MAI used `MA.RoslynAnalyzers`, which does not exist for Dami Core. This section is the
+honest accounting of what a build catches today and what does not.
 
-`.editorconfig` backs the naming rules (const → `UPPER_CASE_WITH_UNDERSCORES`,
-`static readonly` → camelCase, both at all accessibilities).
+### Build errors today
+
+Verified 2026-08-22 by compiling deliberate violations and confirming each rule fired.
+
+| Rule | Catches | Standard |
+|---|---|---|
+| `IDE1006` | `_` prefix, `const` not `UPPER_CASE`, `static readonly` not camelCase, missing `I`/`T` prefix, non-PascalCase members — at **all** accessibilities | §1 |
+| `IDE0009` | missing `this.` on instance-member access | §2 |
+| `IDE0161` | block-scoped namespaces | §3 |
+| `IDE0011` | missing braces on `if`/`else`/`for`/`foreach`/`while` | §3 |
+| `IDE0005` | unused usings | §3 |
+| `RS0030` | banned APIs: `Task.Result`, `Task.Wait`, `Thread.Sleep`, `Activator.CreateInstance`, `IServiceProvider.GetService`, `DateTime.UtcNow` and siblings | §5, §8 |
+| `VSTHRD002` | synchronously blocking on a task | §5 |
+| `VSTHRD100`/`VSTHRD110` | `async void`, unobserved tasks | §5 |
+| nullable warnings | `Nullable=enable` + `TreatWarningsAsErrors` | §4, C-05 |
+
+Configured in `.editorconfig` (repo root), `Dami/Directory.Build.props`, and
+`Dami/BannedSymbols.txt`. Adding a banned API is one line in `BannedSymbols.txt`.
+
+### The enforcement gap — review discipline only
+
+**Nothing checks these. They are still mandatory.**
+
+| Not enforced | Standard | Could be closed by |
+|---|---|---|
+| SRP / OCP / LSP / ISP / DIP | §6 | a Dami analyzer, or review |
+| Leaky abstractions; abstractions at the wrong layer | §6, §7 | an architecture test asserting the dependency direction |
+| Layer dependency rules (`Core` never references an implementation) | §7 | an architecture test, or `ProjectReference` discipline |
+| Methods ≤ 30 lines; loop nesting ≤ 2 | §3 | a custom analyzer |
+| `#region` ban | §3 | a custom analyzer |
+| `dynamic` ban | §5 | a custom analyzer |
+| Optional constructor parameters for dependencies | §5 | a custom analyzer |
+| No LINQ on hot paths | §8 | a custom analyzer; not expressible generically |
+| Structured-logging-only (no interpolated messages) | §9 | `CA2254`, not yet enabled |
+| One assertion per test; no Arrange/Act/Assert comments | §11 | review |
+
+**Open decision:** port or rewrite `MA.RoslynAnalyzers` as a Dami package, add
+architecture tests for the layering rules only, or accept review-based enforcement.
+Layering is the highest-value and cheapest of the three — a single test project
+asserting the dependency direction would close the two failure modes §6 calls out. This
+has not been decided; do not assume it.
 
 ## 13. Definition of done
 
-1. `dotnet build MAI.sln` — **0 warnings, 0 errors**.
-2. `dotnet test MAI.sln` — all green (plus the TS suites — ClientCore, InkCLI, VSCode —
-   when their files changed).
+1. `dotnet build Dami.sln` — **0 warnings, 0 errors**.
+2. `dotnet test Dami.sln` — all green. Never claim an interrupted, cancelled, or
+   timed-out run passed (`AGENTS.md`).
 3. Surgical diffs: no reformatting of unrelated code, no drive-by refactors.
 4. Complete files — no placeholders, no "rest omitted".
 5. Architectural decisions (queues, retries, idempotency, budgets) explained in the

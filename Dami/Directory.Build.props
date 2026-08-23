@@ -1,0 +1,44 @@
+<Project>
+
+  <!--
+    Dami Core — solution-wide build policy.
+
+    This file exists because docs/csharpcodestandards.md describes an enforcement
+    stack (MA.RoslynAnalyzers) that belongs to MAI and does not exist in this
+    repository. Everything enforceable without that package is enforced here.
+    What is NOT covered is listed in that document's "enforcement gap" section.
+  -->
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+
+    <!-- C-05: nullable reference types enabled and enforced as ERRORS. -->
+    <Nullable>enable</Nullable>
+
+    <!-- §13 definition of done: 0 warnings, 0 errors. Warnings are errors. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Without this, the IDE**** rules in .editorconfig are IDE-only and never
+         fail a build or a CI run. This is what gives .editorconfig teeth. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Banned APIs: sync-over-async, service location, ambient time. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+
+    <!-- "Async at the core" - detects blocking calls, missing cancellation
+         tokens, and async-void. -->
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.7.23" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
