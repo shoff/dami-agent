@@ -1,5 +1,6 @@
 using Dami.Contracts.Events;
 using Dami.Contracts.Memory;
+using Dami.Contracts.Proactive;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,6 +25,7 @@ public sealed class ServiceCollectionExtensionsTests
     [InlineData(typeof(IObservationCorpus))]
     [InlineData(typeof(IConclusionLedger))]
     [InlineData(typeof(IPushbackLedger))]
+    [InlineData(typeof(ISurfacingQueue))]
     public void AddDamiPersistence_Should_Resolve_Every_Store(Type contract)
     {
         var services = new ServiceCollection();

@@ -1,7 +1,9 @@
 using Dami.Contracts.Events;
 using Dami.Contracts.Memory;
+using Dami.Contracts.Proactive;
 using Dami.Persistence.Events;
 using Dami.Persistence.Memory;
+using Dami.Persistence.Proactive;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -33,7 +35,10 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(_ => NpgsqlDataSource.Create(connectionString));
         services.AddOptions<PostgresOptions>();
 
+        services.AddOptions<ProactiveOptions>();
+
         services.TryAddSingleton<IExecutionEventStore, PostgresExecutionEventStore>();
+        services.TryAddSingleton<ISurfacingQueue, PostgresSurfacingQueue>();
         services.TryAddSingleton<IObservationCorpus, PostgresObservationCorpus>();
         services.TryAddSingleton<IConclusionLedger, PostgresConclusionLedger>();
         services.TryAddSingleton<IPushbackLedger, PostgresPushbackLedger>();

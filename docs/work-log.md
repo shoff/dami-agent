@@ -1108,6 +1108,14 @@ sequence as application frames, while `ITransport.SendAsync` currently accepts a
 whose sequence was assigned by its caller. The owner of outbound wire sequencing must be
 settled before heartbeat or reconnect code can be honest.
 
+## 2026-08-22 — Codex — transport-owned outbound envelope started
+
+Steve accepted transport ownership of outbound protocol version and sequence. Added
+accepted ADR-0005 before code. The migration will replace the send-side `TransportFrame`
+with `TransportMessage`, keep received frames intact for diagnostics, assign sequence in
+serialized send order, and make Loopback mirror the real transport. Strict red–green TDD
+continues; Claude Code's proactive paths remain outside this change.
+
 ## 2026-08-22 — Claude Code — Conclusions and pushback ledgers
 
 The memory layer of D-009 and D-011, in C#. Red-first this time, both cycles.
@@ -1212,3 +1220,77 @@ than the eval baseline." The **infrastructure** for that is now complete end to 
 schema, stores, embedding service, reranker, eval harness. What is missing is the
 **data**: the 7,000 memories and the 50-query eval set, both Phase 0 exports from the
 Mac. Phase 2 cannot close from this machine, and nothing on this machine now blocks it.
+
+## 2026-08-22 — Claude Code — The proactive tier: contracts, surfacing queue, pass runner
+
+D-001 makes this the actual product, and none of it existed in code. Claimed in
+`docs/ownership.md` before starting; Codex remains on transport.
+
+### Added
+
+- `tools/ddl/006_surfacings.sql` — the queue table, with feedback columns (D-019) and a
+  `Suppressed` status so the cap is auditable rather than silent.
+- `Dami.Contracts/Proactive/` — `IProactiveService`, `ProactiveResult` (Conclusion and
+  Surfacing separated per D-021, with a `quiet` result as the named common case),
+  `Surfacing`, `ProactiveContext`, `ProactiveCadence`, `ProactiveStatus`, `ISurfacingQueue`.
+- `Dami.Persistence/Proactive/` — `PostgresSurfacingQueue` + `ProactiveOptions`.
+- `Dami.Proactive` — `ProactivePassRunner`.
+- Both wired into `AddDamiPersistence`; solution grew to twelve projects.
+
+### TDD, as observed
+
+Queue: stub, eleven tests, **red at `Failed: 8, Passed: 59`**, implemented, green at 67.
+Runner: stub, ten tests, red as a constructor-shape compile failure, implemented,
+green at 10/10. Analyzers caught two things mid-implementation (below).
+
+### Design decisions
+
+- **The cap decides inside one SQL statement.** `BuildEnqueueSql` computes
+  Pending-or-Suppressed from the same rows the insert joins, so two concurrent passes
+  cannot both slip under the cap. Suppressed rows are stored, not dropped — how often the
+  cap bites is itself a tuning signal, and only non-suppressed rows count toward it, or a
+  burst would extend the suppression window indefinitely.
+- **The runner, not the service, writes everything.** A service returns a
+  `ProactiveResult`; the runner writes conclusions to the ledger, surfacings through the
+  capped queue, and events with `Origin=ScheduledService`. A service cannot bypass the
+  cap, skip provenance, or leave a trace dangling. D-020's propose-don't-act is the
+  contract's shape: nothing in `IProactiveService` can perform a side effect.
+- **A suppressed surfacing gets no `Surfaced` event.** The stream records what reached
+  for Steve's attention; the suppression is durable in the queue table.
+- **A throwing service is contained** — `TraceFailed` recorded, `Failed` returned, never
+  rethrown (§3.1: one stuck pass must not slow the tier). The cancellation and failure
+  events are written with `CancellationToken.None`, deliberately: the pass's token is
+  already cancelled and the record must still be written.
+- **`TimeProvider`, not an `ISystemClock` of our own.** The BCL abstraction already
+  exists, `FakeTimeProvider` covers tests, and RS0030's ambient-time ban stays intact.
+- `ProactiveOptions.MaxSurfacingsPerServicePerDay` defaults to 3 and says in its own
+  documentation that the number is a guess to be tuned on recorded reactions.
+
+### The enforcement layer caught its own author twice more
+
+- `IDE1006`: `ProactiveResult.Quiet` → `quiet`, because static readonly is camelCase at
+  every accessibility. The house rule wins over aesthetics.
+- `DAMI0003`: `RunAsync` at 40 body lines, then again at 32. Extracted `ExecuteAsync`,
+  `RecordCancelledAsync`, `RecordFailedAsync`. The result is genuinely clearer.
+- `VSTHRD103` on `GetFieldValue` in an async iterator — extracted the sync `Read`
+  helper, matching the pattern the other stores already use.
+
+### Verification
+
+```
+dotnet build Dami.sln     0 warnings, 0 errors
+Dami.Tests                  1   Dami.Architecture.Tests  10
+Dami.Proactive.Tests       10   Dami.Transport.Tests     33  (Codex's, green)
+Dami.Analyzers.Tests       12   Dami.Persistence.Tests   68
+                          134 total
+```
+
+One transient full-solution build showed 9 errors that vanished on re-run — a race with
+Codex's concurrent edits, not a real failure. Recorded because "build clean" claims
+should note when a run had to be repeated.
+
+### What the tier still lacks
+
+The scheduler loop (`Dami.Host.Proactive` composition root with a timer over
+`ProactivePassRunner`), durable last-run tracking, and the first real service — the
+interest scout (D-019), which needs the egress boundary before it may fetch anything.
