@@ -5,6 +5,7 @@ using Dami.Host.Proactive;
 using Dami.Persistence;
 using Dami.Privacy;
 using Dami.Proactive;
+using Dami.Proactive.Audit;
 using Dami.Proactive.Scout;
 using Dami.Providers;
 
@@ -42,6 +43,9 @@ builder.Services.AddHttpClient<IEmbeddingClient, TeiEmbeddingClient>();
 builder.Services.Configure<InterestScoutOptions>(
     builder.Configuration.GetSection(InterestScoutOptions.SECTION_NAME));
 builder.Services.AddSingleton<IProactiveService, InterestScout>();
+
+// D-011's quarterly decay detector. Local-only: no egress dependency, by design.
+builder.Services.AddSingleton<IProactiveService, PushbackAuditService>();
 
 builder.Services.AddHostedService<ProactiveWorker>();
 

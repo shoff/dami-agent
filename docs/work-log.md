@@ -1630,3 +1630,13 @@ dotnet test Dami.sln
   Dami.Persistence.Tests       75 passed
                                188 total, 0 failed
 ```
+
+## 2026-08-22 — Claude Code — Pushback audit service
+
+D-011's quarterly review as the second registered proactive service. Always records a
+count conclusion (confidence 1.0 — it is a count, not an inference, attributed to
+`SelfAudit`); surfaces only when the quarter's challenge count falls below half the
+previous quarter's. No baseline → quiet. Rate holds → quiet. Scarcity throughout.
+
+Local-only by construction: the service takes no egress dependency, and its host
+registration says so. Five tests, 34 in the proactive suite. Solution 0/0.
