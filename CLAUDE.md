@@ -13,8 +13,10 @@ repository. Read its §7 before touching shared state.
 
 **Dami Core** — a lean, trace-first C#/.NET agent runtime replacing a customized
 Hermes-based system. Two interfaces (CLI/SSH and a graphical workflow client)
-over one runtime and one durable execution-event stream. Status: Phase 0/1,
-planning and workstation validation. No source code exists yet.
+over one runtime and one durable execution-event stream. Status: active build —
+the transport slice (Codex) and the data foundation, proactive tier, and `dami`
+CLI (Claude Code) exist and are tested; the proactive tier runs unattended as the
+`dami-proactive` systemd service. `docs/status.md` has the phase board.
 
 ## Working agreements
 

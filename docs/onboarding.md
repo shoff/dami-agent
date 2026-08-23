@@ -5,7 +5,11 @@
 - **Last updated:** 2026-08-22
 - **Repo:** `/home/steve/dev/dami-agent` (`git@github.com:shoff/dami-agent.git`, private)
 - **Owner:** Steve Hoff
-- **Status:** Phase 0/1 — preserve, instrument, and host validation. No source code exists yet.
+- **Status:** active build. Eighteen-project solution under `Dami/`; the proactive
+  tier runs unattended (`systemctl status dami-proactive`); Phase 4 is largely done
+  and Phase 3 (transport) is in progress. `docs/status.md` is the phase board and
+  `docs/work-log.md` the history — trust those two over any phase claim elsewhere in
+  this file.
 
 ---
 

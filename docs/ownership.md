@@ -14,7 +14,7 @@ now**, and it should be short. If it is long, something was not cleared.
 
 | Owner | Area | Paths | Since |
 |---|---|---|---|
-| **Claude Code** | Phase 2 data foundation (done) and the proactive tier — contracts, pass runner, surfacing queue | `tools/ddl/**`, `Dami/src/Dami.Contracts/Events/**`, `Dami/src/Dami.Contracts/Memory/**`, `Dami/src/Dami.Contracts/Proactive/**`, `Dami/src/Dami.Persistence/**`, `Dami/src/Dami.Proactive/**`, `Dami/tests/Dami.Persistence.Tests/**`, `Dami/tests/Dami.Proactive.Tests/**` | 2026-08-22 |
+| **Claude Code** | Data foundation, proactive tier, privacy, providers, CLI, proactive host — built; holding for maintenance | `tools/**`, `Dami/src/Dami.Contracts/{Events,Memory,Proactive,Privacy,Models}/**`, `Dami/src/Dami.{Persistence,Proactive,Privacy,Providers,Gateway.Cli,Host.Proactive}/**`, matching test projects | 2026-08-23 |
 
 ## Held by Claude Code, not in active change
 
