@@ -1832,3 +1832,7 @@ dotnet test Dami.sln
   Dami.Persistence.Tests       78 passed
                                215 total, 0 failed
 ```
+
+The Codex transport ownership claim was cleared after commits `b8dd3d4`, `ada9bb6`, and
+`5326dba` were pushed. Architecture §7.5.5 TCP steps 1–5 are complete; step 6 (UDP) stays
+deferred exactly as the architecture directs until voice is on the roadmap.
