@@ -3055,3 +3055,55 @@ small and noted for the next pass on the prompt.
 
 Scoreboard moves: items 1 and 7 now have interactive evidence (a UserTurn persisted and
 replayed); item 12's claim strengthens (426 tokens, measured, on a real turn).
+
+## 2026-08-23 — Codex — Pushback affected-row enforcement started
+
+Selected the next adversarial-audit item after scheduler leasing: mutation methods that
+report success after PostgreSQL changed zero rows. The first bounded slice is
+`PostgresPushbackLedger.ResolveAsync`, which currently logs “resolved” for an unknown
+pushback ID. A live-database test requiring `KeyNotFoundException` for an unknown ID is
+being added before production code. This touches Claude Code's broadly claimed
+persistence area under Codex's existing audit-remediation claim; the shared tree was
+clean and Claude's interactive-turn work was already committed before the edit.
+
+The narrow live-database test failed red as expected: `ResolveAsync` returned normally
+and `Assert.Throws` reported that no exception was thrown. The minimum production change
+will inspect the update count, throw `KeyNotFoundException` unless exactly one row was
+changed, and emit the success log only after that invariant holds.
+
+The pushback slice is green: the narrow red test now passes 1/1 and the full
+`PostgresPushbackLedgerTests` class passes 9/9. The same affected-row invariant is now
+being driven independently for `PostgresSurfacingQueue.RecordFeedbackAsync`; an unknown
+surfacing must not look like a captured learning signal.
+
+The feedback test failed red as expected: no exception was thrown for an unknown ID.
+The minimum change mirrors the pushback invariant—require exactly one updated row and
+throw `KeyNotFoundException` otherwise—and documents that contract at the abstraction.
+
+Inspection caught an `apply_patch` context mismatch before test execution: the first
+draft placed the check in `AcquireServiceLockAsync`, where `surfacingId` is not in scope.
+That accidental edit was removed immediately; no test result is claimed for it.
+
+## 2026-08-23 — Claude Code — Temporal grounding fixed, demonstrably
+
+The same question asked three times, one change apart:
+
+1. **Before:** treated March's demo crunch as tomorrow's plan — pure-relevance retrieval
+   filled all 8 slots with five-month-old crisis memories.
+2. **Date anchor only** ("Today is …; dated items are history"): marginal — the model
+   hedged but the context was still all March.
+3. **Anchor + recency slots**: *"Given the current context (2026-08-23), your focus
+   should remain on refining the proactive tier you built end-to-end with two agents…
+   aligning with the belief in shipping vertical slices… No urgent demos are mentioned
+   in the current context."* — today's work, the corrected belief applied, the stale
+   crisis correctly demoted to history.
+
+The mechanism: `ContextOptions.RecentSlots` (default 3, window 30 days) reserves memory
+slots for the newest relevant candidates before rerank order fills the rest, with the
+observed failure documented on the option itself. Falls back to pure relevance when
+nothing recent exists. Two new builder tests plus the prompt-anchor test (22 in Core);
+`dami ask` gained the same anchor. Full solution 0/0; CLI republished.
+
+The lesson worth keeping: the fix that looked like prompt engineering was actually a
+retrieval-policy gap — the anchor alone changed the wording, the slots changed the
+answer.

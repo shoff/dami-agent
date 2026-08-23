@@ -59,6 +59,19 @@ public sealed class TurnRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_Should_Anchor_The_Prompt_To_Today()
+    {
+        this.Arrange();
+        string? prompt = null;
+        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+            .Returns("an answer");
+
+        await this.CreateRunner().RunAsync("a question", CancellationToken.None);
+
+        Assert.Contains("Today is 2026-08-23", prompt);
+    }
+
+    [Fact]
     public async Task RunAsync_Should_Report_The_Context_Cost_In_The_Trace()
     {
         this.Arrange();

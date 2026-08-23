@@ -121,18 +121,24 @@ public sealed class TurnRunner : ITurnRunner
             $"routed {route.Tier}: {route.Reason}", cancellationToken).ConfigureAwait(false);
 
         var answer = await this.chatClient
-            .CompleteAsync(BuildPrompt(request, context), cancellationToken).ConfigureAwait(false);
+            .CompleteAsync(BuildPrompt(request, context, this.clock.GetUtcNow()), cancellationToken)
+            .ConfigureAwait(false);
 
         return new TurnResult(traceId, answer.Trim(), context, route);
     }
 
-    private static string BuildPrompt(string request, AssembledContext context)
+    private static string BuildPrompt(string request, AssembledContext context, DateTimeOffset today)
     {
         var prompt = new StringBuilder();
         prompt.AppendLine(
             "You are Dami, Steve's assistant. Use the context below when it is relevant;");
         prompt.AppendLine(
             "say plainly when it is not sufficient. Be concise and concrete.");
+        // The temporal anchor: without it the model treated a March memory as the
+        // current crisis. Dated memories are history unless they say otherwise.
+        prompt.Append("Today is ").Append(today.ToString("yyyy-MM-dd"))
+            .AppendLine(". Context items carry their own dates; anything older than a")
+            .AppendLine("few weeks is history and context, not the current situation.");
         prompt.AppendLine();
 
         foreach (var belief in context.Beliefs)

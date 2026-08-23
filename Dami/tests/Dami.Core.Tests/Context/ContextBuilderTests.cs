@@ -3,6 +3,7 @@ using Dami.Contracts.Models;
 using Dami.Core.Context;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
 
@@ -25,7 +26,8 @@ public sealed class ContextBuilderTests
     {
         Assert.Throws<ArgumentNullException>(() => new ContextBuilder(
             null!, this.embeddingClient, this.rerankClient, this.conclusionLedger,
-            Options.Create(new ContextOptions()), NullLogger<ContextBuilder>.Instance));
+            Options.Create(new ContextOptions()), new FakeTimeProvider(asOf),
+            NullLogger<ContextBuilder>.Instance));
     }
 
     [Fact]
@@ -114,11 +116,39 @@ public sealed class ContextBuilderTests
         Assert.Empty(context.Memories);
     }
 
-    private Observation Observe(string body)
+    private Observation Observe(string body, DateTimeOffset? occurredAt = null)
     {
-        var observation = new Observation(Guid.NewGuid(), asOf, "test", body);
+        var observation = new Observation(Guid.NewGuid(), occurredAt ?? asOf.AddMonths(-5), "test", body);
         this.nearest.Add(observation);
         return observation;
+    }
+
+    [Fact]
+    public async Task BuildAsync_Should_Reserve_Slots_For_Recent_Memories()
+    {
+        for (var index = 0; index < 8; index++)
+        {
+            this.Observe($"old crisis memory {index}");
+        }
+
+        this.Observe("what happened this week", asOf.AddDays(-2));
+
+        var context = await this.CreateBuilder(maxMemories: 4).BuildAsync("a question", CancellationToken.None);
+
+        Assert.Contains(context.Memories, item => item.Content == "what happened this week");
+    }
+
+    [Fact]
+    public async Task BuildAsync_Should_Fall_Back_To_Relevance_With_Nothing_Recent()
+    {
+        for (var index = 0; index < 4; index++)
+        {
+            this.Observe($"old memory {index}");
+        }
+
+        var context = await this.CreateBuilder(maxMemories: 4).BuildAsync("a question", CancellationToken.None);
+
+        Assert.Equal(4, context.Memories.Count);
     }
 
     private void Believe(string statement)
@@ -128,7 +158,7 @@ public sealed class ContextBuilderTests
             ConclusionSource.ReflectionPass, asOf));
     }
 
-    private ContextBuilder CreateBuilder(int maxTokens = 2500, int maxMemories = 8)
+    private ContextBuilder CreateBuilder(int maxTokens = 2500, int maxMemories = 8, int recentSlots = 3)
     {
         this.embeddingClient.ModelId.Returns("test-model");
         this.embeddingClient.EmbedAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
@@ -143,8 +173,13 @@ public sealed class ContextBuilderTests
 
         return new ContextBuilder(
             this.embeddingStore, this.embeddingClient, this.rerankClient, this.conclusionLedger,
-            Options.Create(new ContextOptions { MaxRetrievedTokens = maxTokens, MaxMemories = maxMemories }),
-            NullLogger<ContextBuilder>.Instance);
+            Options.Create(new ContextOptions
+            {
+                MaxRetrievedTokens = maxTokens,
+                MaxMemories = maxMemories,
+                RecentSlots = recentSlots,
+            }),
+            new FakeTimeProvider(asOf), NullLogger<ContextBuilder>.Instance);
     }
 
     private static async IAsyncEnumerable<(Observation, double)> AsNearestAsync(List<Observation> items)

@@ -21,4 +21,16 @@ public sealed class ContextOptions
 
     /// <summary>The subject whose beliefs are included.</summary>
     public string Subject { get; set; } = "steve";
+
+    /// <summary>Memory slots reserved for the most recent relevant items.</summary>
+    /// <remarks>
+    /// Pure relevance let five-month-old crisis memories fill the whole window and the
+    /// model answered as if the crisis were current. Reserving slots for recent items
+    /// keeps "what is happening now" in the prompt without abandoning relevance for the
+    /// rest. Zero disables the reservation.
+    /// </remarks>
+    public int RecentSlots { get; set; } = 3;
+
+    /// <summary>How recent "recent" is, in days.</summary>
+    public int RecentDays { get; set; } = 30;
 }

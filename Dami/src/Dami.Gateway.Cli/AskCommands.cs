@@ -21,23 +21,27 @@ public sealed class AskCommands
     private readonly IEmbeddingClient embeddingClient;
     private readonly IRerankClient rerankClient;
     private readonly IChatClient chatClient;
+    private readonly TimeProvider clock;
 
     /// <summary>Creates the commands.</summary>
     public AskCommands(
         IObservationEmbeddingStore embeddingStore,
         IEmbeddingClient embeddingClient,
         IRerankClient rerankClient,
-        IChatClient chatClient)
+        IChatClient chatClient,
+        TimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(embeddingStore);
         ArgumentNullException.ThrowIfNull(embeddingClient);
         ArgumentNullException.ThrowIfNull(rerankClient);
         ArgumentNullException.ThrowIfNull(chatClient);
+        ArgumentNullException.ThrowIfNull(clock);
 
         this.embeddingStore = embeddingStore;
         this.embeddingClient = embeddingClient;
         this.rerankClient = rerankClient;
         this.chatClient = chatClient;
+        this.clock = clock;
     }
 
     /// <summary>Answers a question from the corpus, with citations.</summary>
@@ -54,7 +58,8 @@ public sealed class AskCommands
 
         Console.WriteLine("thinking (local model - this takes seconds, not milliseconds)...");
         var answer = await this.chatClient
-            .CompleteAsync(BuildPrompt(question, context), cancellationToken).ConfigureAwait(false);
+            .CompleteAsync(BuildPrompt(question, context, this.clock.GetUtcNow()), cancellationToken)
+            .ConfigureAwait(false);
 
         Console.WriteLine();
         Console.WriteLine(answer.Trim());
@@ -116,9 +121,11 @@ public sealed class AskCommands
         return context;
     }
 
-    private static string BuildPrompt(string question, List<Observation> context)
+    private static string BuildPrompt(string question, List<Observation> context, DateTimeOffset today)
     {
         var prompt = new StringBuilder();
+        prompt.Append("Today is ").Append(today.ToString("yyyy-MM-dd"))
+            .AppendLine(". Observations carry their own dates; old ones are history, not the present.");
         prompt.AppendLine(
             "Answer the question using ONLY the numbered observations below, citing them like [2].");
         prompt.AppendLine(

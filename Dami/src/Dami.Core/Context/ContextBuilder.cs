@@ -26,6 +26,7 @@ public sealed class ContextBuilder : IContextBuilder
     private readonly IRerankClient rerankClient;
     private readonly IConclusionLedger conclusionLedger;
     private readonly ContextOptions contextOptions;
+    private readonly TimeProvider clock;
     private readonly ILogger<ContextBuilder> logger;
 
     /// <summary>Creates the builder.</summary>
@@ -35,6 +36,7 @@ public sealed class ContextBuilder : IContextBuilder
         IRerankClient rerankClient,
         IConclusionLedger conclusionLedger,
         IOptions<ContextOptions> contextOptions,
+        TimeProvider clock,
         ILogger<ContextBuilder> logger)
     {
         ArgumentNullException.ThrowIfNull(embeddingStore);
@@ -42,6 +44,7 @@ public sealed class ContextBuilder : IContextBuilder
         ArgumentNullException.ThrowIfNull(rerankClient);
         ArgumentNullException.ThrowIfNull(conclusionLedger);
         ArgumentNullException.ThrowIfNull(contextOptions);
+        ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.embeddingStore = embeddingStore;
@@ -49,6 +52,7 @@ public sealed class ContextBuilder : IContextBuilder
         this.rerankClient = rerankClient;
         this.conclusionLedger = conclusionLedger;
         this.contextOptions = contextOptions.Value;
+        this.clock = clock;
         this.logger = logger;
     }
 
@@ -119,19 +123,61 @@ public sealed class ContextBuilder : IContextBuilder
         var order = await this.rerankClient
             .RankAsync(request, bodies, cancellationToken).ConfigureAwait(false);
 
-        var memories = new List<RetrievedItem>(this.contextOptions.MaxMemories);
+        return this.SelectMemories(candidates, order);
+    }
+
+    /// <summary>Relevance order, with slots reserved for the most recent relevant items.</summary>
+    /// <remarks>
+    /// Observed failure this guards against: pure relevance filled the whole window with
+    /// five-month-old crisis memories and the model answered as if the crisis were
+    /// current. Recent items enter first (newest of the candidate pool inside the
+    /// window), the rest by rerank order.
+    /// </remarks>
+    private List<RetrievedItem> SelectMemories(List<Observation> candidates, IReadOnlyList<int> order)
+    {
+        var chosen = this.TakeRecent(candidates);
+
         foreach (var index in order)
         {
-            var observation = candidates[index];
-            memories.Add(new RetrievedItem(
-                "observation", observation.ObservationId, observation.Body, observation.OccurredAt));
-            if (memories.Count >= this.contextOptions.MaxMemories)
+            if (chosen.Count >= this.contextOptions.MaxMemories)
             {
                 break;
             }
+
+            if (!chosen.Contains(candidates[index]))
+            {
+                chosen.Add(candidates[index]);
+            }
+        }
+
+        var memories = new List<RetrievedItem>(chosen.Count);
+        foreach (var observation in chosen)
+        {
+            memories.Add(new RetrievedItem(
+                "observation", observation.ObservationId, observation.Body, observation.OccurredAt));
         }
 
         return memories;
+    }
+
+    private List<Observation> TakeRecent(List<Observation> candidates)
+    {
+        var chosen = new List<Observation>(this.contextOptions.MaxMemories);
+        var cutoff = this.clock.GetUtcNow().AddDays(-this.contextOptions.RecentDays);
+
+        var byAge = new List<Observation>(candidates);
+        byAge.Sort((left, right) => right.OccurredAt.CompareTo(left.OccurredAt));
+        foreach (var candidate in byAge)
+        {
+            if (chosen.Count >= this.contextOptions.RecentSlots || candidate.OccurredAt < cutoff)
+            {
+                break;
+            }
+
+            chosen.Add(candidate);
+        }
+
+        return chosen;
     }
 
     /// <summary>Applies the budget: beliefs first, then memories by relevance until it is spent.</summary>
