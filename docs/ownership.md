@@ -8,13 +8,14 @@ are done.
 `docs/work-log.md` records history. **This file records only what is in flight right
 now**, and it should be short. If it is long, something was not cleared.
 
-- **Last updated:** 2026-08-23 11:08 CDT
+- **Last updated:** 2026-08-23 11:30 CDT
 
 ## In flight
 
 | Owner | Area | Paths | Since |
 |---|---|---|---|
-| **Claude Code** | Data foundation, proactive tier, privacy, providers, CLI, proactive host — built; holding for maintenance | `tools/**`, `Dami/src/Dami.Contracts/{Events,Memory,Proactive,Privacy,Models}/**`, `Dami/src/Dami.{Persistence,Proactive,Privacy,Providers,Gateway.Cli,Host.Proactive}/**`, matching test projects | 2026-08-23 |
+| **Claude Code** | Memory-facing runtime half: context assembly (`Dami.Core/Context`), model routing (`Dami.Providers`) — plus everything previously built | `tools/**`, `Dami/src/Dami.Contracts/{Events,Memory,Proactive,Privacy,Models}/**`, `Dami/src/Dami.{Persistence,Proactive,Privacy,Providers,Gateway.Cli,Host.Proactive}/**`, matching test projects | 2026-08-23 |
+| **Codex** | User-authorized remediation of adversarial audit, strict red-green slices | Audit-listed files under `tools/systemd`, `Dami/src`, matching tests, architecture tests; excluding Claude's untracked migration script | 2026-08-23 11:30 CDT |
 
 ## Held by Claude Code, not in active change
 
