@@ -327,3 +327,67 @@ Steve would have hit the same wall editing any of those files in his own home di
 - Rebuilt after Codex's two commits landed: `dotnet build Dami.sln` → **0 warnings, 0
   errors** with the enforcement layer active. The earlier verification predated their
   transport code; this one covers it.
+
+## 2026-08-22 — Claude Code — Architecture tests for layering and async contracts
+
+Steve authorized adding the test project proposed as open decision #9. This is the
+mechanical closure of the two failure modes §6 names but no analyzer catches.
+
+### Scope note for Codex
+
+This adds `Dami/tests/Dami.Architecture.Tests/` and one line to `Dami.sln`
+(`dotnet sln add`). No file under `Dami/src` was touched.
+
+### Design
+
+- **Zero new packages.** `AGENTS.md` forbids adding packages without explicit scope, and
+  a hand-written check stays readable, which is N-09. NetArchTest would have worked and
+  was declined for that reason.
+- **Two strategies, deliberately.** Layering is checked by parsing the `ProjectReference`
+  graph from the `.csproj` files on disk, so it covers **every project in the solution**
+  including ones this test project does not reference and ones not yet written, and it
+  fails when a bad reference is *added* rather than when someone consumes it. Leaky
+  surfaces and async contracts need real metadata, so those use reflection.
+- `AssemblyProbe` skips assemblies that do not exist yet. The rules name the full
+  intended solution from architecture §8; a rule starts guarding a project the moment it
+  appears rather than when someone remembers to update a list.
+- One assertion per test (§11); violations are collected and reported in the message.
+
+### Tests
+
+| Test | Rule |
+|---|---|
+| `Contracts_Should_Depend_On_Nothing` | §7: `Dami.Contracts` sits at the bottom |
+| `Core_Should_Depend_Only_On_Contracts` | §7: `Core` defines abstractions; implementations depend on it, never the reverse |
+| `Nothing_Outside_A_Composition_Root_Should_Reference_A_Host` | a host is a composition root |
+| `Edge_Projects_Should_Not_Reference_Each_Other` | §7: edge projects never reference each other |
+| `Implementations_Should_Not_Reference_Edge_Projects` | dependency direction |
+| `Abstraction_Layers_Should_Not_Expose_Mechanism_Types` | §6 leaky abstractions: Npgsql, EF Core, `DbConnection`, `HttpResponseMessage`, `IQueryable`, sockets on a public signature |
+| `Contracts_Should_Not_Reference_Any_Other_Dami_Assembly` | verified in metadata, not only in the csproj |
+| `Awaitable_Returning_Methods_Should_End_With_Async` | §1 |
+| `Awaitable_Returning_Methods_Should_Accept_A_CancellationToken` | C-06 |
+| `No_Public_Method_Should_Return_Bare_Void_Asynchronously` | `async void` |
+
+### Observed results
+
+- First run: **9 passed, 1 failed** — `LoopbackTransport.DisposeAsync` was flagged for
+  taking no `CancellationToken`. **Investigated rather than suppressed: the test was
+  wrong, not the code.** `IAsyncDisposable.DisposeAsync()` has a signature fixed by the
+  framework and cannot take one. Added `ImplementsExternalContract`, which exempts
+  methods implementing an interface declared outside Dami. C-06 governs contracts we
+  author.
+- After the fix: **10 passed, 0 failed.**
+- **Verified the tests are not vacuous.** Planted three violations in throwaway `.csproj`
+  files under `Dami/src` — a `Dami.Core` referencing `Dami.Transport`, and a
+  `Dami.Gateway.Probe` referencing both another gateway and a host — and confirmed
+  exactly the three expected tests failed. Removed the probes; no Codex file was touched.
+- Full solution afterwards: `dotnet build Dami.sln` → **0 warnings, 0 errors**;
+  `dotnet test Dami.sln` → **17 passed** across three suites (Dami.Tests 1,
+  Dami.Transport.Tests 6, Dami.Architecture.Tests 10).
+
+### Still not enforced
+
+Layering and leaky surfaces are now mechanical. SRP, OCP, LSP, ISP, method length,
+`#region`, `dynamic`, and hot-path LINQ remain review-only — §12 of the standards is
+still the authority on that split, and open decision #9 narrows to those rather than
+closing.

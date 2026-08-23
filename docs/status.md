@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 21:47 CDT (`2026-08-23T02:47Z`)
+- **Last updated:** 2026-08-22 22:06 CDT (`2026-08-23T03:06Z`)
 - **Updated by:** Claude Code session, from direct inspection of this workstation
 - **Current phase:** 0 and 1, both in progress
 
@@ -293,7 +293,7 @@ Nothing below can be settled by inspection. Each blocks work that is expensive t
 | 8 | **Local-sidecar accuracy needs thinking mode.** `qwen3:8b` misclassified with `think:false` and was correct with `think:true` (0.02 s vs 3.3 s). | arch §7.4 routing | The cheap path is not the accurate path on this model. Either budget seconds for classification, or few-shot prompt and re-measure. |
 | 5 | Split `D-001`…`D-022` into individual ADR files, or leave them in the register | doc hygiene | `CLAUDE.md` says decisions live in `docs/decisions/`; the register is a parallel structure |
 | 6 | ~~Retarget `csharpcodestandards.md`~~ | — | **Done 2026-08-22.** Retargeted, and §12 now separates what is a build error from the enforcement gap. |
-| 9 | **How to enforce SOLID and layering.** Port/rewrite `MA.RoslynAnalyzers`, add architecture tests for dependency direction only, or accept review-based enforcement. | strict-SOLID mandate | Architecture tests are the cheapest and close both named failure modes — leaky abstractions and abstractions at the wrong layer. Not decided. |
+| 9 | **How to enforce the rest of SOLID.** Layering and leaky surfaces are now covered by `Dami.Architecture.Tests`. SRP/OCP/LSP/ISP, method length, `#region`, `dynamic`, and hot-path LINQ remain review-only. | strict-SOLID mandate | Narrowed 2026-08-22, not closed. Remaining options: a Dami analyzer package, or accept review. |
 | 7 | Add `apt-mark hold` on the NVIDIA toolkit and driver stack | host stability | ADR-0002 assumes controlled update windows; nothing enforces them yet |
 
 ---

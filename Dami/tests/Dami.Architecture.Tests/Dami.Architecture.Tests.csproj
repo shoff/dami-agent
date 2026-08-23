@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+  </ItemGroup>
+
+  <!--
+    Referenced so the reflection-based tests have assemblies to inspect. The
+    layering tests do NOT depend on these references: they read the .csproj
+    dependency graph from disk, so they cover every project in the solution,
+    including ones this project has never heard of.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/Dami.Contracts/Dami.Contracts.csproj" />
+    <ProjectReference Include="../../src/Dami.Transport/Dami.Transport.csproj" />
+  </ItemGroup>
+
+</Project>
