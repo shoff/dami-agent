@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 22:07 CDT (`2026-08-23T03:07Z`)
+- **Last updated:** 2026-08-22 22:24 CDT (`2026-08-23T03:24Z`)
 - **Updated from:** direct workstation inspection and solution test evidence
 - **Current phases:** 0, 1, and 3 in progress
 
@@ -93,7 +93,7 @@ rather than assuming — but nothing else blocks the phase.
 | Schemas: observation corpus, conclusions ledger, pushback ledger, event store | not started |
 | Local embedding service on GPU | **done** — TEI `89-1.9.0`, `BAAI/bge-m3`, GPU-resident |
 | Migrate the 7,000 memories | blocked on Phase 0 corpus export |
-| Run the eval, select the embedder on evidence | blocked on Phase 0 eval set |
+| Run the eval, select the embedder on evidence | **harness ready**, blocked on the Phase 0 eval set — `tools/eval/retrieval_eval.py`. Exact search, so a model too large to index can still be scored. |
 | Local reranker service | **done** — TEI cross-encoder on `127.0.0.1:8081` |
 | Retrieval pipeline verified end to end | **done** — embed → ANN top-5 → cross-encoder rerank → top-3, reordering confirmed |
 
