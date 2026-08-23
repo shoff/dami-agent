@@ -2490,6 +2490,24 @@ remote inference endpoint currently crosses D-012 without resistance.
   uniqueness checks.
 - Affected `Dami.Providers.Tests` suite: **11 passed, 0 failed**.
 
+### Egress boundary — red/green
+
+- Redirect-to-unlisted-host test failed red with no exception. `HttpEgressClient` now
+  follows at most five redirects itself and validates every hop; the host's primary
+  handler has automatic redirects disabled. The focused test passed green.
+- Plain-HTTP destination test failed red with no exception, then passed after enforcing
+  HTTPS at the boundary.
+- Network-failure audit test was compile-red because `EgressFailed` did not exist. Added
+  that durable event type and failure recording while preserving the original exception;
+  focused test passed.
+- Oversized-response test was compile-red because no response limit existed. Added a
+  2 MiB default, positive constructor validation, headers-first requests, bounded content
+  buffering, and response disposal. The limit test and a separate nonpositive-limit
+  constructor cycle both passed after their expected reds.
+- Percent-encoded tripwire test failed red because the escaped URI hid the configured
+  fragment, then passed after comparison against the unescaped absolute URI.
+- Affected `Dami.Privacy.Tests` suite: **14 passed, 0 failed**.
+
 ## 2026-08-23 — Claude Code — Full preservation, draft eval set, and the first real baseline
 
 ### Phase 0 preservation, complete for Weaviate

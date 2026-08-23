@@ -65,6 +65,20 @@ docker run -d --name dami-embed --gpus all --restart unless-stopped \
 
 The `LD_LIBRARY_PATH` override is mandatory — see the runbook, §4.2.
 
+## Running comparison (draft query set — review pending)
+
+On the real corpus (7,048 docs) with the 37-pair DRAFT query set. Numbers move when
+Steve reviews the set; the table is the method working, not the final answer.
+
+| model | dims | ANN recall@10 | ANN MRR | reranked MRR | reranked nDCG@10 |
+|---|---|---|---|---|---|
+| `BAAI/bge-m3` | 1024 | **0.8378** | **0.6115** | **0.6899** | **0.7122** |
+| `Qwen/Qwen3-Embedding-0.6B` | 1024 | 0.7838 | 0.5674 | 0.6676 | 0.6895 |
+
+**Reranking helps at scale** (+0.08–0.10 MRR for both models), reversing the
+15-doc synthetic result exactly as predicted below — D-008's claim, now with evidence.
+bge-m3 leads on every metric so far, corroborating ADR-0009's interim choice.
+
 ## A worked example, and why its result is not a finding
 
 First run against the synthetic sample:

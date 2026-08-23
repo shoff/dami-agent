@@ -24,10 +24,13 @@ from pathlib import Path
 
 import psycopg
 
-EMBED_URL = "http://127.0.0.1:8080"
+EMBED_URL = "http://127.0.0.1:8080"  # override with --embed-url
 RERANK_URL = "http://127.0.0.1:8081"
 DSN = "host=127.0.0.1 dbname=dami-data user=dami_ddl"
 BATCH = 32  # TEI max_client_batch_size
+
+
+EMBED_BASE = EMBED_URL
 
 
 def post(url: str, payload: dict) -> object:
@@ -45,7 +48,7 @@ def get(url: str) -> dict:
 def embed(texts: list[str]) -> list[list[float]]:
     vectors: list[list[float]] = []
     for start in range(0, len(texts), BATCH):
-        vectors.extend(post(f"{EMBED_URL}/embed", {"inputs": texts[start:start + BATCH]}))
+        vectors.extend(post(f"{EMBED_BASE}/embed", {"inputs": texts[start:start + BATCH]}))
     return vectors
 
 
@@ -142,11 +145,15 @@ def main() -> int:
     parser.add_argument("--corpus", type=Path, required=True, help="JSONL of {id, text}")
     parser.add_argument("--queries", type=Path, required=True, help="JSONL of {query, relevant:[id]}")
     parser.add_argument("--label", required=True, help="Model identifier; names the eval table")
+    parser.add_argument("--embed-url", default=EMBED_URL, help="Embedding service to evaluate")
     parser.add_argument("--candidates", type=int, default=50, help="ANN depth before reranking")
     parser.add_argument("--k", type=int, default=10, help="Cutoff for the metrics")
     parser.add_argument("--reuse", action="store_true", help="Skip embedding; reuse the existing table")
     parser.add_argument("--keep", action="store_true", help="Leave the eval table in place")
     arguments = parser.parse_args()
+
+    global EMBED_BASE
+    EMBED_BASE = arguments.embed_url
 
     docs = read_jsonl(arguments.corpus)
     queries = read_jsonl(arguments.queries)
