@@ -2924,6 +2924,28 @@ first behavior change is test-only: two schedulers share a stale run log and one
 and the assertion requires the service to execute exactly once. No lease contract or
 production implementation has been added yet.
 
+The concurrency test failed red as intended: `RunPassAsync` was received twice with
+distinct trace IDs (`8b7cd6bc-...` and `6d239e0b-...`). The scheduler lease contract
+will return an expiring async-disposable lease per service. Cadence is checked while the
+lease is held, closing both the simultaneous-run race and the stale-read-after-release
+race. The PostgreSQL implementation will remain an explicit throwing stub until its own
+live-database test has failed red.
+
+The first scheduler-green attempt was correctly rejected by analyzer DAMI0003 because
+the lease flow pushed `RunDueAsync` to 33 body lines over the 30-line limit. The flow is
+being extracted into a single-purpose `TryRunAsync` method without changing behavior.
+
+After extraction, the scheduler concurrency test passes 1/1: the second scheduler does
+not execute without a lease. The database method is still the intentional throwing
+stub. The next test is live PostgreSQL and requires exactly one active lease for a
+service; it is being added before the lease table or SQL implementation.
+
+The live-test red step stopped at compile time with analyzer DAMI0006:
+`TryAcquireLeaseAsync` implements an interface member but throws
+`NotImplementedException`. The analyzer prevents even a temporary partial abstraction.
+Implementation will now use an expiring row keyed by service name; disposal deletes
+only the caller's lease ID, so an expired owner cannot remove a successor's lease.
+
 ## 2026-08-23 — Claude Code — The librarian sees
 
 Phase 6 arrives at the librarian: with `MediaLibrarian:VisionEnabled`, image proposals
@@ -2936,3 +2958,11 @@ sidecar failure still surfaces the manifest.
 
 Service republished with vision wiring (off by default). Full solution 0/0, all suites
 green — 63 in Proactive.
+
+### Flake report, not absorbed
+
+`ProactiveSchedulerTests.RunDueAsync_Should_Not_Run_The_Same_Service_Concurrently`
+(added in Codex's b27f638) failed once in a full-suite run and then passed four
+consecutive full-suite runs. Timing-sensitive concurrency test; flagged for its author.
+The 910c5b7 commit message's "all suites green" claim predates observing this flake —
+corrected here: eleven suites green, one known-flaky test in the twelfth.
