@@ -472,6 +472,11 @@ reader/writer with round-trip property tests over deliberately split buffers, th
   synthetic 500-node loads and not a live runtime you have not finished.
 - Anything on the MAI port list must be **justified in writing before being rebuilt**.
   The standing temptation is to rebuild solved problems.
+- **`docs/status.md` is the running record of observed state** — what is built,
+  what is verified, what is waiting on Steve, and where the documents and the
+  machine disagree. Read it before assuming a component exists, and update it in
+  the same commit as the change it describes. Every `done` row there carries the
+  command that proves it; do not promote a row without running something.
 - Update this file when a phase advances or an open decision closes. A stale
   orientation doc is worse than none.
 

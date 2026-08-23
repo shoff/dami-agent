@@ -2,7 +2,9 @@
 
 **Before doing anything in this repository, read `docs/onboarding.md`.** It is
 short and it will keep you from wasting Steve's time. `docs/dami-core-charter.md`
-is the authoritative long-form spec behind it.
+is the authoritative long-form spec behind it. **`docs/status.md` is the running
+record of what is actually done** — check it before assuming any component exists,
+and update it in the same commit as the change it describes.
 
 ## Project
 
