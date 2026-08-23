@@ -2006,3 +2006,30 @@ the two services through the data layer rather than through coupling.
 `Dami.Capabilities.Tests` — `CapabilityEntry` not found — which is Codex's brand-new,
 uncommitted capability-registry work, mid-edit. My changed projects verified clean
 individually; Proactive suite 57/57.
+
+## 2026-08-23 — Claude Code — dami correct: supersession from the shell; service redeployed
+
+`dami retract` removes a belief; F-10 wants replacement. `dami correct <id> <text>`
+supersedes: the replacement carries `ConclusionSource.Correction`, confidence 1.0 (a
+direct statement from Steve is not an inference — D-014's `DirectStatement` reasoning),
+inherits the original's provenance, and the original is retracted as "corrected by
+Steve" with the chain pointing at its successor.
+
+Demonstrated live on the reflection pass's first belief:
+
+```
+$ dami correct 5afd98e4 builds momentum by shipping vertical slices end to end...
+was:    The person prioritizes proactive system development and values positive outcomes.
+now:    builds momentum by shipping vertical slices end to end in long focused sessions
+
+$ dami beliefs diff 2026-08-23T05:45:00Z
++ builds momentum by shipping vertical slices end to end in long focused sessions
+- The person prioritizes proactive system development…  [corrected by Steve]
+```
+
+The success definition's full loop — believe, inspect, correct, and see the correction
+take effect with the audit trail intact — has now run end to end on a real belief.
+
+Also republished `/opt/dami/proactive` so the running service carries today's
+improvements (belief-aware reflection, feedback observations); service active.
+`DAMI0003` fired twice more on the router; dispatch split by family.

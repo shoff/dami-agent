@@ -97,6 +97,46 @@ public sealed class BeliefCommands
         return 0;
     }
 
+    /// <summary>Replaces a belief with a corrected one — supersession, not deletion.</summary>
+    /// <remarks>
+    /// F-10: corrections supersede rather than coexist. The old belief stays in the
+    /// ledger, retracted with the correction chain pointing at its replacement, so
+    /// "why did Dami stop believing that" always has an answer.
+    /// </remarks>
+    public async Task<int> CorrectAsync(
+        string idPrefix,
+        string correctedStatement,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(correctedStatement);
+
+        var target = await this.ResolveAsync(idPrefix, cancellationToken).ConfigureAwait(false);
+        if (target is null)
+        {
+            await Console.Error.WriteLineAsync($"no active conclusion matches '{idPrefix}'").ConfigureAwait(false);
+            return 1;
+        }
+
+        var replacement = new Conclusion(
+            Guid.NewGuid(),
+            target.ConclusionId,
+            target.Subject,
+            correctedStatement,
+            1.0,
+            ConclusionSource.Correction,
+            this.clock.GetUtcNow(),
+            target.SupportingObservations);
+
+        await this.conclusionLedger
+            .SupersedeAsync(replacement, "corrected by Steve", cancellationToken)
+            .ConfigureAwait(false);
+
+        Console.WriteLine($"was:    {target.Statement}");
+        Console.WriteLine($"now:    {replacement.Statement}");
+        Console.WriteLine($"        (confidence 1.00 - a direct correction outranks any inference)");
+        return 0;
+    }
+
     /// <summary>Records an observation from the command line into the corpus.</summary>
     public async Task<int> NoteAsync(string body, CancellationToken cancellationToken)
     {

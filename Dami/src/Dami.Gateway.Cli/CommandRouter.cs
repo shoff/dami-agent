@@ -16,7 +16,9 @@ public static class CommandRouter
           dami beliefs [date]            what Dami believes, now or as of a date
           dami beliefs diff <from> [to]  what changed - the drift instrument (D-011)
           dami retract <id-prefix> <reason>
-                                         correct the ledger; the reason is recorded
+                                         stop believing something; the reason is recorded
+          dami correct <id-prefix> <corrected statement>
+                                         replace a belief - supersession, the audit trail kept
           dami note <text>               record an observation into the corpus
           dami health                    check postgres, sidecars, GPU placement, tier
         """;
@@ -68,17 +70,34 @@ public static class CommandRouter
                     cancellationToken).ConfigureAwait(false),
             "trace" when args.Length > 1 =>
                 await traces.ReplayAsync(args[1], cancellationToken).ConfigureAwait(false),
+            "health" =>
+                await health.CheckAsync(cancellationToken).ConfigureAwait(false),
+            "beliefs" or "correct" or "retract" or "note" =>
+                await DispatchBeliefsAsync(verb, args, beliefs, cancellationToken).ConfigureAwait(false),
+            _ => Usage(),
+        };
+    }
+
+    private static async Task<int> DispatchBeliefsAsync(
+        string verb,
+        string[] args,
+        BeliefCommands beliefs,
+        CancellationToken cancellationToken)
+    {
+        return verb switch
+        {
             "beliefs" when args.Length > 2 && args[1] == "diff" =>
                 await beliefs.DiffAsync(args[2], args.Length > 3 ? args[3] : null, cancellationToken)
                     .ConfigureAwait(false),
             "beliefs" =>
                 await beliefs.ListAsync(args.Length > 1 ? args[1] : null, cancellationToken)
                     .ConfigureAwait(false),
+            "correct" when args.Length > 2 =>
+                await beliefs.CorrectAsync(args[1], string.Join(' ', args[2..]), cancellationToken)
+                    .ConfigureAwait(false),
             "retract" when args.Length > 2 =>
                 await beliefs.RetractAsync(args[1], string.Join(' ', args[2..]), cancellationToken)
                     .ConfigureAwait(false),
-            "health" =>
-                await health.CheckAsync(cancellationToken).ConfigureAwait(false),
             "note" when args.Length > 1 =>
                 await beliefs.NoteAsync(string.Join(' ', args[1..]), cancellationToken)
                     .ConfigureAwait(false),
