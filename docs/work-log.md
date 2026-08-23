@@ -391,3 +391,73 @@ Layering and leaky surfaces are now mechanical. SRP, OCP, LSP, ISP, method lengt
 `#region`, `dynamic`, and hot-path LINQ remain review-only — §12 of the standards is
 still the authority on that split, and open decision #9 narrows to those rather than
 closing.
+
+## 2026-08-22 — Claude Code — Dami.Analyzers
+
+Steve authorized a Dami analyzer project to close the rest of the enforcement gap.
+Six rules, built red-first per `AGENTS.md`.
+
+### TDD sequence, as observed
+
+1. Created `Dami/src/Dami.Analyzers` with six `DiagnosticAnalyzer` classes carrying
+   correct descriptors but **empty `Initialize` bodies**, so they report nothing.
+2. Wrote eleven tests in `Dami/tests/Dami.Analyzers.Tests` — one violation case and one
+   compliant case per rule where a compliant case is meaningful.
+3. **Observed red:** `Failed: 6, Passed: 5`. The six "should report" tests failed; the
+   five "should stay silent" tests passed trivially because nothing reported.
+4. Implemented the six analyzers.
+5. **Observed green:** `Passed: 11, Failed: 0`.
+
+**Deviation from `AGENTS.md`, recorded rather than glossed:** the rule is one test at a
+time. All eleven were written before any implementation, so there was a single observed
+red phase covering six rules rather than six separate cycles. The red phase was real and
+is quoted above, but this was batched TDD, not strict one-at-a-time TDD.
+
+### Rules
+
+| Id | Rule | §  |
+|---|---|---|
+| `DAMI0001` | `#region` banned | 3 |
+| `DAMI0002` | `dynamic` banned | 5 |
+| `DAMI0003` | method body over 30 lines | 3 |
+| `DAMI0004` | loop nesting over 2 levels | 3 |
+| `DAMI0005` | optional constructor parameter of an abstraction type | 5 |
+| `DAMI0006` | `NotImplementedException` on an interface implementation | 5 |
+
+`DAMI0005` deliberately flags only abstraction-typed parameters — interface, abstract
+class, delegate. An optional `int retries = 3` is a value, not a dependency, and banning
+those would be noise. `Nullable<T>` is excluded so `int? x = null` is not caught.
+
+`DAMI0003` counts the statement lines of the body, not the signature or braces, so a long
+parameter list is not punished twice.
+
+### Two things the tooling caught in my own code
+
+- Writing the tests, `const string SOURCE` failed `IDE1006`. **The enforcement layer was
+  right and I was wrong**: §1 mandates `UPPER_CASE` for const *fields*; these are local
+  constants, which the camelCase locals rule governs. Renamed to `code`.
+- Wiring the analyzer solution-wide, the first build failed with **`DAMI0004` on
+  `AsyncContractTests.PublicMethods`** — three nested loops in the architecture test I
+  had written an hour earlier. **Codex's code was clean; mine was not.** Fixed by
+  extracting `MethodsIn` and `DeclaredMethodsOf`, which is exactly the remedy the
+  diagnostic names.
+
+### Wiring
+
+`Directory.Build.props` adds the analyzer to every project as
+`OutputItemType="Analyzer" ReferenceOutputAssembly="false"`, excluding `Dami.Analyzers`
+itself (circular) and `Dami.Analyzers.Tests` (references it as a library).
+
+**Known limitation:** `Dami.Architecture.Tests` reads `ProjectReference` elements from
+`.csproj` files only, so references injected by `Directory.Build.props` are invisible to
+it. That is harmless for a build-time analyzer with `ReferenceOutputAssembly="false"`,
+but if a real runtime dependency is ever added there, the layering tests will not see it.
+
+### Verification
+
+- `dotnet build Dami.sln` → **0 warnings, 0 errors**.
+- `dotnet test Dami.sln` → **28 passed** across four suites: Dami.Tests 1,
+  Dami.Transport.Tests 6, Dami.Architecture.Tests 10, Dami.Analyzers.Tests 11.
+- Standards §12 rewritten: the `DAMI****` rules are listed as build errors, and the
+  remaining gap is reduced to things not decidable from syntax (SRP, OCP, ISP, hot-path
+  LINQ) plus two deliberate not-yets (`CA2254`, `CS1591`).

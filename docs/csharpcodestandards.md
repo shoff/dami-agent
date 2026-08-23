@@ -297,6 +297,16 @@ Verified 2026-08-22 by compiling deliberate violations and confirming each rule 
 | `VSTHRD002` | synchronously blocking on a task | §5 |
 | `VSTHRD100`/`VSTHRD110` | `async void`, unobserved tasks | §5 |
 | nullable warnings | `Nullable=enable` + `TreatWarningsAsErrors` | §4, C-05 |
+| `DAMI0001` | `#region` | §3 |
+| `DAMI0002` | `dynamic` | §5 |
+| `DAMI0003` | method body over 30 lines | §3 |
+| `DAMI0004` | loop nesting over 2 levels | §3 |
+| `DAMI0005` | optional constructor parameter of an abstraction type | §5 |
+| `DAMI0006` | `NotImplementedException` on an interface implementation | §5 |
+
+`DAMI****` rules come from `Dami/src/Dami.Analyzers`, wired into every project by
+`Directory.Build.props`. Layering and leaky abstractions are covered separately by
+`Dami/tests/Dami.Architecture.Tests`.
 
 Configured in `.editorconfig` (repo root), `Dami/Directory.Build.props`, and
 `Dami/BannedSymbols.txt`. Adding a banned API is one line in `BannedSymbols.txt`.
@@ -305,24 +315,22 @@ Configured in `.editorconfig` (repo root), `Dami/Directory.Build.props`, and
 
 **Nothing checks these. They are still mandatory.**
 
-| Not enforced | Standard | Could be closed by |
+| Not enforced | Standard | Note |
 |---|---|---|
-| SRP / OCP / LSP / ISP / DIP | §6 | a Dami analyzer, or review |
-| Leaky abstractions; abstractions at the wrong layer | §6, §7 | an architecture test asserting the dependency direction |
-| Layer dependency rules (`Core` never references an implementation) | §7 | an architecture test, or `ProjectReference` discipline |
-| Methods ≤ 30 lines; loop nesting ≤ 2 | §3 | a custom analyzer |
-| `#region` ban | §3 | a custom analyzer |
-| `dynamic` ban | §5 | a custom analyzer |
-| Optional constructor parameters for dependencies | §5 | a custom analyzer |
-| No LINQ on hot paths | §8 | a custom analyzer; not expressible generically |
-| Structured-logging-only (no interpolated messages) | §9 | `CA2254`, not yet enabled |
+| SRP, OCP, ISP | §6 | Not decidable from syntax. A "one reason to change" detector would be a heuristic pretending to be a rule; review is the honest answer. |
+| LSP beyond `NotImplementedException` | §5, §6 | `DAMI0006` catches the common case. The general property is not statically checkable. |
+| No LINQ on hot paths | §8 | Needs a definition of "hot path" the compiler can see. Attribute-marking hot paths and analyzing those would work; not built. |
+| Structured-logging-only (no interpolated messages) | §9 | `CA2254` covers it. Not enabled because the full CA ruleset has not been turned on. |
 | One assertion per test; no Arrange/Act/Assert comments | §11 | review |
+| Every public member carries `/// <summary>` | §4 | `CS1591` is in `NoWarn`; enabling it is a decision, not an oversight |
 
-**Open decision:** port or rewrite `MA.RoslynAnalyzers` as a Dami package, add
-architecture tests for the layering rules only, or accept review-based enforcement.
-Layering is the highest-value and cheapest of the three — a single test project
-asserting the dependency direction would close the two failure modes §6 calls out. This
-has not been decided; do not assume it.
+**What closed the gap:** `Dami.Analyzers` (six rules, §12 table above) and
+`Dami.Architecture.Tests` (layering, leaky surfaces, async contracts). What remains is
+either undecidable from syntax or a deliberate not-yet.
+
+**Adding a rule** is a new `DiagnosticAnalyzer` in `Dami/src/Dami.Analyzers` plus a
+red-first test in `Dami/tests/Dami.Analyzers.Tests`. Both are small; the harness is
+about thirty lines and takes no external testing package.
 
 ## 13. Definition of done
 

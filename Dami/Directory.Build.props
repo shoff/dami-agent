@@ -41,4 +41,18 @@
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.7.23" PrivateAssets="all" />
   </ItemGroup>
 
+  <!--
+    Dami's own analyzers: #region, dynamic, method length, loop nesting, optional
+    constructor dependencies, and NotImplementedException on interface members. These
+    close part of the enforcement gap that MA.RoslynAnalyzers covered in MAI.
+
+    The analyzer project cannot analyze itself, and its test project references it as a
+    library rather than as an analyzer.
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Dami.Analyzers' AND '$(MSBuildProjectName)' != 'Dami.Analyzers.Tests'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src/Dami.Analyzers/Dami.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

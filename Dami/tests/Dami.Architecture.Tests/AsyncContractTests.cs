@@ -71,18 +71,29 @@ public sealed class AsyncContractTests
     {
         foreach (var assembly in AssemblyProbe.Load(productionAssemblies))
         {
-            foreach (var type in assembly.GetExportedTypes())
+            foreach (var entry in MethodsIn(assembly))
             {
-                var methods = type
-                    .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
-                    .Where(method => !method.IsSpecialName);
-
-                foreach (var method in methods)
-                {
-                    yield return (type, method);
-                }
+                yield return entry;
             }
         }
+    }
+
+    private static IEnumerable<(Type Type, MethodInfo Method)> MethodsIn(Assembly assembly)
+    {
+        foreach (var type in assembly.GetExportedTypes())
+        {
+            foreach (var method in DeclaredMethodsOf(type))
+            {
+                yield return (type, method);
+            }
+        }
+    }
+
+    private static IEnumerable<MethodInfo> DeclaredMethodsOf(Type type)
+    {
+        return type
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => !method.IsSpecialName);
     }
 
     private static bool IsAwaitable(Type returnType)
