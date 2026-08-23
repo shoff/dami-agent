@@ -21,6 +21,7 @@ public static class CommandRouter
                                          replace a belief - supersession, the audit trail kept
           dami note <text>               record an observation into the corpus
           dami health                    check postgres, sidecars, GPU placement, tier
+          dami stats                     vital signs: corpus, beliefs, passes, egress
           dami recall <query>            semantic search over everything Dami has seen
           dami ask <question>            answer from the corpus, with citations (local LLM)
           dami context <request>         show what would enter the prompt, and its token cost
@@ -37,7 +38,8 @@ public static class CommandRouter
         RecallCommands recall,
         AskCommands ask,
         ContextCommands contextCommands,
-        VisionCommands vision)
+        VisionCommands vision,
+        StatsCommands stats)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
@@ -48,6 +50,7 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(ask);
         ArgumentNullException.ThrowIfNull(contextCommands);
         ArgumentNullException.ThrowIfNull(vision);
+        ArgumentNullException.ThrowIfNull(stats);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -58,7 +61,7 @@ public static class CommandRouter
 
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
-            args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision,
+            args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
             cancellation.Token).ConfigureAwait(false);
     }
 
@@ -73,6 +76,7 @@ public static class CommandRouter
         AskCommands ask,
         ContextCommands contextCommands,
         VisionCommands vision,
+        StatsCommands stats,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -87,8 +91,9 @@ public static class CommandRouter
                     cancellationToken).ConfigureAwait(false),
             "trace" when args.Length > 1 =>
                 await traces.ReplayAsync(args[1], cancellationToken).ConfigureAwait(false),
-            "health" =>
-                await health.CheckAsync(cancellationToken).ConfigureAwait(false),
+            "health" or "stats" => verb == "health"
+                ? await health.CheckAsync(cancellationToken).ConfigureAwait(false)
+                : await stats.ShowAsync(cancellationToken).ConfigureAwait(false),
             "recall" when args.Length > 1 =>
                 await recall.SearchAsync(string.Join(' ', args[1..]), cancellationToken)
                     .ConfigureAwait(false),

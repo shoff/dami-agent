@@ -2931,6 +2931,12 @@ lease is held, closing both the simultaneous-run race and the stale-read-after-r
 race. The PostgreSQL implementation will remain an explicit throwing stub until its own
 live-database test has failed red.
 
+Claude Code reported one failure followed by four passes for the new scheduler
+concurrency test while this lease slice was still uncommitted. The test's NSubstitute
+return sequence was itself timing-sensitive. It is being corrected to grant the fake
+lease through `Interlocked.CompareExchange`, making exactly one winner an atomic test
+fixture invariant rather than relying on concurrent consumption order.
+
 The first scheduler-green attempt was correctly rejected by analyzer DAMI0003 because
 the lease flow pushed `RunDueAsync` to 33 body lines over the 30-line limit. The flow is
 being extracted into a single-purpose `TryRunAsync` method without changing behavior.
@@ -2979,3 +2985,12 @@ It exists to make the data's shape tangible for the open Tauri/React-vs-Avalonia
 decision, and the file's own header says what it must not become: the GUI. Open it in a
 browser next to its JSON (`python3 -m http.server` in the directory, or any static
 serve).
+
+## 2026-08-23 — Claude Code — dami stats: the vital signs, D-011's number included
+
+One screen: corpus by source, beliefs (active/retracted/corrections), surfacings by
+status with feedback counts, passes per service over 7 days with failures, **the
+quarterly pushback rate labeled as what it is — the alarm whose falling is the signal**,
+and every egress in 7 days (2 requested, 2 completed, 0 refused — and that zero-refusal
+line is itself information). Table-driven sections after DAMI0003 objected to the long
+body; the analyzer keeps winning arguments with its author. CLI republished.

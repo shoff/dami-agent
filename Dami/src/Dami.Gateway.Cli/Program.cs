@@ -38,6 +38,7 @@ services.AddSingleton<RecallCommands>();
 services.AddSingleton<AskCommands>();
 services.AddSingleton<ContextCommands>();
 services.AddSingleton<VisionCommands>();
+services.AddSingleton<StatsCommands>();
 services.AddOptions<ContextOptions>();
 services.AddSingleton<Dami.Contracts.Context.IContextBuilder, ContextBuilder>();
 services.AddOptions<OllamaVisionOptions>();
@@ -61,4 +62,5 @@ return await CommandRouter.RunAsync(
     provider.GetRequiredService<RecallCommands>(),
     provider.GetRequiredService<AskCommands>(),
     provider.GetRequiredService<ContextCommands>(),
-    provider.GetRequiredService<VisionCommands>());
+    provider.GetRequiredService<VisionCommands>(),
+    provider.GetRequiredService<StatsCommands>());
