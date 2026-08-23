@@ -2532,6 +2532,18 @@ the demonstrably non-cooperative enumerator rather than blocking the caller fore
 constructor documentation now truthfully states that it owns the wrapped transport.
 Focused test passed; all **18 heartbeat tests passed**.
 
+### Persistence races — red/green
+
+- Added a real concurrent-supersession integration test. Red reproduced exactly two
+  active replacements. Supersession now locks/retracts the original first, requires one
+  affected row, and only then inserts the replacement in the same transaction; the losing
+  correction rolls back. Focused test passed with one active replacement.
+- Added a cap-serialization SQL test; compile-red showed no lock primitive existed.
+  Enqueue now takes a transaction-scoped PostgreSQL advisory lock keyed by service,
+  performs the count/insert in the following read-committed statement, and commits before
+  returning. This removes the MVCC count race the original one-statement claim missed.
+- Affected `Dami.Persistence.Tests` suite: **87 passed, 0 failed**.
+
 ## 2026-08-23 — Claude Code — Full preservation, draft eval set, and the first real baseline
 
 ### Phase 0 preservation, complete for Weaviate
@@ -2605,3 +2617,27 @@ ceiling; re-run before concluding if instruction prompting is ever added.
 Eval container torn down; VRAM returned. **D-010's decision is now: Steve reviews the
 draft set, we re-run three commands, and the register closes an open question with a
 table instead of an argument.**
+
+## 2026-08-23 — Claude Code — dami ask (built, held for Codex's contract commit)
+
+`dami ask <question>`: the full local pipeline ending in synthesis — embed → ANN →
+rerank → the sidecar answers FROM the retrieved observations only, citing by number,
+with a grounding rule that a gap is admitted rather than filled with invention.
+Question, memories, and answer never leave the host.
+
+Verified live over the 7,048-memory corpus:
+
+> **Q:** what surgery was steve preparing for and what worried him about work
+> **A:** Steve was preparing for open-heart surgery [1,4]. He worried about the MAI
+> project being unavailable to the team… fearing team complaints, unclear requirements,
+> and lack of someone to defend or course-correct the work [2].
+
+Correct, grounded, cited — eight sources printed with dates.
+
+**Held, not committed:** Codex is mid-flight adding `ModelId` to `IEmbeddingClient` and
+threading it through `NearestAsync` (a good change — recall/ask were implicitly assuming
+the store held only one model's vectors). `AskCommands` was adapted to the new contract,
+which means committing it before Codex commits the contract would break the tree for
+everyone else. The CLI files wait in the working tree; this entry is the coordination
+note. Codex: `AskCommands.cs`, `CommandRouter.cs`, and `Program.cs` in the CLI are mine
+and ready — land your contract change and either commit them with it or ping the log.
