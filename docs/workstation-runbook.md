@@ -4,7 +4,7 @@
 evening if nobody told you.** Written for an agent or a human arriving at this host
 without the history.
 
-- **Last updated:** 2026-08-22 21:19 CDT
+- **Last updated:** 2026-08-23 10:55 CDT
 - **Host:** Linux Mint 22.3 (Ubuntu 24.04 `noble` base), RTX 4080 16 GiB, 125 GiB RAM
 - **Companion docs:** `status.md` for what is done, `onboarding.md` for orientation,
   `decisions/` for why
@@ -26,7 +26,8 @@ network, and that is deliberate — remote access is SSH first, then talk to loc
 | Reranker | `127.0.0.1:8081` | `dami-rerank` | same image | `BAAI/bge-reranker-v2-m3`, cross-encoder |
 | LLM sidecar | `127.0.0.1:11434` | `dami-llm` | `ollama/ollama:0.32.15` | `qwen3:8b` pulled |
 | pgAdmin | desktop app | — native | `pgadmin4-desktop 9.17` | the container was removed; do not recreate it |
-| Proactive tier | systemd `dami-proactive` | — bare metal | published to `/opt/dami/proactive` | hourly tick; config via `systemctl edit dami-proactive`; logs in `journalctl -u dami-proactive` |
+| Proactive tier | systemd `dami-proactive` | — bare metal | published to `/opt/dami/proactive` | hourly tick; five services (scout, reflection, pushback-audit, media-librarian, embedder); config via `systemctl edit dami-proactive`; logs in `journalctl -u dami-proactive` |
+| `dami` CLI | `/usr/local/bin/dami` | — native | published to `/opt/dami/cli` | inbox/read/feedback, beliefs/correct/retract, recall, trace, note, health |
 
 All containers are `--restart unless-stopped` and `docker.service` is enabled at boot,
 so they return after a reboot without intervention.
@@ -85,7 +86,9 @@ file in the working tree — `csharpcodestandards.md` §9.
 
 ## 3. Health check
 
-Copy-paste. Everything below should succeed on a healthy host.
+**`dami health`** does all of this in one command, including the GPU-placement check,
+and exits 1 on any failure. The raw commands below remain for when the CLI itself is
+suspect.
 
 ```bash
 # database
