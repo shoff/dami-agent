@@ -3180,3 +3180,21 @@ Live: *"what is my favorite species of deep sea fish"* → "The context provided
 include information… No relevant data is available." — an honest refusal where the
 morning's version confabulated. 26 Core tests; the ceiling needs tuning against the
 eval set rather than feel, noted on the option itself.
+
+## 2026-08-23 — Codex — Proactive run identity enforcement completed
+
+Changed `IProactiveRunLog`, `PostgresProactiveRunLog`, and its live-database tests.
+`RecordAsync` now distinguishes a duplicate insert by comparing the durable row with
+the requested service, trace, timestamp, and status. An exact repeat is still an
+idempotent success; reuse of the same `run_id` for different data throws
+`InvalidOperationException`. The interface documents both semantics. No schema or data
+migration is needed because the invariant builds on the existing `run_id` primary key.
+
+Verification after the recorded red-green step: all `PostgresProactiveRunLogTests`
+passed 8/8, and `Dami.Persistence.Tests` passed 92/92. To avoid incorporating Claude
+Code's concurrent work, the mandatory exact-diff solution gate ran in
+`/tmp/dami-runlog-gate.j4HAbY/repo` from committed HEAD `8ab11a4` with only these three
+C# paths applied: `dotnet build Dami.sln --nologo` produced **0 warnings, 0 errors**;
+`dotnet test Dami.sln --no-restore --nologo` passed **317/317** across twelve test
+assemblies; `dotnet format Dami.sln --verify-no-changes --no-restore --verbosity
+minimal` exited 0 with no diagnostics. `git diff --check` also passed.

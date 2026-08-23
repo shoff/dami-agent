@@ -10,7 +10,10 @@ public interface IProactiveRunLog
         TimeSpan duration,
         CancellationToken cancellationToken);
 
-    /// <summary>Records that a pass ran.</summary>
+    /// <summary>Records that a pass ran, treating an identical record as an idempotent retry.</summary>
+    /// <exception cref="InvalidOperationException">
+    /// The run ID is already associated with different data.
+    /// </exception>
     Task RecordAsync(
         Guid runId,
         string serviceName,

@@ -68,6 +68,40 @@ public sealed class PostgresProactiveRunLogTests
     }
 
     [Fact]
+    public async Task RecordAsync_Should_Reject_A_Conflicting_Run_Id()
+    {
+        await this.fixture.ResetAsync();
+        var log = this.CreateLog();
+        var runId = Guid.NewGuid();
+        await log.RecordAsync(
+            runId, "scout", Guid.NewGuid(), ranAt, ProactiveStatus.Completed, CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => log.RecordAsync(
+            runId,
+            "reflection",
+            Guid.NewGuid(),
+            ranAt.AddMinutes(1),
+            ProactiveStatus.Failed,
+            CancellationToken.None));
+
+        Assert.Contains(runId.ToString(), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RecordAsync_Should_Accept_An_Exact_Retry()
+    {
+        await this.fixture.ResetAsync();
+        var log = this.CreateLog();
+        var runId = Guid.NewGuid();
+        var traceId = Guid.NewGuid();
+
+        await log.RecordAsync(runId, "scout", traceId, ranAt, ProactiveStatus.Completed, CancellationToken.None);
+        await log.RecordAsync(runId, "scout", traceId, ranAt, ProactiveStatus.Completed, CancellationToken.None);
+
+        Assert.Equal(ranAt, await log.LastRanAtAsync("scout", CancellationToken.None));
+    }
+
+    [Fact]
     public async Task TryAcquireLeaseAsync_Should_Grant_Only_One_Active_Lease()
     {
         await this.fixture.ResetAsync();

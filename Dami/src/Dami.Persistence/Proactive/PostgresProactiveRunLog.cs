@@ -79,7 +79,41 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog
         command.Parameters.AddWithValue("trace_id", traceId);
         command.Parameters.AddWithValue("ran_at", ranAt);
         command.Parameters.AddWithValue("status", status.ToString());
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        var written = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        if (written == 1)
+        {
+            return;
+        }
+
+        if (!await this.IsExactRetryAsync(
+                runId, serviceName, traceId, ranAt, status, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException(
+                $"Proactive run '{runId}' is already recorded with different data.");
+        }
+
+        this.logger.LogDebug("Proactive run {RunId} was already recorded; the exact retry was discarded", runId);
+    }
+
+    private async Task<bool> IsExactRetryAsync(
+        Guid runId,
+        string serviceName,
+        Guid traceId,
+        DateTimeOffset ranAt,
+        ProactiveStatus status,
+        CancellationToken cancellationToken)
+    {
+        await using var command = this.dataSource.CreateCommand(
+            "select exists (select 1 "
+            + $"from {this.Table} where run_id = @run_id and service_name = @service_name "
+            + "and trace_id = @trace_id and ran_at = @ran_at and status = @status);");
+        command.Parameters.AddWithValue("run_id", runId);
+        command.Parameters.AddWithValue("service_name", serviceName);
+        command.Parameters.AddWithValue("trace_id", traceId);
+        command.Parameters.AddWithValue("ran_at", ranAt);
+        command.Parameters.AddWithValue("status", status.ToString());
+
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is true;
     }
 
     /// <inheritdoc />
