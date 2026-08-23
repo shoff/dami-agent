@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Dami.Contracts/Dami.Contracts.csproj" />
+    <ProjectReference Include="../Dami.Privacy/Dami.Privacy.csproj" />
   </ItemGroup>
 
 </Project>

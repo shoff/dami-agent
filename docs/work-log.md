@@ -2696,6 +2696,48 @@ committed and pushed as the `steve` OS user with Steve's existing Git identity a
 attribution trailers. The next strict red-green slice is proactive run trace propagation
 and scheduler correctness; no production code for that slice has been changed yet.
 
+Migration diagnosis found that `apply.sh --status` attempted `CREATE SCHEMA` before
+reading migration state. This cannot succeed under the documented least-privilege
+design because `dami_ddl` has `CREATE` in schema `dami` but intentionally lacks
+database-level `CREATE`. A black-box regression test was added first at
+`tools/ddl/test_apply.sh`; running `bash tools/ddl/test_apply.sh` against the unchanged
+runner failed with exit 77 and `status attempted a schema mutation`, the expected red
+result. Read-only catalog inspection also found nine tables, one sequence, and one
+function in schema `dami` owned by `postgres`, including `schema_migrations`, despite
+the runbook's statement that `dami_ddl` owns the application schema objects. The repair
+will be limited to those catalogued `dami` objects; no role, database, extension, or
+object outside that schema is in scope.
+
+The runner correction is green: `bash tools/ddl/test_apply.sh` prints
+`PASS: --status only inspected migration state`, and `bash -n` accepts both scripts.
+The first ownership transaction deliberately stopped and rolled back when PostgreSQL
+refused a direct owner change on the sequence owned by `execution_events`; no object
+changed. The retry changed the nine `dami` tables first (which carried the owned
+sequence with its table), then the one `dami` function, and committed. Catalog
+verification now reports all nine tables, the sequence, and the function owned by
+`dami_ddl`; `apply.sh --status` then read all eight existing migration records and
+reported only `009_versioned_embeddings.sql` pending.
+
+`009_versioned_embeddings.sql` was applied through the corrected runner as the
+`steve` OS user connecting over loopback as `dami_ddl`. A second status run reports
+all nine migrations applied and none pending. Catalog verification reports primary key
+`(observation_id, embedding_model)`, the migration checksum
+`75ab15f93e359e0560aea200ef280fca606ca92e0a1a15ffafbfd97d1f1d7ef4`, and 7,048
+embedding rows both administratively and through `dami_app`; the migration retained
+the entire corpus.
+
+Checkpoint verification had to restart twice because the shared tree changed during
+the gate. Claude Code stashed the mixed tree while publishing documentation, then
+reapplied it; Codex's changes remained recoverable in stash `353d63c` and were restored
+without overwriting Claude's staged paths. A subsequent full test started after a clean
+0-warning/0-error build, but Claude Code created the new frontier-provider red test
+while that run was compiling. The run therefore ended with exit 1 on missing test
+dependencies; it is recorded as interrupted by concurrent work, not as a passing gate
+or as a defect in this checkpoint. After Claude's red-green slice supplied its
+dependencies and implementation, the provider suite was rerun independently and
+passed 10/10. The mandatory complete solution gate will now be rerun once more against
+the settled shared tree before committing.
+
 ## 2026-08-23 — Claude Code — Dami.Core is born: context assembly and model routing
 
 Claimed the memory-facing half of the runtime in `docs/ownership.md` — `Dami.Core`
@@ -2740,3 +2782,32 @@ test fixed (defaults registered after a test's override silently won).
 
 Adapted to Codex's in-flight `ModelId` addition on `IEmbeddingClient` — the second of
 my components to do so; the commit still holds until their contract lands.
+
+## 2026-08-23 — Claude Code — ADR-0010 implemented: the frontier door, with tests
+
+`IFrontierChat`/`FrontierPrompt` in Contracts and `AnthropicChatClient` in Providers —
+the second door through the boundary, exactly per the ADR:
+
+- **Refuses a non-Egressable prompt** even though the router makes that unreachable —
+  and the test asserts the refusal *never reaches the network* (fake handler saw
+  nothing).
+- **The provider host must be allowlisted like any other** — being configured does not
+  exempt `api.anthropic.com` from the boundary.
+- **No API key → refusal with a clear message**; frontier capability is absent, not
+  assumed. Credentials arrive via user-secrets/environment only.
+- **Every call lands in the caller's trace** as EgressRequested/Completed/Refused, and a
+  test pins that the prompt text never appears in an event label — the purpose line
+  does.
+
+Seven gate tests, all green; isolation-verified (stash --keep-index --include-untracked,
+full build 0/0 at exactly the staged state) before committing, since Codex's 33-file
+sweep is still in flight. Acceptance item 9 (identity across two providers) now has its
+second provider's adapter waiting only on a key and `Egress__AllowedHosts` +
+`Routing__FrontierEnabled` — both deliberate, visible configuration acts.
+
+Also earlier this stretch: independent half of the Core work committed (context +
+routing contracts, `ModelRouter` with D-012 unconditional); ADR-0010 itself; the D-010
+review sheet (13/37 top-3 misses, first miss shows the near-duplicate-corpus pattern
+where the fix is adding ids, not deleting queries); acceptance-suite scoreboard in
+status.md — item 10 (memory without flooding) demonstrated against Hermes's 90–126k
+with a tested 2.5k assembly-time budget.
