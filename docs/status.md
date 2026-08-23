@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 20:54 CDT (`2026-08-23T01:54Z`)
+- **Last updated:** 2026-08-22 21:00 CDT (`2026-08-23T02:00Z`)
 - **Updated by:** Claude Code session, from direct inspection of this workstation
 - **Current phase:** 0 and 1, both in progress
 
@@ -70,7 +70,8 @@ the instrumentation gates the claim that Dami Core is faster than Hermes — arc
 | PostgreSQL from PGDG (D-004) | done | `postgresql-16 16.15-1.pgdg24.04+2`, `postgresql-16-pgvector 0.8.6-1.pgdg24.04+1` |
 | Least-privilege database roles | done | `dami_ddl` owns schema `dami`; `dami_app` DML only — both verified non-superuser and DDL-denied |
 | `uv` for Python sidecars | not installed | `command -v uv` → nothing |
-| Embedding service | done | TEI `89-1.9.0` on GPU serving `BAAI/bge-m3`, 1024 dims, 1853 MiB VRAM, ~46 ms per embed |
+| Embedding service | done | TEI `89-1.9.0` on GPU, `BAAI/bge-m3`, 1024 dims, ~46 ms per embed |
+| Reranker service | done | TEI `89-1.9.0` on GPU, `BAAI/bge-reranker-v2-m3`; both services 3262 MiB of 16376 |
 | SSH and remote access | unknown | Not verified by this session |
 
 **Phase 1's stated exit conditions are met:** stable host, GPU compute verified, rollback
@@ -85,8 +86,8 @@ rather than assuming — but nothing else blocks the phase.
 | Local embedding service on GPU | **done** — TEI `89-1.9.0`, `BAAI/bge-m3`, GPU-resident |
 | Migrate the 7,000 memories | blocked on Phase 0 corpus export |
 | Run the eval, select the embedder on evidence | blocked on Phase 0 eval set |
-| Local reranker service | not started |
-| Retrieval pipeline verified end to end | **partial** — embed → pgvector → HNSW cosine search proven; reranking not built |
+| Local reranker service | **done** — TEI cross-encoder on `127.0.0.1:8081` |
+| Retrieval pipeline verified end to end | **done** — embed → ANN top-5 → cross-encoder rerank → top-3, reordering confirmed |
 
 ### Phases 3–10 · *not started*
 
@@ -153,18 +154,41 @@ attached to nothing. Worth deleting.
 
 | | |
 |---|---|
-| Container | `dami-embed`, `restart=unless-stopped`, `127.0.0.1:8080` |
-| Image | `ghcr.io/huggingface/text-embeddings-inference:89-1.9.0` — **pinned**, digest `sha256:f6b08465…222d9338` |
-| Arch | `89` = Ada / sm89, correct for the RTX 4080. `89-1.9.0` is the newest tag; `89-1.10.0` returns 404. |
-| Model | `BAAI/bge-m3`, fp16, CLS pooling, 1024 dims, 8192 max input |
-| VRAM | ~1853 MiB of 16376 |
+| Image (both) | `ghcr.io/huggingface/text-embeddings-inference:89-1.9.0` — **pinned**, digest `sha256:f6b08465…222d9338` |
+| Arch | `89` = Ada / sm89, correct for the RTX 4080. `89-1.9.0` is newest; `89-1.10.0` returns 404. |
+| `dami-embed` | `127.0.0.1:8080`, `BAAI/bge-m3`, fp16, CLS pooling, 1024 dims, 8192 max input |
+| `dami-rerank` | `127.0.0.1:8081`, `BAAI/bge-reranker-v2-m3`, fp16, cross-encoder, 8192 max input |
+| VRAM, both resident | **3262 MiB of 16376** — leaves ~12.8 GiB for an LLM sidecar, vision, and TTS |
 | Latency | 5 sequential single embeds in 0.228 s wall, curl overhead included |
+| Restart | both `unless-stopped`; `docker.service` is enabled at boot, so they survive reboot |
 | Model cache | `/home/steve/Data/tei-models` — outside the Timeshift snapshot set, and re-downloadable |
 
-**Verified end to end**, not just started: four documents embedded through TEI, written by
-`dami_ddl` into a `vector(1024)` column, HNSW-indexed, then queried by `dami_app`. The
-query *"what does the weekly cross-domain pass do?"* returned the reflection-pass document
-first at cosine distance 0.5619, with no lexical overlap to lean on.
+**Reranker choice.** `bge-reranker-v2-m3` (~568M) over D-008's other candidate
+`Qwen3-Reranker-4B` (~8 GB at fp16). On a 16 GiB card that still has to hold an LLM
+sidecar, a vision model, and a resident TTS, the 4B reranker costs roughly half the card
+for a stage that reorders 50 candidates. Revisit if the eval shows it earns the VRAM.
+
+**The full §9.3 pipeline is verified end to end**, not merely started. Ten documents
+embedded through TEI, written by `dami_ddl` into `vector(1024)`, HNSW-indexed, then for the
+query *"which background job connects information from different areas of life?"*:
+
+```
+STAGE 1  pgvector ANN top-5 (as dami_app)
+  1. reflection pass runs weekly and correlates signals across health, workshop…
+  2. cross-domain correlation is the only proactive service that improves…
+STAGE 2  cross-encoder rerank to top-3
+  1. cross-domain correlation …            score -8.430
+  2. reflection pass …                     score -9.008
+```
+
+**The reranker reordered the ANN result**, which is the point of having it. Retrieval is
+semantic rather than lexical — an earlier probe matched *"weekly cross-domain pass"* to the
+reflection-pass sentence with no shared keywords.
+
+**Calibration caveat:** raw cross-encoder scores were around −8 to −9 logits on this
+ten-sentence synthetic corpus, i.e. low absolute confidence. Ordering is trustworthy;
+absolute values are not, and any surfacing threshold under D-021 must be tuned against the
+real corpus rather than these numbers.
 
 **Caveat on BGE-M3:** TEI serves the dense head only. D-010 notes BGE-M3's "native
 sparse+dense"; the sparse and ColBERT heads are not available through this service, so
@@ -293,8 +317,7 @@ change, or an ADR — not silence.
    cluster is covered only by a single manual dump. Backup destination, encryption, and
    retention are all still open decisions in the register.
 4. **Decide PostgreSQL 16 versus 17/18** while both databases are still near-empty.
-5. **Stand up the reranker**, the second half of the §9.3 pipeline — same TEI image,
-   a cross-encoder, its own container and port.
+5. **Install `uv`** and stand up the Ollama sidecar for model routing (architecture §7.4).
 6. **Phase 0 on the Mac** — backups, corpus export, eval set, instrumentation. Phase 2
    is blocked on all four regardless of what happens on this workstation.
 7. *Recommended, not blocking:* rehearse a Timeshift restore from the live USB, and
