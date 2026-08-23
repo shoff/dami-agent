@@ -27,7 +27,7 @@ network, and that is deliberate — remote access is SSH first, then talk to loc
 | LLM sidecar | `127.0.0.1:11434` | `dami-llm` | `ollama/ollama:0.32.15` | `qwen3:8b` pulled |
 | pgAdmin | desktop app | — native | `pgadmin4-desktop 9.17` | the container was removed; do not recreate it |
 | Proactive tier | systemd `dami-proactive` | — bare metal | published to `/opt/dami/proactive` | hourly tick; five services (scout, reflection, pushback-audit, media-librarian, embedder); config via `systemctl edit dami-proactive`; logs in `journalctl -u dami-proactive` |
-| `dami` CLI | `/usr/local/bin/dami` | — native | published to `/opt/dami/cli` | inbox/read/feedback, beliefs/correct/retract, recall, trace, note, health |
+| `dami` CLI | `/usr/local/bin/dami` | — native | published to `/opt/dami/cli` | inbox/read/feedback · beliefs/correct/retract/note · recall/ask/**chat**/context · trace/stats/health · caption |
 | LLM guard | systemd `dami-llm-guard.timer` | — bare metal | 15-min check | restarts `dami-llm` when a loaded model is not fully in VRAM (five occurrences of the silent CPU fallback to date) |
 
 All containers are `--restart unless-stopped` and `docker.service` is enabled at boot,
