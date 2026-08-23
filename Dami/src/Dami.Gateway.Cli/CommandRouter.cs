@@ -24,6 +24,7 @@ public static class CommandRouter
           dami stats                     vital signs: corpus, beliefs, passes, egress
           dami recall <query>            semantic search over everything Dami has seen
           dami ask <question>            answer from the corpus, with citations (local LLM)
+          dami chat <message>            one full interactive turn - context, routing, traced
           dami context <request>         show what would enter the prompt, and its token cost
           dami caption <image-path>      caption an image locally; it never leaves the host
         """;
@@ -39,7 +40,8 @@ public static class CommandRouter
         AskCommands ask,
         ContextCommands contextCommands,
         VisionCommands vision,
-        StatsCommands stats)
+        StatsCommands stats,
+        ChatCommands chat)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
@@ -51,6 +53,7 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(contextCommands);
         ArgumentNullException.ThrowIfNull(vision);
         ArgumentNullException.ThrowIfNull(stats);
+        ArgumentNullException.ThrowIfNull(chat);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -62,7 +65,7 @@ public static class CommandRouter
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
             args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            cancellation.Token).ConfigureAwait(false);
+            chat, cancellation.Token).ConfigureAwait(false);
     }
 
     private static async Task<int> DispatchAsync(
@@ -77,6 +80,7 @@ public static class CommandRouter
         ContextCommands contextCommands,
         VisionCommands vision,
         StatsCommands stats,
+        ChatCommands chat,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -94,19 +98,33 @@ public static class CommandRouter
             "health" or "stats" => verb == "health"
                 ? await health.CheckAsync(cancellationToken).ConfigureAwait(false)
                 : await stats.ShowAsync(cancellationToken).ConfigureAwait(false),
-            "recall" when args.Length > 1 =>
-                await recall.SearchAsync(string.Join(' ', args[1..]), cancellationToken)
-                    .ConfigureAwait(false),
-            "ask" when args.Length > 1 =>
-                await ask.AskAsync(string.Join(' ', args[1..]), cancellationToken)
-                    .ConfigureAwait(false),
-            "context" when args.Length > 1 =>
-                await contextCommands.ShowAsync(string.Join(' ', args[1..]), cancellationToken)
-                    .ConfigureAwait(false),
-            "caption" when args.Length > 1 =>
-                await vision.CaptionAsync(args[1], cancellationToken).ConfigureAwait(false),
+            "recall" or "ask" or "context" or "caption" or "chat" when args.Length > 1 =>
+                await DispatchModelAsync(verb, args, recall, ask, contextCommands, vision, chat,
+                    cancellationToken).ConfigureAwait(false),
             "beliefs" or "correct" or "retract" or "note" =>
                 await DispatchBeliefsAsync(verb, args, beliefs, cancellationToken).ConfigureAwait(false),
+            _ => Usage(),
+        };
+    }
+
+    private static async Task<int> DispatchModelAsync(
+        string verb,
+        string[] args,
+        RecallCommands recall,
+        AskCommands ask,
+        ContextCommands contextCommands,
+        VisionCommands vision,
+        ChatCommands chat,
+        CancellationToken cancellationToken)
+    {
+        var rest = string.Join(' ', args[1..]);
+        return verb switch
+        {
+            "recall" => await recall.SearchAsync(rest, cancellationToken).ConfigureAwait(false),
+            "ask" => await ask.AskAsync(rest, cancellationToken).ConfigureAwait(false),
+            "context" => await contextCommands.ShowAsync(rest, cancellationToken).ConfigureAwait(false),
+            "caption" => await vision.CaptionAsync(args[1], cancellationToken).ConfigureAwait(false),
+            "chat" => await chat.TurnAsync(rest, cancellationToken).ConfigureAwait(false),
             _ => Usage(),
         };
     }

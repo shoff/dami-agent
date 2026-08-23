@@ -2,6 +2,7 @@ using Dami.Gateway.Cli;
 using Dami.Contracts.Models;
 using Dami.Persistence;
 using Dami.Core.Context;
+using Dami.Core.Turns;
 using Dami.Providers;
 using Dami.Vision;
 using Microsoft.Extensions.Configuration;
@@ -39,6 +40,10 @@ services.AddSingleton<AskCommands>();
 services.AddSingleton<ContextCommands>();
 services.AddSingleton<VisionCommands>();
 services.AddSingleton<StatsCommands>();
+services.AddSingleton<ChatCommands>();
+services.AddOptions<RoutingOptions>();
+services.AddSingleton<Dami.Contracts.Models.IModelRouter, ModelRouter>();
+services.AddSingleton<ITurnRunner, TurnRunner>();
 services.AddOptions<ContextOptions>();
 services.AddSingleton<Dami.Contracts.Context.IContextBuilder, ContextBuilder>();
 services.AddOptions<OllamaVisionOptions>();
@@ -63,4 +68,5 @@ return await CommandRouter.RunAsync(
     provider.GetRequiredService<AskCommands>(),
     provider.GetRequiredService<ContextCommands>(),
     provider.GetRequiredService<VisionCommands>(),
-    provider.GetRequiredService<StatsCommands>());
+    provider.GetRequiredService<StatsCommands>(),
+    provider.GetRequiredService<ChatCommands>());

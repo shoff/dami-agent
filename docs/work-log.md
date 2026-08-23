@@ -3018,3 +3018,40 @@ rolled back, and left zero probe rows. Definitive exact-diff verification in
 `/tmp/dami-lease-gate.FNQrAT/repo` at committed HEAD `e156086`: build **0 warnings, 0
 errors**; tests **300 passed, 0 failed** across twelve assemblies; format verification
 exit 0. Claude Code's concurrent turn-orchestration and CLI files were excluded.
+
+## 2026-08-23 — Claude Code — The Phase 2 exit: an interactive turn, traced, live
+
+Claimed interactive turn orchestration on the board, built `Dami.Core/Turns`
+(`ITurnRunner`, `TurnRunner`, `TurnResult`, 6 tests) and `dami chat`.
+
+The turn composes only pieces already proven: `ContextBuilder` assembles under budget,
+`ModelRouter` decides (context-bearing turns are **LocalOnly by construction**, per
+ADR-0010 §5 — frontier turns wait for a redaction step, a future ADR, not a flag), the
+sidecar answers, and every stage is a `UserTurn` event. The charter's Phase 2 exit
+condition, verbatim — "one prompt travels through CLI → runtime → model and appears as
+a truthful live workflow trace and a final answer" — ran live:
+
+```
+$ dami chat how should I spend tomorrow given what you know about my projects
+Prioritize demo prep… Use the 20/10/10/10 rehearsal plan… vertical slices of the MAI
+project… momentum, not chaos.
+[Local · ~426 ctx tokens · 8 memories · 2 beliefs · trace e47075a9]
+
+$ dami trace e47075a9…
+18:05:54 TraceStarted     turn started
+18:06:00 ContextRetrieved 8 memories, 2 beliefs, ~426 tokens
+18:06:00 CapabilitySelected routed Local: local-only work never leaves the host (D-012)
+18:06:19 TraceCompleted   answered in 440 chars
+```
+
+25 seconds, 426 context tokens against Hermes's 90k+, entirely on this machine. The
+"20/10/10/10 rehearsal plan" in the answer came *from his own March memories* — real
+retrieval shaping a real answer.
+
+**Honest caveat, recorded as a known issue:** the model treated March's demo crunch as
+current — the prompt carries memory dates but not today's date, so temporal grounding
+is weak. The fix (a dated system line, and possibly recency weighting in retrieval) is
+small and noted for the next pass on the prompt.
+
+Scoreboard moves: items 1 and 7 now have interactive evidence (a UserTurn persisted and
+replayed); item 12's claim strengthens (426 tokens, measured, on a real turn).
