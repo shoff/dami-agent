@@ -208,3 +208,15 @@ solution belongs to Codex.
 - `gh` is installed but unauthenticated.
 - `docs/csharpcodestandards.md` is still MAI's document verbatim and names
   `MA.RoslynAnalyzers`, which does not exist for this project.
+
+## 2026-08-22 — Transport foundation commit and push
+
+- Steve explicitly requested committing and pushing the complete pending working tree
+  with no assistant attribution in version-control metadata.
+- Staged all pending files. `git diff --cached --check` passed, and the staged diff
+  contained no co-author trailer, generated-with line, session link, or tool branding.
+- The first commit attempt failed before creating a commit because this checkout had
+  no author identity configured: `fatal: unable to auto-detect email address`.
+- Read the existing repository author identity from the latest commit and configured
+  that same identity locally for this repository. No global Git configuration was
+  changed.
