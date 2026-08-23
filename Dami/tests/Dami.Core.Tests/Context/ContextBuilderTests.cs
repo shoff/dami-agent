@@ -18,14 +18,17 @@ public sealed class ContextBuilderTests
     private readonly IEmbeddingClient embeddingClient = Substitute.For<IEmbeddingClient>();
     private readonly IRerankClient rerankClient = Substitute.For<IRerankClient>();
     private readonly IConclusionLedger conclusionLedger = Substitute.For<IConclusionLedger>();
+    private readonly IConclusionEmbeddingStore conclusionEmbeddingStore =
+        Substitute.For<IConclusionEmbeddingStore>();
     private readonly List<Observation> nearest = [];
     private readonly List<Conclusion> beliefs = [];
+    private readonly List<Conclusion> indexedBeliefs = [];
 
     [Fact]
     public void Constructor_Should_Reject_A_Null_EmbeddingStore()
     {
         Assert.Throws<ArgumentNullException>(() => new ContextBuilder(
-            null!, this.embeddingClient, this.rerankClient, this.conclusionLedger,
+            null!, this.conclusionEmbeddingStore, this.embeddingClient, this.rerankClient, this.conclusionLedger,
             Options.Create(new ContextOptions()), new FakeTimeProvider(asOf),
             NullLogger<ContextBuilder>.Instance));
     }
@@ -153,9 +156,14 @@ public sealed class ContextBuilderTests
 
     private void Believe(string statement)
     {
-        this.beliefs.Add(new Conclusion(
+        this.beliefs.Add(NewConclusion(statement));
+    }
+
+    private static Conclusion NewConclusion(string statement)
+    {
+        return new Conclusion(
             Guid.NewGuid(), null, "steve", statement, 0.9,
-            ConclusionSource.ReflectionPass, asOf));
+            ConclusionSource.ReflectionPass, asOf);
     }
 
     private ContextBuilder CreateBuilder(int maxTokens = 2500, int maxMemories = 8, int recentSlots = 3)
@@ -170,9 +178,13 @@ public sealed class ContextBuilderTests
             .Returns(callInfo => Enumerable.Range(0, callInfo.Arg<IReadOnlyList<string>>().Count).ToList());
         this.conclusionLedger.ActiveForSubjectAsync("steve", Arg.Any<CancellationToken>())
             .Returns(AsConclusionsAsync(this.beliefs));
+        this.conclusionEmbeddingStore.NearestAsync(
+                Arg.Any<float[]>(), "test-model", Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => this.AsScoredConclusionsAsync(this.indexedBeliefs));
 
         return new ContextBuilder(
-            this.embeddingStore, this.embeddingClient, this.rerankClient, this.conclusionLedger,
+            this.embeddingStore, this.conclusionEmbeddingStore, this.embeddingClient,
+            this.rerankClient, this.conclusionLedger,
             Options.Create(new ContextOptions
             {
                 MaxRetrievedTokens = maxTokens,
@@ -193,7 +205,42 @@ public sealed class ContextBuilderTests
         Assert.Empty(context.Memories);
     }
 
+    [Fact]
+    public async Task BuildAsync_Should_Retrieve_Beliefs_By_Similarity_When_Indexed()
+    {
+        this.Observe("anything");
+        this.Believe("subject-scan belief that must not appear");
+        this.indexedBeliefs.Add(NewConclusion("similar belief from the index"));
+
+        var context = await this.CreateBuilder().BuildAsync("a question", CancellationToken.None);
+
+        Assert.Equal("similar belief from the index", context.Beliefs[0].Content);
+    }
+
+    [Fact]
+    public async Task BuildAsync_Should_Gate_Beliefs_On_The_Belief_Distance_Ceiling()
+    {
+        this.Observe("anything");
+        this.beliefDistance = 0.9;
+        this.indexedBeliefs.Add(NewConclusion("nearest belief, still too far"));
+
+        var context = await this.CreateBuilder().BuildAsync("a question", CancellationToken.None);
+
+        Assert.Empty(context.Beliefs);
+    }
+
     private double distance = 0.3;
+    private double beliefDistance = 0.3;
+
+    private async IAsyncEnumerable<(Conclusion, double)> AsScoredConclusionsAsync(List<Conclusion> items)
+    {
+        foreach (var item in items)
+        {
+            yield return (item, this.beliefDistance);
+        }
+
+        await Task.CompletedTask;
+    }
 
     private async IAsyncEnumerable<(Observation, double)> AsNearestAsync(List<Observation> items)
     {

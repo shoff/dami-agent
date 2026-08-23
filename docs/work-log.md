@@ -3378,6 +3378,75 @@ format Dami.sln --verify-no-changes --no-restore --verbosity minimal` exited 0 w
 diagnostics. No migration is involved. F2 remains in progress with F2b and F2c open;
 only F2a is flipped to `[x]`.
 
+## 2026-08-23 — Codex — F2b capability-vector persistence started
+
+Claimed F2b and reviewed the existing model-versioned observation index plus live DDL
+fixture. Capability descriptions need their own derived table: inserting them into
+`observations` would falsely turn product metadata into Steve's personal memory and
+pollute recall. The store contract belongs in `Dami.Contracts` and speaks only in
+stable capability IDs, capability versions, embedding-model IDs, and vectors, keeping
+PostgreSQL independent of the in-memory registry implementation.
+
+The first change is a live-database test only. It requires `UpsertAsync` to replace an
+older capability version's vector under the same capability/model identity and retain
+exactly one row. Production contracts, store code, DDL, and the shared test fixture are
+unchanged until the focused test is captured red. Claude's active G7 persistence and
+migration files remain untouched.
+
+Red evidence: the focused persistence test failed during compilation with CS0234 for
+the absent `Dami.Contracts.Capabilities` and `Dami.Persistence.Capabilities`
+namespaces, plus CS0246 for the missing PostgreSQL store. This is the expected first
+failure; no DDL ran and no database state changed.
+
+Before production, removed an accidental unused logger assumption from the test's
+constructor call. F2b's store has no logging behavior yet, so injecting a logger would
+add a dependency and field with no responsibility. The behavioral assertion is
+unchanged and will be rerun red before implementation.
+
+The corrected test reproduced the same CS0234/CS0246 red. The first production step is
+limited to the upsert contract in `Dami.Contracts.Capabilities` and its PostgreSQL
+adapter on new, non-colliding paths. It does not register DI or edit DDL/test fixtures;
+the next expected failure is the absent capability table, which will prove the test has
+advanced through compilation into the live persistence boundary.
+
+That next run failed red at the expected boundary: PostgreSQL 42P01 reported relation
+`dami_test.capability_embeddings` does not exist. The test now compiles, constructs the
+adapter, and reaches its upsert SQL. Schema and fixture inclusion are the only missing
+pieces for this first behavior; shared files will be edited only after Claude releases
+the claimed B8 work.
+
+Added the distinct `011_capability_embeddings.sql` migration without touching B8's
+`010_conclusion_embeddings.sql` or the shared fixture. The capability table is derived
+and separate from observations, keys one current capability version per embedding
+model, supports vector replacement via `UPDATE`, and has HNSW plus model indexes. It
+grants only derived-index DML to `dami_app`; no personal-memory foreign key exists.
+
+The attempted shared-fixture patch failed atomically because the file changed after
+inspection. Re-reading showed Claude had already integrated all three F2b fixture lines
+(`011` create plus capability-table drop/reset) alongside B8. No duplicate edit was
+made; the original focused F2b test can now exercise the combined released fixture.
+
+The original focused upsert test passed 1/1 against the combined live fixture. The next
+test is again test-first: `NearestAsync` must return stable capability IDs ordered by
+cosine distance. It deliberately keeps registry entries out of the persistence
+contract, preserving dependency direction for the F2c resolver.
+
+Red evidence: the focused ANN test failed compilation with CS1061 because the store
+contract had no `NearestAsync`; the remaining compiler diagnostics were consequences of
+that missing return type. The minimum implementation adds a model-filtered pgvector
+cosine query returning only `(CapabilityId, Distance)` as a cancellable async stream.
+
+The focused ANN test passed 1/1. A requested-model isolation test is being added
+afterward as coverage for the SQL filter; it is not described as a separate red-green
+behavior change.
+
+Composition registration was also driven test-first after Claude's B8 line appeared in
+the shared composition root. Adding `ICapabilityEmbeddingStore` to the existing
+all-stores theory produced one expected failure: the capability contract resolved to
+null while the five pre-existing cases passed. Adding only the capability namespace,
+adapter namespace, and `TryAddSingleton` registration made the same theory pass 6/6;
+Claude's conclusion-store registration was preserved unchanged.
+
 ## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
 
 Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,
@@ -3395,3 +3464,27 @@ skipped, everything traced. The charter's propose→approve→act loop is real.
 Also fixed: Codex had reformatted the test fixture's DDL list so my one-line append
 missed and 62 tests failed on a missing table — the failure was mine to notice, the
 lesson is the usual one about editing shared files by exact-match.
+
+## 2026-08-23 — Claude — B8: beliefs enter context by similarity (D-009's second half)
+
+Migration 010 `conclusion_embeddings`: active-only by construction — `StoreAsync`
+refuses vectors for retracted conclusions, and a database trigger deletes the vector
+in the same transaction that retracts the conclusion, so a dead belief cannot stay
+semantically retrievable regardless of which code path retracted it (all four
+properties pinned in persistence tests). The embedder pass now indexes both stores;
+`ContextBuilder` embeds the request once and retrieves beliefs by cosine distance
+(cap `BeliefSlots=8`), falling back to the old subject scan only when nothing is
+indexed yet, so migration day loses no beliefs.
+
+The gate is calibrated, not guessed: measured live bge-m3 distances put
+query-relevant beliefs at 0.40–0.43 and irrelevant ones at 0.63–0.72, so
+`BeliefMaxDistance=0.60` splits the bands. Demonstrated: "sourdough hydration"
+→ 0 beliefs; "how does steve keep up momentum" → exactly the 2 momentum beliefs,
+with the unrelated pushback-rate belief (0.663) gated out. Before B8 every active
+belief rode along on every turn.
+
+Caught by adding the test that was missing: the first wiring left
+`EmbedBeliefsAsync` compiled but never called (an exact-match edit silently missed
+the call site). `EmbedderServiceTests` now pins that the pass reaches both indexes.
+Also added Codex's 011 to the shared test fixture — same one-line trap as 009, other
+direction this time. Full gate: 12 suites, 354 tests, 0 warnings.

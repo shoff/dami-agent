@@ -22,6 +22,7 @@ public sealed class ContextBuilder : IContextBuilder
     private const int CHARS_PER_TOKEN = 4;
 
     private readonly IObservationEmbeddingStore embeddingStore;
+    private readonly IConclusionEmbeddingStore conclusionEmbeddingStore;
     private readonly IEmbeddingClient embeddingClient;
     private readonly IRerankClient rerankClient;
     private readonly IConclusionLedger conclusionLedger;
@@ -32,6 +33,7 @@ public sealed class ContextBuilder : IContextBuilder
     /// <summary>Creates the builder.</summary>
     public ContextBuilder(
         IObservationEmbeddingStore embeddingStore,
+        IConclusionEmbeddingStore conclusionEmbeddingStore,
         IEmbeddingClient embeddingClient,
         IRerankClient rerankClient,
         IConclusionLedger conclusionLedger,
@@ -40,6 +42,7 @@ public sealed class ContextBuilder : IContextBuilder
         ILogger<ContextBuilder> logger)
     {
         ArgumentNullException.ThrowIfNull(embeddingStore);
+        ArgumentNullException.ThrowIfNull(conclusionEmbeddingStore);
         ArgumentNullException.ThrowIfNull(embeddingClient);
         ArgumentNullException.ThrowIfNull(rerankClient);
         ArgumentNullException.ThrowIfNull(conclusionLedger);
@@ -48,6 +51,7 @@ public sealed class ContextBuilder : IContextBuilder
         ArgumentNullException.ThrowIfNull(logger);
 
         this.embeddingStore = embeddingStore;
+        this.conclusionEmbeddingStore = conclusionEmbeddingStore;
         this.embeddingClient = embeddingClient;
         this.rerankClient = rerankClient;
         this.conclusionLedger = conclusionLedger;
@@ -61,8 +65,12 @@ public sealed class ContextBuilder : IContextBuilder
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var beliefs = await this.CollectBeliefsAsync(cancellationToken).ConfigureAwait(false);
-        var memories = await this.RetrieveMemoriesAsync(request, cancellationToken).ConfigureAwait(false);
+        var queryVector = (await this.embeddingClient
+            .EmbedAsync([request], cancellationToken).ConfigureAwait(false))[0];
+
+        var beliefs = await this.CollectBeliefsAsync(queryVector, cancellationToken).ConfigureAwait(false);
+        var memories = await this.RetrieveMemoriesAsync(request, queryVector, cancellationToken)
+            .ConfigureAwait(false);
 
         var assembled = Trim(beliefs, memories, this.contextOptions.MaxRetrievedTokens);
 
@@ -73,7 +81,41 @@ public sealed class ContextBuilder : IContextBuilder
         return assembled;
     }
 
-    private async Task<List<RetrievedItem>> CollectBeliefsAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Beliefs by similarity to the request (D-009's second half), not the whole
+    /// active set. Until the embedder has indexed any beliefs the store is empty,
+    /// so retrieval falls back to the old subject-wholesale scan — beliefs must
+    /// never silently vanish on migration day.
+    /// </summary>
+    private async Task<List<RetrievedItem>> CollectBeliefsAsync(
+        float[] queryVector,
+        CancellationToken cancellationToken)
+    {
+        var beliefs = new List<RetrievedItem>();
+        var indexed = 0;
+        await foreach (var (conclusion, distance) in this.conclusionEmbeddingStore
+            .NearestAsync(queryVector, this.embeddingClient.ModelId, this.contextOptions.BeliefSlots, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            indexed++;
+            if (distance > this.contextOptions.BeliefMaxDistance)
+            {
+                break;
+            }
+
+            beliefs.Add(new RetrievedItem(
+                "belief", conclusion.ConclusionId, conclusion.Statement, conclusion.ConcludedAt));
+        }
+
+        if (indexed > 0)
+        {
+            return beliefs;
+        }
+
+        return await this.CollectBeliefsBySubjectAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<List<RetrievedItem>> CollectBeliefsBySubjectAsync(CancellationToken cancellationToken)
     {
         var beliefs = new List<RetrievedItem>();
         await foreach (var conclusion in this.conclusionLedger
@@ -88,11 +130,9 @@ public sealed class ContextBuilder : IContextBuilder
 
     private async Task<List<RetrievedItem>> RetrieveMemoriesAsync(
         string request,
+        float[] queryVector,
         CancellationToken cancellationToken)
     {
-        var queryVector = (await this.embeddingClient
-            .EmbedAsync([request], cancellationToken).ConfigureAwait(false))[0];
-
         var candidates = new List<Observation>();
         await foreach (var (observation, distance) in this.embeddingStore
             .NearestAsync(queryVector, this.embeddingClient.ModelId, this.contextOptions.Candidates, cancellationToken)

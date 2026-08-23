@@ -50,7 +50,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] B5 Interim embedder ADR-0009 (bge-m3, versioned per row, re-embed path exercised)
 - [ ] B6 **Close D-010**: Steve reviews `tools/eval/REVIEW.md` (37 draft pairs, 13 top-3 misses annotated) → re-run 3-model eval → record decision `[STEVE: review]`
 - [ ] B7 Kokoro classes (772 memories / 3,811 concepts / 718 entities): import into corpus or leave preserved? `[STEVE: whose memories are they]`
-- [~ Claude 2026-08-23] B8 Belief embedding: only-active-conclusions embedded for retrieval (D-009 second half; currently beliefs enter context by subject, not similarity)
+- [x] B8 Belief embedding: only-active-conclusions embedded for retrieval (D-009 second half; currently beliefs enter context by subject, not similarity)
 - [ ] B9 Observation retention/compaction policy for `chat`-source growth (register open item)
 - [ ] B10 Repair/flag the 267 epoch-zero timestamps (dates sometimes recoverable from body text)
 
@@ -60,7 +60,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] C2 Frontier gate ADR-0010: `IFrontierChat`, prompt-never-in-labels, LocalOnly unreachable-by-construction for context-bearing turns
 - [x] C3 Subscription frontier ADR-0011: `CodexChatClient` via `codex exec` (browser login, zero API cost), read-only sandboxed, live-verified
 - [ ] C4 **Redaction/consent step** so memory-informed prompts can become Egressable deliberately (unlocks frontier `chat`; needs its own ADR — the highest-leverage open design in the suite)
-- [ ] C5 Egress budget/rate alarm (a runaway proactive loop calling frontier nightly should trip something)
+- [~ Claude 2026-08-23] C5 Egress budget/rate alarm (a runaway proactive loop calling frontier nightly should trip something)
 
 ## D · Model layer (§7.4)
 

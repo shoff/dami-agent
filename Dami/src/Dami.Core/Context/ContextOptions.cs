@@ -43,4 +43,15 @@ public sealed class ContextOptions
     /// tune against the eval set, not by feel.
     /// </remarks>
     public double MaxDistance { get; set; } = 0.62;
+
+    /// <summary>Most beliefs a turn may carry when retrieving by similarity.</summary>
+    public int BeliefSlots { get; set; } = 8;
+
+    /// <summary>
+    /// Distance gate for beliefs. Calibrated against live bge-m3 vectors on
+    /// 2026-08-23: beliefs relevant to a query measured 0.40-0.43, irrelevant
+    /// ones 0.63-0.72 — 0.60 splits those bands cleanly. Re-measure if the
+    /// embedding model changes.
+    /// </summary>
+    public double BeliefMaxDistance { get; set; } = 0.60;
 }
