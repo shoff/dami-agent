@@ -2202,3 +2202,66 @@ Mandatory gate from `Dami/`: `dotnet build Dami.sln` succeeded with 0 warnings a
 (Capabilities.Native 1, Capabilities 18, Transport 57, Proactive 59, Persistence 83,
 Analyzers 12, Architecture 10, Privacy 8, Providers 3, Dami 1). Cleared the native
 discovery ownership claim after verification.
+
+## 2026-08-23 — Claude Code — The corpus comes home
+
+Steve pointed at Weaviate on the Mac mini (192.168.4.23). The Phase 0 export and
+Phase 2 migration that were "blocked on the Mac" ran from this desk in one pass.
+
+### Discovery
+
+Weaviate 1.28.4 on port 8081. Seventeen classes; the corpus is **`ClawdbotMemoryV2`,
+6,995 objects** (V1 holds 6,985 — near-duplicate predecessor; V2 exported as canonical).
+Also present: the Kokoro graph system (~5,500 nodes), UVAEmail, DevLog, and other small
+classes — inventoried, not migrated; they are different systems or later phases.
+
+### Export (Phase 0)
+
+`tools/migration/import_corpus.py`, read-only against the Mac (the hard rule: it is the
+rollback). Cursor-paginated dump to
+`/home/steve/Data/corpus-export/ClawdbotMemoryV2-<stamp>.jsonl` with the class schema
+alongside — the "portable, schema-explicit format" Phase 0 asked for, verbatim
+properties preserved.
+
+### Import (Phase 2)
+
+Into `dami.observations`: the Weaviate object id **is** the observation id, so the
+import is idempotent — proven by re-running it: `0 new observation(s)`. Body = text,
+`source = hermes-memory`, metadata carries category/importance/sensitive/session_key.
+Category shape of the corpus: technical 2634, project 1002, intent 878, decision 825,
+personal 394, emotional 307, preference 255, …
+
+### Indexing
+
+Embedder backfill (one-off `Embedder__MaxPerPass=10000`): **6,998 vectors under
+bge-m3** in ~6 minutes through the local TEI. Steady-state nightly cadence resumes at
+the default cap.
+
+### Observed: recall over the real corpus
+
+```
+$ dami recall what has frustrated steve about hermes
+2026-03-05  Steve is experiencing notable stress… nervous about the demos…
+1970-01-01  Steve is exhausted having to repeatedly remind Mei of established context…
+1970-01-01  Key insight that hit Steve hard: "You build things and keep them alive…"
+```
+
+Genuinely resonant retrieval on the first query. The second query ("scale model
+building projects") conflated ML models with scale models — **exactly the in-domain
+ambiguity D-010's eval exists to measure**, now demonstrable with one command instead of
+hypothetical.
+
+### Data quality notes, recorded not hidden
+
+- **267 observations carry epoch-zero timestamps** (`createdAt` of 0/invalid in the
+  source). Imported as-is: the corpus records what the source said, and inventing dates
+  would be worse. They sort to the bottom of time-ordered views.
+- V1-vs-V2 delta (10 objects) unexamined.
+
+### What this unblocks
+
+- **D-010's eval is now buildable at this desk**: the 50-query set with known-good
+  answers draws from a local corpus, and the harness has been waiting for it.
+- Retrieval-augmented reflection now pulls from 7k real memories.
+- The remaining Mac-side Phase 0 items are Hermes instrumentation and verified backups
+  of non-Weaviate state — narrower than before.

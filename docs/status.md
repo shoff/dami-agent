@@ -46,7 +46,7 @@ Phase order follows the architecture document §10, which supersedes the charter
 | Item | State | Evidence |
 |---|---|---|
 | Verified backups of Hermes state, databases, corpus | not started | — |
-| Corpus exported to portable, schema-explicit format | not started | — |
+| Corpus exported to portable, schema-explicit format | **done 2026-08-23** | `tools/migration/import_corpus.py`, read-only against the Mac; JSONL + class schema on disk |
 | 50-query retrieval eval set built | not started | — |
 | Hermes + MAI instrumented: TTFT, stream duration, tool round-trips | not started | — |
 | Secret inventory and transfer plan | not started | — |
@@ -92,8 +92,8 @@ rather than assuming — but nothing else blocks the phase.
 |---|---|
 | Schemas: observation corpus, conclusions ledger, pushback ledger, event store | not started |
 | Local embedding service on GPU | **done** — TEI `89-1.9.0`, `BAAI/bge-m3`, GPU-resident |
-| Migrate the 7,000 memories | blocked on Phase 0 corpus export |
-| Run the eval, select the embedder on evidence | **harness ready**, blocked on the Phase 0 eval set — `tools/eval/retrieval_eval.py`. Exact search, so a model too large to index can still be scored. |
+| Migrate the 7,000 memories | **done 2026-08-23** — 6,995 exported from Weaviate on the Mac (portable JSONL + schema in `/home/steve/Data/corpus-export`), imported idempotently, 6,998 vectors indexed under bge-m3 |
+| Run the eval, select the embedder on evidence | **harness ready and corpus local** — only the 50-query eval set itself remains, and it is now buildable at this desk. `dami recall` already exposes the ambiguities worth testing (e.g. ML "model" vs scale model). |
 | Local reranker service | **done** — TEI cross-encoder on `127.0.0.1:8081` |
 | Retrieval pipeline verified end to end | **done** — embed → ANN top-5 → cross-encoder rerank → top-3, reordering confirmed |
 
