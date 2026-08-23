@@ -1065,6 +1065,49 @@ receive a cleanup attempt even when an earlier pipe completion fails, and repeat
 overlapping disposal must have one stable completion. Tests are written and run red
 before each production behavior. Claude Code's observation-corpus files remain untouched.
 
+TCP cleanup red–green results so far:
+
+- The first test did not compile because no lifetime seam existed. Added an internal
+  constructor over `PipeReader`, `PipeWriter`, and `IAsyncDisposable`; when input
+  completion throws, output completion and lifetime disposal are now still attempted.
+- Repeated disposal failed with lifetime count `2` instead of `1`. `DisposeAsync` now
+  memoizes one cleanup task and the narrow test passes.
+- A direct overlapping-caller characterization also passes against that same completion.
+- `Dami.Transport.Tests`: 27 passed, 0 failed after the cleanup slice.
+
+Sequence semantics were not specified by architecture §7.5.5. Added accepted ADR-0004
+before implementation: connection-scoped contiguous `uint32`, arbitrary first value,
+wraparound, reset on a new connection, and fail closed on gaps/duplicates/backward values.
+
+Sequence TDD evidence: a `PipeTransport` integration test wrote frames 29 then 31 and
+failed red because no exception was thrown. `FrameSequenceTracker` was then added at the
+receive boundary; the narrow test passed. Follow-on edge characterization covered a
+duplicate, a backward value, a forward gap, and `uint.MaxValue` → `0` wraparound (4/4).
+
+Verification after TCP cleanup and sequence enforcement:
+
+```text
+dotnet format --verify-no-changes --include <changed transport files>
+  passed with no output
+
+dotnet build Dami.sln
+  Build succeeded. 0 warnings, 0 errors.
+
+dotnet test Dami.sln --no-build
+  Dami.Tests             1/1
+  Architecture.Tests    10/10
+  Transport.Tests       32/32
+  Persistence.Tests     56/56
+  Analyzers.Tests       12/12
+  Total                 111 passed, 0 failed, 0 skipped
+```
+
+Heartbeat implementation is deliberately paused at a contract boundary rather than
+partially implemented: a connection-level heartbeat needs a value in the same outbound
+sequence as application frames, while `ITransport.SendAsync` currently accepts a frame
+whose sequence was assigned by its caller. The owner of outbound wire sequencing must be
+settled before heartbeat or reconnect code can be honest.
+
 ## 2026-08-22 — Claude Code — Conclusions and pushback ledgers
 
 The memory layer of D-009 and D-011, in C#. Red-first this time, both cycles.

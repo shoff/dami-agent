@@ -7,13 +7,28 @@ namespace Dami.Transport;
 /// <summary>Adapts one connected TCP socket to the pipelines duplex contract.</summary>
 public sealed class TcpDuplexPipe : IDuplexPipe, IAsyncDisposable
 {
-    private readonly NetworkStream stream;
+    private readonly object disposalSync = new();
+    private readonly IAsyncDisposable lifetime;
+    private Task? disposal;
 
     private TcpDuplexPipe(NetworkStream stream)
     {
-        this.stream = stream;
+        this.lifetime = stream;
         this.Input = PipeReader.Create(stream, new StreamPipeReaderOptions(leaveOpen: true));
         this.Output = PipeWriter.Create(stream, new StreamPipeWriterOptions(leaveOpen: true));
+    }
+
+    internal TcpDuplexPipe(
+        PipeReader input,
+        PipeWriter output,
+        IAsyncDisposable lifetime)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(output);
+        ArgumentNullException.ThrowIfNull(lifetime);
+        this.Input = input;
+        this.Output = output;
+        this.lifetime = lifetime;
     }
 
     /// <inheritdoc />
@@ -58,10 +73,31 @@ public sealed class TcpDuplexPipe : IDuplexPipe, IAsyncDisposable
     }
 
     /// <summary>Completes both pipes and closes the underlying TCP connection.</summary>
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        await this.Input.CompleteAsync().ConfigureAwait(false);
-        await this.Output.CompleteAsync().ConfigureAwait(false);
-        await this.stream.DisposeAsync().ConfigureAwait(false);
+        lock (this.disposalSync)
+        {
+            this.disposal ??= this.DisposeCoreAsync();
+            return new ValueTask(this.disposal);
+        }
+    }
+
+    private async Task DisposeCoreAsync()
+    {
+        try
+        {
+            try
+            {
+                await this.Input.CompleteAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                await this.Output.CompleteAsync().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            await this.lifetime.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }

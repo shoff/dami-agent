@@ -205,6 +205,29 @@ public sealed class PipeTransportTests
         Assert.Equal("The transport output completed before the frame was accepted.", exception.Message);
     }
 
+    [Fact]
+    public async Task ReceiveAsync_Should_Reject_A_Sequence_Gap()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var inbound = new Pipe();
+        var outbound = new Pipe();
+        var connection = new TestDuplexPipe(inbound.Reader, outbound.Writer);
+        await using var transport = new PipeTransport(connection);
+        TransportFrame first = CreateFrame();
+        TransportFrame afterGap = first with { Sequence = first.Sequence + 2 };
+        await WriteFrameAsync(inbound.Writer, first, timeout.Token);
+        await WriteFrameAsync(inbound.Writer, afterGap, timeout.Token);
+        await using IAsyncEnumerator<TransportFrame> receiver = transport
+            .ReceiveAsync(timeout.Token)
+            .GetAsyncEnumerator();
+
+        Assert.True(await receiver.MoveNextAsync());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => receiver.MoveNextAsync().AsTask());
+
+        Assert.Equal("Frame sequence mismatch: expected 30, received 31.", exception.Message);
+    }
+
     private static TransportFrame CreateFrame()
     {
         return new TransportFrame(
@@ -291,39 +314,4 @@ public sealed class PipeTransportTests
         public PipeWriter Output { get; }
     }
 
-    private sealed class ThrowingCompletePipeReader : PipeReader
-    {
-        public override void AdvanceTo(SequencePosition consumed)
-        {
-            throw new NotSupportedException();
-        }
-
-        public override void AdvanceTo(
-            SequencePosition consumed,
-            SequencePosition examined)
-        {
-            throw new NotSupportedException();
-        }
-
-        public override void CancelPendingRead()
-        {
-        }
-
-        public override void Complete(Exception? exception = null)
-        {
-            throw new InvalidOperationException("Input completion failed.");
-        }
-
-        public override ValueTask<ReadResult> ReadAsync(
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public override bool TryRead(out ReadResult result)
-        {
-            result = default;
-            return false;
-        }
-    }
 }

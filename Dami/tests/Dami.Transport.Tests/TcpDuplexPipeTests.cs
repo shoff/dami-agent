@@ -84,6 +84,61 @@ public sealed class TcpDuplexPipeTests
         }
     }
 
+    [Fact]
+    public async Task DisposeAsync_Should_Clean_All_Resources_When_Input_Completion_Fails()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        var output = new Pipe();
+        var lifetime = new TrackingAsyncDisposable();
+        var connection = new TcpDuplexPipe(
+            new ThrowingCompletePipeReader(),
+            output.Writer,
+            lifetime);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => connection.DisposeAsync().AsTask());
+        ReadResult outputResult = await output.Reader.ReadAsync(timeout.Token);
+
+        Assert.Equal("Input completion failed.", exception.Message);
+        Assert.True(outputResult.IsCompleted);
+        Assert.True(lifetime.IsDisposed);
+        output.Reader.AdvanceTo(outputResult.Buffer.End);
+        await output.Reader.CompleteAsync();
+    }
+
+    [Fact]
+    public async Task DisposeAsync_Should_Dispose_The_Owned_Lifetime_Only_Once()
+    {
+        var input = new Pipe();
+        var output = new Pipe();
+        var lifetime = new TrackingAsyncDisposable();
+        var connection = new TcpDuplexPipe(input.Reader, output.Writer, lifetime);
+
+        await connection.DisposeAsync();
+        await connection.DisposeAsync();
+
+        Assert.Equal(1, lifetime.DisposeCount);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_Should_Share_One_Completion_Between_Overlapping_Callers()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var input = new Pipe();
+        var output = new Pipe();
+        var lifetime = new BlockingAsyncDisposable();
+        var connection = new TcpDuplexPipe(input.Reader, output.Writer, lifetime);
+
+        ValueTask first = connection.DisposeAsync();
+        await lifetime.Entered.WaitAsync(timeout.Token);
+        ValueTask second = connection.DisposeAsync();
+        Assert.False(second.IsCompleted);
+        lifetime.Release();
+        await Task.WhenAll(first.AsTask(), second.AsTask());
+
+        Assert.Equal(1, lifetime.DisposeCount);
+    }
+
     private static async Task<byte> ReadOneByteAsync(
         PipeReader reader,
         CancellationToken cancellationToken)
@@ -94,5 +149,40 @@ public sealed class TcpDuplexPipeTests
         SequencePosition consumed = buffer.GetPosition(1);
         reader.AdvanceTo(consumed, consumed);
         return value;
+    }
+
+    private sealed class TrackingAsyncDisposable : IAsyncDisposable
+    {
+        public int DisposeCount { get; private set; }
+
+        public bool IsDisposed => this.DisposeCount > 0;
+
+        public ValueTask DisposeAsync()
+        {
+            this.DisposeCount++;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class BlockingAsyncDisposable : IAsyncDisposable
+    {
+        private readonly TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly SemaphoreSlim release = new(0, 1);
+
+        public int DisposeCount { get; private set; }
+
+        public Task Entered => this.entered.Task;
+
+        public async ValueTask DisposeAsync()
+        {
+            this.DisposeCount++;
+            this.entered.TrySetResult();
+            await this.release.WaitAsync().ConfigureAwait(false);
+        }
+
+        public void Release()
+        {
+            this.release.Release();
+        }
     }
 }

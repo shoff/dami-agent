@@ -10,6 +10,7 @@ namespace Dami.Transport;
 public sealed class PipeTransport : ITransport, IAsyncDisposable
 {
     private readonly IDuplexPipe connection;
+    private readonly FrameSequenceTracker inboundSequence = new();
     private readonly CancellationTokenSource lifetimeCancellation = new();
     private readonly SemaphoreSlim sendGate = new(1, 1);
     private int disposed;
@@ -97,6 +98,7 @@ public sealed class PipeTransport : ITransport, IAsyncDisposable
 
                 while (FrameCodec.TryRead(ref buffer, out TransportFrame frame))
                 {
+                    this.inboundSequence.Observe(frame.Sequence);
                     yield return frame;
                 }
 
