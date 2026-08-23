@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Dami.Contracts.Models;
 using Microsoft.Extensions.Logging;
@@ -64,5 +65,63 @@ public sealed class OllamaChatClient : IChatClient
 
         this.logger.LogDebug("Ollama completed {Chars} characters", text.Length);
         return text;
+    }
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<string> StreamAsync(
+        string prompt,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+
+        using var response = await this.OpenStreamAsync(prompt, cancellationToken).ConfigureAwait(false);
+        using var reader = new StreamReader(
+            await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false));
+
+        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        {
+            var fragment = ParseFragment(line);
+            if (!string.IsNullOrEmpty(fragment))
+            {
+                yield return fragment;
+            }
+        }
+    }
+
+    private async Task<HttpResponseMessage> OpenStreamAsync(string prompt, CancellationToken cancellationToken)
+    {
+        var endpoint = new Uri(new Uri(this.ollamaOptions.BaseUrl), "/api/generate");
+        var request = new
+        {
+            model = this.ollamaOptions.Model,
+            prompt,
+            think = this.ollamaOptions.Think,
+            stream = true,
+            options = new { num_predict = this.ollamaOptions.MaxTokens },
+        };
+
+        using var message = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = JsonContent.Create(request, options: serializerOptions),
+        };
+        var response = await this.httpClient
+            .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return response;
+    }
+
+    /// <summary>Extracts the answer fragment from one stream line. Thinking is skipped.</summary>
+    private static string? ParseFragment(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return null;
+        }
+
+        using var document = JsonDocument.Parse(line);
+        return document.RootElement.TryGetProperty("response", out var found)
+            ? found.GetString()
+            : null;
     }
 }

@@ -3331,3 +3331,12 @@ No database migration is involved.
 Steve announced the new protocol; F1's pre-existing `[~ Codex]` marker was corrected to
 the dated form and pushed separately as `9f3ed9f` before production work resumed. This
 completion commit flips F1 to `[x]` with the demonstrated evidence, per the new board.
+
+## 2026-08-23 — Claude — D4+G3: streaming from model to shell
+
+`IChatClient.StreamAsync` (Ollama JSONL, thinking never yielded — 2 tests) and
+`TurnRunner.BeginStreamingAsync` returning a `TurnStream`: accounting up front, tokens
+as they arrive, and **the trace completes — and the interaction joins the corpus — only
+when the stream is drained** (3 tests pin drained/undrained/recorded). One coalesced
+`ResponseStreaming` event per the architecture's never-per-token rule. `dami chat` now
+prints tokens live. 29 Core tests; board D4/G3 flipped to done.

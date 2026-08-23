@@ -10,4 +10,8 @@ public interface IChatClient
 {
     /// <summary>Completes a prompt and returns the final text.</summary>
     Task<string> CompleteAsync(string prompt, CancellationToken cancellationToken);
+
+    /// <summary>Streams a completion as text fragments, in order (C-04: streams, not callbacks).</summary>
+    /// <remarks>Thinking-mode content is not yielded; only answer text arrives here.</remarks>
+    IAsyncEnumerable<string> StreamAsync(string prompt, CancellationToken cancellationToken);
 }

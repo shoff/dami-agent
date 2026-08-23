@@ -98,6 +98,76 @@ public sealed class TurnRunner : ITurnRunner
         return this.EmitAsync(traceId, type, status, label, CancellationToken.None);
     }
 
+    /// <inheritdoc />
+    public async Task<TurnStream> BeginStreamingAsync(string request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var traceId = Guid.NewGuid();
+        await this.EmitAsync(
+            traceId, ExecutionEventType.TraceStarted, ExecutionStatus.Running,
+            "turn started (streaming)", cancellationToken).ConfigureAwait(false);
+
+        var (context, route, prompt) = await this.PrepareAsync(traceId, request, cancellationToken)
+            .ConfigureAwait(false);
+
+        // One coalesced streaming event, per the architecture: never one event per token.
+        await this.EmitAsync(
+            traceId, ExecutionEventType.ResponseStreaming, ExecutionStatus.Running,
+            "response streaming", cancellationToken).ConfigureAwait(false);
+
+        return new TurnStream(
+            traceId, context, route,
+            this.StreamAndFinishAsync(traceId, request, prompt, cancellationToken));
+    }
+
+    private async IAsyncEnumerable<string> StreamAndFinishAsync(
+        Guid traceId,
+        string request,
+        string prompt,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var answer = new StringBuilder();
+
+        await foreach (var fragment in this.chatClient.StreamAsync(prompt, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            answer.Append(fragment);
+            yield return fragment;
+        }
+
+        await this.RecordInteractionAsync(traceId, request, answer.ToString(), cancellationToken)
+            .ConfigureAwait(false);
+        await this.EmitAsync(
+            traceId, ExecutionEventType.TraceCompleted, ExecutionStatus.Succeeded,
+            $"answered in {answer.Length} chars (streamed)", cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<(AssembledContext Context, ModelRoute Route, string Prompt)> PrepareAsync(
+        Guid traceId,
+        string request,
+        CancellationToken cancellationToken)
+    {
+        await this.EmitAsync(
+            traceId, ExecutionEventType.ContextRetrievalStarted, ExecutionStatus.Running,
+            "assembling context", cancellationToken).ConfigureAwait(false);
+
+        var context = await this.contextBuilder.BuildAsync(request, cancellationToken).ConfigureAwait(false);
+
+        await this.EmitAsync(
+            traceId, ExecutionEventType.ContextRetrieved, ExecutionStatus.Succeeded,
+            $"{context.Memories.Count} memories, {context.Beliefs.Count} beliefs, ~{context.EstimatedTokens} tokens",
+            cancellationToken).ConfigureAwait(false);
+
+        // Retrieved context is profile-derived, so the turn is LocalOnly by construction.
+        var route = this.modelRouter.Route("synthesis", PrivacyClass.LocalOnly);
+        await this.EmitAsync(
+            traceId, ExecutionEventType.CapabilitySelected, ExecutionStatus.Succeeded,
+            $"routed {route.Tier}: {route.Reason}", cancellationToken).ConfigureAwait(false);
+
+        return (context, route, BuildPrompt(request, context, this.clock.GetUtcNow()));
+    }
+
     private async Task<TurnResult> CompleteTurnAsync(
         Guid traceId,
         string request,
@@ -121,26 +191,10 @@ public sealed class TurnRunner : ITurnRunner
         string request,
         CancellationToken cancellationToken)
     {
-        await this.EmitAsync(
-            traceId, ExecutionEventType.ContextRetrievalStarted, ExecutionStatus.Running,
-            "assembling context", cancellationToken).ConfigureAwait(false);
-
-        var context = await this.contextBuilder.BuildAsync(request, cancellationToken).ConfigureAwait(false);
-
-        await this.EmitAsync(
-            traceId, ExecutionEventType.ContextRetrieved, ExecutionStatus.Succeeded,
-            $"{context.Memories.Count} memories, {context.Beliefs.Count} beliefs, ~{context.EstimatedTokens} tokens",
-            cancellationToken).ConfigureAwait(false);
-
-        // Retrieved context is profile-derived, so the turn is LocalOnly by construction.
-        var route = this.modelRouter.Route("synthesis", PrivacyClass.LocalOnly);
-        await this.EmitAsync(
-            traceId, ExecutionEventType.CapabilitySelected, ExecutionStatus.Succeeded,
-            $"routed {route.Tier}: {route.Reason}", cancellationToken).ConfigureAwait(false);
-
-        var answer = await this.chatClient
-            .CompleteAsync(BuildPrompt(request, context, this.clock.GetUtcNow()), cancellationToken)
+        var (context, route, prompt) = await this.PrepareAsync(traceId, request, cancellationToken)
             .ConfigureAwait(false);
+
+        var answer = await this.chatClient.CompleteAsync(prompt, cancellationToken).ConfigureAwait(false);
 
         return new TurnResult(traceId, answer.Trim(), context, route);
     }

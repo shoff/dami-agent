@@ -151,6 +151,67 @@ public sealed class TurnRunnerTests
             Arg.Any<Observation>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task BeginStreamingAsync_Should_Yield_Fragments_And_Complete_The_Trace_When_Drained()
+    {
+        this.Arrange();
+        this.chatClient.StreamAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(FragmentsAsync("Hel", "lo"));
+
+        var stream = await this.CreateRunner().BeginStreamingAsync("a question", CancellationToken.None);
+        var collected = new List<string>();
+        await foreach (var fragment in stream.Tokens)
+        {
+            collected.Add(fragment);
+        }
+
+        Assert.Equal(["Hel", "lo"], collected);
+        await this.eventStore.Received(1).AppendAsync(
+            Arg.Is<ExecutionEvent>(item => item.Type == ExecutionEventType.TraceCompleted),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BeginStreamingAsync_Should_Not_Complete_Until_Drained()
+    {
+        this.Arrange();
+        this.chatClient.StreamAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(FragmentsAsync("x"));
+
+        await this.CreateRunner().BeginStreamingAsync("a question", CancellationToken.None);
+
+        await this.eventStore.DidNotReceive().AppendAsync(
+            Arg.Is<ExecutionEvent>(item => item.Type == ExecutionEventType.TraceCompleted),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BeginStreamingAsync_Should_Record_The_Full_Interaction_After_Draining()
+    {
+        this.Arrange();
+        this.chatClient.StreamAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(FragmentsAsync("Hel", "lo"));
+
+        var stream = await this.CreateRunner().BeginStreamingAsync("a question", CancellationToken.None);
+        await foreach (var _ in stream.Tokens)
+        {
+        }
+
+        await this.observationCorpus.Received(1).RecordAsync(
+            Arg.Is<Observation>(item => item.Body.Contains("Hello")),
+            Arg.Any<CancellationToken>());
+    }
+
+    private static async IAsyncEnumerable<string> FragmentsAsync(params string[] fragments)
+    {
+        foreach (var fragment in fragments)
+        {
+            yield return fragment;
+        }
+
+        await Task.CompletedTask;
+    }
+
     private void Arrange(string[]? beliefs = null, string[]? memories = null)
     {
         var beliefItems = (beliefs ?? [])

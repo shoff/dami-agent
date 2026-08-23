@@ -14,22 +14,28 @@ public sealed class ChatCommands
         this.turnRunner = turnRunner;
     }
 
-    /// <summary>Runs one turn and prints the answer with its accounting.</summary>
+    /// <summary>Runs one streaming turn, printing tokens as they arrive.</summary>
     public async Task<int> TurnAsync(string request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        Console.WriteLine("thinking (local model)...");
-        var result = await this.turnRunner.RunAsync(request, cancellationToken).ConfigureAwait(false);
+        var stream = await this.turnRunner.BeginStreamingAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+
+        Console.WriteLine(
+            $"[{stream.Route.Tier} · ~{stream.Context.EstimatedTokens} ctx tokens · "
+            + $"{stream.Context.Memories.Count} memories · {stream.Context.Beliefs.Count} beliefs]");
+        Console.WriteLine();
+
+        await foreach (var fragment in stream.Tokens.ConfigureAwait(false))
+        {
+            Console.Write(fragment);
+            await Console.Out.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         Console.WriteLine();
-        Console.WriteLine(result.Answer);
         Console.WriteLine();
-        Console.WriteLine(
-            $"[{result.Route.Tier} · ~{result.Context.EstimatedTokens} ctx tokens · "
-            + $"{result.Context.Memories.Count} memories · {result.Context.Beliefs.Count} beliefs · "
-            + $"trace {result.TraceId.ToString("N")[..8]}]");
-        Console.WriteLine($"replay: dami trace {result.TraceId}");
+        Console.WriteLine($"replay: dami trace {stream.TraceId}");
         return 0;
     }
 }
