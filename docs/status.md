@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 19:54 CDT (`2026-08-23T00:54Z`)
+- **Last updated:** 2026-08-22 20:02 CDT (`2026-08-23T01:02Z`)
 - **Updated by:** Claude Code session, from direct inspection of this workstation
 - **Current phase:** 0 and 1, both in progress
 
@@ -120,6 +120,7 @@ Captured 2026-08-22 19:49 CDT. Everything here was read off the machine.
 | git | 2.43.0 | Ubuntu archive |
 | gh | 2.98.0 | GitHub's apt repo |
 | psql client | 16.15 | Ubuntu archive — **not PGDG** |
+| pgAdmin 4 desktop | 9.17 | pgAdmin apt repo (`.../apt/noble`) |
 | Timeshift | present, RSYNC mode, **zero snapshots** | Mint default |
 
 ### Not installed
@@ -128,13 +129,28 @@ Captured 2026-08-22 19:49 CDT. Everything here was read off the machine.
 
 ### Containers and images
 
-| Name | Image | State |
-|---|---|---|
-| `dami-pgadmin` | `dpage/pgadmin4:latest` | up, `127.0.0.1:5050` |
-| `dami-data` | was `postgres:latest` | **removed** during this session by the other agent |
+**No containers exist.** Both were removed on 2026-08-22:
 
-Images pulled: `pgvector/pgvector:pg18`, `postgres:latest`, `dpage/pgadmin4:latest`,
+| Name | Image | Disposition |
+|---|---|---|
+| `dami-data` | `postgres:latest` | removed by the other agent; Postgres moved to bare metal |
+| `dami-pgadmin` | `dpage/pgadmin4:latest` | removed at Steve's request; image deleted too, replaced by the native pgAdmin 4 desktop 9.17 |
+
+Images remaining, all currently unused: `pgvector/pgvector:pg18`, `postgres:latest`,
 `ubuntu:24.04`, `hello-world:latest`.
+
+Orphaned pgAdmin state left in place under `/home/steve/Data`:
+`pgadmin-dami/` (owned by uid 5050), `pgadmin-servers.json` (connection details only,
+no credentials), and `pgadmin-dami.env`, **which does contain credentials** and is now
+attached to nothing. Worth deleting.
+
+### apt repositories
+
+Repaired 2026-08-22. `pgadmin4.list` pointed at suite `zena` — Mint's codename — which
+pgAdmin does not publish, giving `404 Not Found` and breaking every `apt-get update`.
+Corrected to `noble`. **Any vendor install script using `$(lsb_release -cs)` breaks the
+same way on this host and must be given `noble` explicitly — PGDG included.** All seven
+repositories now validate with 0 errors and all five referenced keyrings exist.
 
 ### PostgreSQL — running on bare metal, but the extension version blocks Phase 2
 
@@ -218,7 +234,7 @@ change, or an ADR — not silence.
 | Postgres from the PGDG repository (D-004) | `noble/universe`; PGDG not configured | **open** — pins pgvector at 0.6.0 |
 | Embedding candidates Qwen3-4B/8B and BGE-M3 (D-010) | pgvector 0.6.0 caps HNSW at 2000 dims; only BGE-M3 fits | **open** — tooling would decide what D-010 says evidence must |
 | Retrieval is ANN top-50 then relational filter (arch §9.3) | pre-0.8 pgvector filters after retrieval; no iterative scans | **open** — filtered queries can return far fewer than 50 |
-| Containers are pinned | `dpage/pgadmin4:latest` | **unresolved** |
+| Containers are pinned | no containers exist; the two that did used `:latest` | **moot for now** — applies again the moment an inference sidecar is created |
 | Embedding candidates are Qwen3-Embedding-4B/8B, BGE-M3 (D-010) | — | 8B at fp16 ≈ 16 GB, which is the entire card. The eval should include smaller variants or 8B is undeployable alongside a reranker, vision, TTS, and an LLM sidecar. |
 | Acceptance suite of 14 items (charter §14) | — | Predates the proactive layer and tests none of it: no entry for surfacing quality, scarcity, supersession, pushback rate, or egress enforcement |
 
