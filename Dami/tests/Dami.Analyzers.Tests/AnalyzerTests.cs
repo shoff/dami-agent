@@ -162,6 +162,22 @@ public sealed class AnalyzerTests
     }
 
     [Fact]
+    public async Task OptionalConstructorParameterAnalyzer_Should_Allow_An_Optional_Value_On_A_Record()
+    {
+        const string code = """
+            using System.Collections.Generic;
+            public sealed record Sample
+            {
+                public Sample(string name, IReadOnlyDictionary<string, string>? metadata = null) { }
+            }
+            """;
+
+        var ids = await AnalyzerHarness.IdsAsync(new OptionalConstructorParameterAnalyzer(), code);
+
+        Assert.Empty(ids);
+    }
+
+    [Fact]
     public async Task NotImplementedMemberAnalyzer_Should_Report_An_Unimplemented_Interface_Member()
     {
         const string code = """

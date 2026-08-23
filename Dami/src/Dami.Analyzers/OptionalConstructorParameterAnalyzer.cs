@@ -9,8 +9,13 @@ namespace Dami.Analyzers;
 /// <summary>Constructor dependencies are required, never optional (§5).</summary>
 /// <remarks>
 /// A container resolves the default silently and the feature is disabled with no error.
-/// Only abstraction-typed parameters are flagged: an optional <c>int retries = 3</c> is a
-/// value, not a dependency, and banning those would be noise.
+///
+/// Two exclusions keep this a rule about dependencies rather than about optional
+/// parameters in general. Only abstraction-typed parameters are flagged, because an
+/// optional <c>int retries = 3</c> is a value. And records are skipped entirely: C-03
+/// makes records data and classes services, so a container never constructs one, and
+/// §4 requires collections be exposed as <c>IReadOnlyList&lt;T&gt;</c> and friends -
+/// which would otherwise make every optional collection on a model a false positive.
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class OptionalConstructorParameterAnalyzer : DiagnosticAnalyzer
@@ -37,6 +42,11 @@ public sealed class OptionalConstructorParameterAnalyzer : DiagnosticAnalyzer
     private static void Report(SyntaxNodeAnalysisContext context)
     {
         var constructor = (ConstructorDeclarationSyntax)context.Node;
+
+        if (constructor.Parent is RecordDeclarationSyntax)
+        {
+            return;
+        }
 
         foreach (var parameter in constructor.ParameterList.Parameters)
         {
