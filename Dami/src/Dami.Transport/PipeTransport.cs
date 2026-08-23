@@ -17,6 +17,7 @@ public sealed class PipeTransport : ITransport, IAsyncDisposable
     private Task? disposal;
     private uint nextOutboundSequence;
     private int disposed;
+    private int outboundFailed;
     private int receiveActive;
 
     /// <summary>Initializes a framed transport and takes ownership of the supplied connection.</summary>
@@ -31,11 +32,11 @@ public sealed class PipeTransport : ITransport, IAsyncDisposable
         TransportMessage message,
         CancellationToken cancellationToken)
     {
-        this.ThrowIfDisposed();
+        this.ThrowIfSendUnavailable();
         await this.sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            this.ThrowIfDisposed();
+            this.ThrowIfSendUnavailable();
             using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken,
                 this.lifetimeCancellation.Token);
@@ -71,8 +72,16 @@ public sealed class PipeTransport : ITransport, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         FrameCodec.Write(this.connection.Output, frame);
-        FlushResult result = await this.connection.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
-        ValidateFlushResult(result);
+        try
+        {
+            FlushResult result = await this.connection.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
+            ValidateFlushResult(result);
+        }
+        catch
+        {
+            Volatile.Write(ref this.outboundFailed, 1);
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -184,6 +193,16 @@ public sealed class PipeTransport : ITransport, IAsyncDisposable
         if (Volatile.Read(ref this.disposed) != 0)
         {
             throw new ObjectDisposedException(nameof(PipeTransport));
+        }
+    }
+
+    private void ThrowIfSendUnavailable()
+    {
+        this.ThrowIfDisposed();
+        if (Volatile.Read(ref this.outboundFailed) != 0)
+        {
+            throw new InvalidOperationException(
+                "The transport cannot send after a frame flush failed.");
         }
     }
 

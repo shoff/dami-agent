@@ -106,11 +106,11 @@ rather than assuming — but nothing else blocks the phase.
 | Pipelines framed connection | done | concurrent sends serialized; cancellation, completion, single receiver, disposal, and backpressured-shutdown tests pass |
 | TCP connection, one connection | done | outbound and accepted loopback sockets verified; accepted-socket seam owns the socket, enables `NoDelay`, and has exception-safe idempotent disposal |
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
-| Backpressure and flow control beyond bounded loopback | not started | — |
+| Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
 | Capability registry, model routing, sessions, events, CLI | not started | — |
 
-Verification on 2026-08-23: `Dami.Transport.Tests` executed 54 tests with 0 failures;
-`dotnet test Dami.sln` executed 202 tests across eight suites with 0 failures; preceding
+Verification on 2026-08-23: `Dami.Transport.Tests` executed 57 tests with 0 failures;
+`dotnet test Dami.sln` executed 215 tests across eight suites with 0 failures; preceding
 `dotnet build Dami.sln` completed with 0 warnings and 0 errors.
 
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**

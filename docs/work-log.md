@@ -1781,3 +1781,54 @@ dotnet test Dami.sln
   Dami.Persistence.Tests       78 passed
                                202 total, 0 failed
 ```
+
+## 2026-08-23 — Codex — Backpressure and flow-control slice started
+
+Continuing architecture §7.5.5 step 5 under the transport claim. Inspection found that
+native bounded-channel, pipeline-flush, pull-based receive, and TCP window pressure are
+already the intended flow-control chain, but a canceled/failed flush leaves staged bytes
+while preserving the outbound sequence and still permits later sends. ADR-0008 records
+the rule: a post-write flush failure poisons outbound use of that connection and forces
+ADR-0007 reconnect. Planned red-first test sends after a canceled flush and requires a
+local rejection instead of a possible duplicate sequence.
+
+### Completed behavior and evidence
+
+- TDD red: after `CancelPendingFlush`, the first send threw cancellation but the next
+  send completed; `Assert.Throws<InvalidOperationException>` reported no exception.
+- Minimum green: `PipeTransport` marks outbound use failed only around
+  `FlushAsync`/flush-result handling, then checks that state before and after entering
+  the send gate. A frame rejected before staging does not poison the connection; a
+  post-write ambiguous failure does. The same narrow test passed.
+- Coverage, not described as TDD: a capacity-one loopback test proves the second send
+  remains pending until receive frees capacity; a pipe test proves cancellation while
+  merely queued at the send gate neither poisons the connection nor consumes a sequence
+  (`0,1` observed after continuing).
+
+The first mandatory full build did **not** pass: Claude's bounded live reflection run
+was executing `Dami.Host.Proactive`, so MSBuild exhausted ten copy retries with
+`MSB3021`/`MSB3027` (`Text file busy`), reporting 10 warnings and 2 errors. The process
+was inspected read-only and allowed to exit under its own timeout; it was not signaled
+or killed. The exact mandatory build was then rerun successfully.
+
+### Verification
+
+```
+dotnet test tests/Dami.Transport.Tests/Dami.Transport.Tests.csproj
+  57 passed, 0 failed
+
+dotnet build Dami.sln
+  first run: 10 warnings, 2 errors (live apphost lock; not claimed as pass)
+  rerun after live process exited: 0 warnings, 0 errors
+
+dotnet test Dami.sln
+  Dami.Tests                    1 passed
+  Dami.Architecture.Tests      10 passed
+  Dami.Providers.Tests          3 passed
+  Dami.Privacy.Tests            8 passed
+  Dami.Proactive.Tests         46 passed
+  Dami.Transport.Tests         57 passed
+  Dami.Analyzers.Tests         12 passed
+  Dami.Persistence.Tests       78 passed
+                               215 total, 0 failed
+```

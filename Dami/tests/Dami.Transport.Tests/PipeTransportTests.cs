@@ -8,6 +8,46 @@ namespace Dami.Transport.Tests;
 public sealed class PipeTransportTests
 {
     [Fact]
+    public async Task SendAsync_Should_Not_Poison_The_Connection_When_Gate_Wait_Is_Canceled()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var queuedCancellation = new CancellationTokenSource();
+        var inbound = new Pipe();
+        var outbound = new Pipe(new PipeOptions(pauseWriterThreshold: 1, resumeWriterThreshold: 1));
+        var connection = new TestDuplexPipe(inbound.Reader, outbound.Writer);
+        await using var transport = new PipeTransport(connection);
+        ValueTask firstSend = transport.SendAsync(CreateMessage(), timeout.Token);
+        ValueTask canceledSend = transport.SendAsync(CreateMessage(), queuedCancellation.Token);
+
+        await queuedCancellation.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceledSend.AsTask());
+        Task<TransportFrame[]> receive = ReadFramesAsync(outbound.Reader, 2, timeout.Token);
+        await firstSend;
+        await transport.SendAsync(CreateMessage(), timeout.Token);
+        TransportFrame[] frames = await receive;
+
+        Assert.Equal((0U, 1U), (frames[0].Sequence, frames[1].Sequence));
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Reject_Further_Sends_After_A_Failed_Flush()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var inbound = new Pipe();
+        var outbound = new Pipe();
+        var connection = new TestDuplexPipe(inbound.Reader, outbound.Writer);
+        await using var transport = new PipeTransport(connection);
+        outbound.Writer.CancelPendingFlush();
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => transport.SendAsync(CreateMessage(), timeout.Token).AsTask());
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => transport.SendAsync(CreateMessage(), timeout.Token).AsTask());
+
+        Assert.Equal("The transport cannot send after a frame flush failed.", exception.Message);
+    }
+
+    [Fact]
     public async Task DisposeAsync_Should_Share_Completion_Between_Overlapping_Callers()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));

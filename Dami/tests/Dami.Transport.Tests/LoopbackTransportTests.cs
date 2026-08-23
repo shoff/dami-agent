@@ -5,6 +5,22 @@ namespace Dami.Transport.Tests;
 public sealed class LoopbackTransportTests
 {
     [Fact]
+    public async Task SendAsync_Should_Remain_Pending_Until_Bounded_Capacity_Is_Available()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var transport = new LoopbackTransport(1);
+        await transport.SendAsync(CreateMessage(1), timeout.Token);
+
+        ValueTask secondSend = transport.SendAsync(CreateMessage(2), timeout.Token);
+
+        Assert.False(secondSend.IsCompleted);
+        TransportFrame first = await ReceiveOneAsync(transport, timeout.Token);
+        await secondSend;
+        TransportFrame second = await ReceiveOneAsync(transport, timeout.Token);
+        Assert.Equal((0U, 1U), (first.Sequence, second.Sequence));
+    }
+
+    [Fact]
     public async Task ReceiveAsync_Should_Reject_A_Second_Active_Receiver()
     {
         var transport = new LoopbackTransport();
@@ -93,5 +109,14 @@ public sealed class LoopbackTransportTests
         }
 
         throw new InvalidOperationException("The transport completed without yielding a frame.");
+    }
+
+    private static TransportMessage CreateMessage(byte payload)
+    {
+        return new TransportMessage(
+            7,
+            Guid.NewGuid(),
+            FrameFlags.None,
+            new byte[] { payload });
     }
 }
