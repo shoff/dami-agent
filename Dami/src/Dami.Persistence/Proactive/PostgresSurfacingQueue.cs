@@ -141,6 +141,26 @@ public sealed class PostgresSurfacingQueue : ISurfacingQueue
     }
 
     /// <inheritdoc />
+    public IAsyncEnumerable<SurfacingReaction> ReactionsAsync(int limit, CancellationToken cancellationToken)
+    {
+        if (limit <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit), limit, "Limit must be positive.");
+        }
+
+        var command = this.dataSource.CreateCommand(
+            $"""
+            select title, feedback
+              from {this.Table}
+             where feedback is not null
+             order by feedback_at desc
+             limit @limit;
+            """);
+        command.Parameters.AddWithValue("limit", limit);
+        return StreamReactionsAsync(command, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task DeliverAsync(Guid surfacingId, DateTimeOffset deliveredAt, CancellationToken cancellationToken)
     {
         await using var command = this.dataSource.CreateCommand(
@@ -180,6 +200,22 @@ public sealed class PostgresSurfacingQueue : ISurfacingQueue
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 yield return Read(reader);
+            }
+        }
+    }
+
+    private static async IAsyncEnumerable<SurfacingReaction> StreamReactionsAsync(
+        NpgsqlCommand command,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using (command.ConfigureAwait(false))
+        {
+            await using var reader = await command
+                .ExecuteReaderAsync(CommandBehavior.SingleResult, cancellationToken).ConfigureAwait(false);
+
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                yield return new SurfacingReaction(reader.GetString(0), reader.GetString(1));
             }
         }
     }

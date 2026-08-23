@@ -23,4 +23,14 @@ public sealed class InterestScoutOptions
 
     /// <summary>The most items one pass may surface, before the queue's own daily cap.</summary>
     public int MaxItemsPerPass { get; set; } = 3;
+
+    /// <summary>How strongly a resemblance to something rated "good" lifts a score.</summary>
+    public double FeedbackBoost { get; set; } = 0.15;
+
+    /// <summary>How strongly a resemblance to something rated "bad" cuts a score.</summary>
+    /// <remarks>Asymmetric on purpose: a false surfacing costs attention, a miss costs nothing visible.</remarks>
+    public double FeedbackPenalty { get; set; } = 0.25;
+
+    /// <summary>How many recent reactions the taste model considers.</summary>
+    public int MaxReactions { get; set; } = 50;
 }

@@ -163,6 +163,25 @@ public sealed class PostgresSurfacingQueueTests
     }
 
     [Fact]
+    public async Task ReactionsAsync_Should_Return_Only_Surfacings_With_Feedback()
+    {
+        await this.fixture.ResetAsync();
+        var queue = this.CreateQueue(cap: 5);
+        var rated = Worth("rated one");
+        await queue.EnqueueAsync(rated, CancellationToken.None);
+        await queue.EnqueueAsync(Worth("unrated"), CancellationToken.None);
+        await queue.RecordFeedbackAsync(rated.SurfacingId, "good: yes", createdAt.AddHours(1), CancellationToken.None);
+
+        var reactions = new List<SurfacingReaction>();
+        await foreach (var reaction in queue.ReactionsAsync(10, CancellationToken.None))
+        {
+            reactions.Add(reaction);
+        }
+
+        Assert.Single(reactions);
+    }
+
+    [Fact]
     public void RecentAsync_Should_Reject_A_Non_Positive_Limit()
     {
         var queue = this.CreateQueue(cap: 3);

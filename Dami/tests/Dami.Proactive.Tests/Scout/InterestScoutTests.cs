@@ -24,6 +24,7 @@ public sealed class InterestScoutTests
 
     private readonly IEgressClient egressClient = Substitute.For<IEgressClient>();
     private readonly IEmbeddingClient embeddingClient = Substitute.For<IEmbeddingClient>();
+    private readonly ISurfacingQueue surfacingQueue = Substitute.For<ISurfacingQueue>();
 
     [Fact]
     public async Task RunPassAsync_Should_Be_Quiet_With_No_Feeds_Configured()
@@ -131,6 +132,46 @@ public sealed class InterestScoutTests
             Arg.Any<CancellationToken>());
     }
 
+    private readonly List<SurfacingReaction> reactions = [];
+
+    [Fact]
+    public async Task RunPassAsync_Should_Suppress_An_Item_Resembling_A_Bad_Reaction()
+    {
+        this.ArrangeFeed(FEED);
+        this.reactions.Add(new SurfacingReaction("celebrity gossip roundup", "bad: never this"));
+        // interest matches both items at 0.5; the bad anchor matches item 1 exactly
+        this.embeddingClient.EmbedAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Vectors(
+                [0.5f, 0.5f],  // interest
+                [0f, 1f],      // bad reaction anchor
+                [1f, 0f],      // pgvector item
+                [0f, 1f]));    // gossip item - identical to the bad anchor
+
+        var scout = this.CreateScout(threshold: 0.6);
+        var result = await scout.RunPassAsync(Context(), CancellationToken.None);
+
+        Assert.DoesNotContain(result.Surfacings, item => item.Title.Contains("gossip"));
+    }
+
+    [Fact]
+    public async Task RunPassAsync_Should_Boost_An_Item_Resembling_A_Good_Reaction()
+    {
+        this.ArrangeFeed(FEED);
+        this.reactions.Add(new SurfacingReaction("deep dive on pgvector hnsw internals", "good: more"));
+        this.embeddingClient.EmbedAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Vectors(
+                [0.6f, 0.8f],  // interest - weak-ish match to item 0
+                [1f, 0f],      // good anchor
+                [1f, 0f],      // pgvector item - identical to good anchor
+                [0f, 1f]));    // gossip
+
+        // interest sim to item0 = 0.6; boost 0.15 * 1.0 lifts it over a 0.7 threshold
+        var scout = this.CreateScout(threshold: 0.7);
+        var result = await scout.RunPassAsync(Context(), CancellationToken.None);
+
+        Assert.Contains(result.Surfacings, item => item.Title.Contains("pgvector"));
+    }
+
     private void ArrangeFeed(string xml)
     {
         this.egressClient.SendAsync(Arg.Any<EgressRequest>(), Arg.Any<CancellationToken>())
@@ -153,6 +194,16 @@ public sealed class InterestScoutTests
             });
     }
 
+    private static async IAsyncEnumerable<SurfacingReaction> AsAsync(List<SurfacingReaction> reactions)
+    {
+        foreach (var reaction in reactions)
+        {
+            yield return reaction;
+        }
+
+        await Task.CompletedTask;
+    }
+
     private static IReadOnlyList<float[]> Vectors(params float[][] vectors)
     {
         return vectors;
@@ -166,9 +217,10 @@ public sealed class InterestScoutTests
     private InterestScout CreateScout(
         IList<string>? feeds = null,
         IList<string>? interests = null,
-        int maxItems = 3)
+        int maxItems = 3,
+        double threshold = 0.55)
     {
-        var options = new InterestScoutOptions { MaxItemsPerPass = maxItems };
+        var options = new InterestScoutOptions { MaxItemsPerPass = maxItems, SurfaceThreshold = threshold };
         foreach (var feed in feeds ?? ["https://feeds.example.com/rss"])
         {
             options.Feeds.Add(feed);
@@ -179,8 +231,11 @@ public sealed class InterestScoutTests
             options.Interests.Add(interest);
         }
 
+        this.surfacingQueue.ReactionsAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(AsAsync(this.reactions));
+
         return new InterestScout(
-            this.egressClient, this.embeddingClient, Options.Create(options),
+            this.egressClient, this.embeddingClient, this.surfacingQueue, Options.Create(options),
             new FakeTimeProvider(now), NullLogger<InterestScout>.Instance);
     }
 }

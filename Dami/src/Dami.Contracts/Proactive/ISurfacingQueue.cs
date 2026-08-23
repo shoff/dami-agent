@@ -30,6 +30,10 @@ public interface ISurfacingQueue
     /// <remarks>How the CLI shows history and resolves a short id to a full one.</remarks>
     IAsyncEnumerable<Surfacing> RecentAsync(int limit, CancellationToken cancellationToken);
 
+    /// <summary>Reactions Steve has recorded, newest first.</summary>
+    /// <remarks>What the taste model trains on. Surfacings without feedback do not appear.</remarks>
+    IAsyncEnumerable<SurfacingReaction> ReactionsAsync(int limit, CancellationToken cancellationToken);
+
     /// <summary>Records Steve's reaction.</summary>
     Task RecordFeedbackAsync(
         Guid surfacingId,

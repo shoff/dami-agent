@@ -1631,6 +1631,20 @@ dotnet test Dami.sln
                                188 total, 0 failed
 ```
 
+## 2026-08-22 — Codex — Explicit reconnect slice started
+
+Continuing architecture §7.5.5 under the transport ownership claim after heartbeat
+commit `b8dd3d4`. ADR-0007 records the precondition exposed by reconnect: `ITransport`
+must own an async-disposable connection lifetime, and a new connector call creates a
+fresh per-connection sequence namespace. Transparent resend is deliberately excluded
+because the current frame protocol has no acknowledgement and cannot distinguish an
+undelivered send from an accepted send whose response was lost.
+
+Planned strict TDD order: make lifetime ownership observable through the interface;
+make `PipeTransport` dispose an async-disposable injected connection; add the connector
+contract; then prove two TCP connects create distinct transports with reset outbound
+sequence. Claude's concurrent proactive-audit paths remain out of scope.
+
 ## 2026-08-22 — Claude Code — Pushback audit service
 
 D-011's quarterly review as the second registered proactive service. Always records a
@@ -1640,3 +1654,43 @@ previous quarter's. No baseline → quiet. Rate holds → quiet. Scarcity throug
 
 Local-only by construction: the service takes no egress dependency, and its host
 registration says so. Five tests, 34 in the proactive suite. Solution 0/0.
+
+## 2026-08-23 — Claude Code — The taste model learns
+
+Closed the D-019 loop: recorded feedback now changes the next pass's scoring.
+
+### Added
+
+- `SurfacingReaction` + `ISurfacingQueue.ReactionsAsync` (+ store impl, + test):
+  the training pairs, read newest-first, unrated surfacings excluded.
+- Scout scoring: `score = bestInterestSim + boost·bestGoodSim − penalty·bestBadSim`.
+  Reactions are embedded as anchors alongside interests in the same local batch —
+  nothing new crosses the egress boundary. **Penalty (0.25) deliberately exceeds boost
+  (0.15)**: a false surfacing costs attention, a miss costs nothing visible.
+- Two tests pin the behaviour: an item identical to a "bad"-rated title is suppressed
+  below threshold; an item identical to a "good"-rated title is lifted above one it
+  would otherwise miss.
+
+### Observed live — the loop actually closed
+
+Yesterday's pass surfaced the "ElevenLabs" item at **0.520** and Steve's CLI feedback
+`good: solid pick, more like this` was recorded. Today's pass, same feed, same interests:
+
+```
+Suppressed 0.670  ElevenLabs, TwelveLabs, ThirteenLabs     (was 0.520 before feedback)
+Suppressed 0.585  Thinking in Python
+Suppressed 0.541  Why your local LLM feels dumber than it is
+```
+
+The rated item's score rose 0.520 → 0.670 — the boost visibly at work on real data.
+And all three were **Suppressed, not Pending**: three surfacings already counted against
+the scout's daily cap, so the D-021 scarcity mechanism refused more, storing them
+auditable rather than dropping them. Both mechanisms working, live, in one query.
+
+`pushback-audit` also ran on the same tick and recorded its first conclusion to the
+ledger (`SelfAudit | Pushback rate: 0 challenges this quarter …`) with no surfacing —
+no baseline, so it stayed quiet, as designed.
+
+Deviation noted: implementation-first again for the scoring change (coverage, not TDD);
+the two behaviour tests were written immediately after and fail if the adjustment is
+removed. Verification: Proactive 36, Persistence 76, solution 0 warnings 0 errors.

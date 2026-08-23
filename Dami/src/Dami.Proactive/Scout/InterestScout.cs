@@ -2,6 +2,7 @@ using Dami.Contracts.Events;
 using Dami.Contracts.Models;
 using Dami.Contracts.Privacy;
 using Dami.Contracts.Proactive;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -22,6 +23,7 @@ public sealed class InterestScout : IProactiveService
 {
     private readonly IEgressClient egressClient;
     private readonly IEmbeddingClient embeddingClient;
+    private readonly ISurfacingQueue surfacingQueue;
     private readonly InterestScoutOptions scoutOptions;
     private readonly TimeProvider clock;
     private readonly ILogger<InterestScout> logger;
@@ -30,18 +32,21 @@ public sealed class InterestScout : IProactiveService
     public InterestScout(
         IEgressClient egressClient,
         IEmbeddingClient embeddingClient,
+        ISurfacingQueue surfacingQueue,
         IOptions<InterestScoutOptions> scoutOptions,
         TimeProvider clock,
         ILogger<InterestScout> logger)
     {
         ArgumentNullException.ThrowIfNull(egressClient);
         ArgumentNullException.ThrowIfNull(embeddingClient);
+        ArgumentNullException.ThrowIfNull(surfacingQueue);
         ArgumentNullException.ThrowIfNull(scoutOptions);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.egressClient = egressClient;
         this.embeddingClient = embeddingClient;
+        this.surfacingQueue = surfacingQueue;
         this.scoutOptions = scoutOptions.Value;
         this.clock = clock;
         this.logger = logger;
@@ -74,7 +79,8 @@ public sealed class InterestScout : IProactiveService
             return ProactiveResult.quiet;
         }
 
-        var scored = await this.ScoreAsync(fresh, cancellationToken).ConfigureAwait(false);
+        var reactions = await this.LoadReactionsAsync(cancellationToken).ConfigureAwait(false);
+        var scored = await this.ScoreAsync(fresh, reactions, cancellationToken).ConfigureAwait(false);
         return this.BuildResult(scored);
     }
 
@@ -126,11 +132,32 @@ public sealed class InterestScout : IProactiveService
         return fresh;
     }
 
+    private async Task<List<SurfacingReaction>> LoadReactionsAsync(CancellationToken cancellationToken)
+    {
+        var reactions = new List<SurfacingReaction>();
+        await foreach (var reaction in this.surfacingQueue
+            .ReactionsAsync(this.scoutOptions.MaxReactions, cancellationToken).ConfigureAwait(false))
+        {
+            if (reaction.IsPositive || reaction.IsNegative)
+            {
+                reactions.Add(reaction);
+            }
+        }
+
+        return reactions;
+    }
+
     private async Task<List<(FeedItem Item, double Score)>> ScoreAsync(
         List<FeedItem> items,
+        List<SurfacingReaction> reactions,
         CancellationToken cancellationToken)
     {
         var texts = new List<string>(this.scoutOptions.Interests);
+        foreach (var reaction in reactions)
+        {
+            texts.Add(reaction.Title);
+        }
+
         foreach (var item in items)
         {
             texts.Add(item.Title);
@@ -138,25 +165,64 @@ public sealed class InterestScout : IProactiveService
 
         var vectors = await this.embeddingClient.EmbedAsync(texts, cancellationToken).ConfigureAwait(false);
         var interestCount = this.scoutOptions.Interests.Count;
+        var itemsStart = interestCount + reactions.Count;
 
         var scored = new List<(FeedItem, double)>(items.Count);
         for (var index = 0; index < items.Count; index++)
         {
-            var itemVector = vectors[interestCount + index];
-            var best = 0.0;
-            for (var interest = 0; interest < interestCount; interest++)
-            {
-                var similarity = Cosine(vectors[interest], itemVector);
-                if (similarity > best)
-                {
-                    best = similarity;
-                }
-            }
-
-            scored.Add((items[index], best));
+            var itemVector = vectors[itemsStart + index];
+            var score = BestSimilarity(vectors, 0, interestCount, itemVector)
+                + this.FeedbackAdjustment(vectors, reactions, interestCount, itemVector);
+            scored.Add((items[index], score));
         }
 
         return scored;
+    }
+
+    /// <summary>The taste model learning: resemblance to rated items moves the score.</summary>
+    private double FeedbackAdjustment(
+        IReadOnlyList<float[]> vectors,
+        List<SurfacingReaction> reactions,
+        int reactionsStart,
+        float[] itemVector)
+    {
+        var bestGood = 0.0;
+        var bestBad = 0.0;
+
+        for (var index = 0; index < reactions.Count; index++)
+        {
+            var similarity = Cosine(vectors[reactionsStart + index], itemVector);
+            if (reactions[index].IsPositive && similarity > bestGood)
+            {
+                bestGood = similarity;
+            }
+            else if (reactions[index].IsNegative && similarity > bestBad)
+            {
+                bestBad = similarity;
+            }
+        }
+
+        return (bestGood * this.scoutOptions.FeedbackBoost)
+            - (bestBad * this.scoutOptions.FeedbackPenalty);
+    }
+
+    private static double BestSimilarity(
+        IReadOnlyList<float[]> vectors,
+        int start,
+        int count,
+        float[] itemVector)
+    {
+        var best = 0.0;
+        for (var index = start; index < start + count; index++)
+        {
+            var similarity = Cosine(vectors[index], itemVector);
+            if (similarity > best)
+            {
+                best = similarity;
+            }
+        }
+
+        return best;
     }
 
     private ProactiveResult BuildResult(List<(FeedItem Item, double Score)> scored)
