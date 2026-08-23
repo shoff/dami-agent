@@ -1728,3 +1728,56 @@ the ledger holds no active conclusions
 A belief was read, corrected with a recorded reason, and the correction took effect —
 F-09 and F-10, observably. The analyzers caught `DAMI0003` on the router again;
 dispatch was extracted. Persistence 78 tests; solution 0 warnings, 0 errors.
+
+## 2026-08-23 — Codex — Explicit reconnect primitive completed
+
+Completed the ADR-0007 connection-lifetime and reconnect slice. Files changed:
+`ITransport`, new `ITransportConnector`, `HeartbeatTransport`, `PipeTransport`, new
+`TcpTransportConnector`, their transport tests/test doubles, ADR-0007, and the Phase 3
+status row. Claude's concurrent belief-ledger, CLI, model-provider, and proactive files
+were observed and left unstaged.
+
+### TDD evidence
+
+1. **Lifetime through the abstraction:** the first narrow test failed to compile with
+   `CS1061` because `ITransport` exposed no `DisposeAsync`. It now extends
+   `IAsyncDisposable`; `HeartbeatTransport` owns its wrapped transport and shares one
+   idempotent disposal completion. The narrow test passed.
+2. **Injected duplex ownership:** disposal left an async-disposable `IDuplexPipe` at
+   count 0 instead of 1. `PipeTransport` now completes both pipe ends and disposes the
+   injected connection in nested exception-safe `finally` blocks. The narrow test
+   passed.
+3. **Overlapping disposal:** a second `PipeTransport.DisposeAsync` returned completed
+   while the first caller was still blocked. Disposal now memoizes one cleanup task;
+   both callers wait for it and the connection is disposed once. The narrow test passed.
+4. **Fresh TCP reconnect:** the test compile-failed with `CS0246` because
+   `ITransportConnector` did not exist. After adding the contract and connector, one
+   style diagnostic (`IDE0007`) was corrected before the behavior ran. The real loopback
+   TCP test then connected, disposed, reconnected, and observed sequence `0` on the first
+   application frame of both independent connections.
+
+`TcpTransportConnector` is stateless and composes a fresh
+`TcpDuplexPipe → PipeTransport → HeartbeatTransport` per call. It supplies connection
+recovery, not transparent resend: no frame is replayed and no exactly-once claim is made
+without a future acknowledgement/session-resume protocol.
+
+### Verification
+
+```
+dotnet test tests/Dami.Transport.Tests/Dami.Transport.Tests.csproj
+  54 passed, 0 failed
+
+dotnet build Dami.sln
+  0 warnings, 0 errors
+
+dotnet test Dami.sln
+  Dami.Tests                    1 passed
+  Dami.Architecture.Tests      10 passed
+  Dami.Providers.Tests          3 passed
+  Dami.Privacy.Tests            8 passed
+  Dami.Proactive.Tests         36 passed
+  Dami.Transport.Tests         54 passed
+  Dami.Analyzers.Tests         12 passed
+  Dami.Persistence.Tests       78 passed
+                               202 total, 0 failed
+```

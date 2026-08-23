@@ -102,15 +102,15 @@ rather than assuming — but nothing else blocks the phase.
 | Item | State | Evidence |
 |---|---|---|
 | Versioned frame reader/writer | done | `FrameCodec`; split-buffer round trip at every byte offset plus overflowing/noncanonical varint rejection |
-| `ITransport` and `LoopbackTransport` | done | ADR-0005: callers send `TransportMessage`; transports own version/sequence; bounded snapshotting loopback mirrors wire ordering |
+| `ITransport` and `LoopbackTransport` | done | ADR-0005/0007: callers send `TransportMessage`; transports own version, sequence, and async-disposable connection lifetime; bounded snapshotting loopback mirrors wire ordering |
 | Pipelines framed connection | done | concurrent sends serialized; cancellation, completion, single receiver, disposal, and backpressured-shutdown tests pass |
 | TCP connection, one connection | done | outbound and accepted loopback sockets verified; accepted-socket seam owns the socket, enables `NoDelay`, and has exception-safe idempotent disposal |
-| Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat sends reserved control frames through the shared sequence, filters and validates inbound control, resets liveness, and times out silence; reconnect not started |
+| Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | not started | — |
 | Capability registry, model routing, sessions, events, CLI | not started | — |
 
-Verification on 2026-08-22: `Dami.Transport.Tests` executed 50 tests with 0 failures;
-`dotnet test Dami.sln` executed 188 tests across eight suites with 0 failures; preceding
+Verification on 2026-08-23: `Dami.Transport.Tests` executed 54 tests with 0 failures;
+`dotnet test Dami.sln` executed 202 tests across eight suites with 0 failures; preceding
 `dotnet build Dami.sln` completed with 0 warnings and 0 errors.
 
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**

@@ -8,6 +8,38 @@ namespace Dami.Transport.Tests;
 public sealed class PipeTransportTests
 {
     [Fact]
+    public async Task DisposeAsync_Should_Share_Completion_Between_Overlapping_Callers()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var inbound = new Pipe();
+        var outbound = new Pipe();
+        var connection = new BlockingDisposableDuplexPipe(inbound.Reader, outbound.Writer);
+        var transport = new PipeTransport(connection);
+
+        ValueTask first = transport.DisposeAsync();
+        await connection.Entered.WaitAsync(timeout.Token);
+        ValueTask second = transport.DisposeAsync();
+
+        Assert.False(second.IsCompleted);
+        connection.Release();
+        await Task.WhenAll(first.AsTask(), second.AsTask());
+        Assert.Equal(1, connection.DisposeCount);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_Should_Dispose_An_AsyncDisposable_Connection()
+    {
+        var inbound = new Pipe();
+        var outbound = new Pipe();
+        var connection = new DisposableDuplexPipe(inbound.Reader, outbound.Writer);
+        var transport = new PipeTransport(connection);
+
+        await transport.DisposeAsync();
+
+        Assert.Equal(1, connection.DisposeCount);
+    }
+
+    [Fact]
     public async Task SendAsync_Should_Write_A_Complete_Frame_To_The_Output_Pipe()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -337,6 +369,63 @@ public sealed class PipeTransportTests
         public PipeReader Input { get; }
 
         public PipeWriter Output { get; }
+    }
+
+    private sealed class DisposableDuplexPipe : IDuplexPipe, IAsyncDisposable
+    {
+        public DisposableDuplexPipe(
+            PipeReader input,
+            PipeWriter output)
+        {
+            this.Input = input;
+            this.Output = output;
+        }
+
+        public int DisposeCount { get; private set; }
+
+        public PipeReader Input { get; }
+
+        public PipeWriter Output { get; }
+
+        public ValueTask DisposeAsync()
+        {
+            this.DisposeCount++;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class BlockingDisposableDuplexPipe : IDuplexPipe, IAsyncDisposable
+    {
+        private readonly TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly SemaphoreSlim release = new(0, 1);
+
+        public BlockingDisposableDuplexPipe(
+            PipeReader input,
+            PipeWriter output)
+        {
+            this.Input = input;
+            this.Output = output;
+        }
+
+        public int DisposeCount { get; private set; }
+
+        public Task Entered => this.entered.Task;
+
+        public PipeReader Input { get; }
+
+        public PipeWriter Output { get; }
+
+        public async ValueTask DisposeAsync()
+        {
+            this.DisposeCount++;
+            this.entered.TrySetResult();
+            await this.release.WaitAsync().ConfigureAwait(false);
+        }
+
+        public void Release()
+        {
+            this.release.Release();
+        }
     }
 
 }

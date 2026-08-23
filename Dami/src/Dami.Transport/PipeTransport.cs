@@ -10,9 +10,11 @@ namespace Dami.Transport;
 public sealed class PipeTransport : ITransport, IAsyncDisposable
 {
     private readonly IDuplexPipe connection;
+    private readonly object disposalSync = new();
     private readonly FrameSequenceTracker inboundSequence = new();
     private readonly CancellationTokenSource lifetimeCancellation = new();
     private readonly SemaphoreSlim sendGate = new(1, 1);
+    private Task? disposal;
     private uint nextOutboundSequence;
     private int disposed;
     private int receiveActive;
@@ -130,30 +132,50 @@ public sealed class PipeTransport : ITransport, IAsyncDisposable
     }
 
     /// <summary>Completes both sides of the pipelines connection.</summary>
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref this.disposed, 1) != 0)
+        lock (this.disposalSync)
         {
-            return;
+            this.disposal ??= this.DisposeCoreAsync();
+            return new ValueTask(this.disposal);
         }
+    }
 
+    private async Task DisposeCoreAsync()
+    {
+        Interlocked.Exchange(ref this.disposed, 1);
         await this.lifetimeCancellation.CancelAsync().ConfigureAwait(false);
         await this.sendGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            try
-            {
-                await this.connection.Input.CompleteAsync().ConfigureAwait(false);
-            }
-            finally
-            {
-                await this.connection.Output.CompleteAsync().ConfigureAwait(false);
-            }
+            await this.CompleteConnectionAsync().ConfigureAwait(false);
         }
         finally
         {
             this.sendGate.Release();
             this.lifetimeCancellation.Dispose();
+        }
+    }
+
+    private async ValueTask CompleteConnectionAsync()
+    {
+        try
+        {
+            await this.connection.Input.CompleteAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            try
+            {
+                await this.connection.Output.CompleteAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                if (this.connection is IAsyncDisposable disposable)
+                {
+                    await disposable.DisposeAsync().ConfigureAwait(false);
+                }
+            }
         }
     }
 

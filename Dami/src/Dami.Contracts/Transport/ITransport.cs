@@ -1,7 +1,7 @@
 namespace Dami.Contracts.Transport;
 
-/// <summary>Provides serialization-independent frame delivery.</summary>
-public interface ITransport
+/// <summary>Provides serialization-independent frame delivery over one owned connection lifetime.</summary>
+public interface ITransport : IAsyncDisposable
 {
     /// <summary>Frames and sends one message, snapshotting its payload before successful completion.</summary>
     /// <remarks>Overlapping calls are supported.</remarks>

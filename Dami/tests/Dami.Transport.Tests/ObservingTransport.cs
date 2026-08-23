@@ -14,6 +14,11 @@ internal sealed class ObservingTransport : ITransport
         this.inner = inner;
     }
 
+    public ValueTask DisposeAsync()
+    {
+        return this.inner.DisposeAsync();
+    }
+
     public async ValueTask SendAsync(
         TransportMessage message,
         CancellationToken cancellationToken)

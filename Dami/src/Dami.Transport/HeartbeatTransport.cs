@@ -8,10 +8,12 @@ public sealed class HeartbeatTransport : ITransport
 {
     private const ushort HEARTBEAT_MESSAGE_TYPE = 0;
 
+    private readonly object disposalSync = new();
     private readonly TimeSpan interval;
     private readonly ITransport inner;
     private readonly TimeSpan silenceTimeout;
     private readonly TimeProvider timeProvider;
+    private Task? disposal;
     private int receiveActive;
 
     /// <summary>Initializes heartbeat policy without taking ownership of the wrapped transport.</summary>
@@ -41,6 +43,16 @@ public sealed class HeartbeatTransport : ITransport
         }
 
         return this.inner.SendAsync(message, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask DisposeAsync()
+    {
+        lock (this.disposalSync)
+        {
+            this.disposal ??= this.inner.DisposeAsync().AsTask();
+            return new ValueTask(this.disposal);
+        }
     }
 
     /// <inheritdoc />
@@ -180,7 +192,7 @@ public sealed class HeartbeatTransport : ITransport
         }
     }
 
-    private static void ValidateTiming(
+    internal static void ValidateTiming(
         TimeSpan interval,
         TimeSpan silenceTimeout)
     {

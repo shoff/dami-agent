@@ -20,6 +20,16 @@ internal sealed class TestTransport : ITransport
         this.receiveFailure = receiveFailure;
     }
 
+    public int DisposeCount { get; private set; }
+
+    public ValueTask DisposeAsync()
+    {
+        this.DisposeCount++;
+        this.received.Writer.TryComplete();
+        this.sent.Writer.TryComplete();
+        return ValueTask.CompletedTask;
+    }
+
     public ValueTask SendAsync(
         TransportMessage message,
         CancellationToken cancellationToken)

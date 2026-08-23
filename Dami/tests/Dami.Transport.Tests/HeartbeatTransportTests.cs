@@ -5,6 +5,18 @@ namespace Dami.Transport.Tests;
 public sealed class HeartbeatTransportTests
 {
     [Fact]
+    public async Task DisposeAsync_Should_Dispose_The_Inner_Transport_Once()
+    {
+        var inner = new TestTransport();
+        ITransport transport = CreateTransport(inner, new TestTimeProvider());
+
+        await transport.DisposeAsync();
+        await transport.DisposeAsync();
+
+        Assert.Equal(1, inner.DisposeCount);
+    }
+
+    [Fact]
     public async Task Inbound_Heartbeat_Should_Reset_The_Silence_Timeout()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
