@@ -1,0 +1,182 @@
+using Dami.Contracts.Context;
+using Dami.Contracts.Memory;
+using Dami.Contracts.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace Dami.Core.Context;
+
+/// <summary>Assembles turn context from the memory layer, within a hard token budget.</summary>
+/// <remarks>
+/// §9.2's discipline in code: only relevant retrieved memory, every item carrying
+/// provenance, and a budget enforced at assembly time rather than audited afterwards.
+/// The pipeline is the proven §9.3 spine — embed, ANN, rerank — over the same stores
+/// everything else uses.
+///
+/// Token estimation is chars/4 — deliberately crude. The budget's job is preventing a
+/// 90k-token prompt, not metering a 2,400-token one to the cent; a real tokenizer can
+/// replace the estimate without touching callers.
+/// </remarks>
+public sealed class ContextBuilder : IContextBuilder
+{
+    private const int CHARS_PER_TOKEN = 4;
+
+    private readonly IObservationEmbeddingStore embeddingStore;
+    private readonly IEmbeddingClient embeddingClient;
+    private readonly IRerankClient rerankClient;
+    private readonly IConclusionLedger conclusionLedger;
+    private readonly ContextOptions contextOptions;
+    private readonly ILogger<ContextBuilder> logger;
+
+    /// <summary>Creates the builder.</summary>
+    public ContextBuilder(
+        IObservationEmbeddingStore embeddingStore,
+        IEmbeddingClient embeddingClient,
+        IRerankClient rerankClient,
+        IConclusionLedger conclusionLedger,
+        IOptions<ContextOptions> contextOptions,
+        ILogger<ContextBuilder> logger)
+    {
+        ArgumentNullException.ThrowIfNull(embeddingStore);
+        ArgumentNullException.ThrowIfNull(embeddingClient);
+        ArgumentNullException.ThrowIfNull(rerankClient);
+        ArgumentNullException.ThrowIfNull(conclusionLedger);
+        ArgumentNullException.ThrowIfNull(contextOptions);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        this.embeddingStore = embeddingStore;
+        this.embeddingClient = embeddingClient;
+        this.rerankClient = rerankClient;
+        this.conclusionLedger = conclusionLedger;
+        this.contextOptions = contextOptions.Value;
+        this.logger = logger;
+    }
+
+    /// <inheritdoc />
+    public async Task<AssembledContext> BuildAsync(string request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var beliefs = await this.CollectBeliefsAsync(cancellationToken).ConfigureAwait(false);
+        var memories = await this.RetrieveMemoriesAsync(request, cancellationToken).ConfigureAwait(false);
+
+        var assembled = Trim(beliefs, memories, this.contextOptions.MaxRetrievedTokens);
+
+        this.logger.LogDebug(
+            "Context: {Memories} memories, {Beliefs} beliefs, ~{Tokens} tokens",
+            assembled.Memories.Count, assembled.Beliefs.Count, assembled.EstimatedTokens);
+
+        return assembled;
+    }
+
+    private async Task<List<RetrievedItem>> CollectBeliefsAsync(CancellationToken cancellationToken)
+    {
+        var beliefs = new List<RetrievedItem>();
+        await foreach (var conclusion in this.conclusionLedger
+            .ActiveForSubjectAsync(this.contextOptions.Subject, cancellationToken).ConfigureAwait(false))
+        {
+            beliefs.Add(new RetrievedItem(
+                "belief", conclusion.ConclusionId, conclusion.Statement, conclusion.ConcludedAt));
+        }
+
+        return beliefs;
+    }
+
+    private async Task<List<RetrievedItem>> RetrieveMemoriesAsync(
+        string request,
+        CancellationToken cancellationToken)
+    {
+        var queryVector = (await this.embeddingClient
+            .EmbedAsync([request], cancellationToken).ConfigureAwait(false))[0];
+
+        var candidates = new List<Observation>();
+        await foreach (var (observation, _) in this.embeddingStore
+            .NearestAsync(queryVector, this.embeddingClient.ModelId, this.contextOptions.Candidates, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            candidates.Add(observation);
+        }
+
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        return await this.RerankAsync(request, candidates, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<List<RetrievedItem>> RerankAsync(
+        string request,
+        List<Observation> candidates,
+        CancellationToken cancellationToken)
+    {
+        var bodies = new List<string>(candidates.Count);
+        foreach (var candidate in candidates)
+        {
+            bodies.Add(candidate.Body);
+        }
+
+        var order = await this.rerankClient
+            .RankAsync(request, bodies, cancellationToken).ConfigureAwait(false);
+
+        var memories = new List<RetrievedItem>(this.contextOptions.MaxMemories);
+        foreach (var index in order)
+        {
+            var observation = candidates[index];
+            memories.Add(new RetrievedItem(
+                "observation", observation.ObservationId, observation.Body, observation.OccurredAt));
+            if (memories.Count >= this.contextOptions.MaxMemories)
+            {
+                break;
+            }
+        }
+
+        return memories;
+    }
+
+    /// <summary>Applies the budget: beliefs first, then memories by relevance until it is spent.</summary>
+    /// <remarks>
+    /// Beliefs win the budget contest deliberately — the active set is small by design
+    /// (D-009) and identity continuity is the product; a memory can be re-retrieved
+    /// next turn, a forgotten belief is a personality change.
+    /// </remarks>
+    private static AssembledContext Trim(
+        List<RetrievedItem> beliefs,
+        List<RetrievedItem> memories,
+        int maxTokens)
+    {
+        var spent = 0;
+        var keptBeliefs = new List<RetrievedItem>();
+        foreach (var belief in beliefs)
+        {
+            var cost = Cost(belief);
+            if (spent + cost > maxTokens)
+            {
+                break;
+            }
+
+            spent += cost;
+            keptBeliefs.Add(belief);
+        }
+
+        var keptMemories = new List<RetrievedItem>();
+        foreach (var memory in memories)
+        {
+            var cost = Cost(memory);
+            if (spent + cost > maxTokens)
+            {
+                break;
+            }
+
+            spent += cost;
+            keptMemories.Add(memory);
+        }
+
+        return new AssembledContext(keptMemories, keptBeliefs, spent);
+    }
+
+    private static int Cost(RetrievedItem item)
+    {
+        return item.Content.Length / CHARS_PER_TOKEN + 8;
+    }
+}

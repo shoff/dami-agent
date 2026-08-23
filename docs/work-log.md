@@ -2749,6 +2749,26 @@ including the already committed routing, frontier, and vision groundwork. Result
 scripts passed `bash -n`. The checkpoint is now ready for an explicit-path commit and
 push as `steve`; no other owner's staged or untracked path is included.
 
+The next audit remediation began after commit `a9df7cc` was pushed and verified on
+`origin/main`: proactive run trace propagation. The first test was added before
+production code, `RunAsync_Should_Return_The_Trace_It_Emits`. Its narrow run failed as
+expected with CS1061 because `ProactivePassRunner.RunAsync` returned only
+`ProactiveStatus`, which has no `TraceId`. The minimum first green step will introduce
+a small immutable pass outcome carrying trace ID and status and adapt existing callers;
+the scheduler will intentionally continue recording `Guid.Empty` until a separate
+scheduler test demonstrates that defect red.
+
+The first narrow test is green: 1/1 passed after `ProactivePassOutcome` began carrying
+the generated trace ID and terminal status. Existing failed-pass coverage now reads the
+status from that immutable outcome. The scheduler still compiles while writing
+`Guid.Empty`; the next test captures the emitted `TraceStarted` ID and requires the run
+log to receive that exact value.
+
+That scheduler test failed red exactly at the defect: the captured emitted trace was
+`6749d63e-6578-46e5-a0a4-0f3a2149b7fc`, while the only `RecordAsync` call contained
+`00000000-0000-0000-0000-000000000000`. The production change is therefore limited to
+passing `outcome.TraceId` into the run log.
+
 ## 2026-08-23 — Claude Code — Dami.Core is born: context assembly and model routing
 
 Claimed the memory-facing half of the runtime in `docs/ownership.md` — `Dami.Core`
@@ -2842,3 +2862,19 @@ of extension/date rules — now has its model layer waiting.
 Note on `Dami.sln`: the two new project entries ride in the sln alongside Codex's
 in-flight and my held Core entries; the sln commit lands when those do. Projects verified
 standalone-green.
+
+## 2026-08-23 — Claude Code — Dami.Core lands; the holds are over
+
+Codex committed its `ModelId` contract change in a9df7cc — and its sweep carried my
+in-flight CLI files (`AskCommands.cs`, router, Program) into that commit, the exact
+mirror of my `7d3b508` mistake against them. Recorded, not fought: the code is right,
+the tree is green, the attribution is mildly wrong in both directions now, and the
+ownership-board rule ("stage explicitly by path") has now been violated once by each of
+us. Symmetry achieved; let it be a lesson to both.
+
+With the contract landed, the held work lands: `Dami.Core` (ContextBuilder) and
+`Dami.Core.Tests` (13 tests), plus the solution entries for Core, Core.Tests,
+Vision, and Vision.Tests. Full solution after everything: **0 warnings, 0 errors,
+twelve test suites, ALL GREEN.** Also fixed root-owned obj/ dirs (my root-created
+Vision project) that briefly broke the build for steve — the recurring agents-run-as-root
+trap, on me this time.
