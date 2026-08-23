@@ -1,7 +1,46 @@
+using System.Collections.Concurrent;
+
 namespace Dami.Capabilities.Tests;
 
 public sealed class CapabilityRegistryTests
 {
+    [Fact]
+    public void Register_Should_Support_Concurrent_Registration_And_Lookup()
+    {
+        const int registrationCount = 20_000;
+        CapabilityEntry[] entries = Enumerable
+            .Range(0, registrationCount)
+            .Select(index => CreateEntry(Guid.NewGuid(), name: $"capability-{index}"))
+            .ToArray();
+        var registry = new CapabilityRegistry();
+
+        Parallel.ForEach(entries, registry.Register);
+        Parallel.ForEach(entries, entry => Assert.Same(entry, registry.Find(entry.CapabilityId)));
+    }
+
+    [Fact]
+    public void Register_Should_Atomically_Reject_Concurrent_Duplicates()
+    {
+        const int registrationCount = 1_000;
+        var capabilityId = Guid.NewGuid();
+        CapabilityEntry[] entries = Enumerable
+            .Range(0, registrationCount)
+            .Select(index => CreateEntry(capabilityId, name: $"candidate-{index}"))
+            .ToArray();
+        var failures = new ConcurrentBag<Exception>();
+        var registry = new CapabilityRegistry();
+
+        Parallel.ForEach(entries, entry => RecordFailure(() => registry.Register(entry), failures));
+
+        Assert.Equal(registrationCount - 1, failures.Count);
+        Assert.All(failures, failure =>
+        {
+            var duplicate = Assert.IsType<InvalidOperationException>(failure);
+            Assert.Contains(capabilityId.ToString(), duplicate.Message, StringComparison.Ordinal);
+        });
+        Assert.Contains(registry.Find(capabilityId), entries);
+    }
+
     [Fact]
     public void Register_MakesCapabilityAvailableByStableId()
     {
@@ -144,5 +183,17 @@ public sealed class CapabilityRegistryTests
             relatedCapabilities ?? [],
             version,
             new DateTimeOffset(2026, 8, 23, 10, 33, 0, TimeSpan.FromHours(-5)));
+    }
+
+    private static void RecordFailure(Action action, ConcurrentBag<Exception> failures)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+        }
     }
 }

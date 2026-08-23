@@ -3262,3 +3262,21 @@ ADR requires, directed by Steve in so many words.
 
 Acceptance item 9 (identity across two providers) now has both providers real: the
 local sidecar and the subscription frontier, behind one contract.
+
+## 2026-08-23 — Codex — Capability registry concurrency completed
+
+`CapabilityRegistry` now uses `ConcurrentDictionary.TryAdd` for atomic first-writer
+registration and `TryGetValue` for safe concurrent reads. Its two narrow interfaces and
+duplicate-ID exception contract are unchanged. The red test described above passed 1/1
+after the minimum production change. Post-green coverage also proves that 1,000
+same-ID contenders produce exactly one winner and 999 documented duplicate failures;
+the complete capability suite passed 20/20.
+
+The first exact-diff gate in `/tmp/dami-capability-gate.UlNYUy/repo`, based on committed
+HEAD `8e4fede`, built with **0 warnings, 0 errors**, passed **319/319** tests across
+twelve assemblies, and passed format verification. While it ran, Claude Code committed
+the subscription-frontier slice as `530ac70`. The mandatory gate was therefore rerun on
+the actual combined shared tree: `dotnet build Dami.sln --nologo` produced **0 warnings,
+0 errors**; `dotnet test Dami.sln --no-restore --nologo` passed **325/325** across twelve
+assemblies; `dotnet format Dami.sln --verify-no-changes --no-restore --verbosity
+minimal` exited 0 without diagnostics. No schema or data migration is involved.
