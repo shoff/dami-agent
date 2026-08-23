@@ -393,11 +393,10 @@ Verified on 2026-08-22 from this workstation, not from the planning documents.
    that must be current, the .NET SDK and the NVIDIA driver, come from Microsoft's and
    NVIDIA's own repositories either way — but the recorded decision and reality
    disagree, and that needs resolving rather than assuming.
-2. **There is no rollback.** Root is ext4 with no Btrfs subvolumes and no LVM. Phase 1's
-   exit condition is "stable host, GPU compute verified, **rollback available**." It is
-   not available today. There is an 845 G Btrfs partition on the second NVMe holding a
-   Fedora install, plus NTFS Windows partitions and a Mint live USB — **this machine
-   multiboots, so the per-disk confirmation rule in §6 is live, not theoretical.**
+2. **Rollback now exists** (Timeshift rsync snapshots, ADR-0002; rehearsing a restore
+   was downgraded to recommended by Steve). The machine still multiboots — Windows and a
+   Fedora Btrfs install share the second NVMe — so **the per-disk confirmation rule in
+   §6 is live, not theoretical.**
 3. **16 GiB of VRAM is the binding constraint on the model layer.** A resident TTS plus
    an embedding model plus a cross-encoder reranker plus a vision model plus an Ollama
    sidecar does not fit simultaneously. The open question about sidecar selection and

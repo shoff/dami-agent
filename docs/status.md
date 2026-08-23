@@ -353,6 +353,28 @@ change, or an ADR — not silence.
 
 ---
 
+## 5b. Acceptance suite scoreboard
+
+The charter's fourteen cutover items, scored against what has actually been
+demonstrated. "partial" means a real demonstration exists for part of the item's scope.
+
+| # | Item | State | Evidence |
+|---|---|---|---|
+| 1 | Start/resume/interrupt/reconnect without duplication | partial | append idempotent on `event_id` (tested); no interactive sessions yet |
+| 2 | Stream through CLI and GUI | not yet | no runtime streaming; no GUI |
+| 3 | Render tools/workers/approvals truthfully | partial | `dami trace` renders only persisted events; approvals/workers don't exist yet |
+| 4 | Bounded terminal and file operations | not yet | — |
+| 5 | Explicit approval honored | partial in spirit | propose-only librarian executes nothing; the approval contract itself doesn't exist |
+| 6 | Worker with child trace and evidence | not yet | — |
+| 7 | Persist and replay a completed turn | **partial** | every proactive pass is persisted and replayable (`dami trace`); interactive turns pending |
+| 8 | Recover cleanly from failures | **partial** | provider failure → `TraceFailed`, contained, retried at cadence — demonstrated live twice |
+| 9 | Identity across two providers | not yet | one local provider; router exists, frontier doesn't |
+| 10 | Relevant memory without flooding the prompt | **demonstrated** | `ContextBuilder` hard budget (2.5k tokens) over embed→ANN→rerank, tested; vs Hermes's measured 90–126k |
+| 11 | Discord without duplicate gateways | not yet | — |
+| 12 | Materially lower prompt/tool overhead than Hermes | on track | budget enforced at assembly; final claim needs the interactive runtime |
+| 13 | Back up and restore runtime + databases | partial | nightly verified pg dumps, one real restore performed; host restore unrehearsed by decision |
+| 14 | Spoken wake→STT→agent→TTS cycle | not yet | Phase 9 |
+
 ## 6. Next actions, in order
 
 1. **Accept or reject ADR-0001** (host OS). Reversal is a reinstall now and a data
