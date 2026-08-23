@@ -6,6 +6,7 @@ using Dami.Persistence;
 using Dami.Privacy;
 using Dami.Proactive;
 using Dami.Proactive.Audit;
+using Dami.Proactive.Librarian;
 using Dami.Proactive.Reflection;
 using Dami.Proactive.Scout;
 using Dami.Providers;
@@ -56,6 +57,12 @@ builder.Services.AddHttpClient<IChatClient, OllamaChatClient>(client =>
 builder.Services.Configure<ReflectionOptions>(
     builder.Configuration.GetSection(ReflectionOptions.SECTION_NAME));
 builder.Services.AddSingleton<IProactiveService, ReflectionService>();
+
+// Propose-only file organization (D-020). Holds no move, rename, or delete code at
+// all. Quiet until MediaLibrarian:RootPaths names directories to survey.
+builder.Services.Configure<MediaLibrarianOptions>(
+    builder.Configuration.GetSection(MediaLibrarianOptions.SECTION_NAME));
+builder.Services.AddSingleton<IProactiveService, MediaLibrarianService>();
 
 builder.Services.AddHostedService<ProactiveWorker>();
 

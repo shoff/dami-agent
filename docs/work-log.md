@@ -1913,3 +1913,41 @@ N-06, "unattended reliability; scheduled services run without supervision," made
 
 From tonight, the scout runs nightly, reflection weekly, the pushback audit quarterly —
 with no session, no agent, and no one at the keyboard.
+
+## 2026-08-23 — Claude Code — The media librarian: propose-only, provably
+
+The third planned proactive service (§6.2), with the strictest contract in the system.
+
+### Design
+
+The service **holds no move, rename, or delete code at all** — not gated, not
+approval-wrapped, absent. It reads the tree and writes exactly one JSON manifest per
+pass into its own manifest directory, stamped `"PROPOSAL ONLY - nothing has been
+executed"`. Executing an approved manifest is a different component's job, in a later
+phase, behind the approval contract. The manifest is the same propose-then-promote shape
+as D-016's staging registry.
+
+Judgment calls, recorded:
+
+- **Top level only, deliberately.** A file already inside a subdirectory has been
+  organized by someone, and second-guessing that is how trust is lost. A test pins it.
+- Hidden files, system files, and reparse points (symlinks) are skipped; unknown
+  extensions are skipped; the survey is capped and logs when the cap bites.
+- v1 groups by kind and modification month. Vision categorization is Phase 6; the
+  manifest format is what survives that upgrade.
+
+### Tests — nine, against a real temp directory
+
+The two that matter most: `Should_Move_Nothing` asserts every seeded file still exists
+untouched after a pass, and `Should_Create_No_Directories_Under_The_Root` asserts the
+proposal created nothing inside the surveyed tree. Propose-only as an assertion, not a
+promise. (The analyzers made the test file itself fully async first — three VSTHRD103.)
+
+### Deployed
+
+Wired into the host — quiet until `MediaLibrarian:RootPaths` names directories, so
+nothing is surveyed until Steve chooses what is surveyable — republished to
+`/opt/dami/proactive`, service restarted, and the journal shows the pass running and
+staying quiet correctly.
+
+Full solution: 0 warnings, 0 errors, all eight suites passing (Proactive at 55).
