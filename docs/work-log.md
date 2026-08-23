@@ -1543,3 +1543,90 @@ Database confirms: the read surfacing is `Delivered` with feedback
 shows only persisted events — the display invents nothing, per the §7.4 trust boundary.
 The feedback → taste-model training loop now has data in it; consuming that feedback is
 future work for the scout's scoring.
+
+## 2026-08-22 — Codex — Heartbeat transport completed
+
+Completed architecture §7.5.5 heartbeat policy under the existing transport ownership
+claim. Files added: `HeartbeatTransport`, ADR-0006, and heartbeat-specific test doubles
+and tests. `LoopbackTransport` and its tests also changed to correct a pre-existing
+single-receiver contract violation. Claude's concurrent proactive/audit/CLI files were
+not edited or staged.
+
+### TDD record after cycle 1
+
+- **Inbound filtering:** one valid-heartbeat test failed because message type `0` was
+  yielded to the application; the minimum filter made it pass.
+- **Malformed control frames:** three theory cases (correlation ID, flags, payload) each
+  timed out because malformed frames were silently filtered; validation now fails each
+  immediately with `InvalidDataException`.
+- **Reserved outbound type:** the test failed because an application message with type
+  `0` reached the inner transport; `SendAsync` now rejects it.
+- **Inbound silence:** after fake time advanced 15 seconds, the test failed only when its
+  real 5-second guard canceled with `OperationCanceledException`; timed `MoveNextAsync`
+  now produces the stable silence `TimeoutException` and cancels the pending inner read.
+- **Timing invariants:** all four invalid configurations initially constructed
+  successfully; nonpositive durations and interval greater than or equal to timeout now
+  fail at construction.
+- **Heartbeat send failure:** the original inner `IOException` was not observed until
+  the caller's 2-second guard fired; the send loop now cancels receive and surfaces the
+  original failure immediately.
+- **Exception provenance:** an inner `TimeoutException` was incorrectly rewritten as
+  heartbeat silence; translation is now limited to a timeout while the inner move is
+  still incomplete.
+- **Heartbeat receiver concurrency:** two active enumerations were admitted and later
+  collided during disposal; an interlocked single-receiver guard now rejects the second
+  enumeration. The first implementation exceeded `DAMI0003` at 35 body lines, so
+  admission and heartbeat orchestration were separated before the test passed.
+- **Loopback receiver concurrency:** a new test proved the reference transport violated
+  the same `ITransport` single-receiver contract. It failed because the second move was
+  pending instead of faulted; loopback now has an interlocked guard and a `SingleReader`
+  channel.
+
+The first combined heartbeat-class run found an interaction missed by the narrow
+cycles: 13 passed and 1 failed with `NotSupportedException` because caller cancellation
+disposed the inner iterator before its pending move observed cancellation. The timeout
+wrapper now lets the inner move carry caller cancellation, and after a silence timeout
+explicitly joins that move before disposal. The formerly failing narrow test and then
+all 14 heartbeat cases passed.
+
+Two tests were deliberately added as integration **coverage**, not described as TDD:
+a real loopback composition proves application/heartbeat/application consume sequences
+`0/1/2` while only `0/2` surface, and a deterministic liveness test proves an inbound
+heartbeat resets the silence window.
+
+### Other observed failures and decisions
+
+- Two `chown`/test compound commands stopped before testing because repository-root
+  paths were mistakenly used from `Dami/`; ownership correction and test execution were
+  separated afterward.
+- A helper that awaited a caller-supplied task and an assertion lambda returning a
+  stored task were rejected by `VSTHRD003`; both awaits were moved into the methods that
+  started the tasks. Official `Microsoft.VisualStudio.Threading` analyzer guidance was
+  consulted; no analyzer suppression or runtime package was added.
+- Constructor-started background work was abandoned before green. Heartbeat now exists
+  only during the active receive enumeration, which starts, cancels, and joins its own
+  task. The wrapper does not own the inner transport.
+- Claude's commit `a92ce60` captured the already-appended cycle-1 work-log entry while
+  this slice was in progress and recorded two then-failing heartbeat tests. Those were
+  in-flight observations; the final evidence below supersedes them.
+
+### Verification
+
+```
+dotnet test tests/Dami.Transport.Tests/Dami.Transport.Tests.csproj
+  50 passed, 0 failed
+
+dotnet build Dami.sln
+  0 warnings, 0 errors
+
+dotnet test Dami.sln
+  Dami.Tests                    1 passed
+  Dami.Architecture.Tests      10 passed
+  Dami.Providers.Tests          3 passed
+  Dami.Privacy.Tests            8 passed
+  Dami.Proactive.Tests         29 passed
+  Dami.Transport.Tests         50 passed
+  Dami.Analyzers.Tests         12 passed
+  Dami.Persistence.Tests       75 passed
+                               188 total, 0 failed
+```

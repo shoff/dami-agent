@@ -11,6 +11,7 @@ public sealed class LoopbackTransport : ITransport, IAsyncDisposable
     private readonly Channel<TransportFrame> frames;
     private readonly SemaphoreSlim sendGate = new(1, 1);
     private uint nextOutboundSequence;
+    private int receiveActive;
 
     /// <summary>Initializes a loopback transport with bounded backpressure.</summary>
     public LoopbackTransport(int capacity = 256)
@@ -23,7 +24,7 @@ public sealed class LoopbackTransport : ITransport, IAsyncDisposable
         this.frames = Channel.CreateBounded<TransportFrame>(new BoundedChannelOptions(capacity)
         {
             FullMode = BoundedChannelFullMode.Wait,
-            SingleReader = false,
+            SingleReader = true,
             SingleWriter = false
         });
     }
@@ -56,9 +57,24 @@ public sealed class LoopbackTransport : ITransport, IAsyncDisposable
     public async IAsyncEnumerable<TransportFrame> ReceiveAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (TransportFrame frame in this.frames.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        if (Interlocked.CompareExchange(ref this.receiveActive, 1, 0) != 0)
         {
-            yield return frame;
+            throw new InvalidOperationException(
+                "Only one receiver may enumerate a loopback transport at a time.");
+        }
+
+        try
+        {
+            await foreach (TransportFrame frame in this.frames.Reader
+                .ReadAllAsync(cancellationToken)
+                .ConfigureAwait(false))
+            {
+                yield return frame;
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref this.receiveActive, 0);
         }
     }
 

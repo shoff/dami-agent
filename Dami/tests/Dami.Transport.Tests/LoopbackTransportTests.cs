@@ -5,6 +5,28 @@ namespace Dami.Transport.Tests;
 public sealed class LoopbackTransportTests
 {
     [Fact]
+    public async Task ReceiveAsync_Should_Reject_A_Second_Active_Receiver()
+    {
+        var transport = new LoopbackTransport();
+        await using IAsyncEnumerator<TransportFrame> first = transport
+            .ReceiveAsync(CancellationToken.None)
+            .GetAsyncEnumerator();
+        Task<bool> firstMove = first.MoveNextAsync().AsTask();
+        await using IAsyncEnumerator<TransportFrame> second = transport
+            .ReceiveAsync(CancellationToken.None)
+            .GetAsyncEnumerator();
+        Task<bool> secondMove = second.MoveNextAsync().AsTask();
+        bool secondCompletedImmediately = secondMove.IsCompleted;
+
+        await transport.DisposeAsync();
+
+        Assert.False(await firstMove);
+        Assert.True(secondCompletedImmediately);
+        Assert.True(secondMove.IsFaulted);
+        Assert.IsType<InvalidOperationException>(secondMove.Exception?.InnerException);
+    }
+
+    [Fact]
     public async Task SendAsync_Should_Make_The_Frame_Available_To_ReceiveAsync()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));

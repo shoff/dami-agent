@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 22:24 CDT (`2026-08-23T03:24Z`)
+- **Last updated:** 2026-08-22 23:48 CDT (`2026-08-23T04:48Z`)
 - **Updated from:** direct workstation inspection and solution test evidence
 - **Current phases:** 0, 1, and 3 in progress
 
@@ -105,12 +105,13 @@ rather than assuming — but nothing else blocks the phase.
 | `ITransport` and `LoopbackTransport` | done | ADR-0005: callers send `TransportMessage`; transports own version/sequence; bounded snapshotting loopback mirrors wire ordering |
 | Pipelines framed connection | done | concurrent sends serialized; cancellation, completion, single receiver, disposal, and backpressured-shutdown tests pass |
 | TCP connection, one connection | done | outbound and accepted loopback sockets verified; accepted-socket seam owns the socket, enables `NoDelay`, and has exception-safe idempotent disposal |
-| Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 fixes connection-scoped sequence semantics; gap, duplicate, backward, and wraparound tests pass; reconnect and heartbeat not started |
+| Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat sends reserved control frames through the shared sequence, filters and validates inbound control, resets liveness, and times out silence; reconnect not started |
 | Backpressure and flow control beyond bounded loopback | not started | — |
 | Capability registry, model routing, sessions, events, CLI | not started | — |
 
-Verification on 2026-08-22: `Dami.Transport.Tests` executed 33 tests with 0 failures;
-`dotnet test Dami.sln --no-build` executed 134 tests across six suites with 0 failures.
+Verification on 2026-08-22: `Dami.Transport.Tests` executed 50 tests with 0 failures;
+`dotnet test Dami.sln` executed 188 tests across eight suites with 0 failures; preceding
+`dotnet build Dami.sln` completed with 0 warnings and 0 errors.
 
 ### Phases 4–10 · *not started*
 
