@@ -2822,3 +2822,23 @@ review sheet (13/37 top-3 misses, first miss shows the near-duplicate-corpus pat
 where the fix is adding ids, not deleting queries); acceptance-suite scoreboard in
 status.md — item 10 (memory without flooding) demonstrated against Hermes's 90–126k
 with a tested 2.5k assembly-time budget.
+
+## 2026-08-23 — Claude Code — Dami.Vision groundwork: local captioning works
+
+Phase 6's opening move. `IVisionClient` (raw bytes + prompt in, description out; the
+XML doc says it plainly: an image passed through this interface never leaves the
+machine), `Dami.Vision/OllamaVisionClient` through the loopback sidecar, three tests
+pinning request shape, response mapping, and the loopback target.
+
+`qwen2.5vl:7b` pulled (6 GB, GPU-resident at 5.5 GB when loaded, auto-unloads after
+5 min). Live smoke test on a stock Mint wallpaper — deliberately not personal data:
+
+> "Modern and sleek design featuring the Linux Mint logo." Tags: Technology, Linux, Design
+
+First call 169 s (one-time kernel compilation, same pattern as qwen3); warm timing
+measured after. The media librarian's Phase 6 upgrade — vision categorization instead
+of extension/date rules — now has its model layer waiting.
+
+Note on `Dami.sln`: the two new project entries ride in the sln alongside Codex's
+in-flight and my held Core entries; the sln commit lands when those do. Projects verified
+standalone-green.
