@@ -86,6 +86,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [x] F2a Deterministic registry inventory snapshot for embedding synchronization
   - [x] F2b Derived capability-vector persistence in pgvector, separate from personal observations
   - [~ Codex 2026-08-23] F2c Intent embed → ANN candidates → rerank → bundle expansion
+    - [~ Codex 2026-08-23] F2c1 Registry snapshot → version-aware capability-vector synchronization
+    - [ ] F2c2 Intent embed → ANN candidates → rerank → bundle expansion
 - [ ] F3 MCP client + explicit trust levels; untrusted descriptions summarized-not-followed; untrusted excluded from LocalOnly turns
 - [ ] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)

@@ -3465,6 +3465,17 @@ model indexes with it. A second catalog query observed all four objects owned by
 empty rebuilt index successfully. F2b is flipped to `[x]`; F2 remains claimed because
 F2c is still open.
 
+## 2026-08-23 — Codex — F2c semantic capability retrieval started
+
+Claimed F2c immediately after F2b and reviewed architecture §7.6.3 plus D-015 against
+the released abstractions. The board's query pipeline presumes descriptions are in the
+derived index, but no component currently moves F2a's registry snapshot through the
+embedding client into F2b's store. A resolver without that step would be testable yet
+non-operational. Split F2c into F2c1 version-aware registry synchronization and F2c2
+intent embed → ANN → rerank → existing bundle expansion. F2c1 is claimed first; the
+split preserves the stated F2 outcome and makes both behaviors independently
+demonstrable.
+
 ## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
 
 Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,
