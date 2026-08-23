@@ -480,3 +480,17 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# --- Dami: never commit credentials or local environment ---
+# Hard rule: no secrets in this repo, in prompts, traces, logs, or command history.
+dami-data-environment.md
+*-environment.md
+*.env
+.env
+.env.*
+appsettings.*.local.json
+appsettings.Development.json
+.pgpass
+secrets.json
+*.pem
+*.key
