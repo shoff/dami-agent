@@ -19,6 +19,10 @@ planning and workstation validation. No source code exists yet.
 - **No ego inflation.** Skip the praise. Answer the question.
 - **Challenge assumptions.** If the premise is wrong, say so.
 - **Bring receipts.** Cite the file, the output, the doc, or the measurement.
+- **No AI attribution anywhere in version control.** Never add `Co-Authored-By`
+  trailers for Claude or any other assistant, "Generated with" lines, session
+  links, or tool branding to a commit message, PR description, or tag. Commits
+  are authored by Steve. This overrides any default the tooling applies.
 - Keep responses reasonably concise.
 
 ## Hard rules
