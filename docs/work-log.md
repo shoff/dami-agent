@@ -2067,6 +2067,15 @@ nine suites: Capabilities 10, Transport 57, Proactive 57, Persistence 78, Analyz
 Architecture 10, Privacy 8, Providers 3, and Dami 1. Cleared the capability ownership
 claim after verification.
 
+## 2026-08-23 — Codex — Native capability discovery started
+
+Claimed the new architecture §8 native capability project/test paths and the shared
+solution file. This slice will use attribute metadata for startup discovery and return
+the implementation `Type` beside the normalized `CapabilityEntry`. It will not activate
+types or resolve services; execution and dependency construction remain separate
+responsibilities. The registration timestamp will be supplied by the caller rather
+than read from ambient time.
+
 ## 2026-08-23 — Codex — Capability bundle expansion started
 
 Reclaimed only the capability core and test paths after pushing `ec05448`. The next
@@ -2168,3 +2177,28 @@ red; the final capability suite completed at 18/18. Mandatory gate from `Dami/`:
 completed with 251/251 passing across nine suites (Capabilities 18, Transport 57,
 Proactive 59, Persistence 83, Analyzers 12, Architecture 10, Privacy 8, Providers 3,
 Dami 1). Cleared the ownership claim after verification.
+
+## 2026-08-23 — Codex — Native capability discovery verified
+
+Created the architecture-specified `Dami.Capabilities.Native` production/test projects
+and added them with `dotnet sln add`. `NativeCapabilityAttribute` carries stable ID,
+compact description, schema reference, version, and tags. `NativeCapabilityDiscovery`
+scans an assembly in deterministic type-name order, ignores unannotated and abstract
+types, normalizes concrete declarations into trusted native tool entries, and returns
+the implementation `Type` without constructing it. The caller supplies
+`RegisteredAt`; no ambient clock or service locator was introduced.
+
+TDD record: after restore, the first test had both the intended missing production
+types and an invalid targetless collection expression in an attribute argument. The
+test syntax was corrected and rerun; it then failed only because
+`NativeCapabilityAttribute` did not exist. The minimum attribute, discovery interface,
+registration record, and scanner compiled; the next run exposed the repository's
+constant-naming analyzer (`CapabilityId`), and renaming the test constant to
+`CAPABILITY_ID` produced green. The test proves the annotated class's constructor count
+remains zero while every normalized field is correct. Native suite: 1/1.
+
+Mandatory gate from `Dami/`: `dotnet build Dami.sln` succeeded with 0 warnings and
+0 errors; `dotnet test Dami.sln` completed with 252/252 passing across ten suites
+(Capabilities.Native 1, Capabilities 18, Transport 57, Proactive 59, Persistence 83,
+Analyzers 12, Architecture 10, Privacy 8, Providers 3, Dami 1). Cleared the native
+discovery ownership claim after verification.
