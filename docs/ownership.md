@@ -14,7 +14,7 @@ now**, and it should be short. If it is long, something was not cleared.
 
 | Owner | Area | Paths | Since |
 |---|---|---|---|
-| **Claude Code** | Memory-facing runtime half: context assembly (`Dami.Core/Context`), model routing (`Dami.Providers`) — plus everything previously built | `tools/**`, `Dami/src/Dami.Contracts/{Events,Memory,Proactive,Privacy,Models}/**`, `Dami/src/Dami.{Persistence,Proactive,Privacy,Providers,Gateway.Cli,Host.Proactive}/**`, matching test projects | 2026-08-23 |
+| **Claude Code** | Memory-facing runtime half plus **interactive turn orchestration** (`Dami.Core/Turns`): context → route → model → traced answer. Session lifecycle/transport-facing runtime remains open for Codex. | `tools/**`, `Dami/src/Dami.Contracts/{Events,Memory,Proactive,Privacy,Models}/**`, `Dami/src/Dami.{Persistence,Proactive,Privacy,Providers,Gateway.Cli,Host.Proactive}/**`, matching test projects | 2026-08-23 |
 | **Codex** | User-authorized remediation of adversarial audit, strict red-green slices | Audit-listed files under `tools/systemd`, `Dami/src`, matching tests, architecture tests; excluding Claude's untracked migration script | 2026-08-23 11:30 CDT |
 
 ## Held by Claude Code, not in active change
