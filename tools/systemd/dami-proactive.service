@@ -1,0 +1,32 @@
+# Dami Core - proactive tier host. NOT installed automatically.
+#
+# To deploy:
+#   dotnet publish Dami/src/Dami.Host.Proactive -c Release -o /opt/dami/proactive
+#   sudo cp tools/systemd/dami-proactive.service /etc/systemd/system/
+#   sudo systemctl edit dami-proactive     # add the Environment= lines below with real values
+#   sudo systemctl enable --now dami-proactive
+#
+# Configuration comes from the environment, never a file in the repository:
+#   Environment=ConnectionStrings__Dami=Host=127.0.0.1;Port=5432;Database=dami-data;Username=dami_app;Passfile=/home/steve/.pgpass
+#   Environment=Egress__AllowedHosts__0=hnrss.org
+#   Environment=InterestScout__Feeds__0=https://hnrss.org/frontpage
+#   Environment=InterestScout__Interests__0=...
+
+[Unit]
+Description=Dami Core proactive tier
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=notify-reload
+User=steve
+ExecStart=/opt/dami/proactive/Dami.Host.Proactive
+Restart=on-failure
+RestartSec=30
+
+# The tier is throughput-tolerant by definition; never compete with the interactive tier.
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

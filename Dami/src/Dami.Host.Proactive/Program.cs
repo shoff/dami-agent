@@ -1,13 +1,22 @@
+using Dami.Contracts.Models;
+using Dami.Contracts.Privacy;
+using Dami.Contracts.Proactive;
 using Dami.Host.Proactive;
 using Dami.Persistence;
+using Dami.Privacy;
 using Dami.Proactive;
+using Dami.Proactive.Scout;
+using Dami.Providers;
 
 // The proactive tier's composition root (D-006): its own process, its own failure
 // domain, sharing only the event store and the data layer with the interactive tier.
 //
-// The audit point D-012 asks for: this file registers NO egress client. Every service
-// this host runs is local-only until an IEgressClient registration appears here, and
-// adding one is a visible, reviewable change to exactly one file.
+// THE D-012 AUDIT POINT. This file is where egress capability is granted, and the
+// grant is visible: exactly one IEgressClient registration, consumed by exactly one
+// service (the interest scout). The allowlist defaults to empty, so even the scout
+// fetches nothing until Egress:AllowedHosts is configured deliberately. The embedding
+// client is loopback inference, not egress — interests embedded through it never
+// leave the host.
 var builder = Host.CreateApplicationBuilder(args);
 
 var connectionString =
@@ -21,8 +30,19 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ProactivePassRunner>();
 builder.Services.AddSingleton<ProactiveScheduler>();
 
-// IProactiveService implementations register here as they are built. None exist yet;
-// the worker says so at startup rather than pretending to be busy.
+// Egress: one client, allowlist-gated, every send a durable event.
+builder.Services.Configure<EgressOptions>(builder.Configuration.GetSection(EgressOptions.SECTION_NAME));
+builder.Services.AddHttpClient<IEgressClient, HttpEgressClient>();
+
+// Local inference: loopback TEI. Not egress, and must never be routed through it.
+builder.Services.Configure<TeiOptions>(builder.Configuration.GetSection(TeiOptions.SECTION_NAME));
+builder.Services.AddHttpClient<IEmbeddingClient, TeiEmbeddingClient>();
+
+// The first proactive service (D-019).
+builder.Services.Configure<InterestScoutOptions>(
+    builder.Configuration.GetSection(InterestScoutOptions.SECTION_NAME));
+builder.Services.AddSingleton<IProactiveService, InterestScout>();
+
 builder.Services.AddHostedService<ProactiveWorker>();
 
 await builder.Build().RunAsync();

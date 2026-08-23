@@ -1430,3 +1430,67 @@ An idle tier that says it is idle, rather than a busy-looking one that does noth
 The interest scout itself — it now has everything it needs: the egress client to fetch
 feeds, the capped queue to surface into, the ledger for conclusions, and a host to run
 in. Also still open: systemd unit for the host, and the taste model the scout ranks with.
+
+## 2026-08-22 — Claude Code — The interest scout: first live proactive pass
+
+The tier's first real service (D-019), and its first genuine end-to-end run against the
+real world.
+
+### Added
+
+- `Dami.Contracts/Models/IEmbeddingClient` — the model layer's first contract.
+- `Dami.Providers` — `TeiEmbeddingClient` (loopback TEI, chunked at the batch size).
+  The adapter's own documentation states it is NOT an egress client and must never be
+  wrapped in one: text embedded through it may be profile-derived and stays on the host.
+- `Dami.Proactive/Scout/` — `FeedParser` (RSS 2.0 + Atom, pure), `InterestScout`,
+  `InterestScoutOptions`.
+- Host wiring: `Program.cs` now registers exactly one `IEgressClient`, consumed by
+  exactly one service, with the allowlist defaulting to empty — the D-012 grant as a
+  visible one-file change, which is what that file's comment promised.
+- `tools/systemd/dami-proactive.service` — template, deliberately not installed.
+- Solution is now seventeen projects.
+
+### The privacy shape, tested
+
+The scout's dependencies are the D-012 diagram: interests go to the loopback
+`IEmbeddingClient` and never leave; only bare feed URLs cross the `IEgressClient`.
+`RunPassAsync_Should_Never_Send_An_Interest_Through_Egress` pins it — an interest of
+"steve's private obsession" is configured and the egress substitute is asserted to have
+seen no request containing it.
+
+### The live run, observed
+
+Configured `hnrss.org` on the allowlist, the HN front page as the feed, two interest
+statements, threshold 0.45. One pass:
+
+```
+proactive_runs    interest-scout | Completed
+surfacings        3 Pending  (conf 0.520, 0.509, 0.491)
+execution_events  TraceStarted → EgressRequested → EgressCompleted(200)
+                  → Surfaced ×3 → TraceCompleted "0 concluded, 3 surfaced"
+```
+
+Egress made exactly one request, to the allowlisted host, and the whole pass is
+replayable from the event store. **The success definition's machinery — Dami saying
+something unprompted with an inspectable trail behind it — ran for the first time.**
+
+**Honest assessment of the picks:** mediocre. "Thinking in Python" at 0.509 against an
+interest in postgres/vector-databases shows bge-m3 cosines clustering in a narrow band —
+exactly why D-010 demands the eval and why the threshold must be tuned on recorded
+feedback, not guessed. The 0.45 threshold was set low deliberately to exercise the
+pipeline. The mechanism works; the taste needs the eval set and the feedback loop.
+
+### Also observed, not mine
+
+`Dami.Transport.Tests.HeartbeatTransportTests.SendLoop_Should_Send_A_Heartbeat_After_The_Interval`
+fails; it belongs to Codex's uncommitted `HeartbeatTransport` work (untracked files,
+plus a draft ADR-0006). Left alone per the rule against absorbing another agent's red.
+
+### Verification
+
+```
+dotnet build Dami.sln   0 warnings, 0 errors (17 projects)
+163 tests: mine all passing (Architecture 10, Proactive 29, Privacy 8, Providers 3,
+Persistence 73, Analyzers 12, Dami.Tests 1); Transport 43/45 with the two failures in
+Codex's in-flight heartbeat work.
+```
