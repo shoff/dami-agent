@@ -105,7 +105,12 @@ public sealed class PostgresPushbackLedger : IPushbackLedger
         command.Parameters.AddWithValue("outcome", outcome.ToString());
         command.Parameters.AddWithValue("note", (object?)followUpNote ?? DBNull.Value);
 
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        if (affected != 1)
+        {
+            throw new KeyNotFoundException($"Pushback '{pushbackId}' does not exist.");
+        }
 
         this.logger.LogInformation("Pushback {PushbackId} resolved as {Outcome}", pushbackId, outcome);
     }

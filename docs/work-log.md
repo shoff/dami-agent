@@ -3107,3 +3107,23 @@ nothing recent exists. Two new builder tests plus the prompt-anchor test (22 in 
 The lesson worth keeping: the fix that looked like prompt engineering was actually a
 retrieval-policy gap — the anchor alone changed the wording, the slots changed the
 answer.
+
+## 2026-08-23 — Codex — Unknown persistence mutation targets now fail explicitly
+
+Completed two strict red-green affected-row slices. `IPushbackLedger.ResolveAsync` and
+`ISurfacingQueue.RecordFeedbackAsync` now document and throw `KeyNotFoundException`
+when PostgreSQL updates anything other than exactly one row. Success logging for a
+pushback occurs only after that invariant holds, so the audit trail cannot claim a
+resolution that never happened.
+
+TDD evidence: each live-database test first failed because no exception was thrown,
+then passed 1/1 after its minimum row-count check. The pushback class passes 9/9 and the
+surfacing-queue class passes 16/16. Definitive exact-diff verification ran in
+`/tmp/dami-affected-gate.WmiBPi/repo` at committed HEAD `35d6ff1`, excluding Claude
+Code's concurrent temporal-grounding work: build **0 warnings, 0 errors**; tests **311
+passed, 0 failed** across twelve assemblies; format verification exit 0.
+
+`DeliverAsync` remains a separate audit item: zero rows currently conflates a missing
+surfacing, an already-delivered idempotent retry, and an invalid suppressed→delivered
+transition. That contract needs an explicit state decision rather than reusing this
+mechanical check.

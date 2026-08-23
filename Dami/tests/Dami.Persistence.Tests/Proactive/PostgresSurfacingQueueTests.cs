@@ -136,6 +136,22 @@ public sealed class PostgresSurfacingQueueTests
     }
 
     [Fact]
+    public async Task RecordFeedbackAsync_Should_Reject_An_Unknown_Surfacing()
+    {
+        await this.fixture.ResetAsync();
+        var queue = this.CreateQueue(cap: 3);
+        var unknownId = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => queue.RecordFeedbackAsync(
+            unknownId,
+            "good call",
+            createdAt,
+            CancellationToken.None));
+
+        Assert.Contains(unknownId.ToString(), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PendingAsync_Should_Return_Oldest_First()
     {
         await this.fixture.ResetAsync();

@@ -69,6 +69,22 @@ public sealed class PostgresPushbackLedgerTests
     }
 
     [Fact]
+    public async Task ResolveAsync_Should_Reject_An_Unknown_Pushback()
+    {
+        await this.fixture.ResetAsync();
+        var ledger = this.CreateLedger();
+        var unknownId = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => ledger.ResolveAsync(
+            unknownId,
+            PushbackOutcome.Accepted,
+            "not present",
+            CancellationToken.None));
+
+        Assert.Contains(unknownId.ToString(), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RateAsync_Should_Count_Every_Challenge_In_The_Window()
     {
         await this.fixture.ResetAsync();

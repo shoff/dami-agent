@@ -218,7 +218,12 @@ public sealed class PostgresSurfacingQueue : ISurfacingQueue
         command.Parameters.AddWithValue("id", surfacingId);
         command.Parameters.AddWithValue("feedback", feedback);
         command.Parameters.AddWithValue("at", feedbackAt);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        if (affected != 1)
+        {
+            throw new KeyNotFoundException($"Surfacing '{surfacingId}' does not exist.");
+        }
     }
 
     private static async IAsyncEnumerable<Surfacing> StreamAsync(

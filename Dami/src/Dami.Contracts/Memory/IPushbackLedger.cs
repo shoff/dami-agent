@@ -7,6 +7,7 @@ public interface IPushbackLedger
     Task RecordAsync(PushbackRecord pushback, CancellationToken cancellationToken);
 
     /// <summary>Records how a challenge landed, once that is known.</summary>
+    /// <exception cref="KeyNotFoundException">The pushback does not exist.</exception>
     Task ResolveAsync(
         Guid pushbackId,
         PushbackOutcome outcome,

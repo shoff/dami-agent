@@ -35,6 +35,7 @@ public interface ISurfacingQueue
     IAsyncEnumerable<SurfacingReaction> ReactionsAsync(int limit, CancellationToken cancellationToken);
 
     /// <summary>Records Steve's reaction.</summary>
+    /// <exception cref="KeyNotFoundException">The surfacing does not exist.</exception>
     Task RecordFeedbackAsync(
         Guid surfacingId,
         string feedback,
