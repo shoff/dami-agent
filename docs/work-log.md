@@ -1032,6 +1032,31 @@ owned persistence test/data-isolation work and were reported without being modif
 The transport suite subsequently grew from 23 to 24 tests with the disposal liveness
 case and remains fully green.
 
+### Final combined gate
+
+Claude Code corrected its in-flight persistence test isolation; the standalone
+`Dami.Persistence.Tests` suite then passed 38/38. The mandatory commands were rerun
+against the combined working tree:
+
+```text
+dotnet build Dami.sln
+  Build succeeded. 0 warnings, 0 errors.
+
+dotnet test Dami.sln --no-build
+  Dami.Tests             1/1
+  Architecture.Tests    10/10
+  Transport.Tests       24/24
+  Persistence.Tests     38/38
+  Analyzers.Tests       12/12
+  Total                 85 passed, 0 failed, 0 skipped
+```
+
+Post-gate green refactor: linked send cancellation is now created only after the caller
+owns the send gate and repeats the disposed-state check. This closes a narrow interleaving
+where a paused sender could otherwise touch a disposed lifetime token. The three focused
+send/disposal/concurrency tests passed 3/3, followed by another mandatory full build
+(0 warnings, 0 errors) and the same full 85/85 test result.
+
 ## 2026-08-22 — Claude Code — Conclusions and pushback ledgers
 
 The memory layer of D-009 and D-011, in C#. Red-first this time, both cycles.

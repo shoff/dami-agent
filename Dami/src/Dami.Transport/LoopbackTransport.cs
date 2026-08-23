@@ -30,7 +30,8 @@ public sealed class LoopbackTransport : ITransport, IAsyncDisposable
         TransportFrame frame,
         CancellationToken cancellationToken)
     {
-        return this.frames.Writer.WriteAsync(frame, cancellationToken);
+        TransportFrame snapshot = frame with { Payload = frame.Payload.ToArray() };
+        return this.frames.Writer.WriteAsync(snapshot, cancellationToken);
     }
 
     /// <inheritdoc />

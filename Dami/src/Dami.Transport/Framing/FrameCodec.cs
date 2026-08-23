@@ -48,7 +48,7 @@ public static class FrameCodec
         out TransportFrame frame)
     {
         var reader = new SequenceReader<byte>(input);
-        if (!TryReadVarint(ref reader, out uint bodyLength))
+        if (!TryReadVarInt(ref reader, out uint bodyLength))
         {
             frame = default;
             return false;
@@ -94,7 +94,7 @@ public static class FrameCodec
             payload);
     }
 
-    private static bool TryReadVarint(
+    private static bool TryReadVarInt(
         ref SequenceReader<byte> reader,
         out uint value)
     {
@@ -106,11 +106,24 @@ public static class FrameCodec
                 return false;
             }
 
-            value |= (uint)(current & 0x7F) << (index * 7);
-            if ((current & 0x80) == 0)
+            if (index == MAX_VARINT_LENGTH - 1 && (current & 0xF0) != 0)
             {
-                return true;
+                throw new InvalidDataException("The frame length prefix is invalid.");
             }
+
+            value |= (uint)(current & 0x7F) << (index * 7);
+
+            if ((current & 0x80) != 0)
+            {
+                continue;
+            }
+
+            if (index > 0 && (current & 0x7F) == 0)
+            {
+                throw new InvalidDataException("The frame length prefix is invalid.");
+            }
+
+            return true;
         }
 
         throw new InvalidDataException("The frame length prefix is invalid.");

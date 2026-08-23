@@ -7,11 +7,12 @@ public sealed class LoopbackTransportTests
     [Fact]
     public async Task SendAsync_Should_Make_The_Frame_Available_To_ReceiveAsync()
     {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await using var transport = new LoopbackTransport();
         var expected = new TransportFrame(1, 7, 11, Guid.NewGuid(), FrameFlags.None, new byte[] { 2, 4, 6 });
-        await transport.SendAsync(expected, CancellationToken.None);
+        await transport.SendAsync(expected, timeout.Token);
 
-        TransportFrame actual = await ReceiveOneAsync(transport, CancellationToken.None);
+        TransportFrame actual = await ReceiveOneAsync(transport, timeout.Token);
 
         Assert.Equal(expected, actual);
     }
@@ -23,6 +24,21 @@ public sealed class LoopbackTransportTests
             () => new LoopbackTransport(0));
 
         Assert.Equal("capacity", exception.ParamName);
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Snapshot_The_Payload_Before_Completing()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var transport = new LoopbackTransport();
+        byte[] payload = [2, 4, 6];
+        var sent = new TransportFrame(1, 7, 11, Guid.NewGuid(), FrameFlags.None, payload);
+        await transport.SendAsync(sent, timeout.Token);
+
+        payload[0] = 99;
+        TransportFrame received = await ReceiveOneAsync(transport, timeout.Token);
+
+        Assert.Equal((byte)2, received.Payload.Span[0]);
     }
 
     private static async Task<TransportFrame> ReceiveOneAsync(

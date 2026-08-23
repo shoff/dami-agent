@@ -101,16 +101,16 @@ rather than assuming — but nothing else blocks the phase.
 
 | Item | State | Evidence |
 |---|---|---|
-| Versioned frame reader/writer | done | `FrameCodec`; split-buffer round trip tested at every byte offset |
-| `ITransport` and `LoopbackTransport` | done | bounded loopback send/receive tests pass |
-| Pipelines framed connection | done | `PipeTransport` send and receive tests pass |
-| TCP connection, one connection | done | loopback TCP peer verified in both directions through `TcpDuplexPipe` |
+| Versioned frame reader/writer | done | `FrameCodec`; split-buffer round trip at every byte offset plus overflowing/noncanonical varint rejection |
+| `ITransport` and `LoopbackTransport` | done | byte-value frames, documented payload ownership, bounded snapshotting loopback delivery |
+| Pipelines framed connection | done | concurrent sends serialized; cancellation, completion, single receiver, disposal, and backpressured-shutdown tests pass |
+| TCP connection, one connection | done | outbound and accepted loopback sockets verified; accepted-socket seam owns the socket and enables `NoDelay` |
 | Reconnect, heartbeat, sequence-gap detection | not started | — |
 | Backpressure and flow control beyond bounded loopback | not started | — |
 | Capability registry, model routing, sessions, events, CLI | not started | — |
 
-Verification on 2026-08-22: `Dami.Transport.Tests` executed 10 tests with 0 failures;
-`dotnet test Dami.sln --no-restore` executed 32 tests across four suites with 0 failures.
+Verification on 2026-08-22: `Dami.Transport.Tests` executed 24 tests with 0 failures;
+`dotnet test Dami.sln --no-build` executed 85 tests across five suites with 0 failures.
 
 ### Phases 4–10 · *not started*
 

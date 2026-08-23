@@ -59,6 +59,30 @@ public sealed class FrameCodecTests
         Assert.Equal("The frame body is shorter than its fixed header.", exception.Message);
     }
 
+    [Fact]
+    public void TryRead_Should_Reject_An_Overflowing_Length_Varint()
+    {
+        byte[] encoded = [0x99, 0x80, 0x80, 0x80, 0x10, .. new byte[25]];
+        var input = new ReadOnlySequence<byte>(encoded);
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(
+            () => TryRead(input));
+
+        Assert.Equal("The frame length prefix is invalid.", exception.Message);
+    }
+
+    [Fact]
+    public void TryRead_Should_Reject_A_Noncanonical_Length_Varint()
+    {
+        byte[] encoded = [0x99, 0x00, .. new byte[25]];
+        var input = new ReadOnlySequence<byte>(encoded);
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(
+            () => TryRead(input));
+
+        Assert.Equal("The frame length prefix is invalid.", exception.Message);
+    }
+
     private static TransportFrame CreateFrame()
     {
         return new TransportFrame(
