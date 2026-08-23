@@ -26,6 +26,7 @@ network, and that is deliberate — remote access is SSH first, then talk to loc
 | Reranker | `127.0.0.1:8081` | `dami-rerank` | same image | `BAAI/bge-reranker-v2-m3`, cross-encoder |
 | LLM sidecar | `127.0.0.1:11434` | `dami-llm` | `ollama/ollama:0.32.15` | `qwen3:8b` pulled |
 | pgAdmin | desktop app | — native | `pgadmin4-desktop 9.17` | the container was removed; do not recreate it |
+| Proactive tier | systemd `dami-proactive` | — bare metal | published to `/opt/dami/proactive` | hourly tick; config via `systemctl edit dami-proactive`; logs in `journalctl -u dami-proactive` |
 
 All containers are `--restart unless-stopped` and `docker.service` is enabled at boot,
 so they return after a reboot without intervention.
@@ -160,7 +161,18 @@ correct embeddings.** Nothing downstream would have noticed except the latency.
 **Every new inference sidecar gets its device binding checked explicitly** (§3). Do not
 infer GPU use from a 200 response.
 
-### 4.4 `/home` is excluded from Timeshift, and that includes the database
+### 4.4 systemd quoting and working directory
+
+Two things the `dami-proactive` install hit. `Environment=` values containing spaces
+must be quoted or systemd splits them into nonsense assignments. And
+`WorkingDirectory=` is load-bearing for .NET hosts: without it the content root is `/`
+and `appsettings.json` silently does not load.
+
+Also observed twice now (§4.3's rule proving itself): **`qwen3:8b` silently fell to
+100% CPU** at 2 tok/s with 13 GiB of VRAM free — `docker exec dami-llm ollama ps` is
+the check, a container restart the fix.
+
+### 4.5 `/home` is excluded from Timeshift, and that includes the database
 
 Timeshift covers the host, not the data. The cluster's data directory is
 `/home/steve/Data/pgsql-dami-data`, which is **not** in any snapshot. That is correct —

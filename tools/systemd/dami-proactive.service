@@ -18,8 +18,11 @@ After=network-online.target postgresql.service
 Wants=network-online.target
 
 [Service]
-Type=notify-reload
+Type=exec
 User=steve
+# WorkingDirectory is load-bearing: without it the content root is / and
+# appsettings.json silently does not load.
+WorkingDirectory=/opt/dami/proactive
 ExecStart=/opt/dami/proactive/Dami.Host.Proactive
 Restart=on-failure
 RestartSec=30

@@ -1892,3 +1892,24 @@ the corpus and a better prompt are what will make the beliefs worth reading.
 
 Verification: full solution 0 warnings, 0 errors; **215 tests, all passing** across
 eight suites (Codex's transport at 57, green).
+
+## 2026-08-23 — Claude Code — The proactive tier deployed as a systemd service
+
+N-06, "unattended reliability; scheduled services run without supervision," made real.
+
+- Published self-contained to `/opt/dami/proactive`; unit installed from the repo
+  template, enabled, `active (running)`, hourly tick observed in the journal.
+- Configuration lives in a systemd drop-in (`systemctl edit dami-proactive`), outside
+  the repository: connection string, `hnrss.org` on the egress allowlist, and four
+  starter interest statements **taken from the charter's domain list — Steve should
+  edit them.**
+- Two installation traps found live and fed back into the repo template and runbook:
+  `Environment=` values with spaces must be quoted (systemd split an interest statement
+  into nonsense assignments), and `WorkingDirectory=` is load-bearing — without it the
+  content root is `/` and `appsettings.json` silently does not load.
+- Third live occurrence of runbook §4.3: the reflection diagnosis found `qwen3:8b` on
+  **100% CPU** at 2 tok/s with 13 GiB free; `ollama ps` is the check, container restart
+  the fix. Added to the runbook.
+
+From tonight, the scout runs nightly, reflection weekly, the pushback audit quarterly —
+with no session, no agent, and no one at the keyboard.
