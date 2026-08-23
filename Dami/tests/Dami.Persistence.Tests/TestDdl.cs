@@ -3,7 +3,7 @@ namespace Dami.Persistence.Tests;
 /// <summary>Reads the repository's DDL and retargets it at a throwaway schema.</summary>
 public static class TestDdl
 {
-    private static readonly string[] ddlFiles = ["002_event_store.sql", "003_memory.sql", "006_surfacings.sql", "007_proactive_runs.sql"];
+    private static readonly string[] ddlFiles = ["002_event_store.sql", "003_memory.sql", "006_surfacings.sql", "007_proactive_runs.sql", "008_observation_embeddings.sql"];
 
     /// <summary>The event-store and memory DDL, rewritten to build in <paramref name="schema"/>.</summary>
     /// <remarks>
@@ -33,6 +33,7 @@ public static class TestDdl
         ArgumentNullException.ThrowIfNull(schema);
 
         return $"""
+            drop table if exists {schema}.observation_embeddings cascade;
             drop table if exists {schema}.proactive_runs cascade;
             drop table if exists {schema}.surfacings cascade;
             drop table if exists {schema}.conclusion_observations cascade;
@@ -59,6 +60,7 @@ public static class TestDdl
         // guard dropped deliberately. That the fixture has to do this is the guarantee
         // working, not a workaround for it.
         return $"""
+            delete from {schema}.observation_embeddings;
             delete from {schema}.proactive_runs;
             delete from {schema}.surfacings;
             delete from {schema}.conclusion_observations;

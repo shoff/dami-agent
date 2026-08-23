@@ -6,6 +6,7 @@ using Dami.Persistence;
 using Dami.Privacy;
 using Dami.Proactive;
 using Dami.Proactive.Audit;
+using Dami.Proactive.Embedder;
 using Dami.Proactive.Librarian;
 using Dami.Proactive.Reflection;
 using Dami.Proactive.Scout;
@@ -63,6 +64,10 @@ builder.Services.AddSingleton<IProactiveService, ReflectionService>();
 builder.Services.Configure<MediaLibrarianOptions>(
     builder.Configuration.GetSection(MediaLibrarianOptions.SECTION_NAME));
 builder.Services.AddSingleton<IProactiveService, MediaLibrarianService>();
+
+// Keeps the corpus's semantic index current (ADR-0009). Loopback inference only.
+builder.Services.Configure<EmbedderOptions>(builder.Configuration.GetSection(EmbedderOptions.SECTION_NAME));
+builder.Services.AddSingleton<IProactiveService, EmbedderService>();
 
 builder.Services.AddHostedService<ProactiveWorker>();
 

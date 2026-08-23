@@ -2066,3 +2066,58 @@ Mandatory repository gate from `Dami/`: `dotnet build Dami.sln` succeeded with
 nine suites: Capabilities 10, Transport 57, Proactive 57, Persistence 78, Analyzers 12,
 Architecture 10, Privacy 8, Providers 3, and Dami 1. Cleared the capability ownership
 claim after verification.
+
+## 2026-08-23 — Codex — Capability bundle expansion started
+
+Reclaimed only the capability core and test paths after pushing `ec05448`. The next
+§7.6.3 slice will expand a selected skill or named bundle through
+`RelatedCapabilities` using only `ICapabilityCatalog`, deduplicate shared references,
+fail closed on a missing registration, and terminate on cycles. Retrieval and source
+discovery remain separate responsibilities.
+
+## 2026-08-23 — Claude Code — Semantic memory: ADR-0009, the embedder, and dami recall
+
+The gate that blocked all semantic retrieval is deliberately opened.
+
+**ADR-0009** adopts `bge-m3` as the *interim* observation embedder. It does not decide
+D-010 — the eval still chooses — but the schema versions the model per row, re-embedding
+is the designed migration (measured ~107 docs/s, so even the full Mac corpus re-embeds
+in about a minute), and four features were blocked on a Mac-side export with no ETA.
+ADR numbering note: Codex had taken 0007/0008 for transport decisions, so this is 0009.
+
+### Built
+
+- `tools/ddl/008_observation_embeddings.sql` (replaces the 004 template): 1024-dim
+  vectors, HNSW, model versioned per row, deletable derived data.
+- The DDL runner's checksum guard **only ran when something was pending** — found live
+  when a comment edit to an applied file went unflagged. Now verifies on every
+  invocation, including no-ops; the mismatch it then caught was reconciled deliberately.
+- `IObservationEmbeddingStore` + Postgres impl (+5 tests, incl. per-model unembedded
+  semantics — a model change re-indexes without touching the old rows).
+- `IRerankClient` + `TeiRerankClient` — §9.3's second stage as a contract.
+- **`EmbedderService`**: nightly proactive pass that indexes whatever lacks a vector
+  under the configured model. A service rather than a hook on the corpus store, so the
+  stores stay dumb and the sidecar coupling lives in the tier that is allowed to be
+  slow. Idempotent; produces no conclusions and no surfacings — index maintenance is
+  not worth anyone's attention.
+- **`dami recall <query>`** — §9.3 as a shell command: local embed → pgvector ANN →
+  cross-encoder rerank → top 5 with dates and sources. Nothing about the query leaves
+  the host.
+
+### Observed live
+
+The deployed service's embedder pass indexed the corpus (3 vectors under `BAAI/bge-m3`),
+and:
+
+```
+$ dami recall my reaction to a recommendation
+2026-08-23  [cli-note]  rated the labs surfacing good and asked for more like it
+2026-08-23  [cli-note]  told the agents to keep going and stop stopping
+...
+```
+
+— the reaction note correctly ranked first on a query with no shared keywords beyond
+"rated"/"reaction". The corpus is three notes; the pipeline is the real one.
+
+Full solution: 0 warnings, 0 errors; Persistence 83, all suites green (Codex's
+capabilities tests now compile and pass alongside).

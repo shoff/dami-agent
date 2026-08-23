@@ -1,5 +1,7 @@
 using Dami.Gateway.Cli;
+using Dami.Contracts.Models;
 using Dami.Persistence;
+using Dami.Providers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -30,6 +32,11 @@ services.AddSingleton<InboxCommands>();
 services.AddSingleton<TraceCommands>();
 services.AddSingleton<BeliefCommands>();
 services.AddSingleton<HealthCommands>();
+services.AddSingleton<RecallCommands>();
+services.AddHttpClient<IEmbeddingClient, TeiEmbeddingClient>();
+services.AddHttpClient<IRerankClient, TeiRerankClient>();
+services.AddOptions<TeiOptions>();
+services.AddOptions<TeiRerankOptions>();
 
 await using var provider = services.BuildServiceProvider();
 
@@ -38,4 +45,5 @@ return await CommandRouter.RunAsync(
     provider.GetRequiredService<InboxCommands>(),
     provider.GetRequiredService<TraceCommands>(),
     provider.GetRequiredService<BeliefCommands>(),
-    provider.GetRequiredService<HealthCommands>());
+    provider.GetRequiredService<HealthCommands>(),
+    provider.GetRequiredService<RecallCommands>());

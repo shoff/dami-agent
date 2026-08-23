@@ -37,7 +37,20 @@ if [[ "${1:-}" == "--status" ]]; then
     exit 0
 fi
 
+verify_checksums() {
+    # A file edited after it was applied is a silent divergence between the repository
+    # and the database. Runs on every invocation, including no-op ones.
+    while IFS='|' read -r name recorded; do
+        [[ -z "$name" ]] && continue
+        current="$(sha256sum "$DIRECTORY/$name" 2>/dev/null | cut -d' ' -f1)"
+        if [[ -n "$current" && "$current" != "$recorded" ]]; then
+            echo "apply: WARNING $name was edited after it was applied" >&2
+        fi
+    done < <(psql_ddl -tAc "select filename || '|' || checksum from dami.schema_migrations" 2>/dev/null)
+}
+
 if ((${#pending[@]} == 0)); then
+    verify_checksums
     echo "apply: nothing pending"
     exit 0
 fi
@@ -57,14 +70,6 @@ for file in "${pending[@]}"; do
     } | psql_ddl -f - > /dev/null
 done
 
-# A file edited after it was applied is a silent divergence between the repository and
-# the database. Report it; do not attempt to reconcile automatically.
-while IFS='|' read -r name recorded; do
-    [[ -z "$name" ]] && continue
-    current="$(sha256sum "$DIRECTORY/$name" 2>/dev/null | cut -d' ' -f1)"
-    if [[ -n "$current" && "$current" != "$recorded" ]]; then
-        echo "apply: WARNING $name was edited after it was applied" >&2
-    fi
-done < <(psql_ddl -tAc "select filename || '|' || checksum from dami.schema_migrations")
+verify_checksums
 
 echo "apply: ${#pending[@]} migration(s) applied to $DATABASE"

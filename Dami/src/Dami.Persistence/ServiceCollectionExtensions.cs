@@ -43,6 +43,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IObservationCorpus, PostgresObservationCorpus>();
         services.TryAddSingleton<IConclusionLedger, PostgresConclusionLedger>();
         services.TryAddSingleton<IPushbackLedger, PostgresPushbackLedger>();
+        services.TryAddSingleton<IObservationEmbeddingStore, PostgresObservationEmbeddingStore>();
 
         return services;
     }
