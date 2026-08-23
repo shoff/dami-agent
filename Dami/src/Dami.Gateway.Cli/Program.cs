@@ -29,6 +29,7 @@ services.AddSingleton(TimeProvider.System);
 services.AddSingleton<InboxCommands>();
 services.AddSingleton<TraceCommands>();
 services.AddSingleton<BeliefCommands>();
+services.AddSingleton<HealthCommands>();
 
 await using var provider = services.BuildServiceProvider();
 
@@ -36,4 +37,5 @@ return await CommandRouter.RunAsync(
     args,
     provider.GetRequiredService<InboxCommands>(),
     provider.GetRequiredService<TraceCommands>(),
-    provider.GetRequiredService<BeliefCommands>());
+    provider.GetRequiredService<BeliefCommands>(),
+    provider.GetRequiredService<HealthCommands>());

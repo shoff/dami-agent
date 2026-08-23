@@ -18,6 +18,7 @@ public static class CommandRouter
           dami retract <id-prefix> <reason>
                                          correct the ledger; the reason is recorded
           dami note <text>               record an observation into the corpus
+          dami health                    check postgres, sidecars, GPU placement, tier
         """;
 
     /// <summary>Runs one command. Returns the process exit code.</summary>
@@ -25,12 +26,14 @@ public static class CommandRouter
         string[] args,
         InboxCommands inbox,
         TraceCommands traces,
-        BeliefCommands beliefs)
+        BeliefCommands beliefs,
+        HealthCommands health)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
         ArgumentNullException.ThrowIfNull(traces);
         ArgumentNullException.ThrowIfNull(beliefs);
+        ArgumentNullException.ThrowIfNull(health);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -41,7 +44,7 @@ public static class CommandRouter
 
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
-            args, inbox, traces, beliefs, cancellation.Token).ConfigureAwait(false);
+            args, inbox, traces, beliefs, health, cancellation.Token).ConfigureAwait(false);
     }
 
     private static async Task<int> DispatchAsync(
@@ -50,6 +53,7 @@ public static class CommandRouter
         InboxCommands inbox,
         TraceCommands traces,
         BeliefCommands beliefs,
+        HealthCommands health,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -73,6 +77,8 @@ public static class CommandRouter
             "retract" when args.Length > 2 =>
                 await beliefs.RetractAsync(args[1], string.Join(' ', args[2..]), cancellationToken)
                     .ConfigureAwait(false),
+            "health" =>
+                await health.CheckAsync(cancellationToken).ConfigureAwait(false),
             "note" when args.Length > 1 =>
                 await beliefs.NoteAsync(string.Join(' ', args[1..]), cancellationToken)
                     .ConfigureAwait(false),

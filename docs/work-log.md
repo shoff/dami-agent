@@ -1951,3 +1951,23 @@ nothing is surveyed until Steve chooses what is surveyable — republished to
 staying quiet correctly.
 
 Full solution: 0 warnings, 0 errors, all eight suites passing (Proactive at 55).
+
+## 2026-08-23 — Claude Code — dami health
+
+The runbook's copy-paste health check, codified into the product. One command answers
+"is the machine under Dami actually healthy":
+
+```
+$ dami health
+ok    postgres      28 events, 3 observations, 2 active beliefs
+ok    embeddings    BAAI/bge-m3
+ok    reranker      BAAI/bge-reranker-v2-m3
+ok    llm           idle (no model loaded; loads on demand)
+info  proactive     last pass 2026-08-23 00:45; 2 surfacing(s) pending
+```
+
+The check that earns its place is the LLM one: it reads `size` against `size_vram` from
+Ollama's own API and prints a loud WARN with the runbook reference when a loaded model
+is not fully in VRAM — the silent CPU-fallback that has now bitten three times, made
+detectable in one command. Exit code 1 on any failure, so it can sit in a cron or a
+prompt. Solution 0/0, all suites green.
