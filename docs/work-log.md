@@ -2508,6 +2508,30 @@ remote inference endpoint currently crosses D-012 without resistance.
   fragment, then passed after comparison against the unescaped absolute URI.
 - Affected `Dami.Privacy.Tests` suite: **14 passed, 0 failed**.
 
+### Model-versioned embeddings — red/green
+
+- Added a live-database test requiring two vectors for one observation under two model
+  IDs. Initial red failed because the required `009_versioned_embeddings.sql` migration
+  did not exist. Added the migration to change the primary key to
+  `(observation_id, embedding_model)` and changed the idempotency conflict target; the
+  focused integration test passed.
+- Added a model-scoped nearest-neighbor test. It was compile-red because the store
+  contract had no model argument. Added the argument and SQL predicate, exposed the
+  producing model ID on `IEmbeddingClient`, and routed that identity through recall,
+  reflection, and the embedder. Focused integration test passed.
+- Only the throwaway `dami_test` schema was exercised. Migration 009 has **not** been
+  applied to the live `dami` schema in this session.
+
+### Heartbeat liveness and ownership — red/green
+
+Added a non-cooperative inner transport whose receive deliberately ignores cancellation.
+The focused test failed red after its one-second outer guard with `The operation has timed
+out.` instead of the configured heartbeat timeout, proving the original indefinite wait.
+`HeartbeatTransport` now returns its silence timeout immediately and abandons disposal of
+the demonstrably non-cooperative enumerator rather than blocking the caller forever. Its
+constructor documentation now truthfully states that it owns the wrapped transport.
+Focused test passed; all **18 heartbeat tests passed**.
+
 ## 2026-08-23 — Claude Code — Full preservation, draft eval set, and the first real baseline
 
 ### Phase 0 preservation, complete for Weaviate
@@ -2558,3 +2582,26 @@ that `dami-llm-guard` was broken — two stdin redirections collided, so the pla
 check never ran. My bug. Rewritten with an explicit pipe and **verified against the
 live degraded state**: detected, restarted, model back to 100% GPU. The timer's
 15-minute window remains a known gap between heavy TEI use and the next check.
+
+## 2026-08-23 — Claude Code — D-010 executed: three candidates on the real corpus
+
+Second pinned TEI on 8082, swapped through both Qwen3 embedding candidates, same
+37-pair draft set, same 7,048 docs, identical infrastructure:
+
+| model | dims | ANN r@10 | ANN MRR | reranked MRR | reranked nDCG | docs/s |
+|---|---|---|---|---|---|---|
+| bge-m3 | 1024 | **0.838** | **0.612** | **0.690** | **0.712** | 193 |
+| Qwen3-Emb-0.6B | 1024 | 0.784 | 0.567 | 0.668 | 0.690 | 159 |
+| Qwen3-Emb-4B | 2560 | 0.757 | 0.557 | 0.676 | 0.696 | 65 |
+
+**The 8 GB 4B model loses to 1.1 GB bge-m3 on every metric in-domain** — the
+leaderboard-vs-in-domain divergence D-010 predicted, now measured rather than argued.
+Reranking helps all three (+0.08–0.12 MRR), strengthening the D-008 evidence.
+
+Caveat recorded in the README: Qwen3 embedders expect instruction-prefixed queries and
+the harness embeds raw text — fair for how Dami embeds today, but underrates Qwen3's
+ceiling; re-run before concluding if instruction prompting is ever added.
+
+Eval container torn down; VRAM returned. **D-010's decision is now: Steve reviews the
+draft set, we re-run three commands, and the register closes an open question with a
+table instead of an argument.**

@@ -74,10 +74,21 @@ Steve reviews the set; the table is the method working, not the final answer.
 |---|---|---|---|---|---|
 | `BAAI/bge-m3` | 1024 | **0.8378** | **0.6115** | **0.6899** | **0.7122** |
 | `Qwen/Qwen3-Embedding-0.6B` | 1024 | 0.7838 | 0.5674 | 0.6676 | 0.6895 |
+| `Qwen/Qwen3-Embedding-4B` | 2560 | 0.7568 | 0.5565 | 0.6757 | 0.6961 |
 
 **Reranking helps at scale** (+0.08–0.10 MRR for both models), reversing the
 15-doc synthetic result exactly as predicted below — D-008's claim, now with evidence.
-bge-m3 leads on every metric so far, corroborating ADR-0009's interim choice.
+bge-m3 leads on every metric so far, corroborating ADR-0009's interim choice — and the
+8 GB 4B model **losing** to the 1.1 GB bge-m3 in-domain is exactly the
+leaderboard-vs-in-domain divergence D-010 predicted, measured on the real corpus.
+
+**Caveat on the Qwen3 numbers:** those models expect instruction-prefixed queries
+("Instruct: … Query: …") for retrieval, and this harness embeds raw text — the same way
+Dami currently embeds, so the comparison is fair *for how the system works today*, but
+it underrates what Qwen3 could do with instruction prompting. If instruction-aware
+embedding is added to the pipeline, re-run before concluding anything.
+
+Index throughput on this GPU: bge-m3 193 docs/s · 0.6B 159 docs/s · 4B 65 docs/s.
 
 ## A worked example, and why its result is not a finding
 
