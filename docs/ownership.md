@@ -15,7 +15,7 @@ now**, and it should be short. If it is long, something was not cleared.
 | Owner | Area | Paths | Since |
 |---|---|---|---|
 | **Codex** | Transport slice, architecture §7.5.5 steps 3–5 | `Dami/src/Dami.Contracts/Transport/**`, `Dami/src/Dami.Transport/**`, `Dami/tests/Dami.Transport.Tests/**` | 2026-08-22 |
-| **Claude Code** | Phase 2 data foundation — event store, ledgers, persistence | `tools/ddl/**`, `Dami/src/Dami.Contracts/Events/**`, `Dami/src/Dami.Persistence/**`, `Dami/tests/Dami.Persistence.Tests/**` | 2026-08-22 |
+| **Claude Code** | Phase 2 data foundation (done) and the proactive tier — contracts, pass runner, surfacing queue | `tools/ddl/**`, `Dami/src/Dami.Contracts/Events/**`, `Dami/src/Dami.Contracts/Memory/**`, `Dami/src/Dami.Contracts/Proactive/**`, `Dami/src/Dami.Persistence/**`, `Dami/src/Dami.Proactive/**`, `Dami/tests/Dami.Persistence.Tests/**`, `Dami/tests/Dami.Proactive.Tests/**` | 2026-08-22 |
 
 ## Held by Claude Code, not in active change
 
