@@ -81,7 +81,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 ## F · Capability system (D-014/D-015/D-016) — Codex's lane (in progress)
 
-- [~ Codex 2026-08-23] F1 Unified registry: entries, native plugin discovery, bundle expansion (recent commits: discovery, safe expansion, hardening)
+- [x] F1 Unified registry: entries, native plugin discovery, bundle expansion (recent commits: discovery, safe expansion, hardening)
 - [ ] F2 Semantic capability retrieval over the registry (embed descriptions into the existing pgvector store; reuse B4's pipeline)
 - [ ] F3 MCP client + explicit trust levels; untrusted descriptions summarized-not-followed; untrusted excluded from LocalOnly turns
 - [ ] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event

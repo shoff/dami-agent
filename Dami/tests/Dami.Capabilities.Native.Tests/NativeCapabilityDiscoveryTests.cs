@@ -5,6 +5,22 @@ public sealed class NativeCapabilityDiscoveryTests
     private const string CAPABILITY_ID = "f72b7181-d4d6-4a65-a565-78621d323cca";
 
     [Fact]
+    public void Load_Registers_Discovered_Metadata_Without_Activating_The_Tool()
+    {
+        var registeredAt = new DateTimeOffset(2026, 8, 23, 11, 2, 0, TimeSpan.FromHours(-5));
+        var registry = new CapabilityRegistry();
+        var loader = new NativeCapabilityLoader(new NativeCapabilityDiscovery(), registry);
+
+        IReadOnlyList<NativeCapabilityRegistration> registrations = loader.Load(
+            typeof(NativeCapabilityDiscoveryTests).Assembly,
+            registeredAt);
+
+        NativeCapabilityRegistration registration = Assert.Single(registrations);
+        Assert.Same(registration.Entry, registry.Find(Guid.Parse(CAPABILITY_ID)));
+        Assert.Equal(0, AnnotatedTool.ConstructionCount);
+    }
+
+    [Fact]
     public void Discover_NormalizesAnnotatedToolWithoutActivatingIt()
     {
         var registeredAt = new DateTimeOffset(2026, 8, 23, 11, 2, 0, TimeSpan.FromHours(-5));

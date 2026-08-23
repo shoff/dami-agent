@@ -3280,3 +3280,54 @@ the actual combined shared tree: `dotnet build Dami.sln --nologo` produced **0 w
 0 errors**; `dotnet test Dami.sln --no-restore --nologo` passed **325/325** across twelve
 assemblies; `dotnet format Dami.sln --verify-no-changes --no-restore --verbosity
 minimal` exited 0 without diagnostics. No schema or data migration is involved.
+
+## 2026-08-23 — Codex — Native capability registration handoff started
+
+Continued immediately after pushing `24e7483`. Architecture §7.6.2 requires native C#
+plugins discovered at startup to normalize into the one source-neutral registry. The
+existing discovery returns `NativeCapabilityRegistration` values but no component
+hands their entries to `ICapabilityRegistrar`, so discovered metadata remains unusable
+by catalog lookup and bundle expansion.
+
+The planned SOLID boundary is a small orchestration loader depending only on
+`INativeCapabilityDiscovery` and `ICapabilityRegistrar`; discovery remains responsible
+only for reflection and the registry only for storage. The loader returns the native
+registrations so implementation mappings are not discarded before the later execution
+slice. A test requiring catalog registration without tool activation was added first;
+production is unchanged until its expected compile-time red is captured.
+
+Red evidence: the focused native-capability test command failed during compilation with
+CS0246 because `NativeCapabilityLoader` did not exist. The production change is limited
+to that missing orchestration boundary; no discovery, registry, or tool implementation
+behavior is being folded into it.
+
+The first green command did not reach `dotnet test`: it ran from `Dami/` but mistakenly
+prefixed the ownership-fix path with `Dami/`, so `chown` failed safely with “No such file
+or directory.” The corrected relative path restored `steve:steve` ownership and the
+focused test then passed 1/1.
+
+The affected native-capability suite passed 2/2. A subsequent shared-tree solution
+build passed with 0 warnings and 0 errors, but the solution test cannot be counted:
+Claude Code claimed D4/G3 and edited the streaming provider while it was running. The
+test exited 1 with runtimeconfig mmap failures in Vision/Capabilities and DAMI0003 on
+Claude's in-flight 32-line `OllamaChatClient.StreamAsync`. Those provider/contract files
+remain untouched. Definitive F1 verification is moving to an isolated checkout at the
+current committed HEAD with only this loader slice applied.
+
+F1 is complete. `NativeCapabilityLoader` now owns only the startup handoff: it depends
+on discovery and registrar abstractions, publishes every normalized entry, returns the
+native implementation mappings for the later execution layer, and never activates a
+tool. The focused test observes the discovered entry through `ICapabilityCatalog` and
+asserts the implementation constructor count remains zero.
+
+Definitive verification ran in `/tmp/dami-f1-gate.Wvd42Z/repo` at committed HEAD
+`afe8012` with only `NativeCapabilityLoader.cs` and its test applied. `dotnet build
+Dami.sln --nologo` produced **0 warnings, 0 errors**; `dotnet test Dami.sln --no-restore
+--nologo` passed **326/326** tests across twelve assemblies; `dotnet format Dami.sln
+--verify-no-changes --no-restore --verbosity minimal` exited 0 with no diagnostics.
+No database migration is involved.
+
+`TODO.md` arrived as commit `e87dcc1` after this slice had begun. Work paused as soon as
+Steve announced the new protocol; F1's pre-existing `[~ Codex]` marker was corrected to
+the dated form and pushed separately as `9f3ed9f` before production work resumed. This
+completion commit flips F1 to `[x]` with the demonstrated evidence, per the new board.
