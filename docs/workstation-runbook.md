@@ -210,6 +210,23 @@ Recorded so nobody re-derives them, and so regressions are visible.
 | TEI embedder + reranker resident | 3254 MiB VRAM |
 | `qwen3:8b` loaded | +5.6 GiB |
 
+**The interactive turn budget, measured** (`tools/bench/turn_budget.py`, 7k-row corpus):
+
+| stage | p50 | p95/max |
+|---|---|---|
+| embed query (TEI) | 19 ms | 21 ms |
+| ANN top-24 (pgvector) | 6 ms | 7 ms |
+| rerank 24 (cross-encoder) | 66 ms | 85 ms |
+| **retrieval subtotal** | **91 ms** | — |
+| local LLM TTFT, think off | 31 ms | 49 ms |
+| local LLM TTFT, think on | 93 ms | 188 ms |
+| local LLM 80-tok total, think on | 918 ms | 1020 ms |
+
+N-01 implication: a fully local turn with thinking fits inside 2 s, and a
+frontier-routed turn has **~1.9 s of budget left after retrieval** — the sub-2s target
+is achievable here if the frontier call's first token lands within that. The runtime
+should be designed against these numbers, not MAI's.
+
 **Two things worth knowing before designing against this.**
 
 `OLLAMA_NUM_PARALLEL=1`, so requests serialise. A slow request blocks the queue — an
