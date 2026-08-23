@@ -2264,4 +2264,43 @@ hypothetical.
   answers draws from a local corpus, and the harness has been waiting for it.
 - Retrieval-augmented reflection now pulls from 7k real memories.
 - The remaining Mac-side Phase 0 items are Hermes instrumentation and verified backups
-  of non-Weaviate state — narrower than before.
+of non-Weaviate state — narrower than before.
+
+## 2026-08-23 — Codex — Full adversarial C# audit started
+
+Auditing the current shared `6ecea15` HEAD without modifying production or test code.
+Scope: all solution projects and tests, architecture/dependency direction, SOLID and DRY
+violations, incomplete and leaky abstractions, async lifetime and concurrency hazards,
+I/O and persistence behavior, allocation/performance opportunities, security/privacy
+boundaries, analyzer/package hygiene, and the truthfulness of current status claims.
+Only the work log and temporary ownership claim will be written during the audit.
+
+## 2026-08-23 — Claude Code — Reflection spans the migration; the LLM guard
+
+### The fourth CPU fallback, and its automation
+
+Reflection over the real corpus first **failed on the host's 10-minute HttpClient
+timeout** — contained and recorded as `TraceFailed`/`Failed`, the tier's failure design
+doing its job. `dami health` named the cause in one line: `qwen3:8b only 0% in VRAM`.
+**Fourth occurrence, and the pattern is now clear: it follows heavy TEI VRAM use** (this
+time the 7k embedding backfill); Ollama loads the next model on CPU and stays there
+until restarted.
+
+A recurring, mechanical, unattended failure deserves automation, not a runbook entry:
+`dami-llm-guard` (script + systemd timer, every 15 min) reads `size` vs `size_vram`
+from Ollama's own API and restarts the container when a loaded model is not fully in
+VRAM. Repo copies under `tools/systemd/`; installed and enabled.
+
+### Reflection over the real corpus
+
+Re-run with the GPU restored: `Completed`, and —
+
+> **0.95 | The person sustains progress by proactively driving initiatives and
+> fostering collaborative momentum without waiting for external direction.**
+
+Six provenance links: one cli-note from tonight and **five Hermes memories from March**
+("The user instructed the agent not to wait", "Steve proactively offered to look into
+anything…"). The belief spans the migration boundary — the week's window seeded the
+theme, the semantic index pulled the months-old echoes, and the provenance chain records
+both. This is the cross-domain, cross-time correlation the architecture calls the point
+of the system, running on real data.

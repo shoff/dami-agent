@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart the Ollama sidecar if a model is not fully in VRAM
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/dami-llm-guard
