@@ -1,0 +1,79 @@
+<!doctype html>
+<!--
+  Phase 7 spike, per the charter's own discipline: GUI prototypes are driven by
+  RECORDED events, never a live runtime. This file renders an exported trace
+  (sample-trace.json, a real pass from the event store) as actor lanes on a timeline.
+
+  It exists to inform the Tauri/React-vs-Avalonia decision by making the data's shape
+  tangible - it is not the GUI, and it must not become it. One file, no build step,
+  no dependencies: open it in a browser next to its JSON.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dami trace viewer (spike)</title>
+<style>
+  body { font: 13px/1.4 monospace; background:#14161a; color:#d8dee9; margin:2rem; }
+  h1 { font-size:15px; } .muted { color:#6b7280; }
+  .lane { margin:14px 0; }
+  .lane-name { color:#88c0d0; margin-bottom:4px; }
+  .track { position:relative; height:26px; background:#1e222a; border-radius:4px; }
+  .ev { position:absolute; top:3px; height:20px; border-radius:3px; min-width:8px;
+        cursor:default; }
+  .ev.Succeeded { background:#3b7a57; } .ev.Running { background:#8a7a2d; }
+  .ev.Failed { background:#a04040; } .ev.Cancelled { background:#666; }
+  .detail { margin-top:20px; border-top:1px solid #333; padding-top:10px; }
+  .row { display:grid; grid-template-columns: 90px 150px 110px 1fr; gap:10px; padding:2px 0; }
+  .row:hover { background:#1e222a; }
+  .t-TraceStarted,.t-TraceCompleted { color:#88c0d0; }
+  .t-EgressRequested,.t-EgressCompleted,.t-EgressRefused { color:#d08770; }
+  .t-Surfaced { color:#a3be8c; } .t-TraceFailed,.t-TraceCancelled { color:#bf616a; }
+</style>
+</head>
+<body>
+<h1>Dami trace viewer <span class="muted">— recorded events only; the display invents nothing</span></h1>
+<div id="meta" class="muted"></div>
+<div id="lanes"></div>
+<div id="detail" class="detail"></div>
+<script>
+fetch('sample-trace.json').then(r => r.json()).then(events => {
+  const t0 = new Date(events[0].at).getTime();
+  const t1 = new Date(events[events.length-1].at).getTime();
+  const span = Math.max(t1 - t0, 1);
+  document.getElementById('meta').textContent =
+    `${events.length} events · ${(span/1000).toFixed(1)}s · origin ${events[0].origin}`;
+
+  const lanes = {};
+  for (const ev of events) (lanes[ev.actor] ??= []).push(ev);
+
+  const lanesEl = document.getElementById('lanes');
+  for (const [actor, evs] of Object.entries(lanes)) {
+    const lane = document.createElement('div'); lane.className = 'lane';
+    lane.innerHTML = `<div class="lane-name">${actor}</div>`;
+    const track = document.createElement('div'); track.className = 'track';
+    for (const ev of evs) {
+      const x = (new Date(ev.at).getTime() - t0) / span * 100;
+      const el = document.createElement('div');
+      el.className = `ev ${ev.status}`;
+      el.style.left = `${Math.min(x, 98)}%`;
+      el.style.width = '1.5%';
+      el.title = `${ev.type}: ${ev.label}`;
+      track.appendChild(el);
+    }
+    lane.appendChild(track); lanesEl.appendChild(lane);
+  }
+
+  const detail = document.getElementById('detail');
+  for (const ev of events) {
+    const row = document.createElement('div'); row.className = 'row';
+    const t = new Date(ev.at);
+    row.innerHTML =
+      `<span class="muted">${t.toISOString().slice(11,19)}</span>` +
+      `<span class="t-${ev.type}">${ev.type}</span>` +
+      `<span>${ev.actor}</span><span>${ev.label}</span>`;
+    detail.appendChild(row);
+  }
+});
+</script>
+</body>
+</html>

@@ -2966,3 +2966,16 @@ green — 63 in Proactive.
 consecutive full-suite runs. Timing-sensitive concurrency test; flagged for its author.
 The 910c5b7 commit message's "all suites green" claim predates observing this flake —
 corrected here: eleven suites green, one known-flaky test in the twelfth.
+
+## 2026-08-23 — Claude Code — Phase 7 seed: a trace viewer driven by recorded events
+
+The charter's GUI discipline, obeyed to the letter: prototypes come from RECORDED
+events, never a live runtime. `tools/gui-spike/trace-viewer.html` is one dependency-free
+file that renders `sample-trace.json` — the scout's real first live pass, exported from
+the event store — as actor lanes on a timeline with a detail table. Status colors,
+egress events highlighted, nothing invented.
+
+It exists to make the data's shape tangible for the open Tauri/React-vs-Avalonia
+decision, and the file's own header says what it must not become: the GUI. Open it in a
+browser next to its JSON (`python3 -m http.server` in the directory, or any static
+serve).
