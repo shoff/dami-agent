@@ -41,6 +41,11 @@ services.AddSingleton<ContextCommands>();
 services.AddSingleton<VisionCommands>();
 services.AddSingleton<StatsCommands>();
 services.AddSingleton<ChatCommands>();
+services.AddSingleton<FrontierCommands>();
+services.AddOptions<CodexOptions>();
+services.Configure<CodexOptions>(configuration.GetSection(CodexOptions.SECTION_NAME));
+services.AddSingleton<ICodexProcess, CodexProcess>();
+services.AddSingleton<Dami.Contracts.Models.IFrontierChat, CodexChatClient>();
 services.AddOptions<RoutingOptions>();
 services.AddSingleton<Dami.Contracts.Models.IModelRouter, ModelRouter>();
 services.AddSingleton<ITurnRunner, TurnRunner>();
@@ -69,4 +74,5 @@ return await CommandRouter.RunAsync(
     provider.GetRequiredService<ContextCommands>(),
     provider.GetRequiredService<VisionCommands>(),
     provider.GetRequiredService<StatsCommands>(),
-    provider.GetRequiredService<ChatCommands>());
+    provider.GetRequiredService<ChatCommands>(),
+    provider.GetRequiredService<FrontierCommands>());

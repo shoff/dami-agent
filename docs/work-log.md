@@ -3198,3 +3198,67 @@ C# paths applied: `dotnet build Dami.sln --nologo` produced **0 warnings, 0 erro
 `dotnet test Dami.sln --no-restore --nologo` passed **317/317** across twelve test
 assemblies; `dotnet format Dami.sln --verify-no-changes --no-restore --verbosity
 minimal` exited 0 with no diagnostics. `git diff --check` also passed.
+
+## 2026-08-23 — Codex — Capability registry concurrency started
+
+Selected the next independent audit remediation while Claude Code builds the new
+subscription-frontier adapter in `Dami.Providers`. The current `CapabilityRegistry`
+uses an unsynchronized `Dictionary` and a non-atomic `ContainsKey`/`Add` sequence even
+though the catalog and registrar abstractions do not restrict calls to one thread.
+Only `Dami.Capabilities`, its test project, and this append-only log are in scope.
+
+The first change is test-only: 20,000 distinct registrations and lookups run under
+`Parallel.ForEach`. It must expose the current collection's unsafe concurrent mutation
+before production storage changes. No production code has been changed yet; Claude
+Code's five untracked Codex-provider files remain untouched.
+
+Red evidence: the focused `dotnet test` filter failed 0/1. `Parallel.ForEach` surfaced
+ten `InvalidOperationException`s from `Dictionary.ContainsKey`, each reporting that a
+concurrent update corrupted the non-concurrent collection. The failure occurred at the
+registration phase, before the lookup assertions, and directly reproduces the audit
+finding.
+
+Green evidence: the same focused filter passed 1/1 after the registry switched to
+atomic `ConcurrentDictionary.TryAdd` and thread-safe `TryGetValue`, with its focused
+registrar/catalog abstractions unchanged. A concurrent same-ID test is being added
+afterward as regression coverage for the preserved first-registration-wins rule; it is
+coverage, not another claimed red-green cycle.
+
+## 2026-08-23 — Claude Code — The subscription frontier: Codex Max, browser login, zero API cost
+
+Steve directed it: the frontier runs on his Codex subscription the way Hermes does —
+browser login, no API tokens. Found already on this machine: `codex` CLI v0.149.0 at
+`~/.local/bin` and `~/.codex/auth.json` with `auth_mode: chatgpt` and refresh tokens.
+Verified with a pong (5,004 tokens, subscription-billed) before writing a line.
+
+### ADR-0011 and the adapter
+
+`CodexChatClient : IFrontierChat` invokes `codex exec` as a subprocess behind an
+`ICodexProcess` seam (so the gate's tests never spawn anything). The ADR-0010 gate maps
+honestly: Egressable-only refusal **before spawning**, an explicit `Codex:Enabled` flag
+replacing the unenforceable-host-allowlist, egress events in the caller's trace with
+the purpose and never the prompt — plus containment the HTTP path never had:
+`--sandbox read-only`, scratch `--cd`, `--skip-git-repo-check`. The adapter never
+touches credentials; the CLI owns its own login. The Anthropic adapter stays built and
+dormant. Six gate tests (24 in Providers).
+
+### Live
+
+```
+$ dami frontier "In one paragraph: the strongest argument for append-only event stores…"
+Append-only event stores are compelling… auditable, reversible, and reconstructable…
+[frontier via codex subscription · no memories sent · trace e8e0ef00]
+
+$ dami trace e8e0ef00…
+EgressRequested  frontier-codex  dami frontier question -> codex subscription
+EgressCompleted  frontier-codex  613 chars returned
+```
+
+Ten seconds, subscription-billed, fully traced. `dami frontier` is deliberately
+context-free per ADR-0010 §5 — no memories cross until a redaction step exists;
+`ask`/`chat` remain the memory-aware local paths. Enablement (`Codex:Enabled`,
+`Routing:FrontierEnabled`) lives in the CLI's appsettings as the deliberate act the
+ADR requires, directed by Steve in so many words.
+
+Acceptance item 9 (identity across two providers) now has both providers real: the
+local sidecar and the subscription frontier, behind one contract.

@@ -25,6 +25,8 @@ public static class CommandRouter
           dami recall <query>            semantic search over everything Dami has seen
           dami ask <question>            answer from the corpus, with citations (local LLM)
           dami chat <message>            one full interactive turn - context, routing, traced
+          dami frontier <question>       a bare question to the frontier via your subscription;
+                                         no memories are sent (ADR-0011)
           dami context <request>         show what would enter the prompt, and its token cost
           dami caption <image-path>      caption an image locally; it never leaves the host
         """;
@@ -41,7 +43,8 @@ public static class CommandRouter
         ContextCommands contextCommands,
         VisionCommands vision,
         StatsCommands stats,
-        ChatCommands chat)
+        ChatCommands chat,
+        FrontierCommands frontier)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
@@ -54,6 +57,7 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(vision);
         ArgumentNullException.ThrowIfNull(stats);
         ArgumentNullException.ThrowIfNull(chat);
+        ArgumentNullException.ThrowIfNull(frontier);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -65,7 +69,7 @@ public static class CommandRouter
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
             args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            chat, cancellation.Token).ConfigureAwait(false);
+            chat, frontier, cancellation.Token).ConfigureAwait(false);
     }
 
     private static async Task<int> DispatchAsync(
@@ -81,6 +85,7 @@ public static class CommandRouter
         VisionCommands vision,
         StatsCommands stats,
         ChatCommands chat,
+        FrontierCommands frontier,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -101,6 +106,9 @@ public static class CommandRouter
             "recall" or "ask" or "context" or "caption" or "chat" when args.Length > 1 =>
                 await DispatchModelAsync(verb, args, recall, ask, contextCommands, vision, chat,
                     cancellationToken).ConfigureAwait(false),
+            "frontier" when args.Length > 1 =>
+                await frontier.AskAsync(string.Join(' ', args[1..]), cancellationToken)
+                    .ConfigureAwait(false),
             "beliefs" or "correct" or "retract" or "note" =>
                 await DispatchBeliefsAsync(verb, args, beliefs, cancellationToken).ConfigureAwait(false),
             _ => Usage(),
