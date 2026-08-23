@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 20:23 CDT (`2026-08-23T01:23Z`)
+- **Last updated:** 2026-08-22 20:54 CDT (`2026-08-23T01:54Z`)
 - **Updated by:** Claude Code session, from direct inspection of this workstation
 - **Current phase:** 0 and 1, both in progress
 
@@ -62,7 +62,7 @@ the instrumentation gates the claim that Dami Core is faster than Hermes — arc
 | Database backup schedule | **not started** | one manual dump exists; `/home` is excluded from snapshots, so the cluster has no recurring backup |
 | Container runtime | done | `docker --version` → 29.1.3 |
 | GPU passthrough into containers | done | `docker run --rm --gpus all ubuntu:24.04 nvidia-smi` → RTX 4080 visible |
-| CUDA compute proven from a pinned container | **not done** | `nvidia-smi` in a container proves device visibility and driver injection only. No kernel has been launched. |
+| CUDA compute proven from a pinned container | done | `cuInit()` returns `CUDA_SUCCESS` with `deviceCount=1` inside a container; TEI runs FlashBert on `Cuda(CudaDevice(DeviceId(1)))` |
 | .NET SDK | done | `dotnet --version` → 10.0.400 |
 | PostgreSQL on bare metal | done | `pg_lsclusters` → `16 main 5432 online`; listening on `127.0.0.1:5432` |
 | pgvector extension present | done | `select installed_version ... where name='vector'` → `0.6.0` |
@@ -70,23 +70,23 @@ the instrumentation gates the claim that Dami Core is faster than Hermes — arc
 | PostgreSQL from PGDG (D-004) | done | `postgresql-16 16.15-1.pgdg24.04+2`, `postgresql-16-pgvector 0.8.6-1.pgdg24.04+1` |
 | Least-privilege database roles | done | `dami_ddl` owns schema `dami`; `dami_app` DML only — both verified non-superuser and DDL-denied |
 | `uv` for Python sidecars | not installed | `command -v uv` → nothing |
+| Embedding service | done | TEI `89-1.9.0` on GPU serving `BAAI/bge-m3`, 1024 dims, 1853 MiB VRAM, ~46 ms per embed |
 | SSH and remote access | unknown | Not verified by this session |
 
-**Phase 1 has one blocker left: CUDA compute has never been demonstrated**, only device
-visibility. Rollback is now available via Timeshift; rehearsing a restore was downgraded
-to recommended on 2026-08-22 and no longer gates the phase. Live-boot validation and SSH
-remain unverified by this session — ask Steve rather than assuming.
+**Phase 1's stated exit conditions are met:** stable host, GPU compute verified, rollback
+available. Live-boot validation and SSH were never observed by this session — ask Steve
+rather than assuming — but nothing else blocks the phase.
 
 ### Phase 2 — Data foundation · *not started*
 
 | Item | State |
 |---|---|
 | Schemas: observation corpus, conclusions ledger, pushback ledger, event store | not started |
-| Local embedding service on GPU | not started — container not chosen, see §4 |
+| Local embedding service on GPU | **done** — TEI `89-1.9.0`, `BAAI/bge-m3`, GPU-resident |
 | Migrate the 7,000 memories | blocked on Phase 0 corpus export |
 | Run the eval, select the embedder on evidence | blocked on Phase 0 eval set |
 | Local reranker service | not started |
-| Retrieval pipeline verified end to end | not started |
+| Retrieval pipeline verified end to end | **partial** — embed → pgvector → HNSW cosine search proven; reranking not built |
 
 ### Phases 3–10 · *not started*
 
@@ -149,6 +149,55 @@ Orphaned pgAdmin state left in place under `/home/steve/Data`:
 no credentials), and `pgadmin-dami.env`, **which does contain credentials** and is now
 attached to nothing. Worth deleting.
 
+### Inference sidecars
+
+| | |
+|---|---|
+| Container | `dami-embed`, `restart=unless-stopped`, `127.0.0.1:8080` |
+| Image | `ghcr.io/huggingface/text-embeddings-inference:89-1.9.0` — **pinned**, digest `sha256:f6b08465…222d9338` |
+| Arch | `89` = Ada / sm89, correct for the RTX 4080. `89-1.9.0` is the newest tag; `89-1.10.0` returns 404. |
+| Model | `BAAI/bge-m3`, fp16, CLS pooling, 1024 dims, 8192 max input |
+| VRAM | ~1853 MiB of 16376 |
+| Latency | 5 sequential single embeds in 0.228 s wall, curl overhead included |
+| Model cache | `/home/steve/Data/tei-models` — outside the Timeshift snapshot set, and re-downloadable |
+
+**Verified end to end**, not just started: four documents embedded through TEI, written by
+`dami_ddl` into a `vector(1024)` column, HNSW-indexed, then queried by `dami_app`. The
+query *"what does the weekly cross-domain pass do?"* returned the reflection-pass document
+first at cosine distance 0.5619, with no lexical overlap to lean on.
+
+**Caveat on BGE-M3:** TEI serves the dense head only. D-010 notes BGE-M3's "native
+sparse+dense"; the sparse and ColBERT heads are not available through this service, so
+hybrid search must come from tsvector plus reciprocal rank fusion in SQL as D-008 already
+specifies.
+
+### The CUDA forward-compatibility trap
+
+**This will recur with every NVIDIA CUDA-based image** — Ollama, the reranker, vision,
+STT, and TTS. Recorded here so it is diagnosed once.
+
+TEI started, reported `CUDA_ERROR_SYSTEM_DRIVER_MISMATCH`, and **silently fell back to
+CPU** while still answering health checks. The cause:
+
+```
+LD_LIBRARY_PATH=/usr/local/cuda/compat:/usr/local/cuda/lib64
+/usr/local/cuda/compat/libcuda.so.1 → libcuda.so.575.57.08     (bundled in the image)
+host driver / injected libcuda                → libcuda.so.595.84
+```
+
+CUDA forward-compatibility libraries exist to run a **new** CUDA runtime on an **old**
+driver. This host's driver is newer than the bundled compat lib, so userspace 575 talked
+to kernel module 595 and CUDA refused. The image's own `NVIDIA_REQUIRE_CUDA` tops out at
+`driver<571`.
+
+**Fix:** `-e LD_LIBRARY_PATH=/usr/local/cuda/lib64`, dropping the compat directory so the
+injected host driver is used. Proven with a `cuInit()` probe: `12090`/`cuInit=803` before,
+`13020`/`cuInit=0` after.
+
+**The lesson worth keeping:** the container reported healthy and served correct
+embeddings the whole time it was on CPU. Every new inference sidecar must be checked for
+which device it actually bound to, not merely whether it responds.
+
 ### apt repositories
 
 Repaired 2026-08-22. `pgadmin4.list` pointed at suite `zena` — Mint's codename — which
@@ -210,7 +259,7 @@ Nothing below can be settled by inspection. Each blocks work that is expensive t
 | 1 | Accept or reject **ADR-0001** — Linux Mint 22.3 as host, reversing D-003's Debian 13 | Phase 1 close | Reversal is a reinstall now, a data migration after Phase 2 |
 | 2 | Rehearse one restore from the live USB — **recommended, not blocking** | acceptance item 13 | Downgraded from a Phase 1 gate by Steve on 2026-08-22. Cheap now while the host carries nothing; the same work against real data in Phase 10. |
 | 3 | **Stay on PostgreSQL 16, or move to 17/18?** | Phase 2 schema | PGDG is configured, so either is available. The removed container ran 18.6. Cheap now with two near-empty databases, expensive once the corpus lands. |
-| 4 | **Which embedding container** — TEI, Infinity, Ollama, or vLLM | Phase 2 | Options and tradeoffs were presented; recommendation was TEI with Ollama kept separate for the LLM sidecar |
+| 4 | ~~Which embedding container~~ | — | **Decided 2026-08-22: TEI.** Running on GPU with `bge-m3`. Ollama stays separate for the LLM sidecar. |
 | 5 | Split `D-001`…`D-022` into individual ADR files, or leave them in the register | doc hygiene | `CLAUDE.md` says decisions live in `docs/decisions/`; the register is a parallel structure |
 | 6 | Retarget `docs/csharpcodestandards.md` from MAI to Dami | before first code | It still says `MAI.sln`, `MAI.Core`, `MA.RoslynAnalyzers`, `mai_dev`. `MA.RoslynAnalyzers` does not exist for this project. |
 | 7 | Add `apt-mark hold` on the NVIDIA toolkit and driver stack | host stability | ADR-0002 assumes controlled update windows; nothing enforces them yet |
@@ -238,15 +287,14 @@ change, or an ADR — not silence.
 
 ## 6. Next actions, in order
 
-1. **Prove CUDA compute from a pinned container** — an actual kernel launch, not
-   `nvidia-smi`. The last remaining Phase 1 blocker.
-2. **Accept or reject ADR-0001** (host OS). Reversal is a reinstall now and a data
+1. **Accept or reject ADR-0001** (host OS). Reversal is a reinstall now and a data
    migration after Phase 2.
 3. **Decide the database backup schedule.** `/home` is excluded from snapshots, so the
    cluster is covered only by a single manual dump. Backup destination, encryption, and
    retention are all still open decisions in the register.
 4. **Decide PostgreSQL 16 versus 17/18** while both databases are still near-empty.
-5. **Pick the embedding container** (§4 #4) and stand it up pinned.
+5. **Stand up the reranker**, the second half of the §9.3 pipeline — same TEI image,
+   a cross-encoder, its own container and port.
 6. **Phase 0 on the Mac** — backups, corpus export, eval set, instrumentation. Phase 2
    is blocked on all four regardless of what happens on this workstation.
 7. *Recommended, not blocking:* rehearse a Timeshift restore from the live USB, and
