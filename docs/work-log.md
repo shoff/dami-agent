@@ -2878,3 +2878,21 @@ Vision, and Vision.Tests. Full solution after everything: **0 warnings, 0 errors
 twelve test suites, ALL GREEN.** Also fixed root-owned obj/ dirs (my root-created
 Vision project) that briefly broke the build for steve — the recurring agents-run-as-root
 trap, on me this time.
+
+## 2026-08-23 — Claude Code — dami context and dami caption
+
+Two verbs that make earlier layers visible from the shell.
+
+**`dami context <request>`** assembles and prints exactly what would enter a prompt.
+Live: *"what is going on with the mai project"* → **~512 tokens** — 2 beliefs (the
+corrected one and the corpus-spanning one) and 8 relevant March memories, ranked, with
+dates. The motivating comparison in one line: Hermes measured 90,000–126,000 tokens per
+request; the assembled context here is 512, and the ceiling is enforced, not hoped.
+
+**`dami caption <path>`** runs local vision on a file that never leaves the host —
+warm captioning at 1.4 s. This is the librarian's Phase 6 upgrade path, usable today
+by hand.
+
+CLI republished to `/opt/dami/cli`. One infra note: a `dotnet build` hit NETSDK1064 (a
+partially-restored analyzers package, likely a race with concurrent builds) — an
+explicit `dotnet restore` fixed it; recorded in case it recurs.

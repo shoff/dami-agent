@@ -1,7 +1,9 @@
 using Dami.Gateway.Cli;
 using Dami.Contracts.Models;
 using Dami.Persistence;
+using Dami.Core.Context;
 using Dami.Providers;
+using Dami.Vision;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -34,6 +36,13 @@ services.AddSingleton<BeliefCommands>();
 services.AddSingleton<HealthCommands>();
 services.AddSingleton<RecallCommands>();
 services.AddSingleton<AskCommands>();
+services.AddSingleton<ContextCommands>();
+services.AddSingleton<VisionCommands>();
+services.AddOptions<ContextOptions>();
+services.AddSingleton<Dami.Contracts.Context.IContextBuilder, ContextBuilder>();
+services.AddOptions<OllamaVisionOptions>();
+services.AddHttpClient<Dami.Contracts.Models.IVisionClient, OllamaVisionClient>(client =>
+    client.Timeout = TimeSpan.FromMinutes(10));
 services.AddHttpClient<IEmbeddingClient, TeiEmbeddingClient>();
 services.AddHttpClient<IRerankClient, TeiRerankClient>();
 services.AddHttpClient<IChatClient, OllamaChatClient>(client => client.Timeout = TimeSpan.FromMinutes(10));
@@ -50,4 +59,6 @@ return await CommandRouter.RunAsync(
     provider.GetRequiredService<BeliefCommands>(),
     provider.GetRequiredService<HealthCommands>(),
     provider.GetRequiredService<RecallCommands>(),
-    provider.GetRequiredService<AskCommands>());
+    provider.GetRequiredService<AskCommands>(),
+    provider.GetRequiredService<ContextCommands>(),
+    provider.GetRequiredService<VisionCommands>());

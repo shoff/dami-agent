@@ -23,6 +23,8 @@ public static class CommandRouter
           dami health                    check postgres, sidecars, GPU placement, tier
           dami recall <query>            semantic search over everything Dami has seen
           dami ask <question>            answer from the corpus, with citations (local LLM)
+          dami context <request>         show what would enter the prompt, and its token cost
+          dami caption <image-path>      caption an image locally; it never leaves the host
         """;
 
     /// <summary>Runs one command. Returns the process exit code.</summary>
@@ -33,7 +35,9 @@ public static class CommandRouter
         BeliefCommands beliefs,
         HealthCommands health,
         RecallCommands recall,
-        AskCommands ask)
+        AskCommands ask,
+        ContextCommands contextCommands,
+        VisionCommands vision)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
@@ -42,6 +46,8 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(health);
         ArgumentNullException.ThrowIfNull(recall);
         ArgumentNullException.ThrowIfNull(ask);
+        ArgumentNullException.ThrowIfNull(contextCommands);
+        ArgumentNullException.ThrowIfNull(vision);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -52,7 +58,8 @@ public static class CommandRouter
 
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
-            args, inbox, traces, beliefs, health, recall, ask, cancellation.Token).ConfigureAwait(false);
+            args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision,
+            cancellation.Token).ConfigureAwait(false);
     }
 
     private static async Task<int> DispatchAsync(
@@ -64,6 +71,8 @@ public static class CommandRouter
         HealthCommands health,
         RecallCommands recall,
         AskCommands ask,
+        ContextCommands contextCommands,
+        VisionCommands vision,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -86,6 +95,11 @@ public static class CommandRouter
             "ask" when args.Length > 1 =>
                 await ask.AskAsync(string.Join(' ', args[1..]), cancellationToken)
                     .ConfigureAwait(false),
+            "context" when args.Length > 1 =>
+                await contextCommands.ShowAsync(string.Join(' ', args[1..]), cancellationToken)
+                    .ConfigureAwait(false),
+            "caption" when args.Length > 1 =>
+                await vision.CaptionAsync(args[1], cancellationToken).ConfigureAwait(false),
             "beliefs" or "correct" or "retract" or "note" =>
                 await DispatchBeliefsAsync(verb, args, beliefs, cancellationToken).ConfigureAwait(false),
             _ => Usage(),
