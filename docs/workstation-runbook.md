@@ -28,6 +28,7 @@ network, and that is deliberate — remote access is SSH first, then talk to loc
 | pgAdmin | desktop app | — native | `pgadmin4-desktop 9.17` | the container was removed; do not recreate it |
 | Proactive tier | systemd `dami-proactive` | — bare metal | published to `/opt/dami/proactive` | hourly tick; five services (scout, reflection, pushback-audit, media-librarian, embedder); config via `systemctl edit dami-proactive`; logs in `journalctl -u dami-proactive` |
 | `dami` CLI | `/usr/local/bin/dami` | — native | published to `/opt/dami/cli` | inbox/read/feedback, beliefs/correct/retract, recall, trace, note, health |
+| LLM guard | systemd `dami-llm-guard.timer` | — bare metal | 15-min check | restarts `dami-llm` when a loaded model is not fully in VRAM (five occurrences of the silent CPU fallback to date) |
 
 All containers are `--restart unless-stopped` and `docker.service` is enabled at boot,
 so they return after a reboot without intervention.
@@ -175,7 +176,14 @@ Also observed twice now (§4.3's rule proving itself): **`qwen3:8b` silently fel
 100% CPU** at 2 tok/s with 13 GiB of VRAM free — `docker exec dami-llm ollama ps` is
 the check, a container restart the fix.
 
-### 4.5 `/home` is excluded from Timeshift, and that includes the database
+### 4.5 Corpus and exports
+
+The Hermes corpus lives in `dami.observations` (7,048 rows, all embedded). The full
+Weaviate preservation export — all seventeen classes with vectors, sha256 manifest —
+is at `/home/steve/Data/corpus-export/full/` (156 MB). The Mac's Weaviate
+(192.168.4.23:8081) was read-only throughout and remains the rollback.
+
+### 4.6 `/home` is excluded from Timeshift, and that includes the database
 
 Timeshift covers the host, not the data. The cluster's data directory is
 `/home/steve/Data/pgsql-dami-data`, which is **not** in any snapshot. That is correct —

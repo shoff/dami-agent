@@ -328,6 +328,8 @@ Nothing below can be settled by inspection. Each blocks work that is expensive t
 | 6 | ~~Retarget `csharpcodestandards.md`~~ | — | **Done 2026-08-22.** Retargeted, and §12 now separates what is a build error from the enforcement gap. |
 | 9 | ~~How to enforce SOLID~~ | — | **Closed 2026-08-22.** `Dami.Analyzers` covers `#region`, `dynamic`, method length, loop nesting, optional constructor dependencies, and `NotImplementedException` on interface members; `Dami.Architecture.Tests` covers layering, leaky surfaces, and async contracts. What remains — SRP, OCP, ISP, hot-path LINQ — is not decidable from syntax and is review-only by decision, recorded in standards §12. |
 | 7 | Add `apt-mark hold` on the NVIDIA toolkit and driver stack | host stability | ADR-0002 assumes controlled update windows; nothing enforces them yet |
+| 11 | **Do the Kokoro classes belong in Dami's corpus?** KokoroMemory (772), KokoroConcept (3,811), KokoroEntity (718) et al. are preserved in the full export but not imported — they look like a different agent system's graph. | corpus completeness | Import needs a judgment about whose memories they are; not inferable from the data. |
+| 12 | **Review the draft eval set** — `tools/eval/corpus-queries.draft.jsonl`, 37 pairs with source snippets. Delete bad pairs, add missed relevant ids; then D-010 closes on a re-run. | D-010 | The three-way baseline already ran; bge-m3 leads on every metric. |
 | 10 | **Accept or revise ADR-0003.** A verified nightly local dump is in place as an interim measure. Off-host destination, encryption, and a stated recovery objective are still open. | data safety | 14-day retention is arbitrary — no RPO has been stated. Consider PITR before the corpus lands. |
 
 ---
