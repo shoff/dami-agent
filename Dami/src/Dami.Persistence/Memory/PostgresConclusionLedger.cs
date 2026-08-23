@@ -68,7 +68,7 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
     public static string BuildActiveSql(string schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
-        return $"{SelectList(schema)} where subject = @subject and retracted_at is null order by concluded_at desc;";
+        return $"{SelectList(schema)} where c.subject = @subject and c.retracted_at is null order by c.concluded_at desc;";
     }
 
     /// <inheritdoc />
@@ -139,7 +139,7 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
 
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            yield return Read(reader, []);
+            yield return Read(reader, ReadSupporting(reader));
         }
     }
 
@@ -151,9 +151,9 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
         await using var command = this.dataSource.CreateCommand(
             $"""
             {SelectList(this.Schema)}
-            where concluded_at <= @as_of
-              and (retracted_at is null or retracted_at > @as_of)
-            order by concluded_at desc;
+            where c.concluded_at <= @as_of
+              and (c.retracted_at is null or c.retracted_at > @as_of)
+            order by c.concluded_at desc;
             """);
         command.Parameters.AddWithValue("as_of", asOf);
 
@@ -162,7 +162,7 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
 
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            yield return Read(reader, []);
+            yield return Read(reader, ReadSupporting(reader));
         }
     }
 
@@ -170,7 +170,7 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
     public async Task<Conclusion?> FindAsync(Guid conclusionId, CancellationToken cancellationToken)
     {
         await using var command = this.dataSource.CreateCommand(
-            $"{SelectList(this.Schema)} where conclusion_id = @conclusion_id;");
+            $"{SelectList(this.Schema)} where c.conclusion_id = @conclusion_id;");
         command.Parameters.AddWithValue("conclusion_id", conclusionId);
 
         await using var reader = await command
@@ -181,19 +181,22 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
             return null;
         }
 
-        var found = Read(reader, []);
-        await reader.CloseAsync().ConfigureAwait(false);
-
-        var supporting = await this.ReadSupportingAsync(conclusionId, cancellationToken).ConfigureAwait(false);
-        return Read(found, supporting);
+        return Read(reader, ReadSupporting(reader));
     }
 
     private static string SelectList(string schema)
     {
+        // Provenance rides along via array_agg so set reads stay one query. The active
+        // set is designed to be a few hundred rows at most (D-009), so this is cheap.
         return $"""
-            select conclusion_id, supersedes_id, subject, statement, confidence, source,
-                   concluded_at, retracted_at, retraction_reason
-            from {schema}.conclusions
+            select c.conclusion_id, c.supersedes_id, c.subject, c.statement, c.confidence, c.source,
+                   c.concluded_at, c.retracted_at, c.retraction_reason,
+                   coalesce(
+                       (select array_agg(o.observation_id)
+                          from {schema}.conclusion_observations o
+                         where o.conclusion_id = c.conclusion_id),
+                       array[]::uuid[]) as supporting
+            from {schema}.conclusions c
             """;
     }
 
@@ -250,22 +253,9 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
         command.Parameters.AddWithValue("retraction_reason", (object?)source.RetractionReason ?? DBNull.Value);
     }
 
-    private async Task<IReadOnlyList<Guid>> ReadSupportingAsync(Guid conclusionId, CancellationToken cancellationToken)
+    private static IReadOnlyList<Guid> ReadSupporting(NpgsqlDataReader reader)
     {
-        await using var command = this.dataSource.CreateCommand(
-            $"select observation_id from {this.Schema}.conclusion_observations where conclusion_id = @id;");
-        command.Parameters.AddWithValue("id", conclusionId);
-
-        var found = new List<Guid>();
-        await using var reader = await command
-            .ExecuteReaderAsync(CommandBehavior.SingleResult, cancellationToken).ConfigureAwait(false);
-
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            found.Add(reader.GetGuid(0));
-        }
-
-        return found;
+        return reader.IsDBNull(9) ? [] : reader.GetFieldValue<Guid[]>(9);
     }
 
     private static Conclusion Read(NpgsqlDataReader reader, IReadOnlyList<Guid> supporting)
@@ -283,11 +273,4 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
             retractionReason: reader.IsDBNull(8) ? null : reader.GetString(8));
     }
 
-    private static Conclusion Read(Conclusion source, IReadOnlyList<Guid> supporting)
-    {
-        return new Conclusion(
-            source.ConclusionId, source.SupersedesId, source.Subject, source.Statement,
-            source.Confidence, source.Source, source.ConcludedAt, supporting,
-            source.RetractedAt, source.RetractionReason);
-    }
 }

@@ -6,6 +6,7 @@ using Dami.Persistence;
 using Dami.Privacy;
 using Dami.Proactive;
 using Dami.Proactive.Audit;
+using Dami.Proactive.Reflection;
 using Dami.Proactive.Scout;
 using Dami.Providers;
 
@@ -46,6 +47,15 @@ builder.Services.AddSingleton<IProactiveService, InterestScout>();
 
 // D-011's quarterly decay detector. Local-only: no egress dependency, by design.
 builder.Services.AddSingleton<IProactiveService, PushbackAuditService>();
+
+// The weekly reflection pass: observations -> at most one belief, via the loopback
+// sidecar. The most personal pass in the system, and deliberately egress-free.
+builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection(OllamaOptions.SECTION_NAME));
+builder.Services.AddHttpClient<IChatClient, OllamaChatClient>(client =>
+    client.Timeout = TimeSpan.FromMinutes(10));
+builder.Services.Configure<ReflectionOptions>(
+    builder.Configuration.GetSection(ReflectionOptions.SECTION_NAME));
+builder.Services.AddSingleton<IProactiveService, ReflectionService>();
 
 builder.Services.AddHostedService<ProactiveWorker>();
 

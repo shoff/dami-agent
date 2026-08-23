@@ -1836,3 +1836,59 @@ dotnet test Dami.sln
 The Codex transport ownership claim was cleared after commits `b8dd3d4`, `ada9bb6`, and
 `5326dba` were pushed. Architecture §7.5.5 TCP steps 1–5 are complete; step 6 (UDP) stays
 deferred exactly as the architecture directs until voice is on the roadmap.
+
+## 2026-08-23 — Claude Code — The reflection pass: Dami's first belief about Steve
+
+The model-of-Steve engine, v0. `IChatClient` + `OllamaChatClient` (the model layer's
+second contract, loopback like the first), and `ReflectionService`: weekly, reads the
+observation corpus, asks the local sidecar for AT MOST one durable pattern, and writes
+it to the ledger — with provenance mapped from the model's cited observation numbers to
+real observation ids.
+
+**The model proposes; the service disposes.** A proposal must parse, must cite at least
+one observation, and must clear a confidence floor. Nine tests pin the gate: garbage
+JSON → quiet pass; no provenance → discarded (an unsupported assertion never becomes a
+belief); low confidence → discarded; out-of-range citations → ignored; and the pass
+never surfaces — conclusions only, per the architecture's "one observation weekly or
+none". The pass is deliberately egress-free: the most personal pass in the system has no
+`IEgressClient` dependency, visible in the composition root.
+
+### Observed live, with two findings
+
+The first live attempts were **cancelled by my own harness timeouts** — each cancellation
+honestly recorded as `TraceCancelled` in the event store, which is the trace-first
+design doing its job on its own author.
+
+Diagnosis of the slowness: **`qwen3:8b` had silently moved to 100% CPU** (`ollama ps`),
+generating at 2 tok/s instead of 90+, despite 13 GiB of free VRAM — a stale placement
+after the earlier VRAM churn. A container restart restored `100% GPU`. **Second
+occurrence of the runbook's rule: a healthy endpoint says nothing about the device.**
+Runbook §4.3 now proven twice.
+
+Then, warm and on GPU, a full pass in 13 seconds:
+
+```
+05:30:07 run  TraceStarted        reflection pass started
+05:30:20 done ConclusionRecorded  The person prioritizes proactive system development…
+05:30:20 done TraceCompleted      reflection: 1 concluded, 0 surfaced
+
+$ dami beliefs
+5afd98e4  0.90  [ReflectionPass, 3 obs]  The person prioritizes proactive system
+                                          development and values positive outcomes.
+```
+
+**Dami formed its first belief about Steve, unprompted, from three real observations,
+with provenance, inspectable and retractable from the CLI.** One earlier pass answered
+"nothing" and stayed quiet — the model exercising the option the prompt gives it.
+
+Also fixed live: `dami beliefs` showed "no provenance" because set reads did not load
+the link table. Provenance now rides along via `array_agg` in one query — the active set
+is a few hundred rows by design (D-009), so this stays cheap. FindAsync's second query
+removed.
+
+Honest caveat: the belief itself is anodyne — three observations from one evening is a
+thin corpus, and qwen3:8b writes like a fortune cookie. The machinery is what shipped;
+the corpus and a better prompt are what will make the beliefs worth reading.
+
+Verification: full solution 0 warnings, 0 errors; **215 tests, all passing** across
+eight suites (Codex's transport at 57, green).
