@@ -1,3 +1,4 @@
+using Dami.Contracts.Capabilities;
 using Dami.Contracts.Events;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Proactive;
@@ -26,6 +27,7 @@ public sealed class ServiceCollectionExtensionsTests
     [InlineData(typeof(IConclusionLedger))]
     [InlineData(typeof(IPushbackLedger))]
     [InlineData(typeof(ISurfacingQueue))]
+    [InlineData(typeof(ICapabilityEmbeddingStore))]
     public void AddDamiPersistence_Should_Resolve_Every_Store(Type contract)
     {
         var services = new ServiceCollection();

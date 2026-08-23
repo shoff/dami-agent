@@ -3447,6 +3447,24 @@ null while the five pre-existing cases passed. Adding only the capability namesp
 adapter namespace, and `TryAddSingleton` registration made the same theory pass 6/6;
 Claude's conclusion-store registration was preserved unchanged.
 
+F2b is demonstrated. The affected capability-store plus composition tests passed
+11/11, and the entire live-database persistence assembly passed 105/105. The combined
+solution build produced 0 warnings and 0 errors; all twelve suites passed 354/354; and
+`dotnet format Dami.sln --verify-no-changes --no-restore --verbosity minimal` exited 0.
+Claude committed the already-reviewed shared fixture, composition registration, and
+in-progress log while releasing B8; the remaining F2b contract, adapter, integration
+tests, migration, and store-list assertion were verified against that released HEAD.
+
+Live migration evidence found `011_capability_embeddings.sql` checksummed and applied
+with no pending migrations. Catalog inspection caught that it had been applied by an
+administrative session, leaving the table and its indexes owned by `postgres` rather
+than the documented `dami_ddl` owner. Corrected only `dami.capability_embeddings` with
+`ALTER TABLE ... OWNER TO dami_ddl`; PostgreSQL transferred its primary-key, HNSW, and
+model indexes with it. A second catalog query observed all four objects owned by
+`dami_ddl`, confirmed `dami_app` still has SELECT/INSERT/UPDATE/DELETE, and read the
+empty rebuilt index successfully. F2b is flipped to `[x]`; F2 remains claimed because
+F2c is still open.
+
 ## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
 
 Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,
