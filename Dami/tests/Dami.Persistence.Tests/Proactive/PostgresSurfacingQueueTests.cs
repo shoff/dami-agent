@@ -144,6 +144,34 @@ public sealed class PostgresSurfacingQueueTests
     }
 
     [Fact]
+    public async Task RecentAsync_Should_Include_Delivered_And_Suppressed()
+    {
+        await this.fixture.ResetAsync();
+        var queue = this.CreateQueue(cap: 1);
+        var delivered = Worth("was read");
+        await queue.EnqueueAsync(delivered, CancellationToken.None);
+        await queue.EnqueueAsync(Worth("was suppressed"), CancellationToken.None);
+        await queue.DeliverAsync(delivered.SurfacingId, createdAt.AddHours(1), CancellationToken.None);
+
+        var recent = new List<Surfacing>();
+        await foreach (var item in queue.RecentAsync(10, CancellationToken.None))
+        {
+            recent.Add(item);
+        }
+
+        Assert.Equal(2, recent.Count);
+    }
+
+    [Fact]
+    public void RecentAsync_Should_Reject_A_Non_Positive_Limit()
+    {
+        var queue = this.CreateQueue(cap: 3);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => queue.RecentAsync(0, CancellationToken.None));
+    }
+
+    [Fact]
     public void PendingAsync_Should_Reject_A_Non_Positive_Limit()
     {
         var queue = this.CreateQueue(cap: 3);

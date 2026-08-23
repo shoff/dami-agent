@@ -1494,3 +1494,52 @@ dotnet build Dami.sln   0 warnings, 0 errors (17 projects)
 Persistence 73, Analyzers 12, Dami.Tests 1); Transport 43/45 with the two failures in
 Codex's in-flight heartbeat work.
 ```
+
+## 2026-08-22 — Claude Code — dami CLI: the surfacing channel with feedback capture
+
+Phase 4's "a queue Steve reads when he wants", plus the reaction capture that D-019's
+whole design depends on. Also the first trace-replay rendering of the event store.
+
+### Added
+
+- `Dami.Gateway.Cli` (binary name `dami`): `inbox`, `read <id-prefix>`,
+  `good|bad|meh <id-prefix> [note]`, `recent`, `trace <trace-id>`. Hand-rolled routing —
+  the surface is five verbs and a package was not justified.
+- `ISurfacingQueue.RecentAsync` + store implementation + two tests (75 persistence tests).
+
+### Deviation from D-005, recorded in Program.cs itself
+
+The CLI is meant to be a thin client of the localhost runtime API. No such API exists
+yet, so it talks to the stores directly. The command surface survives that change; the
+transport behind it will not.
+
+### The analyzers again
+
+`DAMI0003` on `ReplayAsync` (32 lines) and `VSTHRD103` on `Console.Error.WriteLine` in
+async methods. Extracted `Print`, switched to `WriteLineAsync`.
+
+### Live demo, everything real
+
+```
+$ dami inbox
+d9fc26bb  0.52  ElevenLabs, TwelveLabs, ThirteenLabs
+1879beaa  0.51  Thinking in Python
+ed0f5d89  0.49  The Art and Beauty of Blade Runner
+
+$ dami read d9fc26bb       -> shown in full, marked Delivered
+$ dami good d9fc26bb solid pick, more like this
+recorded 'good: solid pick, more like this' - this trains the taste model
+
+$ dami trace <scout's trace>
+04:36:46 run  TraceStarted     interest-scout pass started
+04:36:46 run  EgressRequested  interest scout feed scan -> hnrss.org
+04:36:49 done EgressCompleted  hnrss.org answered 200
+04:36:49 done Surfaced         x3
+04:36:49 done TraceCompleted   0 concluded, 3 surfaced
+```
+
+Database confirms: the read surfacing is `Delivered` with feedback
+`good: solid pick, more like this`; the other two remain `Pending`. The trace renderer
+shows only persisted events — the display invents nothing, per the §7.4 trust boundary.
+The feedback → taste-model training loop now has data in it; consuming that feedback is
+future work for the scout's scoring.

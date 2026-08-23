@@ -26,6 +26,10 @@ public interface ISurfacingQueue
     /// <summary>Marks a surfacing as delivered — Steve has seen it.</summary>
     Task DeliverAsync(Guid surfacingId, DateTimeOffset deliveredAt, CancellationToken cancellationToken);
 
+    /// <summary>Recent surfacings in every status, newest first.</summary>
+    /// <remarks>How the CLI shows history and resolves a short id to a full one.</remarks>
+    IAsyncEnumerable<Surfacing> RecentAsync(int limit, CancellationToken cancellationToken);
+
     /// <summary>Records Steve's reaction.</summary>
     Task RecordFeedbackAsync(
         Guid surfacingId,
