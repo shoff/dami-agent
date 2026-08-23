@@ -2654,3 +2654,89 @@ even with thinking on, and a frontier-routed turn keeps ~1.9 s of budget after
 retrieval.** Sub-2s is achievable on this hardware, contingent only on the frontier
 call's first token. The target is now a measurement here, not an inheritance from MAI's
 hardware. Table added to runbook §5.
+
+## 2026-08-23 — Codex — Audit remediation tranche 1 verification
+
+The shared branch advanced through Claude Code's `8703892` while remediation was in
+flight. Claude's untracked `AskCommands.cs` and its `Program.cs`/`CommandRouter.cs`
+changes remain untouched and uncommitted; they compile against the new model-aware
+embedding contract. `dotnet format Dami.sln --no-restore` corrected the 15 audit
+format/encoding findings, including the librarian table and original placeholders.
+
+Current combined-tree gates from `Dami/`:
+
+- `dotnet build Dami.sln --no-restore`: **0 warnings, 0 errors**.
+- `dotnet test Dami.sln --no-build --no-restore`: **271 passed, 0 failed** across ten
+  test assemblies.
+- `dotnet format Dami.sln --verify-no-changes --no-restore`: exit 0, no diagnostics.
+
+This is an intermediate checkpoint, not a claim that every audit item is fixed. Still
+open: scheduler leasing/trace transactionality, affected-row contracts outside
+supersession, capability registry/native execution completion, immutable contract
+snapshots, reflection decomposition and hard prompt budget, CLI ambiguity/handler
+lifetime/health layering, librarian manifest collision/path enforcement, architecture
+test blind spots/placeholders, and the measured transport/vector batching/allocation
+work. No commit or push was performed; the current request did not authorize one.
+
+## 2026-08-23 — Codex — Authorized checkpoint, migration, and next remediation started
+
+Steve explicitly authorized committing and pushing the accumulated work, applying any
+needed data migration, and continuing to the next audit item. The shared worktree was
+reconciled before staging: Claude Code's `dami ask` CLI files are explicitly recorded
+above as ready and coupled to Codex's model-aware embedding contract, so they will ship
+with that contract. Claude Code's newer context-assembly/model-routing projects remain
+marked **in flight** in `docs/ownership.md`; they will not be staged by this checkpoint.
+
+The first migration status attempt ran as the `steve` OS user without an explicit
+database role and failed safely before changing state: PostgreSQL reported that role
+`steve` does not exist. The retry will use the documented loopback `dami_ddl` role and
+Steve's mode-0600 `.pgpass`; no credential will be printed or added to the repository.
+After migration verification and the mandatory solution gates, the checkpoint will be
+committed and pushed as the `steve` OS user with Steve's existing Git identity and no
+attribution trailers. The next strict red-green slice is proactive run trace propagation
+and scheduler correctness; no production code for that slice has been changed yet.
+
+## 2026-08-23 — Claude Code — Dami.Core is born: context assembly and model routing
+
+Claimed the memory-facing half of the runtime in `docs/ownership.md` — `Dami.Core`
+(context assembly) and the routing policy in `Dami.Providers`. Session lifecycle and
+turn orchestration remain Codex's natural continuation; `Dami.Core` splits by
+directory the way `Dami.Contracts` already does.
+
+### ContextBuilder — the discipline that motivated the project, as code
+
+`Dami.Contracts/Context`: `IContextBuilder`, `AssembledContext` (carries its own
+estimated token cost), `RetrievedItem` (kind + source id + timestamp — §9.2's
+provenance requirement on every prompt item), `PrivacyClass`.
+
+`Dami.Core/Context/ContextBuilder`: the proven §9.3 spine (embed → ANN → rerank) over
+the same stores everything else uses, plus active beliefs, under a **hard token budget
+enforced at assembly time** (`MaxRetrievedTokens`, default 2,500 of the ~5k stable
+target; Hermes measured 90k–126k — this class is the difference). Token estimation is
+chars/4, deliberately crude: the budget prevents a 90k prompt, it does not meter a
+2,400-token one to the cent.
+
+**Under budget pressure, beliefs beat memories** — documented in the code: a memory can
+be re-retrieved next turn; a forgotten belief is a personality change. Test pins it: a
+300-token budget with a 9k-char memory and one belief keeps the belief, drops the memory.
+
+### ModelRouter — D-012 as the first and unconditional rule
+
+`IModelRouter.Route(workKind, privacy)`: `LocalOnly` → sidecar, always — no
+configuration in the class can override it, and the test asserts it *with the frontier
+enabled*. Simple work kinds (classification, summarization, categorization, extraction)
+stay local regardless of privacy; egressable synthesis goes frontier **when one is
+configured** — `FrontierEnabled` defaults to false, so everything degrades to local
+rather than failing until credentials arrive out of band. Every route carries a
+one-line reason destined for the execution event.
+
+### Verification
+
+13 new tests (8 builder, 5 router), all green; solution builds 0/0 with `Dami.Core` as
+the twentieth project. The architecture tests automatically police the new project —
+`Core_Should_Depend_Only_On_Contracts` now guards a project that exists. Coverage, not
+TDD, for the builder; recorded per convention. One NSubstitute ordering bug in my own
+test fixed (defaults registered after a test's override silently won).
+
+Adapted to Codex's in-flight `ModelId` addition on `IEmbeddingClient` — the second of
+my components to do so; the commit still holds until their contract lands.
