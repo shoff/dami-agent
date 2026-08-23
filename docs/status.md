@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 23:48 CDT (`2026-08-23T04:48Z`)
+- **Last updated:** 2026-08-23 00:20 CDT (`2026-08-23T05:20Z`)
 - **Updated from:** direct workstation inspection and solution test evidence
 - **Current phases:** 0, 1, and 3 in progress
 
@@ -113,11 +113,28 @@ Verification on 2026-08-22: `Dami.Transport.Tests` executed 50 tests with 0 fail
 `dotnet test Dami.sln` executed 188 tests across eight suites with 0 failures; preceding
 `dotnet build Dami.sln` completed with 0 warnings and 0 errors.
 
-### Phases 4–10 · *not started*
+### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
-Privacy boundary and interest scout · model of Steve · vision and media librarian ·
-GUI · reflection pass and domains · self-improvement · voice and presence · gateways
-and cutover.
+| Item | State | Evidence |
+|---|---|---|
+| `Dami.Privacy` egress enforcement, verified by test | done | allowlist + tripwire; refused requests never reach the network (fake handler asserted empty); every send/refusal a durable event in the caller's trace |
+| `IProactiveService` contract, scheduling, thresholding | done | `ProactivePassRunner` + `ProactiveScheduler` over a durable run log; failures count as runs; one failing service does not stop the rest |
+| Interest scout running | done | live pass against the real HN front page: egress → parse → loopback-TEI scoring → 3 surfacings, fully replayable trace |
+| Surfacing channel (a queue Steve reads when he wants) | done | `dami inbox` / `read` / `recent`; D-021 cap observed live — a second pass's candidates all `Suppressed`, stored auditable |
+| Feedback capture on every surfacing | done | `dami good\|bad\|meh`; **the taste model learns** — an item rated `good` scored 0.520 before feedback, 0.670 after, observed live; bad-penalty > good-boost deliberately |
+| Pushback audit (D-011) | done | quarterly counter registered in the host; first `SelfAudit` conclusion recorded; quiet without a baseline |
+| Ledger readable and correctable (F-09/F-10) | done | `dami beliefs [date]` / `beliefs diff` (as-of reconstruction) / `retract <id> <reason>` / `note`; retraction demonstrated live |
+| D-005 deviation | recorded | the CLI talks to stores until a runtime API exists; noted in `Program.cs` |
+
+**Phase 4 exit** ("Dami surfaces something unprompted that Steve is glad to have
+received, and the reaction is recorded"): the machinery is proven — surfacing, reading,
+and reaction recording all ran live. Whether Steve is *glad* awaits real use.
+
+### Phases 5–10 · *not started*
+
+Model of Steve at scale (needs the corpus) · vision and media librarian · GUI ·
+reflection pass and domains · self-improvement · voice and presence · gateways and
+cutover.
 
 ---
 
