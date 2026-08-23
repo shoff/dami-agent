@@ -16,7 +16,7 @@ public sealed class HeartbeatTransport : ITransport
     private Task? disposal;
     private int receiveActive;
 
-    /// <summary>Initializes heartbeat policy without taking ownership of the wrapped transport.</summary>
+    /// <summary>Initializes heartbeat policy and takes ownership of the wrapped transport.</summary>
     public HeartbeatTransport(
         ITransport inner,
         TimeSpan interval,
@@ -110,40 +110,54 @@ public sealed class HeartbeatTransport : ITransport
     private async IAsyncEnumerable<TransportFrame> ReadFramesAsync(
         CancellationTokenSource receiveLifetime)
     {
-        await using IAsyncEnumerator<TransportFrame> frames = this.inner
+        IAsyncEnumerator<TransportFrame> frames = this.inner
             .ReceiveAsync(receiveLifetime.Token)
             .GetAsyncEnumerator();
-        while (await this.MoveNextAsync(frames, receiveLifetime).ConfigureAwait(false))
+        var disposeEnumerator = true;
+        try
         {
-            yield return frames.Current;
+            while (true)
+            {
+                var (hasNext, timeout) = await this
+                    .MoveNextAsync(frames, receiveLifetime).ConfigureAwait(false);
+                if (timeout is not null)
+                {
+                    disposeEnumerator = false;
+                    throw timeout;
+                }
+                if (!hasNext)
+                {
+                    yield break;
+                }
+                yield return frames.Current;
+            }
+        }
+        finally
+        {
+            if (disposeEnumerator)
+            {
+                await frames.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
-    private async ValueTask<bool> MoveNextAsync(
+    private async ValueTask<(bool HasNext, TimeoutException? Timeout)> MoveNextAsync(
         IAsyncEnumerator<TransportFrame> frames,
         CancellationTokenSource receiveLifetime)
     {
         Task<bool> moveNext = frames.MoveNextAsync().AsTask();
         try
         {
-            return await moveNext.WaitAsync(
-                this.silenceTimeout,
-                this.timeProvider).ConfigureAwait(false);
+            var hasNext = await moveNext.WaitAsync(
+                this.silenceTimeout, this.timeProvider).ConfigureAwait(false);
+            return (hasNext, null);
         }
         catch (TimeoutException exception) when (!moveNext.IsCompleted)
         {
             await receiveLifetime.CancelAsync().ConfigureAwait(false);
-            try
-            {
-                await moveNext.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (receiveLifetime.IsCancellationRequested)
-            {
-            }
-
-            throw new TimeoutException(
+            return (false, new TimeoutException(
                 "No frame was received within the configured silence timeout.",
-                exception);
+                exception));
         }
     }
 

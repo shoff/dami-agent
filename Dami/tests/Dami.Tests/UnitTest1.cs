@@ -1,4 +1,4 @@
-﻿namespace Dami.Tests;
+namespace Dami.Tests;
 
 public class UnitTest1
 {

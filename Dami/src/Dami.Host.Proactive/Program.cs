@@ -36,7 +36,8 @@ builder.Services.AddSingleton<ProactiveScheduler>();
 
 // Egress: one client, allowlist-gated, every send a durable event.
 builder.Services.Configure<EgressOptions>(builder.Configuration.GetSection(EgressOptions.SECTION_NAME));
-builder.Services.AddHttpClient<IEgressClient, HttpEgressClient>();
+builder.Services.AddHttpClient<IEgressClient, HttpEgressClient>()
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 
 // Local inference: loopback TEI. Not egress, and must never be routed through it.
 builder.Services.Configure<TeiOptions>(builder.Configuration.GetSection(TeiOptions.SECTION_NAME));

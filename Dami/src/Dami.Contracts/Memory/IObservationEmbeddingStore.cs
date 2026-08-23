@@ -19,6 +19,7 @@ public interface IObservationEmbeddingStore
     /// <summary>The nearest observations to a query vector, by cosine distance.</summary>
     IAsyncEnumerable<(Observation Observation, double Distance)> NearestAsync(
         float[] queryEmbedding,
+        string embeddingModel,
         int limit,
         CancellationToken cancellationToken);
 }

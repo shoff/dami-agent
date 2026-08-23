@@ -11,4 +11,7 @@ public sealed class TeiOptions
 
     /// <summary>TEI's max_client_batch_size; requests are chunked to it.</summary>
     public int BatchSize { get; set; } = 32;
+
+    /// <summary>Stable identity persisted with every vector produced by this sidecar.</summary>
+    public string ModelId { get; set; } = "BAAI/bge-m3";
 }

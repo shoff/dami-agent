@@ -24,12 +24,23 @@ public sealed class MediaLibrarianService : IProactiveService
     private static readonly IReadOnlyDictionary<string, string> kindsByExtension =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            [".jpg"] = "photos", [".jpeg"] = "photos", [".png"] = "photos",
-            [".heic"] = "photos", [".gif"] = "photos", [".webp"] = "photos",
-            [".mp4"] = "video", [".mov"] = "video", [".mkv"] = "video",
-            [".mp3"] = "audio", [".flac"] = "audio", [".wav"] = "audio",
-            [".pdf"] = "documents", [".epub"] = "documents",
-            [".stl"] = "models", [".3mf"] = "models", [".gcode"] = "models",
+            [".jpg"] = "photos",
+            [".jpeg"] = "photos",
+            [".png"] = "photos",
+            [".heic"] = "photos",
+            [".gif"] = "photos",
+            [".webp"] = "photos",
+            [".mp4"] = "video",
+            [".mov"] = "video",
+            [".mkv"] = "video",
+            [".mp3"] = "audio",
+            [".flac"] = "audio",
+            [".wav"] = "audio",
+            [".pdf"] = "documents",
+            [".epub"] = "documents",
+            [".stl"] = "models",
+            [".3mf"] = "models",
+            [".gcode"] = "models",
         };
 
     private readonly MediaLibrarianOptions librarianOptions;

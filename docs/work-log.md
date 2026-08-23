@@ -2738,6 +2738,17 @@ dependencies and implementation, the provider suite was rerun independently and
 passed 10/10. The mandatory complete solution gate will now be rerun once more against
 the settled shared tree before committing.
 
+Because Claude Code immediately began the next vision slice, the definitive checkpoint
+gate ran in isolated clone `/tmp/dami-codex-gate.lyZcoq/repo` at committed HEAD
+`0dc8c61`, with only Codex's explicit tracked diff and six intended new files applied.
+This excluded Claude's uncommitted `Dami.Core` project and shared solution edit while
+including the already committed routing, frontier, and vision groundwork. Results:
+`dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln` **278 passed,
+0 failed** across ten committed test assemblies; `dotnet format ...
+--verify-no-changes --no-restore` exit 0; the DDL black-box test passed and both shell
+scripts passed `bash -n`. The checkpoint is now ready for an explicit-path commit and
+push as `steve`; no other owner's staged or untracked path is included.
+
 ## 2026-08-23 — Claude Code — Dami.Core is born: context assembly and model routing
 
 Claimed the memory-facing half of the runtime in `docs/ownership.md` — `Dami.Core`

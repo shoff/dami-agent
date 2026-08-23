@@ -73,7 +73,7 @@ public sealed class EmbedderService : IProactiveService
         {
             this.logger.LogInformation(
                 "Embedder: {Count} observation(s) indexed under {Model}",
-                embedded, this.embedderOptions.EmbeddingModel);
+                embedded, this.embeddingClient.ModelId);
         }
 
         return ProactiveResult.quiet;
@@ -83,7 +83,7 @@ public sealed class EmbedderService : IProactiveService
     {
         var pending = new List<Observation>();
         await foreach (var observation in this.embeddingStore
-            .UnembeddedAsync(this.embedderOptions.EmbeddingModel, BATCH, cancellationToken)
+            .UnembeddedAsync(this.embeddingClient.ModelId, BATCH, cancellationToken)
             .ConfigureAwait(false))
         {
             pending.Add(observation);
@@ -106,7 +106,7 @@ public sealed class EmbedderService : IProactiveService
         {
             await this.embeddingStore.StoreAsync(
                 pending[index].ObservationId,
-                this.embedderOptions.EmbeddingModel,
+                this.embeddingClient.ModelId,
                 vectors[index],
                 cancellationToken).ConfigureAwait(false);
         }

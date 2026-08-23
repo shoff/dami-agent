@@ -31,6 +31,12 @@ public sealed class PostgresSurfacingQueueTests
     }
 
     [Fact]
+    public void BuildServiceLockSql_Should_Take_A_TransactionScoped_Advisory_Lock()
+    {
+        Assert.Contains("pg_advisory_xact_lock", PostgresSurfacingQueue.BuildServiceLockSql());
+    }
+
+    [Fact]
     public async Task EnqueueAsync_Should_Accept_A_Surfacing_Under_The_Cap()
     {
         await this.fixture.ResetAsync();

@@ -98,11 +98,18 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
         await using var connection = await this.dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
-        await InsertAsync(connection, transaction, this.Schema, replacement, cancellationToken).ConfigureAwait(false);
-
         // The original stopped being believed the moment the replacement was concluded.
-        await RetractAsync(connection, transaction, this.Schema, supersededId, reason, replacement.ConcludedAt, cancellationToken)
+        var retracted = await RetractAsync(
+            connection, transaction, this.Schema, supersededId, reason,
+            replacement.ConcludedAt, cancellationToken)
             .ConfigureAwait(false);
+        if (retracted != 1)
+        {
+            throw new InvalidOperationException(
+                $"Conclusion {supersededId} is not active and cannot be superseded.");
+        }
+
+        await InsertAsync(connection, transaction, this.Schema, replacement, cancellationToken).ConfigureAwait(false);
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -224,7 +231,7 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
         }
     }
 
-    private static async Task RetractAsync(
+    private static async Task<int> RetractAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction? transaction,
         string schema,
@@ -237,7 +244,7 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
         command.Parameters.AddWithValue("conclusion_id", conclusionId);
         command.Parameters.AddWithValue("reason", reason);
         command.Parameters.AddWithValue("retracted_at", retractedAt);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static void AddConclusionParameters(NpgsqlCommand command, Conclusion source)

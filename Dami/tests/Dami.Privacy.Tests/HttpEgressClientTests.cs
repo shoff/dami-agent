@@ -27,6 +27,19 @@ public sealed class HttpEgressClientTests
     }
 
     [Fact]
+    public void Constructor_Should_Reject_A_Nonpositive_Response_Limit()
+    {
+        var options = Options.Create(new EgressOptions { MaxResponseBytes = 0 });
+
+        Assert.Throws<ArgumentOutOfRangeException>("egressOptions", () => new HttpEgressClient(
+            new HttpClient(new FakeHttpMessageHandler(HttpStatusCode.OK, "")),
+            options,
+            this.eventStore,
+            new FakeTimeProvider(now),
+            NullLogger<HttpEgressClient>.Instance));
+    }
+
+    [Fact]
     public async Task SendAsync_Should_Fetch_From_An_Allowlisted_Host()
     {
         var client = this.CreateClient(out _, allowed: "news.ycombinator.com", body: "the front page");
@@ -104,6 +117,78 @@ public sealed class HttpEgressClientTests
             Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task SendAsync_Should_Refuse_A_Redirect_To_A_Host_Outside_The_Allowlist()
+    {
+        var options = new EgressOptions();
+        options.AllowedHosts.Add("news.ycombinator.com");
+        var handler = new RedirectHandler(new Uri("https://tracker.example.com/beacon"));
+        var client = new HttpEgressClient(
+            new HttpClient(handler),
+            Options.Create(options),
+            this.eventStore,
+            new FakeTimeProvider(now),
+            NullLogger<HttpEgressClient>.Instance);
+
+        await Assert.ThrowsAsync<EgressRefusedException>(() =>
+            client.SendAsync(Ask("https://news.ycombinator.com/rss"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Refuse_A_NonHttps_Destination()
+    {
+        var client = this.CreateClient(out _, allowed: "news.ycombinator.com");
+
+        await Assert.ThrowsAsync<EgressRefusedException>(() =>
+            client.SendAsync(Ask("http://news.ycombinator.com/rss"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Record_An_EgressFailed_Event_On_Network_Failure()
+    {
+        var options = new EgressOptions();
+        options.AllowedHosts.Add("news.ycombinator.com");
+        var client = new HttpEgressClient(
+            new HttpClient(new FailingHandler()),
+            Options.Create(options),
+            this.eventStore,
+            new FakeTimeProvider(now),
+            NullLogger<HttpEgressClient>.Instance);
+
+        try
+        {
+            await client.SendAsync(Ask("https://news.ycombinator.com/rss"), CancellationToken.None);
+        }
+        catch (HttpRequestException)
+        {
+        }
+
+        await this.eventStore.Received(1).AppendAsync(
+            Arg.Is<ExecutionEvent>(item => item.Type == ExecutionEventType.EgressFailed),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Reject_A_Response_Above_The_Configured_Limit()
+    {
+        var client = this.CreateClient(
+            out _, allowed: "news.ycombinator.com", body: "four", maxResponseBytes: 3);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            client.SendAsync(Ask("https://news.ycombinator.com/rss"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Trip_On_A_PercentEncoded_Forbidden_Fragment()
+    {
+        var client = this.CreateClient(
+            out _, allowed: "www.youtube.com", forbidden: "steve hoff");
+
+        await Assert.ThrowsAsync<EgressRefusedException>(() => client.SendAsync(
+            Ask("https://www.youtube.com/results?search_query=steve%20hoff"),
+            CancellationToken.None));
+    }
+
     private static EgressRequest Ask(string url)
     {
         return new EgressRequest(new Uri(url), "test fetch", traceId, ExecutionOrigin.ScheduledService);
@@ -113,10 +198,11 @@ public sealed class HttpEgressClientTests
         out FakeHttpMessageHandler handler,
         string? allowed = null,
         string? forbidden = null,
-        string body = "ok")
+        string body = "ok",
+        int maxResponseBytes = 2 * 1024 * 1024)
     {
         handler = new FakeHttpMessageHandler(HttpStatusCode.OK, body);
-        var options = new EgressOptions();
+        var options = new EgressOptions { MaxResponseBytes = maxResponseBytes };
         if (allowed is not null)
         {
             options.AllowedHosts.Add(allowed);
@@ -130,5 +216,27 @@ public sealed class HttpEgressClientTests
         return new HttpEgressClient(
             new HttpClient(handler), Options.Create(options), this.eventStore,
             new FakeTimeProvider(now), NullLogger<HttpEgressClient>.Instance);
+    }
+
+    private sealed class RedirectHandler(Uri destination) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Redirect);
+            response.Headers.Location = destination;
+            return Task.FromResult(response);
+        }
+    }
+
+    private sealed class FailingHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            throw new HttpRequestException("simulated network failure");
+        }
     }
 }

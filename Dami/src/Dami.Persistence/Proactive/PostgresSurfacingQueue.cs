@@ -72,22 +72,26 @@ public sealed class PostgresSurfacingQueue : ISurfacingQueue
             """;
     }
 
+    /// <summary>Serializes cap decisions for one service within the caller's transaction.</summary>
+    public static string BuildServiceLockSql()
+    {
+        return "select pg_advisory_xact_lock(hashtextextended(@service_name, 0));";
+    }
+
     /// <inheritdoc />
     public async Task<bool> EnqueueAsync(Surfacing surfacing, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(surfacing);
 
-        await using var command = this.dataSource.CreateCommand(BuildEnqueueSql(this.Table));
-        command.Parameters.AddWithValue("surfacing_id", surfacing.SurfacingId);
-        command.Parameters.AddWithValue("trace_id", Guid.Empty);
-        command.Parameters.AddWithValue("service_name", surfacing.ServiceName);
-        command.Parameters.AddWithValue("title", surfacing.Title);
-        command.Parameters.AddWithValue("body", surfacing.Body);
-        command.Parameters.AddWithValue("confidence", surfacing.Confidence);
-        command.Parameters.AddWithValue("created_at", surfacing.CreatedAt);
-        command.Parameters.AddWithValue("cap", this.proactiveOptions.MaxSurfacingsPerServicePerDay);
-
-        var status = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
+        await using var connection = await this.dataSource
+            .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection
+            .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await AcquireServiceLockAsync(
+            connection, transaction, surfacing.ServiceName, cancellationToken).ConfigureAwait(false);
+        var status = await this.InsertAsync(
+            connection, transaction, surfacing, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         if (status == STATUS_SUPPRESSED)
         {
@@ -99,6 +103,35 @@ public sealed class PostgresSurfacingQueue : ISurfacingQueue
         }
 
         return status == STATUS_PENDING;
+    }
+
+    private async Task<string?> InsertAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Surfacing surfacing,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(BuildEnqueueSql(this.Table), connection, transaction);
+        command.Parameters.AddWithValue("surfacing_id", surfacing.SurfacingId);
+        command.Parameters.AddWithValue("trace_id", Guid.Empty);
+        command.Parameters.AddWithValue("service_name", surfacing.ServiceName);
+        command.Parameters.AddWithValue("title", surfacing.Title);
+        command.Parameters.AddWithValue("body", surfacing.Body);
+        command.Parameters.AddWithValue("confidence", surfacing.Confidence);
+        command.Parameters.AddWithValue("created_at", surfacing.CreatedAt);
+        command.Parameters.AddWithValue("cap", this.proactiveOptions.MaxSurfacingsPerServicePerDay);
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
+    }
+
+    private static async Task AcquireServiceLockAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string serviceName,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(BuildServiceLockSql(), connection, transaction);
+        command.Parameters.AddWithValue("service_name", serviceName);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

@@ -241,7 +241,9 @@ public sealed class ReflectionServiceTests
 
         this.embeddingClient.EmbedAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(new List<float[]> { new float[4] });
-        this.embeddingStore.NearestAsync(Arg.Any<float[]>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        this.embeddingClient.ModelId.Returns("test-model");
+        this.embeddingStore.NearestAsync(
+            Arg.Any<float[]>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(AsNearestAsync(this.related));
 
         return new ReflectionService(

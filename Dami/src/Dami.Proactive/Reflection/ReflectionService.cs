@@ -180,7 +180,11 @@ public sealed class ReflectionService : IProactiveService
 
         var related = new List<Observation>();
         await foreach (var (observation, _) in this.embeddingStore
-            .NearestAsync(queryVector, this.reflectionOptions.RelatedObservations + window.Count, cancellationToken)
+            .NearestAsync(
+                queryVector,
+                this.embeddingClient.ModelId,
+                this.reflectionOptions.RelatedObservations + window.Count,
+                cancellationToken)
             .ConfigureAwait(false))
         {
             if (seen.Add(observation.ObservationId))

@@ -76,7 +76,7 @@ public sealed class PostgresObservationEmbeddingStore : IObservationEmbeddingSto
             $"""
             insert into {this.Schema}.observation_embeddings (observation_id, embedding_model, embedding)
             values (@id, @model, @embedding::vector)
-            on conflict (observation_id) do nothing;
+            on conflict (observation_id, embedding_model) do nothing;
             """);
         command.Parameters.AddWithValue("id", observationId);
         command.Parameters.AddWithValue("model", embeddingModel);
@@ -87,10 +87,12 @@ public sealed class PostgresObservationEmbeddingStore : IObservationEmbeddingSto
     /// <inheritdoc />
     public IAsyncEnumerable<(Observation Observation, double Distance)> NearestAsync(
         float[] queryEmbedding,
+        string embeddingModel,
         int limit,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queryEmbedding);
+        ArgumentNullException.ThrowIfNull(embeddingModel);
 
         if (limit <= 0)
         {
@@ -103,10 +105,12 @@ public sealed class PostgresObservationEmbeddingStore : IObservationEmbeddingSto
                    e.embedding <=> @query::vector as distance
               from {this.Schema}.observation_embeddings e
               join {this.Schema}.observations o on o.observation_id = e.observation_id
+             where e.embedding_model = @model
              order by e.embedding <=> @query::vector
              limit @limit;
             """);
         command.Parameters.AddWithValue("query", ToVectorLiteral(queryEmbedding));
+        command.Parameters.AddWithValue("model", embeddingModel);
         command.Parameters.AddWithValue("limit", limit);
         return StreamNearestAsync(command, cancellationToken);
     }

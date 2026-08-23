@@ -118,6 +118,23 @@ public sealed class PostgresConclusionLedgerTests
     }
 
     [Fact]
+    public async Task SupersedeAsync_Should_Allow_Only_One_Concurrent_Replacement()
+    {
+        await this.fixture.ResetAsync();
+        var ledger = this.CreateLedger();
+        var original = Believe("the original belief");
+        await ledger.RecordAsync(original, CancellationToken.None);
+        var first = Believe("first correction", supersedes: original.ConclusionId);
+        var second = Believe("second correction", supersedes: original.ConclusionId);
+
+        await Task.WhenAll(
+            TrySupersedeAsync(ledger, first),
+            TrySupersedeAsync(ledger, second));
+
+        Assert.Single(await this.ActiveAsync(ledger, "steve"));
+    }
+
+    [Fact]
     public async Task RetractAsync_Should_Remove_The_Conclusion_From_The_Active_Set()
     {
         await this.fixture.ResetAsync();
@@ -188,6 +205,17 @@ public sealed class PostgresConclusionLedgerTests
         return new Conclusion(
             Guid.NewGuid(), supersedes, "steve", statement, 0.7,
             ConclusionSource.ReflectionPass, concludedAt, observations);
+    }
+
+    private static async Task TrySupersedeAsync(IConclusionLedger ledger, Conclusion replacement)
+    {
+        try
+        {
+            await ledger.SupersedeAsync(replacement, "concurrent correction", CancellationToken.None);
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     private async Task<List<Conclusion>> ActiveAsync(IConclusionLedger ledger, string subject)

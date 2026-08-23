@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Dami.Contracts.Transport;
 
 namespace Dami.Transport.Tests;
@@ -183,6 +184,36 @@ public sealed class HeartbeatTransportTests
     }
 
     [Fact]
+    public async Task ReceiveAsync_Should_Not_Wait_For_A_Noncooperative_Inner_After_Timeout()
+    {
+        var clock = new TestTimeProvider();
+        var inner = new NoncooperativeTransport();
+        HeartbeatTransport transport = CreateTransport(inner, clock);
+        Task<TransportFrame> receive = ReceiveOneAsync(transport, CancellationToken.None);
+        clock.Advance(TimeSpan.FromSeconds(15));
+
+        TimeoutException exception;
+        try
+        {
+            exception = await Assert.ThrowsAsync<TimeoutException>(() =>
+                receive.WaitAsync(TimeSpan.FromSeconds(1)));
+        }
+        finally
+        {
+            inner.Complete();
+            try
+            {
+                await receive;
+            }
+            catch (TimeoutException)
+            {
+            }
+        }
+
+        Assert.Equal("No frame was received within the configured silence timeout.", exception.Message);
+    }
+
+    [Fact]
     public async Task SendAsync_Should_Reject_The_Reserved_Heartbeat_Type()
     {
         var inner = new TestTransport();
@@ -324,5 +355,39 @@ public sealed class HeartbeatTransportTests
         }
 
         throw new InvalidOperationException("The transport completed without yielding a frame.");
+    }
+
+    private sealed class NoncooperativeTransport : ITransport
+    {
+        private readonly SemaphoreSlim completion = new(0, 1);
+        private int completed;
+
+        public ValueTask DisposeAsync()
+        {
+            this.Complete();
+            return ValueTask.CompletedTask;
+        }
+
+        public async IAsyncEnumerable<TransportFrame> ReceiveAsync(
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await this.completion.WaitAsync().ConfigureAwait(false);
+            yield break;
+        }
+
+        public ValueTask SendAsync(
+            TransportMessage message,
+            CancellationToken cancellationToken)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        public void Complete()
+        {
+            if (Interlocked.Exchange(ref this.completed, 1) == 0)
+            {
+                this.completion.Release();
+            }
+        }
     }
 }

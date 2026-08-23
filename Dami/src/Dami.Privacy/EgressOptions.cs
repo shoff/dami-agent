@@ -26,4 +26,7 @@ public sealed class EgressOptions
     /// pasted into a query), and it is a tripwire, not the wall.
     /// </remarks>
     public IList<string> ForbiddenFragments { get; } = [];
+
+    /// <summary>Largest response body accepted into memory.</summary>
+    public int MaxResponseBytes { get; set; } = 2 * 1024 * 1024;
 }

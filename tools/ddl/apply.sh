@@ -16,10 +16,9 @@ set -euo pipefail
 DATABASE="${DAMI_DB:-dami-data}"
 DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Runs as the schema owner. dami_ddl owns dami; dami_app never runs DDL.
+# Runs as the schema owner. The schema itself is provisioned administratively;
+# dami_ddl owns objects within dami but intentionally cannot create schemas.
 psql_ddl() { psql --dbname="$DATABASE" --no-psqlrc --quiet --set=ON_ERROR_STOP=1 "$@"; }
-
-psql_ddl -c 'create schema if not exists dami authorization dami_ddl' > /dev/null
 
 applied="$(psql_ddl -tAc "select filename from dami.schema_migrations" 2>/dev/null || true)"
 

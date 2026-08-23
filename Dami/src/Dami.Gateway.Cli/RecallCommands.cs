@@ -43,7 +43,8 @@ public sealed class RecallCommands
 
         var candidates = new List<Observation>();
         await foreach (var (observation, _) in this.embeddingStore
-            .NearestAsync(queryVector, CANDIDATES, cancellationToken).ConfigureAwait(false))
+            .NearestAsync(queryVector, this.embeddingClient.ModelId, CANDIDATES, cancellationToken)
+            .ConfigureAwait(false))
         {
             candidates.Add(observation);
         }

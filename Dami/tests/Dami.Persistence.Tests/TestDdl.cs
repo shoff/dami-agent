@@ -3,7 +3,15 @@ namespace Dami.Persistence.Tests;
 /// <summary>Reads the repository's DDL and retargets it at a throwaway schema.</summary>
 public static class TestDdl
 {
-    private static readonly string[] ddlFiles = ["002_event_store.sql", "003_memory.sql", "006_surfacings.sql", "007_proactive_runs.sql", "008_observation_embeddings.sql"];
+    private static readonly string[] ddlFiles =
+    [
+        "002_event_store.sql",
+        "003_memory.sql",
+        "006_surfacings.sql",
+        "007_proactive_runs.sql",
+        "008_observation_embeddings.sql",
+        "009_versioned_embeddings.sql",
+    ];
 
     /// <summary>The event-store and memory DDL, rewritten to build in <paramref name="schema"/>.</summary>
     /// <remarks>

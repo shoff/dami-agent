@@ -33,8 +33,11 @@ services.AddSingleton<TraceCommands>();
 services.AddSingleton<BeliefCommands>();
 services.AddSingleton<HealthCommands>();
 services.AddSingleton<RecallCommands>();
+services.AddSingleton<AskCommands>();
 services.AddHttpClient<IEmbeddingClient, TeiEmbeddingClient>();
 services.AddHttpClient<IRerankClient, TeiRerankClient>();
+services.AddHttpClient<IChatClient, OllamaChatClient>(client => client.Timeout = TimeSpan.FromMinutes(10));
+services.AddOptions<OllamaOptions>();
 services.AddOptions<TeiOptions>();
 services.AddOptions<TeiRerankOptions>();
 
@@ -46,4 +49,5 @@ return await CommandRouter.RunAsync(
     provider.GetRequiredService<TraceCommands>(),
     provider.GetRequiredService<BeliefCommands>(),
     provider.GetRequiredService<HealthCommands>(),
-    provider.GetRequiredService<RecallCommands>());
+    provider.GetRequiredService<RecallCommands>(),
+    provider.GetRequiredService<AskCommands>());

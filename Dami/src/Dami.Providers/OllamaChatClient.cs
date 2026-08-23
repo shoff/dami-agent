@@ -13,6 +13,7 @@ public sealed class OllamaChatClient : IChatClient
         new(JsonSerializerDefaults.Web);
 
     private readonly HttpClient httpClient;
+    private readonly Uri baseUri;
     private readonly OllamaOptions ollamaOptions;
     private readonly ILogger<OllamaChatClient> logger;
 
@@ -28,6 +29,7 @@ public sealed class OllamaChatClient : IChatClient
 
         this.httpClient = httpClient;
         this.ollamaOptions = ollamaOptions.Value;
+        this.baseUri = LocalSidecarEndpoint.Parse(this.ollamaOptions.BaseUrl, nameof(ollamaOptions));
         this.logger = logger;
     }
 
@@ -36,7 +38,7 @@ public sealed class OllamaChatClient : IChatClient
     {
         ArgumentNullException.ThrowIfNull(prompt);
 
-        var endpoint = new Uri(new Uri(this.ollamaOptions.BaseUrl), "/api/generate");
+        var endpoint = new Uri(this.baseUri, "/api/generate");
         var request = new
         {
             model = this.ollamaOptions.Model,

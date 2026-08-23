@@ -85,4 +85,7 @@ public enum ExecutionEventType
 
     /// <summary>The boundary refused an egress. Loud by design.</summary>
     EgressRefused = 25,
+
+    /// <summary>An allowed egress failed before a response was completed.</summary>
+    EgressFailed = 26,
 }

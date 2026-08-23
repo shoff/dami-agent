@@ -9,6 +9,9 @@ namespace Dami.Contracts.Models;
 /// </remarks>
 public interface IEmbeddingClient
 {
+    /// <summary>Stable identity of the model that produces these vectors.</summary>
+    string ModelId { get; }
+
     /// <summary>Embeds each text, preserving order.</summary>
     Task<IReadOnlyList<float[]>> EmbedAsync(
         IReadOnlyList<string> texts,

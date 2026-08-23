@@ -22,6 +22,7 @@ public static class CommandRouter
           dami note <text>               record an observation into the corpus
           dami health                    check postgres, sidecars, GPU placement, tier
           dami recall <query>            semantic search over everything Dami has seen
+          dami ask <question>            answer from the corpus, with citations (local LLM)
         """;
 
     /// <summary>Runs one command. Returns the process exit code.</summary>
@@ -31,7 +32,8 @@ public static class CommandRouter
         TraceCommands traces,
         BeliefCommands beliefs,
         HealthCommands health,
-        RecallCommands recall)
+        RecallCommands recall,
+        AskCommands ask)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
@@ -39,6 +41,7 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(beliefs);
         ArgumentNullException.ThrowIfNull(health);
         ArgumentNullException.ThrowIfNull(recall);
+        ArgumentNullException.ThrowIfNull(ask);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -49,7 +52,7 @@ public static class CommandRouter
 
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
-            args, inbox, traces, beliefs, health, recall, cancellation.Token).ConfigureAwait(false);
+            args, inbox, traces, beliefs, health, recall, ask, cancellation.Token).ConfigureAwait(false);
     }
 
     private static async Task<int> DispatchAsync(
@@ -60,6 +63,7 @@ public static class CommandRouter
         BeliefCommands beliefs,
         HealthCommands health,
         RecallCommands recall,
+        AskCommands ask,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -78,6 +82,9 @@ public static class CommandRouter
                 await health.CheckAsync(cancellationToken).ConfigureAwait(false),
             "recall" when args.Length > 1 =>
                 await recall.SearchAsync(string.Join(' ', args[1..]), cancellationToken)
+                    .ConfigureAwait(false),
+            "ask" when args.Length > 1 =>
+                await ask.AskAsync(string.Join(' ', args[1..]), cancellationToken)
                     .ConfigureAwait(false),
             "beliefs" or "correct" or "retract" or "note" =>
                 await DispatchBeliefsAsync(verb, args, beliefs, cancellationToken).ConfigureAwait(false),

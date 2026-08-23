@@ -10,6 +10,27 @@ namespace Dami.Providers.Tests;
 public sealed class TeiEmbeddingClientTests
 {
     [Fact]
+    public void Constructor_Should_Reject_A_NonLoopback_Endpoint()
+    {
+        var options = Options.Create(new TeiOptions
+        {
+            BaseUrl = "https://inference.example.com",
+            BatchSize = 32,
+        });
+
+        Assert.Throws<ArgumentException>("teiOptions", () => new TeiEmbeddingClient(
+            new HttpClient(new EchoHandler()),
+            options,
+            NullLogger<TeiEmbeddingClient>.Instance));
+    }
+
+    [Fact]
+    public void Constructor_Should_Reject_A_Nonpositive_Batch_Size()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>("teiOptions", () => CreateClient(out _, batchSize: 0));
+    }
+
+    [Fact]
     public async Task EmbedAsync_Should_Return_One_Vector_Per_Text()
     {
         var client = CreateClient(out _, batchSize: 32);
@@ -41,13 +62,51 @@ public sealed class TeiEmbeddingClientTests
         Assert.Equal(3, vectors.Count);
     }
 
+    [Fact]
+    public async Task EmbedAsync_Should_Reject_A_Response_With_The_Wrong_Vector_Count()
+    {
+        var handler = new FixedResponseHandler("[[1.0,0.0]]");
+        var client = CreateClient(handler, batchSize: 32);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            client.EmbedAsync(["one", "two"], CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task EmbedAsync_Should_Reject_Inconsistent_Vector_Dimensions()
+    {
+        var handler = new FixedResponseHandler("[[1.0,0.0],[1.0]]");
+        var client = CreateClient(handler, batchSize: 32);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            client.EmbedAsync(["one", "two"], CancellationToken.None));
+    }
+
     private static TeiEmbeddingClient CreateClient(out EchoHandler handler, int batchSize)
     {
         handler = new EchoHandler();
+        return CreateClient(handler, batchSize);
+    }
+
+    private static TeiEmbeddingClient CreateClient(HttpMessageHandler handler, int batchSize)
+    {
         return new TeiEmbeddingClient(
             new HttpClient(handler),
             Options.Create(new TeiOptions { BaseUrl = "http://127.0.0.1:9999", BatchSize = batchSize }),
             NullLogger<TeiEmbeddingClient>.Instance);
+    }
+
+    private sealed class FixedResponseHandler(string responseBody) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(responseBody),
+            });
+        }
     }
 
     /// <summary>Answers /embed with one vector per input, like TEI does.</summary>

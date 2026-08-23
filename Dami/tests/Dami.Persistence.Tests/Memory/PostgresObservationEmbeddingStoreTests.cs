@@ -65,6 +65,24 @@ public sealed class PostgresObservationEmbeddingStoreTests
     }
 
     [Fact]
+    public async Task StoreAsync_Should_Keep_A_Vector_For_Each_Model()
+    {
+        await this.fixture.ResetAsync();
+        var (corpus, store) = this.CreateStores();
+        var observation = Observed("re-embedded under a new model");
+        await corpus.RecordAsync(observation, CancellationToken.None);
+        await store.StoreAsync(observation.ObservationId, MODEL, Unit(0), CancellationToken.None);
+        await store.StoreAsync(observation.ObservationId, "replacement-model", Unit(1), CancellationToken.None);
+
+        await using var command = this.fixture.DataSource.CreateCommand(
+            $"select count(*) from {DatabaseFixture.SCHEMA}.observation_embeddings "
+            + "where observation_id = @id;");
+        command.Parameters.AddWithValue("id", observation.ObservationId);
+
+        Assert.Equal(2L, await command.ExecuteScalarAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task NearestAsync_Should_Order_By_Cosine_Distance()
     {
         await this.fixture.ResetAsync();
@@ -77,12 +95,35 @@ public sealed class PostgresObservationEmbeddingStoreTests
         await store.StoreAsync(far.ObservationId, MODEL, Unit(1), CancellationToken.None);
 
         var nearest = new List<Observation>();
-        await foreach (var (observation, _) in store.NearestAsync(Unit(0), 2, CancellationToken.None))
+        await foreach (var (observation, _) in store.NearestAsync(
+            Unit(0), MODEL, 2, CancellationToken.None))
         {
             nearest.Add(observation);
         }
 
         Assert.Equal("near", nearest[0].Body);
+    }
+
+    [Fact]
+    public async Task NearestAsync_Should_Search_Only_The_Requested_Model()
+    {
+        await this.fixture.ResetAsync();
+        var (corpus, store) = this.CreateStores();
+        var current = Observed("current model");
+        var obsolete = Observed("obsolete model");
+        await corpus.RecordAsync(current, CancellationToken.None);
+        await corpus.RecordAsync(obsolete, CancellationToken.None);
+        await store.StoreAsync(current.ObservationId, MODEL, Unit(1), CancellationToken.None);
+        await store.StoreAsync(obsolete.ObservationId, "obsolete-model", Unit(0), CancellationToken.None);
+
+        var nearest = new List<Observation>();
+        await foreach (var (observation, _) in store.NearestAsync(
+            Unit(0), MODEL, 2, CancellationToken.None))
+        {
+            nearest.Add(observation);
+        }
+
+        Assert.Equal(["current model"], nearest.Select(observation => observation.Body));
     }
 
     private static Observation Observed(string body)

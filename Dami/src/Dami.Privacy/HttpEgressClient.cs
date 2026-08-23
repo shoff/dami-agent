@@ -15,6 +15,7 @@ namespace Dami.Privacy;
 public sealed class HttpEgressClient : IEgressClient
 {
     private const string ACTOR = "egress";
+    private const int MAX_REDIRECTS = 5;
 
     private readonly HttpClient httpClient;
     private readonly EgressOptions egressOptions;
@@ -38,6 +39,15 @@ public sealed class HttpEgressClient : IEgressClient
 
         this.httpClient = httpClient;
         this.egressOptions = egressOptions.Value;
+
+        if (this.egressOptions.MaxResponseBytes <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(egressOptions),
+                this.egressOptions.MaxResponseBytes,
+                "Egress response limit must be positive.");
+        }
+
         this.eventStore = eventStore;
         this.clock = clock;
         this.logger = logger;
@@ -52,7 +62,54 @@ public sealed class HttpEgressClient : IEgressClient
             request, ExecutionEventType.EgressRequested, ExecutionStatus.Running,
             $"{request.Purpose} -> {request.Destination.Host}", cancellationToken).ConfigureAwait(false);
 
-        var refusal = this.FindRefusal(request);
+        try
+        {
+            return await this.SendAllowedAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
+        {
+            await this.EmitAsync(
+                request,
+                ExecutionEventType.EgressFailed,
+                ExecutionStatus.Failed,
+                $"{request.Destination.Host} failed: {exception.Message}",
+                cancellationToken).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task<EgressResponse> SendAllowedAsync(
+        EgressRequest request,
+        CancellationToken cancellationToken)
+    {
+        var destination = request.Destination;
+
+        for (var redirects = 0; redirects <= MAX_REDIRECTS; redirects++)
+        {
+            await this.ThrowIfRefusedAsync(request, destination, cancellationToken).ConfigureAwait(false);
+            using var response = await this.httpClient
+                .GetAsync(destination, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (TryGetRedirect(response, destination, out var redirected))
+            {
+                destination = redirected;
+                continue;
+            }
+
+            return await this.CompleteAsync(request, destination, response, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        throw new HttpRequestException($"Egress exceeded the redirect limit of {MAX_REDIRECTS}.");
+    }
+
+    private async Task ThrowIfRefusedAsync(
+        EgressRequest request,
+        Uri destination,
+        CancellationToken cancellationToken)
+    {
+        var refusal = this.FindRefusal(destination);
         if (refusal is not null)
         {
             await this.EmitAsync(
@@ -62,36 +119,78 @@ public sealed class HttpEgressClient : IEgressClient
             this.logger.LogWarning("Egress refused: {Reason}", refusal);
             throw new EgressRefusedException(refusal);
         }
+    }
 
-        var response = await this.httpClient
-            .GetAsync(request.Destination, cancellationToken).ConfigureAwait(false);
+    private async Task<EgressResponse> CompleteAsync(
+        EgressRequest request,
+        Uri destination,
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        await this.EnsureResponseSizeAsync(response.Content, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
         await this.EmitAsync(
             request, ExecutionEventType.EgressCompleted, ExecutionStatus.Succeeded,
-            $"{request.Destination.Host} answered {(int)response.StatusCode}", cancellationToken)
+            $"{destination.Host} answered {(int)response.StatusCode}", cancellationToken)
             .ConfigureAwait(false);
 
         return new EgressResponse((int)response.StatusCode, body);
     }
 
-    private string? FindRefusal(EgressRequest request)
+    private async Task EnsureResponseSizeAsync(
+        HttpContent content,
+        CancellationToken cancellationToken)
     {
+        var length = content.Headers.ContentLength;
+        if (length > this.egressOptions.MaxResponseBytes)
+        {
+            throw new InvalidDataException(
+                $"Egress response is {length} bytes; limit is {this.egressOptions.MaxResponseBytes}.");
+        }
+
+        await content
+            .LoadIntoBufferAsync(this.egressOptions.MaxResponseBytes, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private string? FindRefusal(Uri destination)
+    {
+        if (destination.Scheme != Uri.UriSchemeHttps)
+        {
+            return $"scheme '{destination.Scheme}' is not allowed; outbound egress requires HTTPS";
+        }
+
         var allowed = this.egressOptions.AllowedHosts
-            .Any(host => string.Equals(host, request.Destination.Host, StringComparison.OrdinalIgnoreCase));
+            .Any(host => string.Equals(host, destination.Host, StringComparison.OrdinalIgnoreCase));
 
         if (!allowed)
         {
-            return $"host '{request.Destination.Host}' is not on the egress allowlist";
+            return $"host '{destination.Host}' is not on the egress allowlist";
         }
 
-        var uri = request.Destination.AbsoluteUri;
+        var uri = Uri.UnescapeDataString(destination.AbsoluteUri);
         var leaked = this.egressOptions.ForbiddenFragments
             .FirstOrDefault(fragment => uri.Contains(fragment, StringComparison.OrdinalIgnoreCase));
 
         return leaked is null
             ? null
             : $"the outgoing URI contains the forbidden fragment '{leaked}'";
+    }
+
+    private static bool TryGetRedirect(
+        HttpResponseMessage response,
+        Uri requestUri,
+        out Uri redirected)
+    {
+        if ((int)response.StatusCode is >= 300 and <= 399 && response.Headers.Location is { } location)
+        {
+            redirected = location.IsAbsoluteUri ? location : new Uri(requestUri, location);
+            return true;
+        }
+
+        redirected = requestUri;
+        return false;
     }
 
     private Task<long> EmitAsync(
