@@ -1057,6 +1057,14 @@ where a paused sender could otherwise touch a disposed lifetime token. The three
 send/disposal/concurrency tests passed 3/3, followed by another mandatory full build
 (0 warnings, 0 errors) and the same full 85/85 test result.
 
+## 2026-08-22 — Codex — TCP lifetime hardening started
+
+After checkpointing and pushing transport commit `e778ab8`, started the next recommended
+red–green slice. Scope is limited to `TcpDuplexPipe` disposal: every owned resource must
+receive a cleanup attempt even when an earlier pipe completion fails, and repeated or
+overlapping disposal must have one stable completion. Tests are written and run red
+before each production behavior. Claude Code's observation-corpus files remain untouched.
+
 ## 2026-08-22 — Claude Code — Conclusions and pushback ledgers
 
 The memory layer of D-009 and D-011, in C#. Red-first this time, both cycles.
@@ -1110,3 +1118,54 @@ Dami.Analyzers.Tests      12 passed
 
 The `PipeTransportTests.SendAsync_Should_Reject_A_Send_After_Disposal` flake reported
 earlier is no longer reproducing; Codex's suite has grown to 24 and is green.
+
+## 2026-08-22 — Claude Code — Observation corpus and DI registration
+
+Completes the Phase 2 persistence layer: all four stores of the data foundation now
+exist in C# with the database enforcing their invariants.
+
+### TDD, as observed
+
+Contracts (`Observation`, `IObservationCorpus`), stub returning empty results, twelve
+tests. **Red: `Failed: 9, Passed: 41`.** Implemented. **Green: `Passed: 50`.**
+
+Then `ServiceCollectionExtensions` with three registration tests; one compile failure
+(`BuildServiceProvider` needs the full DI package, the test project had only
+abstractions transitively) and one dead using. **Final: `Passed: 56`.**
+
+### Design decisions
+
+- **`RecordAsync` is idempotent and a repeat cannot rewrite history.** `on conflict do
+  nothing` discards a re-send. The test that matters is
+  `RecordAsync_Should_Not_Let_A_Repeat_Rewrite_History`: recording a *different* body
+  under the same id leaves the original untouched. At-least-once delivery from a
+  collector is expected; "never edited" has to survive it.
+- `RecordedAt` is assigned by the store, distinct from `OccurredAt` — backfilled
+  observations differ in the two, and the gap is itself information.
+- Windows are half-open, consistent with the pushback ledger.
+- **`AddDamiPersistence` is the composition-root registration** for all four stores. Its
+  own documentation records the D-012 shape: nothing in it receives or registers an
+  egress client. A test pins that — no `System.Net.Http.*` and no `*EgressClient*`
+  service may appear in the collection it builds. Deliberately a *negative* test: when
+  `Dami.Privacy` exists, its egress client must be registered somewhere else, and this
+  test will make wiring it into the local-only persistence layer a visible failure.
+
+### Verification
+
+```
+dotnet build Dami.sln     0 warnings, 0 errors
+Dami.Tests                  1 passed
+Dami.Architecture.Tests    10 passed
+Dami.Transport.Tests       26 passed   (Codex's, still green alongside)
+Dami.Persistence.Tests     56 passed
+Dami.Analyzers.Tests       12 passed
+                          105 total
+```
+
+### The Phase 2 exit, honestly stated
+
+Architecture §10 Phase 2 exit: "the corpus is queryable, reranked, and measurably better
+than the eval baseline." The **infrastructure** for that is now complete end to end —
+schema, stores, embedding service, reranker, eval harness. What is missing is the
+**data**: the 7,000 memories and the 50-query eval set, both Phase 0 exports from the
+Mac. Phase 2 cannot close from this machine, and nothing on this machine now blocks it.
