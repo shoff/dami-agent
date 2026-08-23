@@ -95,7 +95,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [ ] G4 **Sessions**: multi-turn conversation with a recent window in context; start/resume/interrupt/reconnect without duplication — acceptance item 1 (natural Codex continuation from transport; unclaimed)
 - [ ] G5 Runtime API on localhost (D-005) so CLI/GUI/voice become thin clients; retire the CLI's direct-store deviation
 - [ ] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4 `[BLOCKED: F1-F2]`
-- [ ] G7 Approval contract: first-class blocking approval nodes, CLI + (later) GUI respond through the same contract — acceptance item 5
+- [~ Claude 2026-08-23] G7 Approval contract: first-class blocking approval nodes, CLI + (later) GUI respond through the same contract — acceptance item 5 (consumer: librarian manifest execution)
 - [ ] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6
 - [ ] G9 Frontier-informed turns once C4 exists (redacted context → Egressable)
 - [ ] G10 Identity/prompt: port the Dami identity charter into the stable prompt (§9.1); verify identity across local + frontier — acceptance item 9
