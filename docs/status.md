@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 22:31 CDT (`2026-08-23T03:31Z`)
+- **Last updated:** 2026-08-22 22:05 CDT (`2026-08-23T03:05Z`)
 - **Updated by:** Claude Code session, from direct inspection of this workstation
 - **Current phase:** 0 and 1, both in progress
 
@@ -63,7 +63,8 @@ the instrumentation gates the claim that Dami Core is faster than Hermes — arc
 | GPU driver working on host | done | `nvidia-smi` → RTX 4080, driver 595.84, CUDA 13.2 |
 | Snapshot / rollback configured | done | Timeshift RSYNC, daily+weekly+boot, retention 5/3/3; snapshot `2026-08-22_20-17-07`, 22 G, verified to hold `/etc` `/usr` `/var` with `/home` `/root` `/var/lib/docker` excluded |
 | Rollback rehearsed | not done — **recommended, not required** | Steve's call, 2026-08-22: does not gate Phase 1. Still a cutover gate via acceptance-suite item 13. Needs a reboot to the live USB. |
-| Database backup schedule | **not started** | one manual dump exists; `/home` is excluded from snapshots, so the cluster has no recurring backup |
+| Database backup schedule | done — interim | `dami-pg-backup.timer` nightly at 02:30, `Persistent=true`; every archive verified with `pg_restore --list`, 14-day retention. **A restore was actually performed** and returned schema `dami` and `vector 0.8.6`. See ADR-0003. |
+| Off-host / encrypted backup | **not started** | archives sit on the same disk as the database and are unencrypted; `globals-*.sql` holds SCRAM verifiers |
 | Container runtime | done | `docker --version` → 29.1.3 |
 | GPU passthrough into containers | done | `docker run --rm --gpus all ubuntu:24.04 nvidia-smi` → RTX 4080 visible |
 | CUDA compute proven from a pinned container | done | `cuInit()` returns `CUDA_SUCCESS` with `deviceCount=1` inside a container; TEI runs FlashBert on `Cuda(CudaDevice(DeviceId(1)))` |
@@ -295,6 +296,7 @@ Nothing below can be settled by inspection. Each blocks work that is expensive t
 | 6 | ~~Retarget `csharpcodestandards.md`~~ | — | **Done 2026-08-22.** Retargeted, and §12 now separates what is a build error from the enforcement gap. |
 | 9 | ~~How to enforce SOLID~~ | — | **Closed 2026-08-22.** `Dami.Analyzers` covers `#region`, `dynamic`, method length, loop nesting, optional constructor dependencies, and `NotImplementedException` on interface members; `Dami.Architecture.Tests` covers layering, leaky surfaces, and async contracts. What remains — SRP, OCP, ISP, hot-path LINQ — is not decidable from syntax and is review-only by decision, recorded in standards §12. |
 | 7 | Add `apt-mark hold` on the NVIDIA toolkit and driver stack | host stability | ADR-0002 assumes controlled update windows; nothing enforces them yet |
+| 10 | **Accept or revise ADR-0003.** A verified nightly local dump is in place as an interim measure. Off-host destination, encryption, and a stated recovery objective are still open. | data safety | 14-day retention is arbitrary — no RPO has been stated. Consider PITR before the corpus lands. |
 
 ---
 
@@ -321,9 +323,9 @@ change, or an ADR — not silence.
 
 1. **Accept or reject ADR-0001** (host OS). Reversal is a reinstall now and a data
    migration after Phase 2.
-3. **Decide the database backup schedule.** `/home` is excluded from snapshots, so the
-   cluster is covered only by a single manual dump. Backup destination, encryption, and
-   retention are all still open decisions in the register.
+3. **Decide the off-host backup destination and encryption.** A verified local copy now
+   exists (ADR-0003), but nothing on this host survives the loss of `nvme0n1` — neither
+   the dumps nor the Timeshift snapshots. Settle before Phase 2 loads the corpus.
 4. **Decide PostgreSQL 16 versus 17/18** while both databases are still near-empty.
 5. **Design the Phase 2 schema** — event store, observation corpus, conclusions ledger,
    pushback ledger — as `dami_ddl`. First real use of the database.

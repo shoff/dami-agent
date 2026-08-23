@@ -462,6 +462,79 @@ but if a real runtime dependency is ever added there, the layering tests will no
   remaining gap is reduced to things not decidable from syntax (SRP, OCP, ISP, hot-path
   LINQ) plus two deliberate not-yets (`CA2254`, `CS1591`).
 
+## 2026-08-22 — TCP/Pipelines transport slice started
+
+### Scope
+
+- Continue architecture §7.5.5 with one Pipelines-based connection after the completed
+  frame codec, `ITransport`, and `LoopbackTransport` work.
+- First build a framed `PipeTransport` over `IDuplexPipe`. This isolates frame delivery
+  from socket creation and keeps TCP connection establishment as a separate reason to
+  change.
+- Implement one behavior at a time with an observed red run before production code:
+  receive one complete frame, then send one frame, then incremental partial input,
+  cancellation/completion, and finally the TCP socket adapter.
+- Explicitly exclude reconnect, heartbeat, sequence-gap handling, and UDP from this
+  slice.
+
+### Start evidence
+
+- Ran `git pull --rebase` as OS user `steve`: already up to date.
+- Read `docs/status.md` §4 and §6 and the tail of this log as required by the runbook.
+- Working tree contained an unrelated concurrent modification to `CLAUDE.md`; this
+  transport work will not alter or stage it.
+
+### Cycle 1 — receive one complete frame — red
+
+- Added only
+  `PipeTransportTests.ReceiveAsync_Should_Yield_A_Complete_Frame_From_The_Input_Pipe`.
+- Restored repository ownership to `steve:steve` and ran only that test as OS user
+  `steve`.
+- Observed red: compiler error `CS0246`, `PipeTransport` could not be found. Exit code
+  1; no test executed because the production type deliberately did not exist.
+- Narrowed the test helper parameter from `ITransport` to `PipeTransport`. This keeps
+  the first production increment limited to tested receive behavior; implementing an
+  untested `SendAsync` merely to satisfy the full interface would violate the required
+  one-behavior-at-a-time TDD sequence.
+
+### Cycle 1 — receive one complete frame — green
+
+- Added the minimum `PipeTransport` implementation: constructor injection of one
+  `IDuplexPipe`, incremental reads through `FrameCodec`, explicit trailing-data
+  validation on completion, and asynchronous disposal of both pipe sides.
+- Ran only the new receive test as OS user `steve`.
+- Observed green: 1 test executed, 1 passed, 0 failed, 0 skipped; exit code 0.
+
+### Cycle 2 — send one complete frame — test added
+
+- Added only
+  `PipeTransportTests.SendAsync_Should_Write_A_Complete_Frame_To_The_Output_Pipe`.
+- Production does not yet expose `SendAsync`; the narrow run is expected to fail at
+  that missing contract.
+
+### Cycle 2 — send one complete frame — red
+
+- Ran only the new send test as OS user `steve`.
+- Observed red: compiler error `CS1061`, `PipeTransport` did not contain a definition
+  for `SendAsync`. Exit code 1; no test executed.
+- Added the minimum implementation: encode into the injected `PipeWriter`, flush with
+  the caller's cancellation token, and implement the existing focused `ITransport`
+  abstraction now that both required behaviors exist.
+
+### Cycle 2 — send one complete frame — green
+
+- Ran only the new send test as OS user `steve`.
+- Observed green: 1 test executed, 1 passed, 0 failed, 0 skipped; exit code 0.
+
+### Cycle 3 — establish one TCP/Pipelines connection — test added
+
+- Added only
+  `TcpDuplexPipeTests.ConnectAsync_Should_Write_Pipe_Bytes_To_The_Tcp_Peer`.
+- The integration test uses an ephemeral loopback listener and requires bytes written
+  to the connection's `PipeWriter` to reach the accepted TCP peer.
+- Production does not yet contain `TcpDuplexPipe`; the narrow run is expected to fail
+  at that missing type.
+
 ## 2026-08-22 — Claude Code — Mandatory build/test rule in CLAUDE.md
 
 Proposed GitHub Actions CI to gate the enforcement layer. **Steve declined on cost** —
@@ -482,3 +555,57 @@ not built, because Steve asked for the rule specifically.
 does not currently mandate a full-solution build and test before commit — its TDD section
 covers narrow and affected suites. Flagged for Steve rather than edited, since `AGENTS.md`
 is Codex's.
+
+## 2026-08-22 — Claude Code — Database backup
+
+Closed the largest remaining gap: the cluster had no recurring backup, because Timeshift
+excludes `/home` and the data directory is `/home/steve/Data/pgsql-dami-data`.
+
+### What was built
+
+- `tools/backup/dami-pg-backup.sh` in the repository, installed to
+  `/usr/local/bin/dami-pg-backup`. The installed copy exists so the systemd unit does not
+  depend on traversing `/home/steve`, which today is permitted only by an ACL entry
+  (`user:postgres:--x` — set deliberately by whoever moved the data directory there).
+- `dami-pg-backup.service` (oneshot, `User=postgres`) and `dami-pg-backup.timer`
+  (02:30 daily, `RandomizedDelaySec=300`, `Persistent=true`). Enabled; next run reported
+  by `systemctl list-timers` as 2026-08-23 02:32:22.
+- Per-database `pg_dump --format=custom --compress=9`, plus `pg_dumpall --globals-only`
+  for roles, sha256 beside each, 14-day retention.
+
+### Design decisions
+
+- **Every archive is verified at creation** with `pg_restore --list`; failure aborts the
+  run. Retaining an unreadable file that looks like protection is worse than none.
+- **Retention runs only after every dump succeeds**, so a failed run cannot delete the
+  last good copy.
+- Peer authentication over the local socket — no password read, stored, or passed.
+
+### Verification
+
+```
+$ pg_restore --dbname=dami_restore_probe --no-owner dami-data-20260823T030013Z.dump
+$ select nspname from pg_namespace where nspname='dami'   -> dami
+$ select extversion from pg_extension where extname='vector' -> 0.8.6
+$ sha256sum -c *.sha256   -> 3 files OK
+```
+
+Probe database dropped. Service then run through systemd rather than by hand:
+`2 database(s) ... verified, keeping 14d`.
+
+**A restore was actually performed.** That is the evidence acceptance-suite item 13 asks
+for, and it is more than ADR-0002's Timeshift path can currently claim.
+
+### Limits recorded in ADR-0003 rather than left to be discovered
+
+1. Archives sit on the **same physical disk** as the database. So do the Timeshift
+   snapshots. **This host has no defence against losing `nvme0n1`.**
+2. Archives are **unencrypted**, and `globals-*.sql` contains SCRAM verifiers for every
+   role. Mode 0600 and postgres-owned is adequate on-host and not adequate anywhere else.
+   Encryption must be settled before anything leaves the machine.
+3. **14 days is arbitrary.** No recovery objective has been stated, so the number is not
+   derived from one. Said so in the ADR rather than implying rigour that is absent.
+
+ADR-0003 is accepted **as an interim measure** and explicitly does not close the
+register's open decision on destinations, encryption, and retention. PITR is the right
+answer and the natural trigger is the corpus landing in Phase 2.
