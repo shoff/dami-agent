@@ -2121,3 +2121,18 @@ $ dami recall my reaction to a recommendation
 
 Full solution: 0 warnings, 0 errors; Persistence 83, all suites green (Codex's
 capabilities tests now compile and pass alongside).
+
+## 2026-08-23 — Claude Code — dami on PATH; retrieval-augmented reflection
+
+- **`dami` is a real command** (`/opt/dami/cli`, symlinked into `/usr/local/bin`) —
+  D-004's "binary on PATH" made literal; verified from an arbitrary directory.
+- **Reflection now reaches beyond its window.** The pass embeds the week's observations
+  as one theme query, pulls the nearest older observations from the semantic index
+  (excluding the window itself), and appends them to the same numbered list the model
+  cites from — so provenance mapping spans both ranges, and a test pins that a citation
+  of a related item maps to the right observation id. This is what lets a weekly pass
+  notice a pattern that spans months: the window supplies "what happened", the index
+  supplies "when has this happened before". `RelatedObservations = 0` disables it.
+- Service republished; active. Proactive suite 59; full solution 0 warnings, 0 errors.
+- **Not mine:** one failing test in Codex's in-flight `Dami.Capabilities.Tests`.
+  Reported, not absorbed.

@@ -17,6 +17,8 @@ public sealed class ReflectionServiceTests
 
     private readonly IObservationCorpus observationCorpus = Substitute.For<IObservationCorpus>();
     private readonly IConclusionLedger conclusionLedger = Substitute.For<IConclusionLedger>();
+    private readonly IObservationEmbeddingStore embeddingStore = Substitute.For<IObservationEmbeddingStore>();
+    private readonly IEmbeddingClient embeddingClient = Substitute.For<IEmbeddingClient>();
     private readonly IChatClient chatClient = Substitute.For<IChatClient>();
     private readonly List<Observation> observations = [];
     private readonly List<Conclusion> believed = [];
@@ -157,6 +159,47 @@ public sealed class ReflectionServiceTests
         Assert.Empty(result.Conclusions);
     }
 
+    private readonly List<Observation> related = [];
+
+    [Fact]
+    public async Task RunPassAsync_Should_Include_Related_Older_Observations_In_The_Prompt()
+    {
+        this.ObserveThree();
+        this.related.Add(new Observation(
+            Guid.NewGuid(), now.AddMonths(-2), "cli-note", "also skipped the workshop back in june"));
+        this.ModelSays("nothing");
+
+        await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        await this.chatClient.Received(1).CompleteAsync(
+            Arg.Is<string>(prompt => prompt.Contains("also skipped the workshop back in june")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunPassAsync_Should_Map_Provenance_Into_The_Related_Range()
+    {
+        this.ObserveThree();
+        var older = new Observation(
+            Guid.NewGuid(), now.AddMonths(-2), "cli-note", "an older echo of the same pattern");
+        this.related.Add(older);
+        this.ModelSays("""{"statement":"a pattern spanning months","confidence":0.8,"supporting":[4]}""");
+
+        var result = await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        Assert.Equal(older.ObservationId, result.Conclusions[0].SupportingObservations[0]);
+    }
+
+    private static async IAsyncEnumerable<(Observation, double)> AsNearestAsync(List<Observation> related)
+    {
+        foreach (var observation in related)
+        {
+            yield return (observation, 0.2);
+        }
+
+        await Task.CompletedTask;
+    }
+
     private void Believe(string statement)
     {
         this.believed.Add(new Conclusion(
@@ -196,9 +239,14 @@ public sealed class ReflectionServiceTests
         this.conclusionLedger.ActiveForSubjectAsync("steve", Arg.Any<CancellationToken>())
             .Returns(AsConclusionsAsync(this.believed));
 
+        this.embeddingClient.EmbedAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new List<float[]> { new float[4] });
+        this.embeddingStore.NearestAsync(Arg.Any<float[]>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(AsNearestAsync(this.related));
+
         return new ReflectionService(
-            this.observationCorpus, this.conclusionLedger, this.chatClient,
-            Options.Create(new ReflectionOptions()),
+            this.observationCorpus, this.conclusionLedger, this.embeddingStore, this.embeddingClient,
+            this.chatClient, Options.Create(new ReflectionOptions()),
             new FakeTimeProvider(now), NullLogger<ReflectionService>.Instance);
     }
 

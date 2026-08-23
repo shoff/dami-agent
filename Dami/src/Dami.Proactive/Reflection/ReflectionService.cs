@@ -24,6 +24,8 @@ public sealed class ReflectionService : IProactiveService
 {
     private readonly IObservationCorpus observationCorpus;
     private readonly IConclusionLedger conclusionLedger;
+    private readonly IObservationEmbeddingStore embeddingStore;
+    private readonly IEmbeddingClient embeddingClient;
     private readonly IChatClient chatClient;
     private readonly ReflectionOptions reflectionOptions;
     private readonly TimeProvider clock;
@@ -33,6 +35,8 @@ public sealed class ReflectionService : IProactiveService
     public ReflectionService(
         IObservationCorpus observationCorpus,
         IConclusionLedger conclusionLedger,
+        IObservationEmbeddingStore embeddingStore,
+        IEmbeddingClient embeddingClient,
         IChatClient chatClient,
         IOptions<ReflectionOptions> reflectionOptions,
         TimeProvider clock,
@@ -40,6 +44,8 @@ public sealed class ReflectionService : IProactiveService
     {
         ArgumentNullException.ThrowIfNull(observationCorpus);
         ArgumentNullException.ThrowIfNull(conclusionLedger);
+        ArgumentNullException.ThrowIfNull(embeddingStore);
+        ArgumentNullException.ThrowIfNull(embeddingClient);
         ArgumentNullException.ThrowIfNull(chatClient);
         ArgumentNullException.ThrowIfNull(reflectionOptions);
         ArgumentNullException.ThrowIfNull(clock);
@@ -47,6 +53,8 @@ public sealed class ReflectionService : IProactiveService
 
         this.observationCorpus = observationCorpus;
         this.conclusionLedger = conclusionLedger;
+        this.embeddingStore = embeddingStore;
+        this.embeddingClient = embeddingClient;
         this.chatClient = chatClient;
         this.reflectionOptions = reflectionOptions.Value;
         this.clock = clock;
@@ -77,6 +85,9 @@ public sealed class ReflectionService : IProactiveService
                 observations.Count, from, this.reflectionOptions.MinimumObservations);
             return ProactiveResult.quiet;
         }
+
+        var related = await this.CollectRelatedAsync(observations, cancellationToken).ConfigureAwait(false);
+        observations.AddRange(related);
 
         var conclusion = await this.ProposeAsync(observations, now, cancellationToken).ConfigureAwait(false);
 
@@ -126,6 +137,63 @@ public sealed class ReflectionService : IProactiveService
         }
 
         return conclusion;
+    }
+
+    /// <summary>Semantically related observations from before the window (RAG over the corpus).</summary>
+    /// <remarks>
+    /// This is what lets a weekly pass notice a pattern that spans months: the window
+    /// supplies the "what happened", the index supplies the "when has this happened
+    /// before". Provenance still works because the related items join the same numbered
+    /// list the model cites from.
+    /// </remarks>
+    private async Task<List<Observation>> CollectRelatedAsync(
+        List<Observation> window,
+        CancellationToken cancellationToken)
+    {
+        if (this.reflectionOptions.RelatedObservations <= 0 || window.Count == 0)
+        {
+            return [];
+        }
+
+        var themes = new StringBuilder();
+        foreach (var observation in window)
+        {
+            themes.AppendLine(observation.Body);
+        }
+
+        var queryVector = (await this.embeddingClient
+            .EmbedAsync([themes.ToString()], cancellationToken).ConfigureAwait(false))[0];
+
+        return await this.NearestOutsideAsync(queryVector, window, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<List<Observation>> NearestOutsideAsync(
+        float[] queryVector,
+        List<Observation> window,
+        CancellationToken cancellationToken)
+    {
+        var seen = new HashSet<Guid>();
+        foreach (var observation in window)
+        {
+            seen.Add(observation.ObservationId);
+        }
+
+        var related = new List<Observation>();
+        await foreach (var (observation, _) in this.embeddingStore
+            .NearestAsync(queryVector, this.reflectionOptions.RelatedObservations + window.Count, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            if (seen.Add(observation.ObservationId))
+            {
+                related.Add(observation);
+                if (related.Count >= this.reflectionOptions.RelatedObservations)
+                {
+                    break;
+                }
+            }
+        }
+
+        return related;
     }
 
     private async Task<List<string>> CollectBelievedAsync(CancellationToken cancellationToken)

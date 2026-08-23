@@ -14,4 +14,8 @@ public sealed class ReflectionOptions
 
     /// <summary>A proposal below this confidence is discarded.</summary>
     public double MinimumConfidence { get; set; } = 0.5;
+
+    /// <summary>How many semantically related older observations join the prompt.</summary>
+    /// <remarks>Zero disables retrieval augmentation.</remarks>
+    public int RelatedObservations { get; set; } = 5;
 }
