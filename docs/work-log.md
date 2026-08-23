@@ -2033,3 +2033,36 @@ take effect with the audit trail intact — has now run end to end on a real bel
 Also republished `/opt/dami/proactive` so the running service carries today's
 improvements (belief-aware reflection, feedback observations); service active.
 `DAMI0003` fired twice more on the router; dispatch split by family.
+
+## 2026-08-23 — Codex — Capability registry core verified
+
+Created `Dami.Capabilities` and `Dami.Capabilities.Tests`, adding both through
+`dotnet sln add`. The core follows architecture §7.6's common entry model while keeping
+mutation (`ICapabilityRegistrar`) separate from lookup (`ICapabilityCatalog`). The
+registry rejects stable-ID collisions instead of overwriting; entry collection metadata
+is snapshotted; tool schema and skill body references cannot cross capability kinds.
+
+TDD record, in order:
+
+- The first `--no-restore` attempt failed only because the new test project's assets
+  file did not exist. After `dotnet restore`, the meaningful red was compilation failure
+  for the absent capability types. Stable-ID registration then passed 1/1.
+- Duplicate registration failed red because `Dictionary.Add` leaked
+  `ArgumentException`; explicit collision handling made the expected
+  `InvalidOperationException` behavior pass without replacing the original.
+- Mutable caller lists produced a red collection-difference assertion; constructor
+  snapshots made it green.
+- The focused registration/catalog abstractions failed red as missing types, then
+  passed after `CapabilityRegistry` implemented both interfaces.
+- Missing tool schema, missing skill body, cross-kind references (four cases), and an
+  empty stable ID each failed before their minimum validation was added. The final
+  capability suite passed 10/10.
+
+The initial start entry landed in Claude Code's concurrent `3d71a4e` commit because
+the agents share one worktree; none of the capability code was included there.
+
+Mandatory repository gate from `Dami/`: `dotnet build Dami.sln` succeeded with
+0 warnings and 0 errors. `dotnet test Dami.sln` completed with 236/236 passing across
+nine suites: Capabilities 10, Transport 57, Proactive 57, Persistence 78, Analyzers 12,
+Architecture 10, Privacy 8, Providers 3, and Dami 1. Cleared the capability ownership
+claim after verification.

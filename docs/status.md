@@ -107,10 +107,11 @@ rather than assuming — but nothing else blocks the phase.
 | TCP connection, one connection | done | outbound and accepted loopback sockets verified; accepted-socket seam owns the socket, enables `NoDelay`, and has exception-safe idempotent disposal |
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
-| Capability registry, model routing, sessions, events, CLI | not started | — |
+| Capability registry | in progress | `Dami.Capabilities` defines the normalized entry model and focused registration/catalog abstractions; stable-ID lookup, duplicate rejection, immutable metadata snapshots, and tool/skill reference invariants have 10 tests. Semantic retrieval, bundle expansion, native discovery, MCP, and skill loading remain. |
+| Model routing, sessions, events, CLI | partial | Provider adapters, durable execution events, and the CLI exist; the `Dami.Core` session lifecycle and one complete routed turn do not. |
 
 Verification on 2026-08-23: `Dami.Transport.Tests` executed 57 tests with 0 failures;
-`dotnet test Dami.sln` executed 215 tests across eight suites with 0 failures; preceding
+`dotnet test Dami.sln` executed 236 tests across nine suites with 0 failures; preceding
 `dotnet build Dami.sln` completed with 0 warnings and 0 errors.
 
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
