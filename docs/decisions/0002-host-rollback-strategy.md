@@ -2,7 +2,7 @@
 
 - **Decision:** Satisfy the Phase 1 rollback requirement with scheduled Timeshift rsync snapshots of the system on the existing ext4 root, rather than reinstalling onto Btrfs subvolumes.
 - **Date:** 2026-08-22
-- **Status:** proposed
+- **Status:** accepted — implemented 2026-08-22; the rehearsed restore below is still outstanding
 - **Supersedes:** none. This fills a gap rather than reversing a decision — no document specifies rollback for an ext4 host.
 
 ## Context
@@ -63,7 +63,25 @@ Timeshift is installed and in RSYNC mode by default, and has never been configur
 
 **Locked in.** Nothing structural. Timeshift can switch to BTRFS mode later if the host is ever reinstalled onto subvolumes; snapshots taken under RSYNC mode do not carry over, but they are disposable by nature.
 
-**Required to accept.** Timeshift configured to snapshot the system (not `/home`) on a schedule plus manually before any kernel or driver update; the retention count set against available space; **and one restore actually rehearsed from the live USB before Phase 1 is called done.** An untested restore is not a rollback path — it is an assumption, and the acceptance suite's item 13 exists precisely because this project does not accept unverified success claims.
+**Implemented 2026-08-22.** Timeshift configured in RSYNC mode against the root device
+`fe233bc7-f9ce-4937-8f07-ef2e79ac1b3a`, scheduled daily, weekly, and on boot with
+retention 5/3/3, excluding `/home`, `/root`, `/var/lib/docker`, and the apt cache. First
+snapshot `2026-08-22_20-17-07` took 299 s and occupies 22 G; verified to contain `/etc`,
+`/usr`, and `/var` with the excluded trees present only as empty stubs.
+
+**Still required, and this ADR is not fully satisfied without it: one restore actually
+rehearsed from the live USB.** An untested restore is not a rollback path, it is an
+assumption, and acceptance-suite item 13 exists precisely because this project does not
+accept unverified success claims. It needs a reboot and cannot be done from a session on
+the running host.
+
+**Two limits to state plainly.** Snapshots live at `/timeshift` on the same physical
+device as the root filesystem, so they protect against a bad update and not against
+drive failure — which is the failure this ADR set out to address, but the distinction
+should not be blurred later. And **the database is not covered**: the cluster's data
+directory sits under `/home/steve/Data`, which is excluded. That is correct — an rsync
+copy of a live data directory is not a backup — but it means database recovery rests
+entirely on a `pg_dump` schedule that does not yet exist.
 
 ## Reversal path
 

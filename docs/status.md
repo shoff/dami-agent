@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-22 20:13 CDT (`2026-08-23T01:13Z`)
+- **Last updated:** 2026-08-22 20:23 CDT (`2026-08-23T01:23Z`)
 - **Updated by:** Claude Code session, from direct inspection of this workstation
 - **Current phase:** 0 and 1, both in progress
 
@@ -57,7 +57,9 @@ the instrumentation gates the claim that Dami Core is faster than Hermes — arc
 | Host OS installed and usable | done, but unrecorded | Linux Mint 22.3 running; **no document names this host** — see ADR-0001 |
 | Live-boot validation before install | unknown | Not observed by this session; ask Steve |
 | GPU driver working on host | done | `nvidia-smi` → RTX 4080, driver 595.84, CUDA 13.2 |
-| Snapshot / rollback available | **not started** | `timeshift --list` → `Mode: RSYNC`, `No snapshots on this device` |
+| Snapshot / rollback configured | done | Timeshift RSYNC, daily+weekly+boot, retention 5/3/3; snapshot `2026-08-22_20-17-07`, 22 G, verified to hold `/etc` `/usr` `/var` with `/home` `/root` `/var/lib/docker` excluded |
+| Rollback **rehearsed** | **not done** | Requires a reboot to the live USB. ADR-0002 does not count as satisfied until one restore is actually performed. |
+| Database backup schedule | **not started** | one manual dump exists; `/home` is excluded from snapshots, so the cluster has no recurring backup |
 | Container runtime | done | `docker --version` → 29.1.3 |
 | GPU passthrough into containers | done | `docker run --rm --gpus all ubuntu:24.04 nvidia-smi` → RTX 4080 visible |
 | CUDA compute proven from a pinned container | **not done** | `nvidia-smi` in a container proves device visibility and driver injection only. No kernel has been launched. |
@@ -122,7 +124,7 @@ Captured 2026-08-22 19:49 CDT. Everything here was read off the machine.
 | gh | 2.98.0 | GitHub's apt repo |
 | psql client | 16.15 | Ubuntu archive — **not PGDG** |
 | pgAdmin 4 desktop | 9.17 | pgAdmin apt repo (`.../apt/noble`) |
-| Timeshift | present, RSYNC mode, **zero snapshots** | Mint default |
+| Timeshift | configured, RSYNC, 1 snapshot (22 G) | Mint default; cron `timeshift-boot`, `timeshift-hourly` |
 
 ### Not installed
 
@@ -204,7 +206,7 @@ Nothing below can be settled by inspection. Each blocks work that is expensive t
 | # | Question | Blocks | Note |
 |---|---|---|---|
 | 1 | Accept or reject **ADR-0001** — Linux Mint 22.3 as host, reversing D-003's Debian 13 | Phase 1 close | Reversal is a reinstall now, a data migration after Phase 2 |
-| 2 | Accept or reject **ADR-0002** — Timeshift rsync snapshots for rollback on ext4 | Phase 1 exit | Requires one rehearsed restore before Phase 1 is called done |
+| 2 | **Rehearse one restore from the live USB** | Phase 1 exit | ADR-0002 accepted and implemented, but an untested restore is an assumption, not a rollback path. Needs a reboot; cannot be done from a session on the running host. |
 | 3 | **Stay on PostgreSQL 16, or move to 17/18?** | Phase 2 schema | PGDG is configured, so either is available. The removed container ran 18.6. Cheap now with two near-empty databases, expensive once the corpus lands. |
 | 4 | **Which embedding container** — TEI, Infinity, Ollama, or vLLM | Phase 2 | Options and tradeoffs were presented; recommendation was TEI with Ollama kept separate for the LLM sidecar |
 | 5 | Split `D-001`…`D-022` into individual ADR files, or leave them in the register | doc hygiene | `CLAUDE.md` says decisions live in `docs/decisions/`; the register is a parallel structure |
@@ -221,7 +223,7 @@ change, or an ADR — not silence.
 | Documented | Actual | Status |
 |---|---|---|
 | Host is Debian 13 + Cinnamon (D-003) | Linux Mint 22.3 + Cinnamon | ADR-0001 proposed |
-| Rollback via Btrfs/Snapper or LVM (charter, architecture §10) | ext4, no snapshots configured | ADR-0002 proposed |
+| Rollback via Btrfs/Snapper or LVM (charter, architecture §10) | ext4 with Timeshift rsync snapshots | **ADR-0002 accepted 2026-08-22**; restore still unrehearsed |
 | Postgres on bare metal (D-004) | bare metal, cluster `16/main` online | **resolved 2026-08-22** |
 | Postgres from the PGDG repository (D-004) | PGDG configured, packages swapped | **resolved 2026-08-22** |
 | Retrieval is ANN top-50 then relational filter (arch §9.3) | iterative index scans available in 0.8.6 | **resolved 2026-08-22** |
@@ -234,7 +236,11 @@ change, or an ADR — not silence.
 
 ## 6. Next actions, in order
 
-1. **Configure Timeshift and rehearse one restore.** Now the top Phase 1 blocker.
+1. **Rehearse one Timeshift restore from the live USB.** Snapshots exist; the restore
+   path does not count as verified until one is actually performed.
+2. **Decide the database backup schedule.** `/home` is excluded from snapshots, so the
+   cluster is covered only by a single manual dump. Backup destination, encryption, and
+   retention are all still open decisions in the register.
 2. **Accept or reject ADR-0001 and ADR-0002.** Both get more expensive after Phase 2.
 3. **Configure Timeshift and rehearse one restore.** Phase 1 cannot close without it,
    and an untested restore is an assumption rather than a rollback path.
