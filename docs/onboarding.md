@@ -382,8 +382,8 @@ Verified on 2026-08-22 from this workstation, not from the planning documents.
 | RAM | 125 GiB |
 | GPU | NVIDIA GeForce RTX 4080, **16376 MiB VRAM**, driver 595.84 |
 | Root filesystem | `nvme0n1p3`, **ext4**, 1.4 T |
-| Installed | .NET SDK 10.0.400, git 2.43.0, gh 2.98.0 |
-| Not installed | PostgreSQL, pgvector, Docker/Podman, `uv` |
+| Installed | .NET SDK 10.0.400, PostgreSQL 16.15 (PGDG) + pgvector 0.8.6, Docker 29.1.3 + NVIDIA toolkit, `uv`, git, gh |
+| Running | `dami-proactive` (five services), TEI embedder + reranker, Ollama, `dami-llm-guard` timer, nightly pg backups |
 
 **Three things here contradict or constrain the plan. Do not paper over them.**
 
