@@ -711,3 +711,146 @@ The eval set itself. D-010 wants 50 queries with known-good answers built from t
 memories, and that corpus is Phase 0 on the Mac. The harness is ready; the data is not.
 
 Verified no eval tables were left behind: `pg_tables where schemaname='dami'` → 0.
+
+## 2026-08-22 — Codex — adversarial C# architecture and transport audit
+
+Performed a diagnostic-only review of the complete current .NET solution, including
+production projects, analyzers, architecture tests, transport tests, build policy, and
+the uncommitted transport slice. No production code was changed. Concurrent untracked
+work under `tools/ddl/` was observed and left untouched.
+
+### Confirmed defects
+
+- `TransportFrame` record equality compares `ReadOnlyMemory<byte>` identity rather than
+  payload bytes. Two otherwise identical frames with separate equal byte arrays compare
+  unequal.
+- `LoopbackTransport` retains the caller's payload memory. Mutating the source array
+  after `SendAsync` changes what the receiver observes, while `PipeTransport` copies the
+  payload. The two `ITransport` implementations therefore have incompatible ownership
+  semantics.
+- `FrameCodec` accepts an overflowing fifth varint byte. The isolated probe encoded the
+  prefix `99 80 80 80 10`; it was accepted as a complete frame with no remaining input.
+- `PipeTransport` has a shared, unserialized `PipeWriter`. Concurrent `SendAsync` calls
+  are not prohibited by `ITransport`, but pipelines require a single coordinated writer.
+  `FlushResult` and canceled `ReadResult` state are also ignored.
+- `PipeTransport` and `TcpDuplexPipe` dispose resources sequentially without exception
+  safety or lifecycle coordination. A failure completing the first side skips all later
+  cleanup, and send/receive/dispose races are undefined.
+
+### Structural and performance findings
+
+- Every decoded frame allocates and copies a new payload array, including a permitted
+  16 MiB large-object-heap allocation. Repeated peer-controlled frames can create severe
+  allocation pressure. Removing the copy safely requires an explicit buffer-ownership
+  abstraction, not a local micro-optimization.
+- `TcpDuplexPipe` is outbound-only and combines connection creation with pipe adaptation;
+  it has no accepted-socket seam and does not enable `NoDelay` for small latency-sensitive
+  frames.
+- The public `ITransport` contract does not define payload ownership, concurrent caller
+  support, single-consumer behavior, completion, or disposal ownership. This ambiguity is
+  already producing LSP violations and double-ownership risk around injected pipes.
+- Architecture enforcement is partial: async checks hard-code three assemblies, public
+  surface checks do not recursively inspect generic type arguments, and the project graph
+  scans raw project XML/all project files rather than the evaluated solution graph.
+- Analyzer coverage has semantic gaps: the harness ignores compilation diagnostics;
+  loop nesting crosses lambda/local-function boundaries; method length covers methods
+  only; and `NotImplementedException` detection is textual and method-only.
+- Package/test configuration is repeated, there is no `global.json`, and
+  `LangVersion`/analysis level use `latest`, so builds are not reproducible across SDK
+  upgrades. XML documentation is generated while missing-public-doc warnings are globally
+  suppressed.
+- The transport tests cover happy paths only and use unbounded `CancellationToken.None`
+  waits. They omit concurrency, cancellation, partial arrival, malformed/overlong varints,
+  multiple frames, half-close, failure, and disposal races. The placeholder `UnitTest1`
+  is an empty green test.
+
+No classic lock-order or sync-over-async deadlock was found. The material liveness risks
+are indefinite asynchronous waits, a stalled consumer retaining a pipe buffer across an
+async-enumerable yield, and undefined concurrent send/dispose behavior.
+
+### Verification
+
+Run as OS user `steve`:
+
+```text
+dotnet build Dami/Dami.sln -c Release --no-restore
+  Build succeeded. 0 warnings, 0 errors.
+
+dotnet test Dami/Dami.sln -c Release --no-build --no-restore
+  Passed: 32, Failed: 0, Skipped: 0.
+
+isolated audit probe
+  equal_payload_frames_compare_equal=False
+  loopback_payload_after_caller_mutation=99
+  overflowing_varint_accepted=True;remaining=0
+```
+
+The isolated probe lives only in `/tmp/dami-audit`; it was not added to the repository.
+
+## 2026-08-22 — Claude Code — Phase 2 schema and DDL runner
+
+Steve opened up coordination via markdown and working on code. Claimed the Phase 2 data
+foundation in `docs/ownership.md`; Codex holds the transport slice and is currently on
+`PipeTransport` and `TcpDuplexPipe`. Disjoint paths — only `Dami.sln` is shared, and this
+change does not touch it.
+
+### What was built
+
+`tools/ddl/` — numbered SQL applied by `apply.sh`, each file in its own transaction,
+recorded in `dami.schema_migrations` with a checksum.
+
+| File | Contents |
+|---|---|
+| `001_migrations.sql` | bookkeeping table |
+| `002_event_store.sql` | `execution_events`, canonical per D-017, with `TraceId` and the `Origin` discriminator per D-018 |
+| `003_memory.sql` | `observations`, `conclusions`, `conclusion_observations`, `pushbacks` |
+| `004_append_only_truncate.sql` | closes a hole found by testing — see below |
+| `004_observation_embeddings.sql.template` | **not applied**; see D-010 note |
+
+**Deviation from standards §10**, recorded: that section specifies an Npgsql runner.
+This is bash and psql, because creating the schema must not require building the
+solution and there is no host project yet. Revisit when `Dami.Host` exists.
+
+### Design decisions
+
+- **Append-only is enforced by the database, not by convention.** `dami_app` holds only
+  `INSERT` and `SELECT` on `execution_events` and `observations`, and a trigger refuses
+  `UPDATE`/`DELETE` even for the owner. The escape hatch is deliberate and leaves a
+  trace: disable the trigger, do the work, re-enable it.
+- **No embedding column on `observations`.** A pgvector column has a fixed dimension, so
+  adding one now would hardcode the very decision D-010 says the eval must make. The
+  embedding lands in a sibling table once a model is chosen; the template carries the
+  measured index ceilings (2000 for `vector`, 4000 for `halfvec`).
+- `origin` is check-constrained because D-018 settled four values. `type` is
+  deliberately unconstrained because event types will grow.
+- `conclusions` is mutable by design — retraction sets `retracted_at` in place — so it
+  gets `UPDATE`, and a check constraint requires a reason whenever it is set.
+- Partial index on active conclusions only: retracted rows are history, not working
+  memory, and only the active set is ever embedded (D-009).
+
+### A hole found by testing, not by reading
+
+`002` and `003` guarded `UPDATE` and `DELETE` with `FOR EACH ROW` triggers. **Those do
+not fire on `TRUNCATE`.** The runtime role cannot exploit it — `TRUNCATE` is an owner
+privilege — but the owner could have emptied the event store with the guard silent,
+which is precisely the audit property the store exists to provide.
+
+Fixed in `004_append_only_truncate.sql`, added as a **new file** rather than by editing
+`002`/`003`, because those are already applied and the runner's checksum guard would
+flag the edit as a divergence between repository and database.
+
+### Verification
+
+```
+idempotence         re-run -> "apply: nothing pending"
+grants              execution_events INSERT,SELECT   observations INSERT,SELECT
+                    conclusions INSERT,SELECT,UPDATE  pushbacks INSERT,SELECT,UPDATE
+as dami_app         insert OK; update/delete -> permission denied
+as owner            update/delete/truncate -> "append-only; ... is not permitted"
+check constraints   unknown origin, self-parent span, confidence 1.5,
+                    retraction without reason, unknown pushback outcome -> all rejected
+valid row           accepted
+escape hatch        disable -> delete -> enable, then update rejected again (live row)
+```
+
+All probe rows removed; the three tables are empty.

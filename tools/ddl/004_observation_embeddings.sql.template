@@ -1,0 +1,24 @@
+-- TEMPLATE, not applied. Fill in once D-010's eval has chosen a model, then rename to
+-- 004_observation_embeddings.sql.
+--
+--   {{MODEL}}      e.g. BAAI/bge-m3
+--   {{DIMENSION}}  e.g. 1024
+--
+-- pgvector index ceilings measured on this cluster: `vector` indexes to 2000
+-- dimensions, `halfvec` to 4000. A model above 2000 dims must use halfvec; above 4000 it
+-- needs Matryoshka truncation. See docs/status.md §3.
+
+create table dami.observation_embeddings (
+    observation_id  uuid primary key references dami.observations (observation_id),
+    embedding_model text not null default '{{MODEL}}',
+    embedded_at     timestamptz not null default now(),
+    embedding       vector({{DIMENSION}}) not null
+);
+
+comment on column dami.observation_embeddings.embedding_model is
+    'D-010: the model is versioned in the schema. Changing embedders means re-embedding everything and shifts the meaning of every stored vector; the migration must exist before it is needed.';
+
+create index observation_embeddings_hnsw
+    on dami.observation_embeddings using hnsw (embedding vector_cosine_ops);
+
+grant insert, select, delete on dami.observation_embeddings to dami_app;
