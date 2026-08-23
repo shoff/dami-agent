@@ -12,14 +12,25 @@ public static class CommandRouter
                                          record feedback - this trains the taste model
           dami recent                    recent surfacings in every status
           dami trace <trace-id>          replay one trace from the event store
+
+          dami beliefs [date]            what Dami believes, now or as of a date
+          dami beliefs diff <from> [to]  what changed - the drift instrument (D-011)
+          dami retract <id-prefix> <reason>
+                                         correct the ledger; the reason is recorded
+          dami note <text>               record an observation into the corpus
         """;
 
     /// <summary>Runs one command. Returns the process exit code.</summary>
-    public static async Task<int> RunAsync(string[] args, InboxCommands inbox, TraceCommands traces)
+    public static async Task<int> RunAsync(
+        string[] args,
+        InboxCommands inbox,
+        TraceCommands traces,
+        BeliefCommands beliefs)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
         ArgumentNullException.ThrowIfNull(traces);
+        ArgumentNullException.ThrowIfNull(beliefs);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -28,20 +39,43 @@ public static class CommandRouter
             cancellation.Cancel();
         };
 
-        var verb = args.Length == 0 ? "inbox" : args[0].ToLowerInvariant();
+        return await DispatchAsync(
+            args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
+            args, inbox, traces, beliefs, cancellation.Token).ConfigureAwait(false);
+    }
 
+    private static async Task<int> DispatchAsync(
+        string verb,
+        string[] args,
+        InboxCommands inbox,
+        TraceCommands traces,
+        BeliefCommands beliefs,
+        CancellationToken cancellationToken)
+    {
         return verb switch
         {
-            "inbox" => await inbox.ListPendingAsync(cancellation.Token).ConfigureAwait(false),
-            "recent" => await inbox.ListRecentAsync(cancellation.Token).ConfigureAwait(false),
+            "inbox" => await inbox.ListPendingAsync(cancellationToken).ConfigureAwait(false),
+            "recent" => await inbox.ListRecentAsync(cancellationToken).ConfigureAwait(false),
             "read" when args.Length > 1 =>
-                await inbox.ReadAsync(args[1], cancellation.Token).ConfigureAwait(false),
+                await inbox.ReadAsync(args[1], cancellationToken).ConfigureAwait(false),
             "good" or "bad" or "meh" when args.Length > 1 =>
                 await inbox.FeedbackAsync(
                     args[1], verb, args.Length > 2 ? string.Join(' ', args[2..]) : null,
-                    cancellation.Token).ConfigureAwait(false),
+                    cancellationToken).ConfigureAwait(false),
             "trace" when args.Length > 1 =>
-                await traces.ReplayAsync(args[1], cancellation.Token).ConfigureAwait(false),
+                await traces.ReplayAsync(args[1], cancellationToken).ConfigureAwait(false),
+            "beliefs" when args.Length > 2 && args[1] == "diff" =>
+                await beliefs.DiffAsync(args[2], args.Length > 3 ? args[3] : null, cancellationToken)
+                    .ConfigureAwait(false),
+            "beliefs" =>
+                await beliefs.ListAsync(args.Length > 1 ? args[1] : null, cancellationToken)
+                    .ConfigureAwait(false),
+            "retract" when args.Length > 2 =>
+                await beliefs.RetractAsync(args[1], string.Join(' ', args[2..]), cancellationToken)
+                    .ConfigureAwait(false),
+            "note" when args.Length > 1 =>
+                await beliefs.NoteAsync(string.Join(' ', args[1..]), cancellationToken)
+                    .ConfigureAwait(false),
             _ => Usage(),
         };
     }

@@ -144,6 +144,29 @@ public sealed class PostgresConclusionLedger : IConclusionLedger
     }
 
     /// <inheritdoc />
+    public async IAsyncEnumerable<Conclusion> ActiveAsOfAsync(
+        DateTimeOffset asOf,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using var command = this.dataSource.CreateCommand(
+            $"""
+            {SelectList(this.Schema)}
+            where concluded_at <= @as_of
+              and (retracted_at is null or retracted_at > @as_of)
+            order by concluded_at desc;
+            """);
+        command.Parameters.AddWithValue("as_of", asOf);
+
+        await using var reader = await command
+            .ExecuteReaderAsync(CommandBehavior.SingleResult, cancellationToken).ConfigureAwait(false);
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            yield return Read(reader, []);
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<Conclusion?> FindAsync(Guid conclusionId, CancellationToken cancellationToken)
     {
         await using var command = this.dataSource.CreateCommand(

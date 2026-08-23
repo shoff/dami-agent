@@ -1694,3 +1694,37 @@ no baseline, so it stayed quiet, as designed.
 Deviation noted: implementation-first again for the scoring change (coverage, not TDD);
 the two behaviour tests were written immediately after and fail if the adjustment is
 removed. Verification: Proactive 36, Persistence 76, solution 0 warnings 0 errors.
+
+## 2026-08-23 — Claude Code — The ledger, readable and correctable
+
+The success definition's second half: "open the ledger, see exactly why Dami thought it,
+and correct it if it is wrong."
+
+### Added
+
+- `IConclusionLedger.ActiveAsOfAsync` — reconstructs the believed set at any moment from
+  the ledger's own timestamps. Two tests pin it: the pre-correction belief shows before
+  the supersession moment and the corrected one after; an unformed conclusion is absent.
+- CLI verbs: `dami beliefs [date]` (each row shows confidence, source, and provenance
+  count — a conclusion with no supporting observations prints "no provenance", because
+  an unsupported assertion should look like one), `dami beliefs diff <from> [to]`
+  (D-011's second instrument: added/removed as `+`/`-` lines, retraction reasons shown),
+  `dami retract <id-prefix> <reason>`, `dami note <text>` (observations from the shell
+  into the corpus, source `cli-note`).
+
+### Live demo
+
+```
+$ dami beliefs
+df1a73de  1.00  [SelfAudit, no provenance]  Pushback rate: 0 challenges this quarter …
+$ dami note told the agents to keep going and stop stopping
+noted (6b0f9a23)
+$ dami retract df1a73de demo of the correction path; count was accurate
+retracted: Pushback rate: 0 challenges …
+$ dami beliefs
+the ledger holds no active conclusions
+```
+
+A belief was read, corrected with a recorded reason, and the correction took effect —
+F-09 and F-10, observably. The analyzers caught `DAMI0003` on the router again;
+dispatch was extracted. Persistence 78 tests; solution 0 warnings, 0 errors.

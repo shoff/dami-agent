@@ -131,6 +131,47 @@ public sealed class PostgresConclusionLedgerTests
     }
 
     [Fact]
+    public async Task ActiveAsOfAsync_Should_Reconstruct_The_Past_Active_Set()
+    {
+        await this.fixture.ResetAsync();
+        var ledger = this.CreateLedger();
+        var original = Believe("the belief that later changed");
+        await ledger.RecordAsync(original, CancellationToken.None);
+        var replacement = new Conclusion(
+            Guid.NewGuid(), original.ConclusionId, "steve", "the corrected belief", 0.8,
+            ConclusionSource.Correction, concludedAt.AddMonths(1));
+        await ledger.SupersedeAsync(replacement, "corrected", CancellationToken.None);
+
+        var before = await this.AsOfAsync(ledger, concludedAt.AddDays(3));
+        var after = await this.AsOfAsync(ledger, concludedAt.AddMonths(2));
+
+        Assert.Equal(
+            ("the belief that later changed", "the corrected belief"),
+            (before[0].Statement, after[0].Statement));
+    }
+
+    [Fact]
+    public async Task ActiveAsOfAsync_Should_Exclude_A_Conclusion_Not_Yet_Formed()
+    {
+        await this.fixture.ResetAsync();
+        var ledger = this.CreateLedger();
+        await ledger.RecordAsync(Believe("formed today"), CancellationToken.None);
+
+        Assert.Empty(await this.AsOfAsync(ledger, concludedAt.AddDays(-1)));
+    }
+
+    private async Task<List<Conclusion>> AsOfAsync(IConclusionLedger ledger, DateTimeOffset asOf)
+    {
+        var found = new List<Conclusion>();
+        await foreach (var item in ledger.ActiveAsOfAsync(asOf, CancellationToken.None))
+        {
+            found.Add(item);
+        }
+
+        return found;
+    }
+
+    [Fact]
     public async Task FindAsync_Should_Return_Null_For_An_Unknown_Conclusion()
     {
         await this.fixture.ResetAsync();
