@@ -1324,3 +1324,109 @@ should note when a run had to be repeated.
 The scheduler loop (`Dami.Host.Proactive` composition root with a timer over
 `ProactivePassRunner`), durable last-run tracking, and the first real service — the
 interest scout (D-019), which needs the egress boundary before it may fetch anything.
+
+## 2026-08-22 — Codex — Heartbeat transport slice started
+
+Continuing architecture §7.5.5 step 4 inside the existing Codex transport ownership
+claim. Planned scope: record heartbeat wire/lifetime semantics, then use strict
+red-green TDD to add a transport decorator that sends reserved control messages through
+the inner transport's sequence allocator, filters inbound heartbeat frames, and detects
+inbound silence using injected `TimeProvider`. Reconnect remains a later slice.
+
+### Pre-change checks
+
+- Read `CLAUDE.md`, `AGENTS.md`, `docs/onboarding.md`, workstation runbook §7,
+  `docs/ownership.md`, current status, and the recent work log.
+- `git status --short --branch` showed clean `main` aligned with `origin/main`.
+- `git pull --rebase` as root failed with `Permission denied (publickey)` because root
+  does not have Steve's GitHub SSH key. No files changed.
+- `sudo -u steve git pull --rebase` succeeded with `Already up to date`.
+- No package addition is planned; deterministic timer tests will use a test-local
+  controllable `TimeProvider`.
+
+### Heartbeat cycle 1 — periodic control send
+
+- Added one test for an empty reserved heartbeat after deterministic time advances.
+- The first attempted narrow command did not run because repository-root paths were
+  passed to `chown` from the `Dami/` working directory. The same invocation mistake was
+  repeated once after production code was added; both commands stopped before testing.
+- Actual red: the narrow test failed to compile with `CS0246` because
+  `HeartbeatTransport` did not exist.
+- The first minimum implementation used a constructor-started task. The narrow build
+  rejected its shutdown join with `VSTHRD003`; wrapping it in `Task.WhenAll` was also
+  correctly rejected because the underlying task remained foreign to the disposing
+  context.
+- Revised ADR-0006 before reaching green: heartbeat is scoped to an active receive
+  enumeration. This removes hidden constructor work and lets the iterator start,
+  cancel, and join its own heartbeat task without suppressing a critical deadlock rule.
+
+## 2026-08-22 — Claude Code — Egress boundary, scheduler, and the proactive host
+
+A bigger bite at Steve's direction: `Dami.Privacy`, durable scheduling, and
+`Dami.Host.Proactive` in one sweep. The tier is now a runnable process.
+
+### Added
+
+- `tools/ddl/007_proactive_runs.sql` — the scheduler's durable memory. Failures count as
+  runs, so a broken service is retried at its next cadence rather than hammered.
+- `Dami.Contracts/Privacy/` — `IEgressClient`, `EgressRequest`, `EgressResponse`,
+  `EgressRefusedException`. Three new event types: `EgressRequested`, `EgressCompleted`,
+  `EgressRefused`.
+- `Dami.Privacy` — `HttpEgressClient` + `EgressOptions`.
+- `Dami.Proactive` — `ProactiveScheduler`; `Dami.Persistence` — `PostgresProactiveRunLog`.
+- `Dami.Host.Proactive` — Worker-SDK composition root + `ProactiveWorker` hourly tick.
+- Solution is now fifteen projects.
+
+### Design decisions
+
+- **`EgressRequest` is deliberately narrow**: a destination URI and a one-line purpose.
+  No body, no headers. The shape itself constrains what can leave, and Contracts cannot
+  name `HttpRequestMessage` anyway — the leaky-abstraction test forbids it.
+- **Refusal is an exception, not a soft failure.** Code that silently degrades when the
+  boundary blocks it would hide exactly the drift D-012 warns about.
+- **Allowlist, not blocklist** — the failure mode of a blocklist is silence; of an
+  allowlist, a loud refusal. Empty allowlist means nothing leaves.
+- **The honest limitation is written into `EgressOptions`**: detecting profile-derived
+  content by string matching is not decidable. `ForbiddenFragments` is a tripwire for
+  crude leaks (a name in a search query — tested with exactly that case); the wall is
+  structural: the narrow type, the allowlist, and local-only services having no client.
+- **Every egress is an event in the caller's trace** — allowed or refused — so "what has
+  left this machine" is a database query. A refused request never reaches the network;
+  the test asserts the fake handler saw nothing.
+- **The host's `Program.cs` is the D-012 audit point** and says so in a comment: it
+  registers no `IEgressClient`. Every service this host runs is local-only until such a
+  registration appears there, as a visible one-file change.
+- `PeriodicTimer` takes the injected `TimeProvider`, so even the worker loop is testable
+  time. The loop is deliberately dumb; cadence intelligence lives in the tested scheduler.
+
+### Deviation from AGENTS.md, recorded
+
+The egress client and scheduler were implemented before their tests — coverage, not TDD,
+same as the event store. The run-log and its tests were written together against the
+fixture. Recorded rather than dressed up.
+
+### Verification
+
+```
+dotnet build Dami.sln   0 warnings, 0 errors (15 projects)
+155 tests, all passing:
+  Dami.Tests 1 · Architecture 10 · Proactive 16 · Privacy 8
+  Transport 35 (Codex's) · Persistence 73 · Analyzers 12
+```
+
+**The host was actually started against the real database**, connecting as `dami_app`
+via `~/.pgpass` with the connection string from the environment. Observed output:
+
+```
+warn: No IProactiveService is registered; the tier is idle.
+      The interest scout is the designated first (D-019).
+info: Proactive tick: 0 pass(es) ran
+```
+
+An idle tier that says it is idle, rather than a busy-looking one that does nothing.
+
+### What remains for the tier
+
+The interest scout itself — it now has everything it needs: the egress client to fetch
+feeds, the capped queue to surface into, the ledger for conclusions, and a host to run
+in. Also still open: systemd unit for the host, and the taste model the scout ranks with.

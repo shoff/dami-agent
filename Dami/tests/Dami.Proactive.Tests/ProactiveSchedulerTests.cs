@@ -1,0 +1,121 @@
+using Dami.Contracts.Events;
+using Dami.Contracts.Memory;
+using Dami.Contracts.Proactive;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
+using Xunit;
+
+namespace Dami.Proactive.Tests;
+
+/// <summary>Due-ness: cadence against the durable run log.</summary>
+public sealed class ProactiveSchedulerTests
+{
+    private static readonly DateTimeOffset now = new(2026, 8, 23, 2, 0, 0, TimeSpan.Zero);
+
+    private readonly IProactiveRunLog runLog = Substitute.For<IProactiveRunLog>();
+
+    [Fact]
+    public async Task RunDueAsync_Should_Run_A_Service_That_Has_Never_Run()
+    {
+        this.runLog.LastRanAtAsync("scout", Arg.Any<CancellationToken>())
+            .Returns((DateTimeOffset?)null);
+
+        var ran = await this.CreateScheduler(Scout()).RunDueAsync(CancellationToken.None);
+
+        Assert.Equal(1, ran);
+    }
+
+    [Fact]
+    public async Task RunDueAsync_Should_Skip_A_Service_Inside_Its_Cadence()
+    {
+        this.runLog.LastRanAtAsync("scout", Arg.Any<CancellationToken>())
+            .Returns(now.AddHours(-6));
+
+        var ran = await this.CreateScheduler(Scout()).RunDueAsync(CancellationToken.None);
+
+        Assert.Equal(0, ran);
+    }
+
+    [Fact]
+    public async Task RunDueAsync_Should_Run_A_Service_Whose_Cadence_Has_Elapsed()
+    {
+        this.runLog.LastRanAtAsync("scout", Arg.Any<CancellationToken>())
+            .Returns(now.AddDays(-1).AddMinutes(-1));
+
+        var ran = await this.CreateScheduler(Scout()).RunDueAsync(CancellationToken.None);
+
+        Assert.Equal(1, ran);
+    }
+
+    [Fact]
+    public async Task RunDueAsync_Should_Record_The_Run_In_The_Log()
+    {
+        this.runLog.LastRanAtAsync("scout", Arg.Any<CancellationToken>())
+            .Returns((DateTimeOffset?)null);
+
+        await this.CreateScheduler(Scout()).RunDueAsync(CancellationToken.None);
+
+        await this.runLog.Received(1).RecordAsync(
+            Arg.Any<Guid>(), "scout", Arg.Any<Guid>(), now,
+            ProactiveStatus.Completed, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunDueAsync_Should_Record_A_Failed_Run_So_It_Is_Not_Hammered()
+    {
+        this.runLog.LastRanAtAsync("broken", Arg.Any<CancellationToken>())
+            .Returns((DateTimeOffset?)null);
+        var broken = Substitute.For<IProactiveService>();
+        broken.ServiceName.Returns("broken");
+        broken.Cadence.Returns(ProactiveCadence.Nightly);
+        broken.RunPassAsync(Arg.Any<ProactiveContext>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ProactiveResult>>(_ => throw new InvalidOperationException("boom"));
+
+        await this.CreateScheduler(broken).RunDueAsync(CancellationToken.None);
+
+        await this.runLog.Received(1).RecordAsync(
+            Arg.Any<Guid>(), "broken", Arg.Any<Guid>(), Arg.Any<DateTimeOffset>(),
+            ProactiveStatus.Failed, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunDueAsync_Should_Keep_Running_After_One_Service_Fails()
+    {
+        this.runLog.LastRanAtAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns((DateTimeOffset?)null);
+        var broken = Substitute.For<IProactiveService>();
+        broken.ServiceName.Returns("broken");
+        broken.Cadence.Returns(ProactiveCadence.Nightly);
+        broken.RunPassAsync(Arg.Any<ProactiveContext>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ProactiveResult>>(_ => throw new InvalidOperationException("boom"));
+
+        var ran = await this.CreateScheduler(broken, Scout()).RunDueAsync(CancellationToken.None);
+
+        Assert.Equal(2, ran);
+    }
+
+    private static IProactiveService Scout()
+    {
+        var service = Substitute.For<IProactiveService>();
+        service.ServiceName.Returns("scout");
+        service.Cadence.Returns(ProactiveCadence.Nightly);
+        service.RunPassAsync(Arg.Any<ProactiveContext>(), Arg.Any<CancellationToken>())
+            .Returns(ProactiveResult.quiet);
+        return service;
+    }
+
+    private ProactiveScheduler CreateScheduler(params IProactiveService[] services)
+    {
+        var runner = new ProactivePassRunner(
+            Substitute.For<IExecutionEventStore>(),
+            Substitute.For<IConclusionLedger>(),
+            Substitute.For<ISurfacingQueue>(),
+            new FakeTimeProvider(now),
+            NullLogger<ProactivePassRunner>.Instance);
+
+        return new ProactiveScheduler(
+            services, runner, this.runLog, new FakeTimeProvider(now),
+            NullLogger<ProactiveScheduler>.Instance);
+    }
+}

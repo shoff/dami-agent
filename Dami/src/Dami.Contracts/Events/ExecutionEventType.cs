@@ -76,4 +76,13 @@ public enum ExecutionEventType
 
     /// <summary>A proactive pass cleared the bar and said something unprompted.</summary>
     Surfaced = 22,
+
+    /// <summary>Something asked to reach beyond the host (D-012). Every egress is an event.</summary>
+    EgressRequested = 23,
+
+    /// <summary>An egress completed and its response came back.</summary>
+    EgressCompleted = 24,
+
+    /// <summary>The boundary refused an egress. Loud by design.</summary>
+    EgressRefused = 25,
 }
