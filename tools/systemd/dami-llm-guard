@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
 # Restarts the Ollama sidecar when a loaded model is not fully in VRAM.
 #
-# The failure this exists for has occurred four times: after heavy TEI VRAM use,
-# Ollama loads the next model on CPU and stays there - still answering, at 2 tok/s
-# instead of 90+. A healthy endpoint says nothing about the device (runbook 4.3).
+# Fifth occurrence of the failure this exists for: after heavy TEI VRAM use, Ollama
+# loads the next model on CPU and stays there - answering at 2 tok/s instead of 90+.
+# A healthy endpoint says nothing about the device (runbook 4.3).
 # Source of truth: tools/systemd/ in the dami-agent repository.
 set -euo pipefail
 
 placement=$(curl -sf -m 10 http://127.0.0.1:11434/api/ps) || exit 0   # idle/down: not this guard's job
 
-degraded=$(python3 - <<'PY'
-import json,sys
-models=json.loads(sys.stdin.read() or '{"models":[]}').get("models",[])
-print(any(m.get("size_vram",0) < m.get("size",1) for m in models and models))
-PY
-<<<"$placement")
+degraded=$(printf '%s' "$placement" | python3 -c '
+import json, sys
+models = json.load(sys.stdin).get("models", [])
+print("yes" if any(m.get("size_vram", 0) < m.get("size", 1) for m in models) else "no")
+')
 
-if [ "$degraded" = "True" ]; then
+if [ "$degraded" = "yes" ]; then
     echo "dami-llm-guard: model not fully in VRAM; restarting dami-llm"
     docker restart dami-llm
 fi

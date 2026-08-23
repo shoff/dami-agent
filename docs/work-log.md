@@ -2304,3 +2304,239 @@ anything…"). The belief spans the migration boundary — the week's window see
 theme, the semantic index pulled the months-old echoes, and the provenance chain records
 both. This is the cross-domain, cross-time correlation the architecture calls the point
 of the system, running on real data.
+
+## 2026-08-23 — Codex — Full adversarial C# audit completed
+
+Read-only audit completed against the shared tree as it advanced from `6ecea15` to
+`045969f`. No production or test code was changed. Reviewed the complete production
+C# surface, project graph, contracts, tests, analyzers, DDL, composition roots, and the
+new LLM guard committed during the audit. The findings below are defects/opportunities,
+not implemented fixes; remediation must use the repository's strict red-green TDD.
+
+### Verification commands and observed results
+
+- `dotnet build Dami.sln --no-restore`: succeeded, **0 warnings, 0 errors**. An earlier
+  restore/build invocation did not return a completed result, so it is not counted as a
+  pass.
+- `dotnet test Dami.sln --no-build --no-restore --logger
+  "console;verbosity=normal"`: **252 passed, 0 failed** across ten test assemblies.
+- `dotnet format Dami.sln --verify-no-changes --no-restore`: failed with exit 2 and
+  **15 diagnostics**: 11 whitespace errors in `MediaLibrarianService.cs`, final-newline
+  and charset errors in placeholder `Dami/Program.cs` and `Dami.Tests/UnitTest1.cs`.
+- `dotnet list Dami.sln package --vulnerable --include-transitive`: succeeded; NuGet
+  reported no known vulnerable direct or transitive packages in all 22 projects.
+- `bash -n tools/systemd/dami-llm-guard`: syntax OK. A controlled reproduction passed
+  a known-degraded `{size:100,size_vram:0}` payload through the script's Python
+  redirection and returned `False`, proving the guard ignores the captured JSON.
+
+### Critical/high findings
+
+1. **The just-committed LLM guard does not inspect Ollama's response.** It invokes
+   `python3 -` with the program on standard input and then tries to provide the JSON by
+   a here-string. Inside Python, `sys.stdin` is already exhausted; the fallback empty
+   model list is always used. A known-degraded payload reproduced `False`, so the
+   advertised automated restart cannot fire.
+2. **The local-only privacy boundary is configuration, not code.** TEI, reranker, and
+   Ollama options describe loopback as a design constraint, but accept arbitrary base
+   URLs and are used through raw `HttpClient`; no validator enforces `Uri.IsLoopback`.
+   A configuration error can send observations, interests, conclusions, or prompts to a
+   remote host while bypassing `IEgressClient` and durable egress events (D-012).
+3. **The egress allowlist is bypassable by redirects.** `HttpEgressClient` validates
+   only the original host while the default handler follows redirects. It also leaves
+   `HttpResponseMessage` undisposed, buffers response bodies without a size limit, and
+   emits no terminal failure event for network/read failures.
+4. **Embedding model migration is broken.** DDL makes `observation_id` the sole primary
+   key, while `UnembeddedAsync` checks `(observation_id, embedding_model)` and
+   `StoreAsync` ignores conflicts on only `observation_id`. Changing models makes every
+   row look pending forever while every replacement insert is discarded; nearest search
+   does not filter a model. The embedder then counts discarded writes as indexed work.
+5. **The D-021 surfacing cap is race-prone despite comments claiming serialization.**
+   A single `INSERT ... SELECT COUNT` under PostgreSQL MVCC takes no row/advisory lock;
+   concurrent passes can both observe capacity and insert `Pending`. No concurrency test
+   exercises the claim.
+6. **Trace/state durability is not atomic.** The proactive runner writes conclusions or
+   surfacings, then separately appends canonical execution events. A failure between
+   those operations leaves consequential state without its required event, and a run-log
+   failure permits replaying already-applied effects. Every event also reuses the trace
+   ID as its span ID, so the durable graph cannot represent operation edges.
+7. **Proactive scheduling has no lease or overlap guard.** Due-check, pass, and run-log
+   write are separate operations. Concurrent scheduler calls or multiple host instances
+   can run the same service twice. Services run serially with no per-pass deadline, so a
+   non-cooperative pass blocks the entire tier.
+8. **Conclusion supersession permits multiple active replacements.** It inserts the
+   replacement before retracting the original and ignores the retraction row count. Two
+   concurrent corrections can both insert, one retracts the original, and the other
+   commits after updating zero rows. Direct retract/resolve/deliver/feedback writes also
+   ignore zero-row outcomes and can report success for nonexistent or stale targets.
+9. **Heartbeat timeout can hang forever.** After `WaitAsync` times out,
+   `HeartbeatTransport` cancels and then awaits the original `MoveNextAsync` without a
+   bound. An inner transport that ignores cancellation defeats the silence timeout and
+   shutdown. Its constructor documentation also says it does not own the wrapped
+   transport, while `DisposeAsync` does dispose it.
+
+### Design, correctness, and enforcement findings
+
+- `CapabilityRegistry` uses an unsynchronized `Dictionary` with a contains-then-add
+  race; startup-only mutation is not encoded in the type. Native discovery identifies
+  arbitrary annotated classes as tools without an executable tool contract, does not
+  register discoveries, and aborts an entire scan on malformed IDs/type-load failures.
+- Provider response invariants are unchecked: embedding count/dimension/finite values
+  and reranker index range/uniqueness. Callers index these results directly and can crash
+  or associate the wrong vector with an observation.
+- No options type uses `IValidateOptions`, `.Validate`, or `ValidateOnStart`. A TEI batch
+  size of zero creates an infinite loop; invalid caps, thresholds, counts, model names,
+  URLs, and PostgreSQL schema identifiers fail late. Schema/table identifiers are
+  interpolated into SQL without validation or identifier quoting.
+- `ReflectionService` has eight dependencies and mixes retrieval, embedding, prompt
+  construction, model invocation, parsing, validation, deduplication, and policy. Its
+  prompts are unbounded by characters/tokens, observed content is inserted as
+  instructions without a robust data boundary, malformed JSON types can escape its
+  advertised garbage tolerance, and a `JsonDocument` is not disposed.
+- `Observation`, `Conclusion`, `ExecutionEvent`, and `ProactiveResult` expose caller-owned
+  mutable collections. This violates their value/immutable-record semantics and can
+  change data after validation or during persistence. `ExecutionEvent.Sequence` is also
+  publicly clone-mutable despite being store-assigned.
+- The CLI directly references persistence/providers and Npgsql because the localhost
+  runtime API is absent: an explicitly recorded but still real wrong-layer abstraction.
+  Health checks hardcode schema and sidecar URLs rather than configured values, perform
+  full table counts, run sequentially, and leave the tier query outside error handling.
+  Consequential commands accept ambiguous one-character GUID prefixes and use the first
+  match; the console cancellation handler is never removed.
+- `MediaLibrarianService` uses second-resolution manifest names with overwriting writes,
+  so concurrent or same-second runs can erase audit manifests. It does not ensure the
+  manifest directory lies outside surveyed roots.
+- Architecture checks overstate coverage. Async rules name only Contracts/Core/Transport
+  and the test project references only Contracts/Transport, so missing assemblies are
+  silently skipped. Public-surface checks inspect only Contracts/Core and do not recurse
+  into generic arguments. Layering tests do not prohibit cross-implementation references.
+  The placeholder `Dami.Tests/UnitTest1` asserts only `true`.
+- The work log honestly records multiple implementation-first changes (event store,
+  egress/scheduler, scout scoring, and some coverage additions). The repository therefore
+  has tests, but its existing history does **not** satisfy strict TDD throughout.
+
+### Performance/allocation findings
+
+- Framing allocates a fresh payload array per inbound frame (up to 16 MiB); loopback also
+  copies every payload. On transport hot paths this creates LOH/GC pressure. Correct
+  remediation needs pooled ownership/lifetime semantics, not an unsafe borrowed span.
+- Embedding persistence serializes every float through `ToString`, builds a large text
+  vector, makes one database round trip per observation, and asks PostgreSQL to parse it.
+  The material fix is typed pgvector/binary parameters plus batched insert/COPY. Replacing
+  `StringBuilder` with concatenation would be worse; a result string necessarily allocates.
+- Reflection's `StringBuilder` is appropriate because the final prompt must be a string.
+  The useful fixes are a hard prompt budget and measured capacity. Zero-allocation string
+  manipulation is not a valid blanket goal at these API boundaries.
+- Scout recomputes vector norms per comparison, processes feeds sequentially, and fully
+  sorts to take a small top-K. Normalize once, use bounded concurrency, and use partial
+  selection only after measurement. Conclusion provenance inserts are an N+1 round-trip.
+- The CLI repeatedly formats GUIDs and, in inbox resolution, normalizes the same prefix
+  inside the candidate loop; low priority compared with the database and framing costs.
+
+No definite lock-order deadlock cycle was found. The timeout/drain and non-cooperative
+I/O paths above are liveness hazards that can wait indefinitely. Ownership claim cleared;
+only this append-only audit record and the claim-board timestamp were changed.
+
+## 2026-08-23 — Codex — Adversarial-audit remediation started
+
+Steve explicitly requested that every audit issue be fixed. Remediation will proceed as
+small strict TDD slices: write one focused test or executable reproduction, record and
+run the expected red, implement only enough production code to pass, run the focused
+green, then the affected suite before refactoring. Priority order is operational guard,
+privacy/egress, embedding identity and provider invariants, persistence/scheduler races,
+transport liveness/ownership, then SOLID/immutability/architecture/performance cleanup.
+
+The shared tree is at `045969f`. Claude Code still has a broad maintenance claim and an
+untracked `tools/migration/export_all_weaviate.py`; that file is explicitly out of scope
+and will not be staged or edited. The user's remediation request necessarily overlaps
+the existing maintenance paths, so status and HEAD will be checked before every slice
+and edits will remain surgical. No production code has been changed in this session yet.
+
+### LLM guard — red
+
+Added `tools/systemd/tests/dami-llm-guard-tests.sh`, a black-box test with fake `curl`
+and `docker` executables. It supplies a loaded model with `size=100,size_vram=0` and
+requires exactly `docker restart dami-llm`. First run failed as expected:
+`FAIL: a model with no VRAM placement did not trigger a restart`. This reproduces the
+stdin defect against the real guard before its implementation is changed.
+
+### LLM guard — green
+
+Changed the embedded Python to use `python3 -c` and parse the captured response from
+standard input. `bash -n` passed for guard and test; the focused black-box test now
+prints `PASS: degraded placement restarts dami-llm` and observed the exact restart
+arguments. No live container or systemd unit was touched.
+
+### Local inference boundary — first red
+
+Added `TeiEmbeddingClientTests.Constructor_Should_Reject_A_NonLoopback_Endpoint` before
+changing provider code. Focused run failed exactly at the new assertion: expected
+`ArgumentException`, no exception thrown (1 failed, 0 passed). This proves a configured
+remote inference endpoint currently crosses D-012 without resistance.
+
+### Local inference and provider invariants — red/green
+
+- Added one red constructor test each for remote TEI, reranker, and Ollama URLs; each
+  failed because no exception was thrown. Added the shared `LocalSidecarEndpoint` parser
+  and used it in all three adapters. Each focused test passed afterward.
+- Added TEI batch-size-zero test; red was no exception, then green after a constructor
+  guard prevents the former infinite loop.
+- Added TEI wrong-vector-count test; red was no exception, then green after exact batch
+  cardinality validation. The first green attempt correctly failed the repository's
+  `DAMI0003` 30-line analyzer; response handling was extracted before rerunning green.
+- Added inconsistent-dimension test; red was no exception, then green after validation
+  across every vector and chunk.
+- Added reranker out-of-range and duplicate-index tests as separate cycles. Both first
+  failed because no exception was thrown, then passed after explicit bounds and
+  uniqueness checks.
+- Affected `Dami.Providers.Tests` suite: **11 passed, 0 failed**.
+
+## 2026-08-23 — Claude Code — Full preservation, draft eval set, and the first real baseline
+
+### Phase 0 preservation, complete for Weaviate
+
+`tools/migration/export_all_weaviate.py`: every class on the Mac — all seventeen,
+144k objects including the Kokoro graph — dumped read-only to
+`/home/steve/Data/corpus-export/full/` (156 MB) **with vectors included, per-file
+sha256 checksums, and a manifest**, so "verified backups" is verifiable. The
+non-Weaviate Mac state (config, plugins, scripts) remains the last Phase 0 item.
+
+### Small high-value classes joined the corpus
+
+RelationshipDynamics (4 — observed interaction patterns with lessons), DevLog (13),
+ConversationThreads (33), imported idempotently under their own source tags and
+indexed. Corpus now: 7,048 observations, 7,048 vectors.
+
+### The D-010 draft eval set
+
+`tools/eval/draft_queries.py` sampled distinctive memories across seven categories
+(importance ≥ 0.7) and had the LOCAL sidecar write a paraphrased retrieval query per
+memory — different words than the note, so the eval measures semantics rather than
+string overlap. **37 draft pairs** in `tools/eval/corpus-queries.draft.jsonl`, each
+carrying its source snippet for review. Marked DRAFT loudly: known-good is Steve's
+judgment; he deletes bad pairs (some are too lexical — one kept a Discord id verbatim)
+and adds relevant ids the sampler missed.
+
+### The first baseline on real data — and a reversal that vindicates the design
+
+```
+7,048 docs · 37 draft queries · bge-m3
+stage             recall@10        mrr      ndcg@10   p50
+ANN only             0.8378     0.6115      0.6654   0.14 s
+ANN + rerank         0.7838     0.6899      0.7122   0.23 s
+rerank delta:  mrr +0.0785   ndcg@10 +0.0468   recall@10 −0.0541
+```
+
+On the 15-doc synthetic corpus, reranking *hurt* and the README warned the result
+would invert at scale. **It did**: with top-50 drawn from thousands, the cross-encoder
+buys +0.08 MRR — D-008's "largest single quality gain" claim now has supporting
+evidence on real data rather than an assertion. (The small recall@10 dip is the
+reranker pushing the gold doc below rank 10 on two queries — worth watching, not
+alarming.)
+
+### The guard, fixed against a live failure
+
+The CPU fallback struck a **fifth** time (right after the embedder pass) and exposed
+that `dami-llm-guard` was broken — two stdin redirections collided, so the placement
+check never ran. My bug. Rewritten with an explicit pipe and **verified against the
+live degraded state**: detected, restarted, model back to 100% GPU. The timer's
+15-minute window remains a known gap between heavy TEI use and the next check.

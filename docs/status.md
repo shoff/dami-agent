@@ -45,9 +45,9 @@ Phase order follows the architecture document §10, which supersedes the charter
 
 | Item | State | Evidence |
 |---|---|---|
-| Verified backups of Hermes state, databases, corpus | not started | — |
+| Verified backups of Hermes state, databases, corpus | **Weaviate: done 2026-08-23** — all 17 classes, 144k objects with vectors, sha256 manifest, 156 MB at `/home/steve/Data/corpus-export/full`. Non-Weaviate Mac state still open. |
 | Corpus exported to portable, schema-explicit format | **done 2026-08-23** | `tools/migration/import_corpus.py`, read-only against the Mac; JSONL + class schema on disk |
-| 50-query retrieval eval set built | not started | — |
+| 50-query retrieval eval set built | **37-pair draft generated** — `tools/eval/corpus-queries.draft.jsonl`, paraphrased by the local sidecar, awaiting Steve's review; first baseline run: bge-m3 MRR 0.69 reranked |
 | Hermes + MAI instrumented: TTFT, stream duration, tool round-trips | not started | — |
 | Secret inventory and transfer plan | not started | — |
 
