@@ -23,6 +23,7 @@ namespace Dami.Proactive.Reflection;
 public sealed class ReflectionService : IProactiveService
 {
     private readonly IObservationCorpus observationCorpus;
+    private readonly IConclusionLedger conclusionLedger;
     private readonly IChatClient chatClient;
     private readonly ReflectionOptions reflectionOptions;
     private readonly TimeProvider clock;
@@ -31,18 +32,21 @@ public sealed class ReflectionService : IProactiveService
     /// <summary>Creates the service.</summary>
     public ReflectionService(
         IObservationCorpus observationCorpus,
+        IConclusionLedger conclusionLedger,
         IChatClient chatClient,
         IOptions<ReflectionOptions> reflectionOptions,
         TimeProvider clock,
         ILogger<ReflectionService> logger)
     {
         ArgumentNullException.ThrowIfNull(observationCorpus);
+        ArgumentNullException.ThrowIfNull(conclusionLedger);
         ArgumentNullException.ThrowIfNull(chatClient);
         ArgumentNullException.ThrowIfNull(reflectionOptions);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.observationCorpus = observationCorpus;
+        this.conclusionLedger = conclusionLedger;
         this.chatClient = chatClient;
         this.reflectionOptions = reflectionOptions.Value;
         this.clock = clock;
@@ -74,10 +78,8 @@ public sealed class ReflectionService : IProactiveService
             return ProactiveResult.quiet;
         }
 
-        var reply = await this.chatClient
-            .CompleteAsync(BuildPrompt(observations), cancellationToken).ConfigureAwait(false);
+        var conclusion = await this.ProposeAsync(observations, now, cancellationToken).ConfigureAwait(false);
 
-        var conclusion = this.ParseProposal(reply, observations, now);
         return conclusion is null
             ? ProactiveResult.quiet
             : new ProactiveResult([conclusion], [], ProactiveStatus.Completed);
@@ -102,7 +104,56 @@ public sealed class ReflectionService : IProactiveService
         return observations;
     }
 
-    private static string BuildPrompt(List<Observation> observations)
+    private async Task<Conclusion?> ProposeAsync(
+        List<Observation> observations,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var believed = await this.CollectBelievedAsync(cancellationToken).ConfigureAwait(false);
+        var reply = await this.chatClient
+            .CompleteAsync(BuildPrompt(observations, believed), cancellationToken).ConfigureAwait(false);
+
+        var conclusion = this.ParseProposal(reply, observations, now);
+
+        // The model saw the believed set and still restated one of its members: discard,
+        // or the ledger fills with near-copies and supersession stops meaning anything.
+        if (conclusion is not null && IsRestatement(conclusion.Statement, believed))
+        {
+            this.logger.LogInformation(
+                "Reflection: proposal restates an existing belief; discarded: {Statement}",
+                conclusion.Statement);
+            return null;
+        }
+
+        return conclusion;
+    }
+
+    private async Task<List<string>> CollectBelievedAsync(CancellationToken cancellationToken)
+    {
+        var believed = new List<string>();
+        await foreach (var conclusion in this.conclusionLedger
+            .ActiveForSubjectAsync("steve", cancellationToken).ConfigureAwait(false))
+        {
+            believed.Add(conclusion.Statement);
+        }
+
+        return believed;
+    }
+
+    private static bool IsRestatement(string statement, List<string> believed)
+    {
+        foreach (var existing in believed)
+        {
+            if (string.Equals(existing.Trim(), statement.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string BuildPrompt(List<Observation> observations, List<string> believed)
     {
         var prompt = new StringBuilder();
         prompt.AppendLine(
@@ -120,6 +171,8 @@ public sealed class ReflectionService : IProactiveService
             "where supporting lists the observation numbers that justify the statement.");
         prompt.AppendLine();
 
+        AppendBelieved(prompt, believed);
+
         for (var index = 0; index < observations.Count; index++)
         {
             prompt.Append(index + 1).Append(". [").Append(observations[index].Source).Append("] ")
@@ -127,6 +180,22 @@ public sealed class ReflectionService : IProactiveService
         }
 
         return prompt.ToString();
+    }
+
+    private static void AppendBelieved(StringBuilder prompt, List<string> believed)
+    {
+        if (believed.Count == 0)
+        {
+            return;
+        }
+
+        prompt.AppendLine("Already believed - do NOT restate these; propose only something new:");
+        foreach (var existing in believed)
+        {
+            prompt.Append("- ").AppendLine(existing);
+        }
+
+        prompt.AppendLine();
     }
 
     private Conclusion? ParseProposal(string reply, List<Observation> observations, DateTimeOffset now)

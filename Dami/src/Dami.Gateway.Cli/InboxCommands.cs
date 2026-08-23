@@ -1,3 +1,4 @@
+using Dami.Contracts.Memory;
 using Dami.Contracts.Proactive;
 
 namespace Dami.Gateway.Cli;
@@ -12,15 +13,21 @@ public sealed class InboxCommands
     private const int LIST_LIMIT = 20;
 
     private readonly ISurfacingQueue surfacingQueue;
+    private readonly IObservationCorpus observationCorpus;
     private readonly TimeProvider clock;
 
     /// <summary>Creates the commands.</summary>
-    public InboxCommands(ISurfacingQueue surfacingQueue, TimeProvider clock)
+    public InboxCommands(
+        ISurfacingQueue surfacingQueue,
+        IObservationCorpus observationCorpus,
+        TimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(surfacingQueue);
+        ArgumentNullException.ThrowIfNull(observationCorpus);
         ArgumentNullException.ThrowIfNull(clock);
 
         this.surfacingQueue = surfacingQueue;
+        this.observationCorpus = observationCorpus;
         this.clock = clock;
     }
 
@@ -92,9 +99,18 @@ public sealed class InboxCommands
         }
 
         var feedback = note is null ? verdict : $"{verdict}: {note}";
+        var reactedAt = this.clock.GetUtcNow();
         await this.surfacingQueue
-            .RecordFeedbackAsync(surfacing.SurfacingId, feedback, this.clock.GetUtcNow(), cancellationToken)
+            .RecordFeedbackAsync(surfacing.SurfacingId, feedback, reactedAt, cancellationToken)
             .ConfigureAwait(false);
+
+        // A reaction is itself something that happened, so it joins the corpus - which
+        // is how the reflection pass gets to notice patterns in what Steve values.
+        await this.observationCorpus.RecordAsync(
+            new Observation(
+                Guid.NewGuid(), reactedAt, "surfacing-feedback",
+                $"rated the surfacing '{surfacing.Title}' {feedback}"),
+            cancellationToken).ConfigureAwait(false);
 
         Console.WriteLine($"recorded '{feedback}' on {Short(surfacing.SurfacingId)} - this trains the taste model");
         return 0;

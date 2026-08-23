@@ -16,8 +16,10 @@ public sealed class ReflectionServiceTests
     private static readonly DateTimeOffset now = new(2026, 8, 23, 3, 0, 0, TimeSpan.Zero);
 
     private readonly IObservationCorpus observationCorpus = Substitute.For<IObservationCorpus>();
+    private readonly IConclusionLedger conclusionLedger = Substitute.For<IConclusionLedger>();
     private readonly IChatClient chatClient = Substitute.For<IChatClient>();
     private readonly List<Observation> observations = [];
+    private readonly List<Conclusion> believed = [];
 
     [Fact]
     public async Task RunPassAsync_Should_Stay_Quiet_Below_The_Observation_Floor()
@@ -129,6 +131,39 @@ public sealed class ReflectionServiceTests
         Assert.Empty(result.Surfacings);
     }
 
+    [Fact]
+    public async Task RunPassAsync_Should_Show_The_Model_What_Is_Already_Believed()
+    {
+        this.ObserveThree();
+        this.Believe("stays up late when a build is close to working");
+        this.ModelSays("nothing");
+
+        await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        await this.chatClient.Received(1).CompleteAsync(
+            Arg.Is<string>(prompt => prompt.Contains("stays up late when a build is close to working")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunPassAsync_Should_Discard_A_Restated_Belief()
+    {
+        this.ObserveThree();
+        this.Believe("Works late into the night");
+        this.ModelSays("""{"statement":"works late into the night","confidence":0.9,"supporting":[1]}""");
+
+        var result = await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        Assert.Empty(result.Conclusions);
+    }
+
+    private void Believe(string statement)
+    {
+        this.believed.Add(new Conclusion(
+            Guid.NewGuid(), null, "steve", statement, 0.8,
+            ConclusionSource.ReflectionPass, now.AddDays(-7)));
+    }
+
     private void Observe(string body)
     {
         this.observations.Add(new Observation(Guid.NewGuid(), now.AddDays(-1), "cli-note", body));
@@ -158,9 +193,23 @@ public sealed class ReflectionServiceTests
                 Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(AsAsync(this.observations));
 
+        this.conclusionLedger.ActiveForSubjectAsync("steve", Arg.Any<CancellationToken>())
+            .Returns(AsConclusionsAsync(this.believed));
+
         return new ReflectionService(
-            this.observationCorpus, this.chatClient, Options.Create(new ReflectionOptions()),
+            this.observationCorpus, this.conclusionLedger, this.chatClient,
+            Options.Create(new ReflectionOptions()),
             new FakeTimeProvider(now), NullLogger<ReflectionService>.Instance);
+    }
+
+    private static async IAsyncEnumerable<Conclusion> AsConclusionsAsync(List<Conclusion> conclusions)
+    {
+        foreach (var conclusion in conclusions)
+        {
+            yield return conclusion;
+        }
+
+        await Task.CompletedTask;
     }
 
     private static async IAsyncEnumerable<Observation> AsAsync(List<Observation> observations)

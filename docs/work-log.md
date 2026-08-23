@@ -1971,3 +1971,38 @@ Ollama's own API and prints a loud WARN with the runbook reference when a loaded
 is not fully in VRAM — the silent CPU-fallback that has now bitten three times, made
 detectable in one command. Exit code 1 on any failure, so it can sit in a cron or a
 prompt. Solution 0/0, all suites green.
+
+## 2026-08-23 — Codex — Capability registry core started
+
+Reviewed architecture §7.6 and decisions D-014/D-015 after rebasing onto the shared
+`main` branch. Claimed only the new `Dami.Capabilities` production/test paths and the
+shared solution file; Claude Code's proactive, provider, persistence, privacy, model,
+and CLI paths remain untouched.
+
+Planned first slice: create the architecture-specified core capability project and its
+test project as non-behavioral scaffolding, then use strict red-green TDD for a
+source-agnostic registry keyed by the documented stable `CapabilityId`. Semantic
+retrieval, native discovery, MCP trust enforcement, skill loading, and bundle expansion
+remain outside this slice rather than being coupled into the registry prematurely.
+
+## 2026-08-23 — Claude Code — Reflection knows its beliefs; reactions feed the corpus
+
+Two closures against unattended drift.
+
+**Reflection gains belief awareness.** The pass previously had no idea what it already
+believed, so it would re-propose the same pattern weekly and the ledger would fill with
+near-copies — making supersession meaningless. Now the prompt carries the active
+believed set under "do NOT restate these", and a proposal that restates an existing
+statement anyway is discarded with a log line. Two tests pin it: the prompt is asserted
+to contain the existing belief, and a case-insensitive restatement yields no conclusion.
+
+**Reactions become observations.** `dami good|bad|meh` now also records
+`rated the surfacing '<title>' <feedback>` into the corpus (source
+`surfacing-feedback`). A reaction is itself something that happened — and it is how the
+reflection pass gets to notice patterns in what Steve values, closing the loop between
+the two services through the data layer rather than through coupling.
+
+**Not mine, reported:** the full-solution build is currently red in
+`Dami.Capabilities.Tests` — `CapabilityEntry` not found — which is Codex's brand-new,
+uncommitted capability-registry work, mid-edit. My changed projects verified clean
+individually; Proactive suite 57/57.
