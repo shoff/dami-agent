@@ -29,6 +29,37 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog
 
     private string Table => $"{this.storeOptions.SchemaName}.proactive_runs";
 
+    private string LeaseTable => $"{this.storeOptions.SchemaName}.proactive_run_leases";
+
+    /// <inheritdoc />
+    public async Task<IProactiveRunLease?> TryAcquireLeaseAsync(
+        string serviceName,
+        DateTimeOffset acquiredAt,
+        TimeSpan duration,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(serviceName);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(duration, TimeSpan.Zero);
+
+        var leaseId = Guid.NewGuid();
+        await using var command = this.dataSource.CreateCommand(
+            $"insert into {this.LeaseTable} (service_name, lease_id, expires_at) "
+            + "values (@service_name, @lease_id, @expires_at) "
+            + "on conflict (service_name) do update "
+            + "set lease_id = excluded.lease_id, expires_at = excluded.expires_at "
+            + $"where {this.LeaseTable}.expires_at <= @acquired_at "
+            + "returning lease_id;");
+        command.Parameters.AddWithValue("service_name", serviceName);
+        command.Parameters.AddWithValue("lease_id", leaseId);
+        command.Parameters.AddWithValue("expires_at", acquiredAt + duration);
+        command.Parameters.AddWithValue("acquired_at", acquiredAt);
+
+        var acquiredLeaseId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return acquiredLeaseId is Guid
+            ? new PostgresProactiveRunLease(this.dataSource, this.LeaseTable, serviceName, leaseId)
+            : null;
+    }
+
     /// <inheritdoc />
     public async Task RecordAsync(
         Guid runId,

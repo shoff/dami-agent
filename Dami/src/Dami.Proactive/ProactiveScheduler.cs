@@ -12,6 +12,8 @@ namespace Dami.Proactive;
 /// </remarks>
 public sealed class ProactiveScheduler
 {
+    private static readonly TimeSpan leaseDuration = TimeSpan.FromHours(4);
+
     private static readonly IReadOnlyDictionary<ProactiveCadence, TimeSpan> intervals =
         new Dictionary<ProactiveCadence, TimeSpan>
         {
@@ -56,19 +58,43 @@ public sealed class ProactiveScheduler
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            if (await this.TryRunAsync(service, cancellationToken).ConfigureAwait(false))
+            {
+                ran++;
+            }
+        }
+
+        return ran;
+    }
+
+    private async Task<bool> TryRunAsync(
+        IProactiveService service,
+        CancellationToken cancellationToken)
+    {
+        var lease = await this.runLog.TryAcquireLeaseAsync(
+            service.ServiceName,
+            this.clock.GetUtcNow(),
+            leaseDuration,
+            cancellationToken).ConfigureAwait(false);
+
+        if (lease is null)
+        {
+            return false;
+        }
+
+        await using (lease.ConfigureAwait(false))
+        {
             var lastRanAt = await this.runLog
                 .LastRanAtAsync(service.ServiceName, cancellationToken).ConfigureAwait(false);
 
             if (!this.IsDue(service.Cadence, lastRanAt))
             {
-                continue;
+                return false;
             }
 
             await this.RunOneAsync(service, lastRanAt, cancellationToken).ConfigureAwait(false);
-            ran++;
+            return true;
         }
-
-        return ran;
     }
 
     private bool IsDue(ProactiveCadence cadence, DateTimeOffset? lastRanAt)

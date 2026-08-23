@@ -2994,3 +2994,27 @@ quarterly pushback rate labeled as what it is — the alarm whose falling is the
 and every egress in 7 days (2 requested, 2 completed, 0 refused — and that zero-refusal
 line is itself information). Table-driven sections after DAMI0003 objected to the long
 body; the analyzer keeps winning arguments with its author. CLI republished.
+
+## 2026-08-23 — Codex — Cross-process proactive scheduler lease verified
+
+The scheduler now acquires one async-disposable lease per service before checking
+cadence, then rechecks cadence while holding it. PostgreSQL grants the lease atomically
+with `INSERT ... ON CONFLICT ... WHERE expires_at <= acquired_at`; release deletes only
+the matching lease ID, so an expired owner cannot remove its successor. The contract is
+`IProactiveRunLease`, keeping Npgsql out of scheduler/runtime layers.
+
+Strict TDD evidence is recorded in the preceding Codex entry: the scheduler concurrency
+test first observed two service executions; the persistence test then failed at the
+intentional partial implementation via analyzer DAMI0006. After implementation, the
+narrow tests passed, the affected suites passed Proactive 64/64 and Persistence 88/88,
+and the concurrency test passed 20 additional fresh-process repetitions after replacing
+its timing-sensitive substitute sequence with an `Interlocked` one-winner fixture.
+
+Migration `010_proactive_run_leases.sql` was applied live through `apply.sh` as
+`dami_ddl`; status reports migrations 001–010 applied and none pending. Catalog checks:
+table owner `dami_ddl`; `dami_app` grants exactly SELECT/INSERT/UPDATE/DELETE. A
+transactional live probe granted the first lease, returned zero rows for the second,
+rolled back, and left zero probe rows. Definitive exact-diff verification in
+`/tmp/dami-lease-gate.FNQrAT/repo` at committed HEAD `e156086`: build **0 warnings, 0
+errors**; tests **300 passed, 0 failed** across twelve assemblies; format verification
+exit 0. Claude Code's concurrent turn-orchestration and CLI files were excluded.

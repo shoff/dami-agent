@@ -67,6 +67,21 @@ public sealed class PostgresProactiveRunLogTests
         Assert.Null(await log.LastRanAtAsync("scout", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task TryAcquireLeaseAsync_Should_Grant_Only_One_Active_Lease()
+    {
+        await this.fixture.ResetAsync();
+        var log = this.CreateLog();
+
+        await using var first = await log.TryAcquireLeaseAsync(
+            "scout", ranAt, TimeSpan.FromHours(1), CancellationToken.None);
+        await using var second = await log.TryAcquireLeaseAsync(
+            "scout", ranAt, TimeSpan.FromHours(1), CancellationToken.None);
+
+        Assert.NotNull(first);
+        Assert.Null(second);
+    }
+
     private PostgresProactiveRunLog CreateLog()
     {
         return new PostgresProactiveRunLog(

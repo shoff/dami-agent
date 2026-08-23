@@ -11,6 +11,7 @@ public static class TestDdl
         "007_proactive_runs.sql",
         "008_observation_embeddings.sql",
         "009_versioned_embeddings.sql",
+        "010_proactive_run_leases.sql",
     ];
 
     /// <summary>The event-store and memory DDL, rewritten to build in <paramref name="schema"/>.</summary>
@@ -42,6 +43,7 @@ public static class TestDdl
 
         return $"""
             drop table if exists {schema}.observation_embeddings cascade;
+            drop table if exists {schema}.proactive_run_leases cascade;
             drop table if exists {schema}.proactive_runs cascade;
             drop table if exists {schema}.surfacings cascade;
             drop table if exists {schema}.conclusion_observations cascade;
@@ -69,6 +71,7 @@ public static class TestDdl
         // working, not a workaround for it.
         return $"""
             delete from {schema}.observation_embeddings;
+            delete from {schema}.proactive_run_leases;
             delete from {schema}.proactive_runs;
             delete from {schema}.surfacings;
             delete from {schema}.conclusion_observations;

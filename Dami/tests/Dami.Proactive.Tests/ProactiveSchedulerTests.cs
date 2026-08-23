@@ -16,6 +16,16 @@ public sealed class ProactiveSchedulerTests
     private readonly IProactiveRunLog runLog = Substitute.For<IProactiveRunLog>();
     private readonly IExecutionEventStore eventStore = Substitute.For<IExecutionEventStore>();
 
+    public ProactiveSchedulerTests()
+    {
+        this.runLog.TryAcquireLeaseAsync(
+                Arg.Any<string>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => Substitute.For<IProactiveRunLease>());
+    }
+
     [Fact]
     public async Task RunDueAsync_Should_Run_A_Service_That_Has_Never_Run()
     {
@@ -125,6 +135,16 @@ public sealed class ProactiveSchedulerTests
     {
         this.runLog.LastRanAtAsync("scout", Arg.Any<CancellationToken>())
             .Returns((DateTimeOffset?)null);
+        var leaseGranted = 0;
+        var lease = Substitute.For<IProactiveRunLease>();
+        this.runLog.TryAcquireLeaseAsync(
+                "scout",
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => Interlocked.CompareExchange(ref leaseGranted, 1, 0) == 0
+                ? lease
+                : null);
         var scout = Scout();
 
         await Task.WhenAll(
