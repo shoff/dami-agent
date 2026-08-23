@@ -2,7 +2,7 @@
 
 - **Decision:** Satisfy the Phase 1 rollback requirement with scheduled Timeshift rsync snapshots of the system on the existing ext4 root, rather than reinstalling onto Btrfs subvolumes.
 - **Date:** 2026-08-22
-- **Status:** accepted — implemented 2026-08-22; the rehearsed restore below is still outstanding
+- **Status:** accepted — implemented 2026-08-22
 - **Supersedes:** none. This fills a gap rather than reversing a decision — no document specifies rollback for an ext4 host.
 
 ## Context
@@ -69,11 +69,22 @@ retention 5/3/3, excluding `/home`, `/root`, `/var/lib/docker`, and the apt cach
 snapshot `2026-08-22_20-17-07` took 299 s and occupies 22 G; verified to contain `/etc`,
 `/usr`, and `/var` with the excluded trees present only as empty stubs.
 
-**Still required, and this ADR is not fully satisfied without it: one restore actually
-rehearsed from the live USB.** An untested restore is not a rollback path, it is an
-assumption, and acceptance-suite item 13 exists precisely because this project does not
-accept unverified success claims. It needs a reboot and cannot be done from a session on
-the running host.
+**Rehearsing a restore is recommended, not required.** Steve decided on 2026-08-22 that
+a rehearsed restore does not gate Phase 1. Recorded as a decision rather than applied as
+a silent edit, because an earlier draft of this ADR made it a hard condition and the
+reasoning for that has not changed — only the priority has.
+
+The residual risk, stated once and then left alone: an rsync restore that has never been
+performed is a believed rollback path rather than a demonstrated one, and rsync restores
+are where the surprises live — boot loader state, files open at snapshot time, ownership
+and ACLs on a system restored from a live session. If it fails, it fails on the day it is
+needed.
+
+This does not remove the obligation, it relocates it. **Charter acceptance-suite item 13
+— "back up and restore the runtime and its durable databases" — still stands as a
+cutover gate**, so the verification moves to Phase 10 rather than disappearing. Doing it
+early is cheap now, when the machine holds nothing that matters; doing it in Phase 10 is
+the same work against a host that is carrying real data.
 
 **Two limits to state plainly.** Snapshots live at `/timeshift` on the same physical
 device as the root filesystem, so they protect against a bad update and not against

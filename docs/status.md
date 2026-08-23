@@ -58,7 +58,7 @@ the instrumentation gates the claim that Dami Core is faster than Hermes — arc
 | Live-boot validation before install | unknown | Not observed by this session; ask Steve |
 | GPU driver working on host | done | `nvidia-smi` → RTX 4080, driver 595.84, CUDA 13.2 |
 | Snapshot / rollback configured | done | Timeshift RSYNC, daily+weekly+boot, retention 5/3/3; snapshot `2026-08-22_20-17-07`, 22 G, verified to hold `/etc` `/usr` `/var` with `/home` `/root` `/var/lib/docker` excluded |
-| Rollback **rehearsed** | **not done** | Requires a reboot to the live USB. ADR-0002 does not count as satisfied until one restore is actually performed. |
+| Rollback rehearsed | not done — **recommended, not required** | Steve's call, 2026-08-22: does not gate Phase 1. Still a cutover gate via acceptance-suite item 13. Needs a reboot to the live USB. |
 | Database backup schedule | **not started** | one manual dump exists; `/home` is excluded from snapshots, so the cluster has no recurring backup |
 | Container runtime | done | `docker --version` → 29.1.3 |
 | GPU passthrough into containers | done | `docker run --rm --gpus all ubuntu:24.04 nvidia-smi` → RTX 4080 visible |
@@ -72,8 +72,10 @@ the instrumentation gates the claim that Dami Core is faster than Hermes — arc
 | `uv` for Python sidecars | not installed | `command -v uv` → nothing |
 | SSH and remote access | unknown | Not verified by this session |
 
-**Phase 1 cannot close.** Two exit conditions are unmet: rollback is not available, and
-CUDA compute has not been demonstrated — only device visibility.
+**Phase 1 has one blocker left: CUDA compute has never been demonstrated**, only device
+visibility. Rollback is now available via Timeshift; rehearsing a restore was downgraded
+to recommended on 2026-08-22 and no longer gates the phase. Live-boot validation and SSH
+remain unverified by this session — ask Steve rather than assuming.
 
 ### Phase 2 — Data foundation · *not started*
 
@@ -206,7 +208,7 @@ Nothing below can be settled by inspection. Each blocks work that is expensive t
 | # | Question | Blocks | Note |
 |---|---|---|---|
 | 1 | Accept or reject **ADR-0001** — Linux Mint 22.3 as host, reversing D-003's Debian 13 | Phase 1 close | Reversal is a reinstall now, a data migration after Phase 2 |
-| 2 | **Rehearse one restore from the live USB** | Phase 1 exit | ADR-0002 accepted and implemented, but an untested restore is an assumption, not a rollback path. Needs a reboot; cannot be done from a session on the running host. |
+| 2 | Rehearse one restore from the live USB — **recommended, not blocking** | acceptance item 13 | Downgraded from a Phase 1 gate by Steve on 2026-08-22. Cheap now while the host carries nothing; the same work against real data in Phase 10. |
 | 3 | **Stay on PostgreSQL 16, or move to 17/18?** | Phase 2 schema | PGDG is configured, so either is available. The removed container ran 18.6. Cheap now with two near-empty databases, expensive once the corpus lands. |
 | 4 | **Which embedding container** — TEI, Infinity, Ollama, or vLLM | Phase 2 | Options and tradeoffs were presented; recommendation was TEI with Ollama kept separate for the LLM sidecar |
 | 5 | Split `D-001`…`D-022` into individual ADR files, or leave them in the register | doc hygiene | `CLAUDE.md` says decisions live in `docs/decisions/`; the register is a parallel structure |
@@ -223,7 +225,7 @@ change, or an ADR — not silence.
 | Documented | Actual | Status |
 |---|---|---|
 | Host is Debian 13 + Cinnamon (D-003) | Linux Mint 22.3 + Cinnamon | ADR-0001 proposed |
-| Rollback via Btrfs/Snapper or LVM (charter, architecture §10) | ext4 with Timeshift rsync snapshots | **ADR-0002 accepted 2026-08-22**; restore still unrehearsed |
+| Rollback via Btrfs/Snapper or LVM (charter, architecture §10) | ext4 with Timeshift rsync snapshots | **ADR-0002 accepted 2026-08-22**; restore unrehearsed by decision |
 | Postgres on bare metal (D-004) | bare metal, cluster `16/main` online | **resolved 2026-08-22** |
 | Postgres from the PGDG repository (D-004) | PGDG configured, packages swapped | **resolved 2026-08-22** |
 | Retrieval is ANN top-50 then relational filter (arch §9.3) | iterative index scans available in 0.8.6 | **resolved 2026-08-22** |
@@ -236,19 +238,19 @@ change, or an ADR — not silence.
 
 ## 6. Next actions, in order
 
-1. **Rehearse one Timeshift restore from the live USB.** Snapshots exist; the restore
-   path does not count as verified until one is actually performed.
-2. **Decide the database backup schedule.** `/home` is excluded from snapshots, so the
+1. **Prove CUDA compute from a pinned container** — an actual kernel launch, not
+   `nvidia-smi`. The last remaining Phase 1 blocker.
+2. **Accept or reject ADR-0001** (host OS). Reversal is a reinstall now and a data
+   migration after Phase 2.
+3. **Decide the database backup schedule.** `/home` is excluded from snapshots, so the
    cluster is covered only by a single manual dump. Backup destination, encryption, and
    retention are all still open decisions in the register.
-2. **Accept or reject ADR-0001 and ADR-0002.** Both get more expensive after Phase 2.
-3. **Configure Timeshift and rehearse one restore.** Phase 1 cannot close without it,
-   and an untested restore is an assumption rather than a rollback path.
-4. **Prove CUDA compute from a pinned container** — an actual kernel launch, not
-   `nvidia-smi`.
+4. **Decide PostgreSQL 16 versus 17/18** while both databases are still near-empty.
 5. **Pick the embedding container** (§4 #4) and stand it up pinned.
 6. **Phase 0 on the Mac** — backups, corpus export, eval set, instrumentation. Phase 2
    is blocked on all four regardless of what happens on this workstation.
+7. *Recommended, not blocking:* rehearse a Timeshift restore from the live USB, and
+   retarget `docs/csharpcodestandards.md` from MAI to Dami before the first code.
 
 ---
 
