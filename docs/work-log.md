@@ -956,3 +956,132 @@ is flaky.** Three consecutive isolated runs: pass, fail, fail. It is in Codex's
 uncommitted work on `PipeTransport`, so it was left alone rather than edited. Flagging it
 because a test that fails two runs in three will be blamed on whoever commits next, and
 `CLAUDE.md` requires saying so rather than absorbing another agent's red.
+
+## 2026-08-22 — Codex — transport audit remediation results
+
+Continued the claimed transport slice with strict red–green cycles. Files changed:
+
+- `Dami.Contracts/Transport/ITransport.cs`, `TransportFrame.cs`
+- `Dami.Transport/Framing/FrameCodec.cs`, `LoopbackTransport.cs`, `PipeTransport.cs`,
+  `TcpDuplexPipe.cs`
+- the corresponding files under `Dami.Transport.Tests`
+
+No persistence, memory, analyzer, DDL, or database object was changed by Codex.
+
+### Red–green evidence
+
+1. Frame value equality: isolated test failed because identical payload bytes in
+   separate arrays compared unequal; custom byte-value equality/hash then passed.
+2. Payload ownership: Loopback test observed `99` after the caller mutated a sent array,
+   instead of the sent value `2`; snapshot-on-send then passed.
+3. Length overflow: `99 80 80 80 10` was accepted; fifth-byte validation then passed.
+4. Noncanonical length: `99 00` was accepted for a 25-byte body; canonical-varint
+   validation then passed.
+5. Concurrent sends: a deliberately backpressured first flush plus an overlapping send
+   failed with `InvalidOperationException: Concurrent reads or writes are not supported`;
+   a per-connection async send gate then passed.
+6. Completed output: send incorrectly returned successfully; it now throws the tested
+   `EndOfStreamException`.
+7. Canceled flush: send incorrectly returned successfully; it now reports cancellation.
+8. Canceled input read: receive ignored `ReadResult.IsCanceled` and waited until the
+   test token expired; it now terminates immediately with the tested cancellation error.
+9. Second receiver: the raw pipelines concurrency exception leaked; the transport now
+   rejects it with a stable single-receiver contract.
+10. Input completion failure: output was not completed and the test timed out; disposal
+    now attempts output completion in `finally` and preserves the input error when output
+    cleanup succeeds.
+11. Send/receive after disposal leaked underlying semaphore/reader exception identities;
+    both now throw `ObjectDisposedException` naming `PipeTransport`.
+12. Backpressured send during disposal: the first test run hung beyond its five-second
+    bound and the `dotnet test` process was manually interrupted. This was **not counted
+    as a pass**. Disposal now cancels the internal send lifetime, waits for the send gate,
+    and then completes the pipes; the exact narrow test passes without hanging.
+13. Server-side TCP seam: the red test did not compile because
+    `FromConnectedSocket` did not exist. The new ownership-transferring adapter accepts
+    already-connected sockets and enables `NoDelay`; the loopback test passes.
+
+The first attempted equality test did not execute because Claude Code's then-in-flight
+event files produced `DAMI0005` and `IDE0005`. That command was recorded as an external
+build block, not as the expected red. A temporary `/tmp/dami-exclude-events.targets`
+isolated only the transport cycle until those event files became buildable. Normal
+solution builds were used afterward.
+
+### Verification and concurrent gate status
+
+```text
+dotnet test Dami.Transport.Tests
+  Passed: 24, Failed: 0, Skipped: 0.
+
+SendAsync_Should_Reject_A_Send_After_Disposal, repeated after the lifecycle fix
+  10 consecutive passes (resolving the mid-edit flakiness Claude Code reported above).
+
+dotnet format --verify-no-changes --include <all changed transport files>
+  passed with no output.
+
+dotnet build Dami.sln
+  Build succeeded. 0 warnings, 0 errors.
+
+dotnet test Dami.sln --no-build
+  Transport 23/23, Analyzers 12/12, Architecture 10/10, Dami.Tests 1/1.
+  Persistence 27/30: three concurrently developed conclusion-ledger tests failed
+  because queries returned leftover active rows for subject `steve`.
+```
+
+The full test gate is therefore **not yet green**. Those failures are in Claude Code's
+owned persistence test/data-isolation work and were reported without being modified.
+The transport suite subsequently grew from 23 to 24 tests with the disposal liveness
+case and remains fully green.
+
+## 2026-08-22 — Claude Code — Conclusions and pushback ledgers
+
+The memory layer of D-009 and D-011, in C#. Red-first this time, both cycles.
+
+### TDD, as observed
+
+**Conclusions.** Contracts written, then a stub ledger returning empty results, then nine
+tests. Red: `Failed: 7, Passed: 23` — the seven behavioural tests failing, the guard and
+not-found tests passing trivially. Implemented, then a second red at `Failed: 3` which
+turned out to be **test isolation, not production code**: `ResetAsync` cleared only
+`execution_events`, so conclusions leaked between tests. Extended the reset. Green at
+`Passed: 30`.
+
+**Pushback.** Stub, then eight tests. Red: `Failed: 6, Passed: 32`. Implemented. Green at
+`Passed: 38`.
+
+A note on the stubs: `DAMI0006` forbids `NotImplementedException` on an interface
+implementation, so the stubs return empty results instead. **That is a better stub** —
+the tests fail on their assertions rather than on an exception, which is what a red phase
+should look like.
+
+### Design decisions
+
+- **`SupersedeAsync` is one transaction, not two calls.** Charter §9.4 requires a
+  correction to replace rather than coexist. A caller able to record the replacement
+  without retracting the original would leave both active, which is the exact state the
+  rule forbids. Three tests pin it: only the replacement is active, the original is
+  retracted, and the reason is recorded.
+- **The original is retracted as of the replacement's `ConcludedAt`.** Semantically right
+  — the old belief stopped holding when the new one was formed — and it avoids needing an
+  injected clock for something the caller already knows.
+- **`SupersedeAsync` rejects a replacement whose `SupersedesId` is null.** Superseding
+  nothing is a caller error, not a silent insert.
+- **`RateAsync` uses a half-open window `[from, to)`**, so consecutive quarters neither
+  double-count a challenge on a boundary nor lose one. That matters for the instrument's
+  whole purpose: comparing quarter against quarter.
+- `PushbackRate` reports the breakdown by outcome, and the type's own documentation says
+  a high accepted share is **not** reassurance — challenges that are always accepted may
+  simply be the safe ones.
+
+### Verification
+
+```
+dotnet build Dami.sln     0 warnings, 0 errors
+Dami.Tests                 1 passed
+Dami.Architecture.Tests   10 passed
+Dami.Transport.Tests      24 passed
+Dami.Persistence.Tests    38 passed
+Dami.Analyzers.Tests      12 passed
+```
+
+The `PipeTransportTests.SendAsync_Should_Reject_A_Send_After_Disposal` flake reported
+earlier is no longer reproducing; Codex's suite has grown to 24 and is green.

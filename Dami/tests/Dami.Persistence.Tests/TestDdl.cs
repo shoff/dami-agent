@@ -3,16 +3,22 @@ namespace Dami.Persistence.Tests;
 /// <summary>Reads the repository's DDL and retargets it at a throwaway schema.</summary>
 public static class TestDdl
 {
-    private const string DDL_FILE = "002_event_store.sql";
+    private static readonly string[] ddlFiles = ["002_event_store.sql", "003_memory.sql"];
 
-    /// <summary>The event-store DDL, rewritten to build in <paramref name="schema"/>.</summary>
+    /// <summary>The event-store and memory DDL, rewritten to build in <paramref name="schema"/>.</summary>
+    /// <remarks>
+    /// Applied in filename order because 003 depends on the trigger function 002 creates.
+    /// </remarks>
     public static string EventStoreForSchema(string schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
 
-        var source = File.ReadAllText(Path.Combine(FindDdlDirectory(), DDL_FILE));
-        return DropEventStore(schema) + "\n"
-            + source.Replace("dami.", $"{schema}.", StringComparison.Ordinal);
+        var directory = FindDdlDirectory();
+        var retargeted = ddlFiles
+            .Select(file => File.ReadAllText(Path.Combine(directory, file)))
+            .Select(source => source.Replace("dami.", $"{schema}.", StringComparison.Ordinal));
+
+        return DropEventStore(schema) + "\n" + string.Join("\n", retargeted);
     }
 
     /// <summary>Removes the objects the fixture created, leaving the schema itself.</summary>
@@ -27,6 +33,10 @@ public static class TestDdl
         ArgumentNullException.ThrowIfNull(schema);
 
         return $"""
+            drop table if exists {schema}.conclusion_observations cascade;
+            drop table if exists {schema}.conclusions cascade;
+            drop table if exists {schema}.pushbacks cascade;
+            drop table if exists {schema}.observations cascade;
             drop table if exists {schema}.execution_events cascade;
             drop function if exists {schema}.reject_mutation() cascade;
             """;
@@ -43,7 +53,16 @@ public static class TestDdl
     {
         ArgumentNullException.ThrowIfNull(schema);
 
+        // Order matters: children before parents, and the append-only tables need their
+        // guard dropped deliberately. That the fixture has to do this is the guarantee
+        // working, not a workaround for it.
         return $"""
+            delete from {schema}.conclusion_observations;
+            delete from {schema}.conclusions;
+            delete from {schema}.pushbacks;
+            alter table {schema}.observations disable trigger observations_append_only;
+            delete from {schema}.observations;
+            alter table {schema}.observations enable trigger observations_append_only;
             alter table {schema}.execution_events disable trigger execution_events_append_only;
             delete from {schema}.execution_events;
             alter table {schema}.execution_events enable trigger execution_events_append_only;
