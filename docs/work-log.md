@@ -2136,3 +2136,35 @@ capabilities tests now compile and pass alongside).
 - Service republished; active. Proactive suite 59; full solution 0 warnings, 0 errors.
 - **Not mine:** one failing test in Codex's in-flight `Dami.Capabilities.Tests`.
   Reported, not absorbed.
+
+## 2026-08-23 — Codex — Capability bundle expansion verified
+
+Completed the architecture §7.6.3 expansion slice. `CapabilityBundleExpander` depends
+only on `ICapabilityCatalog`; its turn-ready `CapabilityBundle` contains tools and
+skills, not nested bundle definitions. Expansion uses an explicit stack and stable-ID
+set: it preserves declared order, walks nested skills/bundles without call-stack growth,
+deduplicates shared tools, and terminates cyclic graphs. Missing related registrations
+fail closed with both the missing ID and referring capability ID in the exception.
+
+Strict red-green record:
+
+- Skill-to-tool expansion failed compilation before the bundle types and focused
+  expander interface existed, then passed 1/1 with the minimum one-level resolver.
+- Two skills referencing one tool produced a four-entry bundle red; stable-ID
+  deduplication produced the expected three entries.
+- A bundle/skill cycle red showed a bundle definition leaking into turn content and a
+  nested tool missing. Iterative graph expansion made it green. The first run of that
+  implementation hit `DAMI0003` at 35 body lines; extracting stack seeding and related
+  pushes restored the 30-line limit before the test passed.
+- A broken related ID already failed closed as a consequence of lookup. The new
+  red-first diagnostic requirement asserted the referring ID too; carrying referrer
+  context through the work stack made it green.
+- Three required-text cases and rejection of bundle definitions as turn content each
+  failed before the corresponding validation was added.
+
+Claude Code's work log observed one capability failure while this slice was deliberately
+red; the final capability suite completed at 18/18. Mandatory gate from `Dami/`:
+`dotnet build Dami.sln` succeeded with 0 warnings and 0 errors; `dotnet test Dami.sln`
+completed with 251/251 passing across nine suites (Capabilities 18, Transport 57,
+Proactive 59, Persistence 83, Analyzers 12, Architecture 10, Privacy 8, Providers 3,
+Dami 1). Cleared the ownership claim after verification.

@@ -20,6 +20,9 @@ public sealed record CapabilityEntry
     {
         ArgumentNullException.ThrowIfNull(tags);
         ArgumentNullException.ThrowIfNull(relatedCapabilities);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+        ArgumentException.ThrowIfNullOrWhiteSpace(version);
         if (capabilityId == Guid.Empty)
         {
             throw new ArgumentException(

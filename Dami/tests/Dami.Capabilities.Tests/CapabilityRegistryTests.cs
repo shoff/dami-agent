@@ -99,6 +99,26 @@ public sealed class CapabilityRegistryTests
         Assert.Equal("capabilityId", exception.ParamName);
     }
 
+    [Theory]
+    [InlineData("name")]
+    [InlineData("description")]
+    [InlineData("version")]
+    public void CapabilityEntry_RejectsMissingRequiredText(string missingParameter)
+    {
+        var name = missingParameter == "name" ? " " : "compare-images";
+        var description = missingParameter == "description" ? " " : "Compare two images.";
+        var version = missingParameter == "version" ? " " : "1.0.0";
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => CreateEntry(
+                Guid.NewGuid(),
+                name: name,
+                description: description,
+                version: version));
+
+        Assert.Equal(missingParameter, exception.ParamName);
+    }
+
     private static CapabilityEntry CreateEntry(
         Guid capabilityId,
         IReadOnlyList<string>? tags = null,
@@ -107,12 +127,14 @@ public sealed class CapabilityRegistryTests
         CapabilitySource source = CapabilitySource.Native,
         string? schemaReference = "native://compare-images/schema",
         string? bodyReference = null,
-        string name = "compare-images")
+        string name = "compare-images",
+        string description = "Compare two images and describe their differences.",
+        string version = "1.0.0")
     {
         return new CapabilityEntry(
             capabilityId,
             name,
-            "Compare two images and describe their differences.",
+            description,
             kind,
             source,
             TrustLevel.Trusted,
@@ -120,7 +142,7 @@ public sealed class CapabilityRegistryTests
             schemaReference,
             bodyReference,
             relatedCapabilities ?? [],
-            "1.0.0",
+            version,
             new DateTimeOffset(2026, 8, 23, 10, 33, 0, TimeSpan.FromHours(-5)));
     }
 }
