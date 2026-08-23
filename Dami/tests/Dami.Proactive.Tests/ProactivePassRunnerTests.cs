@@ -64,6 +64,21 @@ public sealed class ProactivePassRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_Should_Return_The_Trace_It_Emits()
+    {
+        var runner = this.CreateRunner();
+
+        var outcome = await runner.RunAsync(
+            ServiceReturning(ProactiveResult.quiet), null, CancellationToken.None);
+
+        await this.eventStore.Received(1).AppendAsync(
+            Arg.Is<ExecutionEvent>(item =>
+                item.Type == ExecutionEventType.TraceStarted
+                && item.TraceId == outcome.TraceId),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RunAsync_Should_Emit_A_TraceCompleted_For_A_Quiet_Pass()
     {
         var runner = this.CreateRunner();
@@ -112,9 +127,9 @@ public sealed class ProactivePassRunnerTests
         service.RunPassAsync(Arg.Any<ProactiveContext>(), Arg.Any<CancellationToken>())
             .Returns<Task<ProactiveResult>>(_ => throw new InvalidOperationException("boom"));
 
-        var status = await runner.RunAsync(service, null, CancellationToken.None);
+        var outcome = await runner.RunAsync(service, null, CancellationToken.None);
 
-        Assert.Equal(ProactiveStatus.Failed, status);
+        Assert.Equal(ProactiveStatus.Failed, outcome.Status);
     }
 
     [Fact]

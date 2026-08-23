@@ -46,7 +46,7 @@ public sealed class ProactivePassRunner
     }
 
     /// <summary>Runs one pass of one service.</summary>
-    public async Task<ProactiveStatus> RunAsync(
+    public async Task<ProactivePassOutcome> RunAsync(
         IProactiveService service,
         DateTimeOffset? lastRanAt,
         CancellationToken cancellationToken)
@@ -74,17 +74,17 @@ public sealed class ProactivePassRunner
         }
     }
 
-    private async Task<ProactiveStatus> RecordCancelledAsync(Guid traceId, string serviceName)
+    private async Task<ProactivePassOutcome> RecordCancelledAsync(Guid traceId, string serviceName)
     {
         // CancellationToken.None deliberately: the pass's token is already cancelled, and
         // the record of the cancellation must still be written.
         await this.EmitAsync(
             traceId, serviceName, ExecutionEventType.TraceCancelled, ExecutionStatus.Cancelled,
             $"{serviceName} pass cancelled", CancellationToken.None).ConfigureAwait(false);
-        return ProactiveStatus.Cancelled;
+        return new ProactivePassOutcome(traceId, ProactiveStatus.Cancelled);
     }
 
-    private async Task<ProactiveStatus> RecordFailedAsync(Guid traceId, string serviceName, Exception exception)
+    private async Task<ProactivePassOutcome> RecordFailedAsync(Guid traceId, string serviceName, Exception exception)
     {
         this.logger.LogError(
             exception, "Proactive pass {ServiceName} failed in trace {TraceId}", serviceName, traceId);
@@ -92,10 +92,10 @@ public sealed class ProactivePassRunner
         await this.EmitAsync(
             traceId, serviceName, ExecutionEventType.TraceFailed, ExecutionStatus.Failed,
             $"{serviceName} pass failed: {exception.Message}", CancellationToken.None).ConfigureAwait(false);
-        return ProactiveStatus.Failed;
+        return new ProactivePassOutcome(traceId, ProactiveStatus.Failed);
     }
 
-    private async Task<ProactiveStatus> ExecuteAsync(
+    private async Task<ProactivePassOutcome> ExecuteAsync(
         IProactiveService service,
         ProactiveContext context,
         CancellationToken cancellationToken)
@@ -108,7 +108,7 @@ public sealed class ProactivePassRunner
             $"{service.ServiceName}: {result.Conclusions.Count} concluded, {result.Surfacings.Count} surfaced",
             cancellationToken).ConfigureAwait(false);
 
-        return result.Status;
+        return new ProactivePassOutcome(context.TraceId, result.Status);
     }
 
     private async Task RouteAsync(

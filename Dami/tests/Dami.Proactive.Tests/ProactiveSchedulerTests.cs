@@ -14,6 +14,7 @@ public sealed class ProactiveSchedulerTests
     private static readonly DateTimeOffset now = new(2026, 8, 23, 2, 0, 0, TimeSpan.Zero);
 
     private readonly IProactiveRunLog runLog = Substitute.For<IProactiveRunLog>();
+    private readonly IExecutionEventStore eventStore = Substitute.For<IExecutionEventStore>();
 
     [Fact]
     public async Task RunDueAsync_Should_Run_A_Service_That_Has_Never_Run()
@@ -58,6 +59,30 @@ public sealed class ProactiveSchedulerTests
 
         await this.runLog.Received(1).RecordAsync(
             Arg.Any<Guid>(), "scout", Arg.Any<Guid>(), now,
+            ProactiveStatus.Completed, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunDueAsync_Should_Record_The_Emitted_Trace_Id()
+    {
+        this.runLog.LastRanAtAsync("scout", Arg.Any<CancellationToken>())
+            .Returns((DateTimeOffset?)null);
+        var emittedTraceId = Guid.Empty;
+        this.eventStore.AppendAsync(
+                Arg.Do<ExecutionEvent>(item =>
+                {
+                    if (item.Type == ExecutionEventType.TraceStarted)
+                    {
+                        emittedTraceId = item.TraceId;
+                    }
+                }),
+                Arg.Any<CancellationToken>())
+            .Returns(1);
+
+        await this.CreateScheduler(Scout()).RunDueAsync(CancellationToken.None);
+
+        await this.runLog.Received(1).RecordAsync(
+            Arg.Any<Guid>(), "scout", emittedTraceId, now,
             ProactiveStatus.Completed, Arg.Any<CancellationToken>());
     }
 
@@ -108,7 +133,7 @@ public sealed class ProactiveSchedulerTests
     private ProactiveScheduler CreateScheduler(params IProactiveService[] services)
     {
         var runner = new ProactivePassRunner(
-            Substitute.For<IExecutionEventStore>(),
+            this.eventStore,
             Substitute.For<IConclusionLedger>(),
             Substitute.For<ISurfacingQueue>(),
             new FakeTimeProvider(now),

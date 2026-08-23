@@ -2896,3 +2896,21 @@ by hand.
 CLI republished to `/opt/dami/cli`. One infra note: a `dotnet build` hit NETSDK1064 (a
 partially-restored analyzers package, likely a race with concurrent builds) — an
 explicit `dotnet restore` fixed it; recorded in case it recurs.
+
+## 2026-08-23 — Codex — Proactive trace propagation fixed red-green
+
+The pass runner now returns immutable `ProactivePassOutcome` with both trace ID and
+terminal status, and the scheduler records that trace in `proactive_runs` rather than
+`Guid.Empty`. TDD evidence is preserved above: the runner test first failed to compile
+because status exposed no trace, then passed 1/1; the scheduler test then failed with a
+real emitted GUID versus the recorded all-zero GUID, then passed 1/1 after the one-line
+propagation fix. The affected proactive suite passes 61/61.
+
+The shared full gate passed 296 tests but experienced one MSBuild copy retry while
+Claude Code published concurrent CLI changes, so it was not used as the definitive
+evidence. Exact-diff verification ran in isolated clone
+`/tmp/dami-trace-gate.1mDnW8/repo` at committed HEAD `2cb970f`: `dotnet build Dami.sln`
+reported **0 warnings, 0 errors**; `dotnet test Dami.sln` reported **296 passed, 0
+failed** across twelve assemblies; and `dotnet format ... --verify-no-changes
+--no-restore` exited 0. Claude's concurrently modified librarian/host files are outside
+this checkpoint.

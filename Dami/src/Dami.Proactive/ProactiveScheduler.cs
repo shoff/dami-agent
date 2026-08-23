@@ -87,14 +87,14 @@ public sealed class ProactiveScheduler
         CancellationToken cancellationToken)
     {
         var ranAt = this.clock.GetUtcNow();
-        var status = await this.runner
+        var outcome = await this.runner
             .RunAsync(service, lastRanAt, cancellationToken).ConfigureAwait(false);
 
         await this.runLog.RecordAsync(
-            Guid.NewGuid(), service.ServiceName, Guid.Empty, ranAt, status, cancellationToken)
+            Guid.NewGuid(), service.ServiceName, outcome.TraceId, ranAt, outcome.Status, cancellationToken)
             .ConfigureAwait(false);
 
         this.logger.LogInformation(
-            "Proactive service {ServiceName} ran with status {Status}", service.ServiceName, status);
+            "Proactive service {ServiceName} ran with status {Status}", service.ServiceName, outcome.Status);
     }
 }
