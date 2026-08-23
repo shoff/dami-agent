@@ -3340,3 +3340,40 @@ as they arrive, and **the trace completes — and the interaction joins the corp
 when the stream is drained** (3 tests pin drained/undrained/recorded). One coalesced
 `ResponseStreaming` event per the architecture's never-per-token rule. `dami chat` now
 prints tokens live. 29 Core tests; board D4/G3 flipped to done.
+
+## 2026-08-23 — Codex — F2 semantic capability retrieval started
+
+Claimed F2 on the new board and split it before implementation into three independently
+demonstrable slices: F2a deterministic registry inventory, F2b derived pgvector
+persistence kept separate from personal observations, and F2c the embed/ANN/rerank/
+bundle pipeline. F2a is claimed; Claude's G7 approval contracts, persistence, and DDL
+are active and remain untouched.
+
+The first F2a change is test-only. It requires a separate `ICapabilityInventory` read
+abstraction whose snapshot is ordered by stable capability ID and remains unchanged
+when later registrations arrive. This gives the future embedding synchronizer a
+deterministic point-in-time input without exposing registry mutation or concurrent-map
+details. Production remains unchanged until the focused test fails red.
+
+Red evidence: the focused F2a test failed during compilation with CS0246 because
+`ICapabilityInventory` did not exist. The minimum implementation is a separate snapshot
+interface on `CapabilityRegistry`; neither point lookup nor registration gains an
+unrelated member.
+
+The first green command corrected the new file's ownership successfully but invoked
+the test from the repository root with a `Dami/`-relative path, so MSBuild returned
+MSB1009 and no test ran. Re-running from `Dami/` passed the focused test 1/1. The
+snapshot is copied, ordered by stable ID, and therefore unaffected by later registry
+mutations.
+
+F2a is complete. The new `ICapabilityInventory` keeps bulk indexing reads separate
+from point lookup and mutation (ISP), while `CapabilityRegistry` remains the single
+thread-safe owner of registrations (SRP). The affected capability suite passed 21/21.
+
+Definitive verification ran in `/tmp/dami-f2a-gate.DfhmY0/repo` at committed HEAD
+`cb024ca`, applying only `ICapabilityInventory.cs`, `CapabilityRegistry.cs`, and its
+test. `dotnet build Dami.sln --nologo` produced **0 warnings, 0 errors**; `dotnet test
+Dami.sln --no-restore --nologo` passed **331/331** across twelve assemblies; `dotnet
+format Dami.sln --verify-no-changes --no-restore --verbosity minimal` exited 0 without
+diagnostics. No migration is involved. F2 remains in progress with F2b and F2c open;
+only F2a is flipped to `[x]`.

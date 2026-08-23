@@ -83,7 +83,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 - [x] F1 Unified registry: entries, native plugin discovery, bundle expansion (recent commits: discovery, safe expansion, hardening)
 - [~ Codex 2026-08-23] F2 Semantic capability retrieval over the registry (embed descriptions into the existing pgvector store; reuse B4's pipeline)
-  - [~ Codex 2026-08-23] F2a Deterministic registry inventory snapshot for embedding synchronization
+  - [x] F2a Deterministic registry inventory snapshot for embedding synchronization
   - [ ] F2b Derived capability-vector persistence in pgvector, separate from personal observations
   - [ ] F2c Intent embed → ANN candidates → rerank → bundle expansion
 - [ ] F3 MCP client + explicit trust levels; untrusted descriptions summarized-not-followed; untrusted excluded from LocalOnly turns

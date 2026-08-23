@@ -5,6 +5,24 @@ namespace Dami.Capabilities.Tests;
 public sealed class CapabilityRegistryTests
 {
     [Fact]
+    public void Snapshot_Should_Return_A_Deterministic_Point_In_Time()
+    {
+        var first = CreateEntry(Guid.Parse("00000000-0000-0000-0000-000000000001"));
+        var second = CreateEntry(Guid.Parse("00000000-0000-0000-0000-000000000002"));
+        var third = CreateEntry(Guid.Parse("00000000-0000-0000-0000-000000000003"));
+        var registry = new CapabilityRegistry();
+        registry.Register(second);
+        registry.Register(first);
+        ICapabilityInventory inventory = registry;
+
+        IReadOnlyList<CapabilityEntry> snapshot = inventory.Snapshot();
+        registry.Register(third);
+
+        Assert.Equal([first, second], snapshot);
+        Assert.Equal([first, second, third], inventory.Snapshot());
+    }
+
+    [Fact]
     public void Register_Should_Support_Concurrent_Registration_And_Lookup()
     {
         const int registrationCount = 20_000;
