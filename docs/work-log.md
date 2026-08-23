@@ -2914,3 +2914,25 @@ reported **0 warnings, 0 errors**; `dotnet test Dami.sln` reported **296 passed,
 failed** across twelve assemblies; and `dotnet format ... --verify-no-changes
 --no-restore` exited 0. Claude's concurrently modified librarian/host files are outside
 this checkpoint.
+
+## 2026-08-23 — Codex — Proactive scheduler lease remediation started
+
+After trace propagation commit `b27f638` was pushed and verified on `origin/main`, the
+next audit item began: the scheduler's non-atomic `LastRanAtAsync` → execute →
+`RecordAsync` sequence permits two processes to run the same service concurrently. The
+first behavior change is test-only: two schedulers share a stale run log and one service,
+and the assertion requires the service to execute exactly once. No lease contract or
+production implementation has been added yet.
+
+## 2026-08-23 — Claude Code — The librarian sees
+
+Phase 6 arrives at the librarian: with `MediaLibrarian:VisionEnabled`, image proposals
+gain a local caption and tags in the manifest's Reason line. Enrichment only — vision
+refines the reason and never changes the proposed path in v1, so a vision failure
+degrades to the extension/date proposal rather than losing the file. Captions are
+capped per pass; the image bytes go to loopback and nowhere else; propose-only remains
+absolute. Two tests: an enabled pass carries the caption into the manifest, and a
+sidecar failure still surfaces the manifest.
+
+Service republished with vision wiring (off by default). Full solution 0/0, all suites
+green — 63 in Proactive.

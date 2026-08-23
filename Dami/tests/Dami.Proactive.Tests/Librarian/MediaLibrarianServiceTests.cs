@@ -1,5 +1,7 @@
 using System.Text.Json;
+using Dami.Contracts.Models;
 using Dami.Contracts.Proactive;
+using NSubstitute;
 using Dami.Proactive.Librarian;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -124,6 +126,7 @@ public sealed class MediaLibrarianServiceTests : IDisposable
     public async Task RunPassAsync_Should_Stay_Quiet_With_No_Roots_Configured()
     {
         var service = new MediaLibrarianService(
+            Substitute.For<IVisionClient>(),
             Options.Create(new MediaLibrarianOptions { ManifestDirectory = this.manifests }),
             new FakeTimeProvider(now), NullLogger<MediaLibrarianService>.Instance);
 
@@ -149,16 +152,47 @@ public sealed class MediaLibrarianServiceTests : IDisposable
         return new ProactiveContext(Guid.NewGuid(), now, null);
     }
 
-    private MediaLibrarianService CreateService(int minimum = 3)
+    private readonly IVisionClient visionClient = Substitute.For<IVisionClient>();
+
+    [Fact]
+    public async Task RunPassAsync_Should_Enrich_Image_Proposals_When_Vision_Is_Enabled()
+    {
+        this.SeedMany();
+        this.visionClient.DescribeAsync(
+                Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("a finished spitfire on the bench; tags: model, aircraft, hobby");
+
+        await this.CreateService(vision: true).RunPassAsync(Context(), CancellationToken.None);
+
+        var manifest = await File.ReadAllTextAsync(Assert.Single(Directory.GetFiles(this.manifests)));
+        Assert.Contains("a finished spitfire on the bench", manifest);
+    }
+
+    [Fact]
+    public async Task RunPassAsync_Should_Keep_The_Plain_Proposal_When_Vision_Fails()
+    {
+        this.SeedMany();
+        this.visionClient.DescribeAsync(
+                Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Task<string>>(_ => throw new HttpRequestException("sidecar down"));
+
+        var result = await this.CreateService(vision: true).RunPassAsync(Context(), CancellationToken.None);
+
+        Assert.Single(result.Surfacings);
+    }
+
+    private MediaLibrarianService CreateService(int minimum = 3, bool vision = false)
     {
         var options = new MediaLibrarianOptions
         {
             ManifestDirectory = this.manifests,
             MinimumLooseFiles = minimum,
+            VisionEnabled = vision,
         };
         options.RootPaths.Add(this.root);
 
         return new MediaLibrarianService(
-            Options.Create(options), new FakeTimeProvider(now), NullLogger<MediaLibrarianService>.Instance);
+            this.visionClient, Options.Create(options),
+            new FakeTimeProvider(now), NullLogger<MediaLibrarianService>.Instance);
     }
 }

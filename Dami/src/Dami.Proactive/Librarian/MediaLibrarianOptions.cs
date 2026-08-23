@@ -22,4 +22,11 @@ public sealed class MediaLibrarianOptions
 
     /// <summary>Fewer loose files than this and the pass stays quiet.</summary>
     public int MinimumLooseFiles { get; set; } = 10;
+
+    /// <summary>Whether image proposals get a local-vision caption and tags.</summary>
+    /// <remarks>Off by default: ~1.4 s per image warm, and the model loads on demand.</remarks>
+    public bool VisionEnabled { get; set; }
+
+    /// <summary>The most images one pass will caption.</summary>
+    public int MaxCaptionsPerPass { get; set; } = 50;
 }

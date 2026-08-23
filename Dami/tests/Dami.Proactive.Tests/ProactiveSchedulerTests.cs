@@ -120,6 +120,21 @@ public sealed class ProactiveSchedulerTests
         Assert.Equal(2, ran);
     }
 
+    [Fact]
+    public async Task RunDueAsync_Should_Not_Run_The_Same_Service_Concurrently()
+    {
+        this.runLog.LastRanAtAsync("scout", Arg.Any<CancellationToken>())
+            .Returns((DateTimeOffset?)null);
+        var scout = Scout();
+
+        await Task.WhenAll(
+            this.CreateScheduler(scout).RunDueAsync(CancellationToken.None),
+            this.CreateScheduler(scout).RunDueAsync(CancellationToken.None));
+
+        await scout.Received(1).RunPassAsync(
+            Arg.Any<ProactiveContext>(), Arg.Any<CancellationToken>());
+    }
+
     private static IProactiveService Scout()
     {
         var service = Substitute.For<IProactiveService>();

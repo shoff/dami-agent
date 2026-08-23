@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dami.Contracts.Models;
 using Dami.Contracts.Proactive;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -43,20 +44,24 @@ public sealed class MediaLibrarianService : IProactiveService
             [".gcode"] = "models",
         };
 
+    private readonly IVisionClient visionClient;
     private readonly MediaLibrarianOptions librarianOptions;
     private readonly TimeProvider clock;
     private readonly ILogger<MediaLibrarianService> logger;
 
     /// <summary>Creates the service.</summary>
     public MediaLibrarianService(
+        IVisionClient visionClient,
         IOptions<MediaLibrarianOptions> librarianOptions,
         TimeProvider clock,
         ILogger<MediaLibrarianService> logger)
     {
+        ArgumentNullException.ThrowIfNull(visionClient);
         ArgumentNullException.ThrowIfNull(librarianOptions);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
 
+        this.visionClient = visionClient;
         this.librarianOptions = librarianOptions.Value;
         this.clock = clock;
         this.logger = logger;
@@ -84,6 +89,7 @@ public sealed class MediaLibrarianService : IProactiveService
             return ProactiveResult.quiet;
         }
 
+        await this.EnrichWithVisionAsync(proposals, cancellationToken).ConfigureAwait(false);
         var manifestPath = await this.WriteManifestAsync(proposals, cancellationToken).ConfigureAwait(false);
 
         var surfacing = new Surfacing(
@@ -159,6 +165,75 @@ public sealed class MediaLibrarianService : IProactiveService
             path,
             Path.Combine(proposedDirectory, Path.GetFileName(path)),
             $"{kind}, last modified {modified:yyyy-MM}");
+    }
+
+    /// <summary>Adds a local caption to image proposals when vision is enabled.</summary>
+    /// <remarks>
+    /// Enrichment only: vision refines the Reason line and never changes the proposed
+    /// path in v1, so a vision failure degrades to the extension/date proposal rather
+    /// than losing the file from the manifest. The image bytes go to loopback and
+    /// nowhere else.
+    /// </remarks>
+    private async Task EnrichWithVisionAsync(
+        List<MoveProposal> proposals,
+        CancellationToken cancellationToken)
+    {
+        if (!this.librarianOptions.VisionEnabled)
+        {
+            return;
+        }
+
+        var captioned = 0;
+        for (var index = 0; index < proposals.Count && captioned < this.librarianOptions.MaxCaptionsPerPass; index++)
+        {
+            if (await this.TryEnrichAsync(proposals, index, cancellationToken).ConfigureAwait(false))
+            {
+                captioned++;
+            }
+        }
+
+        if (captioned > 0)
+        {
+            this.logger.LogInformation("Media librarian: {Count} image(s) captioned locally", captioned);
+        }
+    }
+
+    private async Task<bool> TryEnrichAsync(
+        List<MoveProposal> proposals,
+        int index,
+        CancellationToken cancellationToken)
+    {
+        var proposal = proposals[index];
+        if (!proposal.Reason.StartsWith("photos", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var caption = await this.TryCaptionAsync(proposal.From, cancellationToken).ConfigureAwait(false);
+        if (caption is null)
+        {
+            return false;
+        }
+
+        proposals[index] = proposal with { Reason = $"{proposal.Reason}; vision: {caption}" };
+        return true;
+    }
+
+    private async Task<string?> TryCaptionAsync(string path, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var image = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+            var caption = await this.visionClient.DescribeAsync(
+                image, "One short caption and 3 comma-separated tags.", cancellationToken)
+                .ConfigureAwait(false);
+            return caption.ReplaceLineEndings(" ").Trim();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            this.logger.LogWarning(exception, "Vision failed for {Path}; keeping the plain proposal", path);
+            return null;
+        }
     }
 
     private async Task<string> WriteManifestAsync(

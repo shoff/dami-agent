@@ -10,6 +10,7 @@ using Dami.Proactive.Embedder;
 using Dami.Proactive.Librarian;
 using Dami.Proactive.Reflection;
 using Dami.Proactive.Scout;
+using Dami.Vision;
 using Dami.Providers;
 
 // The proactive tier's composition root (D-006): its own process, its own failure
@@ -59,6 +60,11 @@ builder.Services.AddHttpClient<IChatClient, OllamaChatClient>(client =>
 builder.Services.Configure<ReflectionOptions>(
     builder.Configuration.GetSection(ReflectionOptions.SECTION_NAME));
 builder.Services.AddSingleton<IProactiveService, ReflectionService>();
+
+// Local vision: loopback, on-demand load; images never leave the host.
+builder.Services.Configure<OllamaVisionOptions>(builder.Configuration.GetSection(OllamaVisionOptions.SECTION_NAME));
+builder.Services.AddHttpClient<IVisionClient, OllamaVisionClient>(client =>
+    client.Timeout = TimeSpan.FromMinutes(10));
 
 // Propose-only file organization (D-020). Holds no move, rename, or delete code at
 // all. Quiet until MediaLibrarian:RootPaths names directories to survey.
