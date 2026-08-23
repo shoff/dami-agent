@@ -33,4 +33,14 @@ public sealed class ContextOptions
 
     /// <summary>How recent "recent" is, in days.</summary>
     public int RecentDays { get; set; } = 30;
+
+    /// <summary>Cosine-distance ceiling: candidates farther than this never enter.</summary>
+    /// <remarks>
+    /// The grounding gate. Observed failure without it: a question with no relevant
+    /// memories still filled the window with the nearest junk, and the model
+    /// confabulated an answer from it. Better an explicitly empty context than a
+    /// misleading one. On this corpus bge-m3 relevant pairs measured ~0.45–0.55;
+    /// tune against the eval set, not by feel.
+    /// </remarks>
+    public double MaxDistance { get; set; } = 0.62;
 }

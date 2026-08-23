@@ -94,10 +94,17 @@ public sealed class ContextBuilder : IContextBuilder
             .EmbedAsync([request], cancellationToken).ConfigureAwait(false))[0];
 
         var candidates = new List<Observation>();
-        await foreach (var (observation, _) in this.embeddingStore
+        await foreach (var (observation, distance) in this.embeddingStore
             .NearestAsync(queryVector, this.embeddingClient.ModelId, this.contextOptions.Candidates, cancellationToken)
             .ConfigureAwait(false))
         {
+            // The grounding gate: nearest-by-ranking is not the same as relevant, and a
+            // window full of nearest junk reads as authority to the model.
+            if (distance > this.contextOptions.MaxDistance)
+            {
+                break;
+            }
+
             candidates.Add(observation);
         }
 

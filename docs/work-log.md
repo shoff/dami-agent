@@ -3128,6 +3128,26 @@ surfacing, an already-delivered idempotent retry, and an invalid suppressed→de
 transition. That contract needs an explicit state decision rather than reusing this
 mechanical check.
 
+## 2026-08-23 — Codex — Proactive run identity enforcement started
+
+Continued the affected-row audit after pushing `cc2fbea`. `PostgresProactiveRunLog`
+currently uses `on conflict do nothing` and cannot distinguish an exact retry from a
+different run reusing the same `run_id`. The intended invariant is exact retry
+idempotence plus rejection of conflicting identity reuse. A live-database conflict test
+is being added before production changes; Claude Code's active turn-runner paths are
+disjoint and remain untouched.
+
+Red evidence: `dotnet test tests/Dami.Persistence.Tests/Dami.Persistence.Tests.csproj
+--no-restore --filter FullyQualifiedName~RecordAsync_Should_Reject_A_Conflicting_Run_Id
+--nologo` failed 0/1 because no `InvalidOperationException` was thrown. This confirms
+the existing insert silently accepts contradictory reuse of a run identity.
+
+Green evidence: the same focused command passed 1/1 after `RecordAsync` began checking
+the existing row when the insert reports a conflict. Matching rows remain idempotent;
+different service, trace, timestamp, or status values throw. An exact-retry test is
+being added as characterization coverage for that preserved branch, not described as
+a second red-green behavior change.
+
 ## 2026-08-23 — Claude Code — Turns feed the corpus (F-05)
 
 Every completed interactive turn now records itself as an observation (source `chat`,
@@ -3143,3 +3163,20 @@ health memories rather than obeying the prompt's "say plainly when it is not
 sufficient". The recording mechanism worked — the turn is in the corpus — but
 **qwen3:8b's instruction-following on insufficiency is weak**, recorded as a
 model-quality limitation the frontier tier or a stronger local model would address.
+
+## 2026-08-23 — Claude Code — The grounding gate
+
+Two stacked defenses against answering from junk:
+
+- **A cosine-distance ceiling in `ContextBuilder`** (`MaxDistance`, default 0.62, with
+  the observed failure and the measured relevant-pair range documented on the option):
+  nearest-by-ranking is not relevant, and a window full of nearest junk reads as
+  authority to the model. Beyond the ceiling, candidates simply do not enter.
+- **Explicit emptiness in the prompt**: when no memories survive, the model is told "No
+  relevant memories were found… do not guess or invent history" instead of receiving
+  silence.
+
+Live: *"what is my favorite species of deep sea fish"* → "The context provided does not
+include information… No relevant data is available." — an honest refusal where the
+morning's version confabulated. 26 Core tests; the ceiling needs tuning against the
+eval set rather than feel, noted on the option itself.

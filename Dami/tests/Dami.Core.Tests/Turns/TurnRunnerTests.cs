@@ -113,6 +113,19 @@ public sealed class TurnRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_Should_Tell_The_Model_When_No_Memories_Were_Found()
+    {
+        this.Arrange(memories: []);
+        string? prompt = null;
+        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+            .Returns("an answer");
+
+        await this.CreateRunner().RunAsync("a question", CancellationToken.None);
+
+        Assert.Contains("No relevant memories were found", prompt);
+    }
+
+    [Fact]
     public async Task RunAsync_Should_Record_The_Interaction_Into_The_Corpus()
     {
         this.Arrange();

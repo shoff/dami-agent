@@ -159,6 +159,23 @@ public sealed class TurnRunner : ITurnRunner
             .AppendLine("few weeks is history and context, not the current situation.");
         prompt.AppendLine();
 
+        AppendContext(prompt, context);
+
+        prompt.AppendLine();
+        prompt.Append("Steve: ").AppendLine(request);
+        return prompt.ToString();
+    }
+
+    private static void AppendContext(StringBuilder prompt, AssembledContext context)
+    {
+        if (context.Memories.Count == 0)
+        {
+            prompt.AppendLine(
+                "No relevant memories were found for this request. Say so plainly if the");
+            prompt.AppendLine(
+                "question depends on them - do not guess or invent history.");
+        }
+
         foreach (var belief in context.Beliefs)
         {
             prompt.Append("[belief] ").AppendLine(belief.Content);
@@ -169,10 +186,6 @@ public sealed class TurnRunner : ITurnRunner
             prompt.Append("[memory ").Append(memory.AsOf.ToString("yyyy-MM-dd")).Append("] ")
                 .AppendLine(memory.Content);
         }
-
-        prompt.AppendLine();
-        prompt.Append("Steve: ").AppendLine(request);
-        return prompt.ToString();
     }
 
     private Task RecordInteractionAsync(

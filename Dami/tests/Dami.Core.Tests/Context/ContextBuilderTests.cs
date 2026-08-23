@@ -165,7 +165,7 @@ public sealed class ContextBuilderTests
             .Returns(new List<float[]> { new float[4] });
         this.embeddingStore.NearestAsync(
                 Arg.Any<float[]>(), "test-model", Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(AsNearestAsync(this.nearest));
+            .Returns(callInfo => this.AsNearestAsync(this.nearest));
         this.rerankClient.RankAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => Enumerable.Range(0, callInfo.Arg<IReadOnlyList<string>>().Count).ToList());
         this.conclusionLedger.ActiveForSubjectAsync("steve", Arg.Any<CancellationToken>())
@@ -182,11 +182,24 @@ public sealed class ContextBuilderTests
             new FakeTimeProvider(asOf), NullLogger<ContextBuilder>.Instance);
     }
 
-    private static async IAsyncEnumerable<(Observation, double)> AsNearestAsync(List<Observation> items)
+    [Fact]
+    public async Task BuildAsync_Should_Drop_Candidates_Beyond_The_Distance_Ceiling()
+    {
+        this.distance = 0.9;
+        this.Observe("nearest junk, still junk");
+
+        var context = await this.CreateBuilder().BuildAsync("a question", CancellationToken.None);
+
+        Assert.Empty(context.Memories);
+    }
+
+    private double distance = 0.3;
+
+    private async IAsyncEnumerable<(Observation, double)> AsNearestAsync(List<Observation> items)
     {
         foreach (var item in items)
         {
-            yield return (item, 0.3);
+            yield return (item, this.distance);
         }
 
         await Task.CompletedTask;
