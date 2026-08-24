@@ -54,6 +54,11 @@
   .diffbar input { background:#0d1116; color:var(--ink); border:1px solid #2a333d;
                    border-radius:6px; padding:4px 6px; font:inherit; }
   .diff-add { color:var(--ok); } .diff-rm { color:var(--fail); }
+  .appr { border-bottom:1px solid #232c36; padding:6px 0; }
+  .appr .what { font-weight:600; }
+  .appr .meta { color:var(--dim); font-size:11px; }
+  .appr .acts { margin-top:4px; display:flex; gap:6px; align-items:center; }
+  .appr .exec { margin-top:4px; color:var(--ok); font-size:12px; white-space:pre-wrap; }
   .hev { padding:3px 0; border-bottom:1px solid #232c36; font:12px/1.4 ui-monospace, monospace; }
   .hev .cat { color:var(--accent); } .hev .d { color:var(--dim); }
   .quiet { color:var(--dim); font-style:italic; }
@@ -83,6 +88,11 @@
 <section>
   <h2>Surfacings <span class="sub">(reactions train the taste model)</span></h2>
   <div id="inbox"></div>
+</section>
+
+<section>
+  <h2>Approvals <span class="sub">(nothing consequential runs until you say so)</span></h2>
+  <div id="approvals"></div>
 </section>
 
 <section>
@@ -234,6 +244,50 @@ async function loadDiff(since) {
   }
 }
 
+async function loadApprovals() {
+  const box = $("approvals");
+  try {
+    const r = await fetch("/approvals"); const items = await r.json();
+    box.innerHTML = "";
+    if (!items.length) {
+      box.innerHTML = '<div class="quiet">nothing awaits approval</div>'; return;
+    }
+    for (const a of items) {
+      const id8 = a.approvalId.replaceAll("-","").slice(0,8);
+      const div = document.createElement("div");
+      div.className = "appr";
+      div.innerHTML = `<div class="what">${escapeHtml(a.action)}</div>`
+        + `<div class="meta">${id8} · ${a.requestedBy} · scope ${a.scope} · ${escapeHtml(a.resource)}</div>`
+        + `<div class="acts"><button data-a="yes">approve</button>`
+        + `<button data-a="no">deny</button></div>`;
+      const acts = div.querySelector(".acts");
+      div.querySelectorAll("button").forEach(b => b.onclick = async () => {
+        const approve = b.dataset.a === "yes";
+        acts.querySelectorAll("button").forEach(x => x.disabled = true);
+        acts.insertAdjacentHTML("beforeend", '<span class="pending-note">working…</span>');
+        try {
+          const res = await fetch(`/approvals/${id8}/resolve`, {method:"POST",
+            headers:{"content-type":"application/json"},
+            body: JSON.stringify({approve, note: null})});
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const out = await res.json();
+          // Approving can execute real work — moving files, egressing a brief. Show
+          // what it did rather than letting the row vanish silently.
+          acts.innerHTML = `<span class="rated">${approve ? "approved" : "denied"}</span>`;
+          if (out.execution) {
+            div.insertAdjacentHTML("beforeend",
+              `<div class="exec">${escapeHtml(out.execution)}</div>`);
+          }
+          setTimeout(loadApprovals, out.execution ? 6000 : 1400);
+        } catch (e) {
+          acts.innerHTML = `<span class="failed">failed: ${escapeHtml(String(e.message))}</span>`;
+        }
+      });
+      box.appendChild(div);
+    }
+  } catch { box.innerHTML = '<div class="quiet">unavailable</div>'; }
+}
+
 async function loadHealth() {
   const box = $("healthlog");
   try {
@@ -291,6 +345,7 @@ pollEvents();
 loadInbox(); setInterval(loadInbox, 15000);
 loadBeliefs(); setInterval(loadBeliefs, 60000);
 loadHealth(); setInterval(loadHealth, 120000);
+loadApprovals(); setInterval(loadApprovals, 20000);
 $("diffbtn").onclick = () => { if ($("diffsince").value) loadDiff($("diffsince").value); };
 $("diffclear").onclick = () => loadBeliefs();
 </script>

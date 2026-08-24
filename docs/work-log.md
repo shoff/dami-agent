@@ -6344,3 +6344,27 @@ gap, and exactly where my bugs shipped. Host suite is now 36.
 I also briefly overwrote Codex's `Dami.Host.Tests.csproj` by creating the project I
 assumed was missing; restored from git within the minute, their test files untouched.
 Check `git ls-files` before creating anything in a shared tree.
+
+## 2026-08-24 — Claude — Acceptance item 3: approvals become actionable in the GUI
+
+The web view already rendered tools and workers — the graph draws the live event
+stream generically with child spans nested, and the stream really does carry
+ToolRequested/Started/Completed/Failed (Codex's G6), WorkerStarted/Completed, and
+ApprovalRequested/Resolved. What it lacked was the ability to *act*: approvals were
+invisible in the browser.
+
+Added an approvals panel that approves or denies in place and then shows what the
+approval actually did — "10 moved, 0 skipped" for a librarian manifest, the frontier's
+answer for an egress brief — because approving is not a state change, it is the moment
+real work runs, and a row quietly disappearing would hide that. Failures report on the
+row rather than silently reverting.
+
+Scoreboard item 3 moves to demonstrated. A live brief approval is waiting in the panel
+for Steve; deliberately left pending, since approving it would egress his medical
+context and that judgement is his.
+
+Process note: I committed the previous change while `dotnet build Dami.sln` reported
+errors from Codex's untracked in-flight slice. My own projects were clean in isolation
+and the commit touched only my files, but our own rule says to say so *before*
+committing rather than after. In a shared tree the solution-wide gate is not a
+reliable signal; build the projects you touched and report the tree state separately.
