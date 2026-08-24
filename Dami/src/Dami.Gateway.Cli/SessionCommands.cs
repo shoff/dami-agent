@@ -93,10 +93,25 @@ public sealed class SessionCommands
             return 2;
         }
 
+        // `--frontier` answers this turn on the subscription instead of the sidecar. The
+        // session, its journal, and its guarantees are identical either way.
+        var frontier = message.StartsWith("--frontier", StringComparison.Ordinal);
+        if (frontier)
+        {
+            message = message["--frontier".Length..].Trim();
+            if (message.Length == 0)
+            {
+                await Console.Error.WriteLineAsync("a message is required").ConfigureAwait(false);
+                return 2;
+            }
+        }
+
         var requestId = Guid.CreateVersion7();
-        await Console.Out.WriteLineAsync($"request {requestId:D}").ConfigureAwait(false);
+        await Console.Out.WriteLineAsync(
+            $"request {requestId:D}{(frontier ? "  [frontier · subscription]" : "")}")
+            .ConfigureAwait(false);
         return await this.PostTurnAsync(
-            parsed, requestId, message, cancellationToken).ConfigureAwait(false);
+            parsed, requestId, message, frontier, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Reads the durable state of a previously announced request.</summary>
@@ -132,13 +147,14 @@ public sealed class SessionCommands
         Guid sessionId,
         Guid requestId,
         string message,
+        bool frontier,
         CancellationToken cancellationToken)
     {
         return ApiCall.RunAsync(async () =>
         {
             using var reply = await this.api.PostAsync(
-                $"/sessions/{sessionId:D}/turns", new { requestId, message }, cancellationToken)
-                .ConfigureAwait(false);
+                $"/sessions/{sessionId:D}/turns", new { requestId, message, frontier },
+                cancellationToken).ConfigureAwait(false);
             if (reply is null)
             {
                 return 1;

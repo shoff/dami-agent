@@ -93,6 +93,7 @@ public static class SessionEndpoints
         Guid sessionId,
         RunSessionTurnRequest request,
         ISessionTurnRunner runner,
+        [FromKeyedServices("frontier")] ISessionTurnRunner frontierRunner,
         IConversationTurnStore turnStore,
         TimeProvider clock,
         CancellationToken cancellationToken)
@@ -109,7 +110,8 @@ public static class SessionEndpoints
         SessionTurnOutcome outcome;
         try
         {
-            outcome = await runner
+            // Same session, same journal; the flag chooses which model answers this turn.
+            outcome = await (request.Frontier ? frontierRunner : runner)
                 .RunAsync(turnRequest, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -143,4 +145,4 @@ public static class SessionEndpoints
 public sealed record StartSessionRequest(Guid SessionId);
 
 /// <summary>Runs an idempotent session turn with a client-generated retry key.</summary>
-public sealed record RunSessionTurnRequest(Guid RequestId, string Message);
+public sealed record RunSessionTurnRequest(Guid RequestId, string Message, bool Frontier = false);

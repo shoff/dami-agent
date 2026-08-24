@@ -34,7 +34,9 @@ public static class CommandRouter
           dami session start [id]        start a session (client-generated id when omitted)
           dami session resume <id>       resume an interrupted session
           dami session interrupt <id>    interrupt the session and any running turn
-          dami session turn <id> <message>
+          dami session turn <id> [--frontier] <message>
+                                         multi-turn; --frontier answers on your
+                                         ChatGPT subscription (no API key)
                                          run a turn; prints reconnect key before sending
           dami session reconnect <id> <request-id>
                                          read durable turn state without re-executing

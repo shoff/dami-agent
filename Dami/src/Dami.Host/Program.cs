@@ -46,6 +46,18 @@ builder.Services.Configure<SessionContextOptions>(
 builder.Services.AddSingleton<ISessionCancellationRegistry, SessionCancellationRegistry>();
 builder.Services.AddSingleton<IConversationWindowBuilder, ConversationWindowBuilder>();
 builder.Services.AddSingleton<ISessionTurnRunner, SessionTurnRunner>();
+
+// The same durable session machinery driven by the subscription frontier instead of
+// the sidecar (ADR-0011). Reusing SessionTurnRunner means reservation, interruption,
+// replay, and durable completion behave identically; only the model adapter differs.
+builder.Services.AddSingleton<Dami.Core.Frontier.FrontierTracedTurnRunner>();
+builder.Services.AddKeyedSingleton<ISessionTurnRunner>("frontier", (provider, _) =>
+    new SessionTurnRunner(
+        provider.GetRequiredService<Dami.Contracts.Sessions.IConversationTurnStore>(),
+        provider.GetRequiredService<IConversationWindowBuilder>(),
+        provider.GetRequiredService<Dami.Core.Frontier.FrontierTracedTurnRunner>(),
+        provider.GetRequiredService<ISessionCancellationRegistry>(),
+        provider.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton<IConversationSessionManager, ConversationSessionManager>();
 builder.Services.AddSingleton<Dami.Contracts.Context.IContextBuilder, ContextBuilder>();
 builder.Services.Configure<ContextOptions>(builder.Configuration.GetSection(ContextOptions.SECTION_NAME));

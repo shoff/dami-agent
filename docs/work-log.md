@@ -6237,3 +6237,33 @@ on both paths — local qwen3 and the subscription — and documented in `man da
 single-turn. Codex has built session infrastructure (`IConversationSessionStore`);
 threading frontier turns through it for real multi-turn continuity is the next step,
 and I left their in-flight files alone rather than entangle with them.
+
+## 2026-08-24 — Claude — Multi-turn on the subscription, through the real session machinery
+
+Steve: "wire it through the sessions so it's multi-turn — that should have been the
+VERY first thing we did." Correct, and the codebase made it cheap: Codex's
+`SessionTurnRunner` already delegates model work to an `ITracedTurnRunner` seam, so a
+frontier implementation of that one interface inherits every session guarantee
+unchanged — idempotent reservation, interruption, replay, durable completion, the
+bounded conversation window. No fork of the session logic exists.
+
+`FrontierTracedTurnRunner` (Dami.Core/Frontier) answers a durable session turn on the
+ChatGPT subscription. Wiring is a keyed `ISessionTurnRunner` built from the same
+`SessionTurnRunner` type with the frontier adapter substituted, selected per turn by a
+`frontier` flag — so **one session can mix models** and the journal stays single.
+
+**The privacy trap this had to solve.** A session's history can contain local,
+memory-rich answers. Replaying that history to OpenAI would egress Steve's memories
+with no consent — exactly what D-012 forbids, and an easy thing to ship by accident.
+The rule implemented: a frontier turn carries only exchanges whose own trace shows a
+completed egress. Everything else is withheld and the withholding is logged.
+
+Demonstrated live in one mixed session: two frontier turns established and recalled a
+fact ("the de Havilland Mosquito… built by the de Havilland Aircraft Company"); a
+local turn then answered a real question about Steve's heart condition from his
+corpus; and the next frontier turn, asked what condition had just been discussed,
+answered **"We didn't discuss a heart condition in this conversation"** — while the
+host logged `withheld 1 local exchange(s) from the prompt (D-012)`. Continuity where
+it is safe, silence where it is not.
+
+`dami session turn <id> --frontier <message>`. 12 suites, 769 tests, 0 warnings.
