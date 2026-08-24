@@ -3548,6 +3548,19 @@ minimal` exited 0. No schema or data migration is involved. F2c2, F2c, and F2 ar
 flipped to `[x]`. Their completion clears G6's explicit F1-F2 blocker, so G6 is claimed
 as the next acceptance-critical slice before any tool-execution code is written.
 
+## 2026-08-23 — Codex — G6 bounded tool execution started
+
+Reviewed charter acceptance item 4, §9.3/§10, architecture §7.6, the current
+`TurnRunner`, execution-event vocabulary, and native discovery/loader. G6 crosses four
+distinct responsibilities and is split before implementation: G6a establishes a
+source-neutral invocation/result contract plus native implementation registry and
+timeout boundary; G6b supplies root-confined file operations and allowlisted no-shell
+process execution; G6c adds the model/turn loop with truthful tool events, cancellation,
+and approval handoff; G6d performs the live bounded terminal/file demonstration and
+updates the acceptance scoreboard. G6a is claimed first. This keeps dynamic dispatch,
+OS security policy, turn orchestration, and acceptance evidence independently testable
+instead of concentrating them in `TurnRunner`.
+
 ## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
 
 Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,

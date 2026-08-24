@@ -100,6 +100,10 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [ ] G4 **Sessions**: multi-turn conversation with a recent window in context; start/resume/interrupt/reconnect without duplication — acceptance item 1 (natural Codex continuation from transport; unclaimed)
 - [ ] G5 Runtime API on localhost (D-005) so CLI/GUI/voice become thin clients; retire the CLI's direct-store deviation
 - [~ Codex 2026-08-23] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4
+  - [~ Codex 2026-08-23] G6a Source-neutral invocation/result contract + native implementation registry and timeout boundary
+  - [ ] G6b Root-confined file operations + allowlisted no-shell process execution
+  - [ ] G6c Model/turn tool loop with truthful events, cancellation, and approval handoff
+  - [ ] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
 - [ ] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6
 - [ ] G9 Frontier-informed turns once C4 exists (redacted context → Egressable)
