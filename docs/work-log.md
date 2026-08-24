@@ -4744,3 +4744,50 @@ recent window; G4c owns Host/CLI lifecycle surfaces and the live acceptance exer
 Compact session summaries are not silently included—the board asks for a recent window,
 and summary work can be separately scoped if measurements later justify it. G4/G4a are
 claimed; the first behavior will be driven from a failing contract/store test.
+
+## 2026-08-24 — Codex — G4a durable session/turn store complete
+
+The first integration test failed red with CS0234/CS0246 because no session namespace
+or store existed. Minimal active-session contracts, `PostgresSessionStore`, migration
+019, DI, and test-DDL wiring made it pass 1/1 against PostgreSQL; the first attempt hit
+DAMI0003 when the shared reset method reached 31 lines, so cleanup was extracted rather
+than suppressed. State transition then failed red on the missing API and passed after
+an SQL compare-and-set with monotonic activity time.
+
+Turn reservation failed red on missing request/state/store APIs. The initial reader
+then failed VSTHRD103 four times for synchronous database field access, and adding the
+child reset again hit DAMI0003; async reads and a session reset helper fixed both before
+the reservation passed 1/1. Completion, interruption, bounded recent-completed turns,
+bounded recent-session listing, and failure termination each failed red on their
+missing API and passed individually after the minimum implementation. Completed-window
+SQL limits newest rows in PostgreSQL and returns them oldest-to-newest for prompting,
+without an application-side reversal buffer.
+
+Adversarial review found session interruption updated only the parent, leaving active
+children Running. The new test failed with actual `(Completed, Running)` versus expected
+`(Completed, Interrupted)`. The store now locks the session row before first reservation
+and atomically changes the session plus every Running child to Interrupted; the test
+passes and late completion cannot win. Request IDs are unique within a session,
+conflicting content is rejected, and exact/concurrent retries return the one stored
+sequence and trace. Those retry/race assertions were added after reservation existed,
+so they are post-green coverage rather than TDD.
+
+The live-role privilege test first failed at IDE0005 for an unnecessary using, then
+completed red with actual false: migration 019 had granted table-wide UPDATE, exposing
+immutable IDs/messages. Column-scoped grants now allow only session state/activity and
+turn result/state/completion changes; the test passes, including no turn DELETE and
+identity-sequence USAGE. Separate red tests proved undefined session/turn enum values,
+completion before request time, and a null reservation turn were accepted; contract
+guards now reject all four before persistence.
+
+The combined session/DI slice passed 31/31; the full persistence suite passed 165/165.
+`tools/ddl/test_apply.sh` passed. The mandatory solution build completed with 0
+warnings/0 errors, all twelve suites passed 529/529, and format verification exited 0
+after a silent 109-second run. Migration status showed only 019 pending; it applied in
+one transaction, and repeat status shows 001–019 applied with none pending.
+
+A rollback-only live transaction as `dami_app` inserted session `44444444…`, reserved
+turn `55555555…` with trace `66666666…`, transitioned the turn to Completed with exact
+user/assistant strings, and read `Active|Completed|live rollback proof|durable response`.
+Rollback completed and a separate count returned zero, so no synthetic session row
+remains. G4a is `[x]`; G4b is claimed for runtime integration and the bounded window.

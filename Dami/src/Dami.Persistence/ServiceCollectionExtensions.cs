@@ -6,6 +6,7 @@ using Dami.Contracts.FilePatches;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Approvals;
 using Dami.Contracts.Proactive;
+using Dami.Contracts.Sessions;
 using Dami.Persistence.Approvals;
 using Dami.Persistence.Briefs;
 using Dami.Persistence.Domains;
@@ -14,6 +15,7 @@ using Dami.Persistence.Events;
 using Dami.Persistence.FilePatches;
 using Dami.Persistence.Memory;
 using Dami.Persistence.Proactive;
+using Dami.Persistence.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -61,6 +63,11 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IFilePatchProposalStore, PostgresFilePatchProposalStore>();
         services.TryAddSingleton<IHealthEventStore, PostgresHealthEventStore>();
         services.TryAddSingleton<ICapabilityEmbeddingStore, PostgresCapabilityEmbeddingStore>();
+        services.TryAddSingleton<PostgresSessionStore>();
+        services.TryAddSingleton<IConversationSessionStore>(provider =>
+            provider.GetRequiredService<PostgresSessionStore>());
+        services.TryAddSingleton<IConversationTurnStore>(provider =>
+            provider.GetRequiredService<PostgresSessionStore>());
 
         return services;
     }

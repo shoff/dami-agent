@@ -108,7 +108,7 @@ rather than assuming — but nothing else blocks the phase.
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
 | Capability registry | in progress | Core stable-ID lookup, immutable metadata, tool/skill invariants, and cycle-safe bundle expansion have 18 tests. `Dami.Capabilities.Native` discovers attribute-declared tools without activation (1 test). Semantic retrieval, native execution/host registration, MCP, and skill loading remain. |
-| Model routing, sessions, events, CLI | partial | Routed and streaming turns exist. G6c1 adds the bounded model/tool state machine; G6c2 adds selected-schema Ollama tool calling; G6c3 preserves trace/span provenance and sends immutable, hash-pinned patch proposals through G7 to an idempotent approved executor. G6d1 composes configured native discovery/schema/activation, semantic tool selection, and the tool loop into whole turns. Streaming remains tool-less; sessions and the G6d2 live demonstration remain. |
+| Model routing, sessions, events, CLI | partial | Routed/streaming/tool-enabled turns and the G6 live demonstration exist. G4a now provides durable session/turn contracts, bounded history reads, request-id convergence, and SQL-guarded terminal states; G4b runtime integration is claimed. Streaming remains tool-less. |
 
 Verification on 2026-08-23 for G6c3a in an isolated concurrent-work gate:
 `dotnet test Dami.sln` executed 439 tests across twelve suites with 0 failures;
@@ -155,6 +155,15 @@ exited 0. No migration is required beyond applied migration 018. Live trace
 `a2d560a7…` recorded `ApprovalRequested` sequence 217 and `ApprovalResolved` sequence
 220 on approval span `ce44b31d…`, parented to tool span `dbbcefd0…`; denial left the
 proposed target absent. G7/G7a are closed.
+
+Verification on 2026-08-24 for G4a: session lifecycle, request reservation, exact and
+concurrent retry convergence, terminal-state races, bounded recent reads, atomic
+session interruption, and column-level least privilege passed 165/165 PostgreSQL
+integration tests. The solution build completed with 0 warnings and 0 errors, all
+twelve suites passed 529/529, migration-runner testing passed, and format verification
+exited 0. Migration 019 is applied with none pending. A rollback-only live `dami_app`
+transaction created a session/turn, completed it, read the exact messages/states, then
+left zero synthetic session rows. G4a is complete; G4b is claimed.
 
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 

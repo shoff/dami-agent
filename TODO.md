@@ -98,8 +98,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] G2 Context assembly (`ContextBuilder`): hard token budget (~2.5k vs Hermes's 90–126k), recency-reserved slots, grounding gate (distance ceiling + explicit emptiness), beliefs-beat-memories under pressure; turns feed the corpus (F-05)
 - [x] G3 Streaming turns end to end — `BeginStreamingAsync`/`TurnStream`, trace completes and corpus records when drained, one coalesced ResponseStreaming event, `dami chat` streams live — acceptance item 2 (CLI half)
 - [~ Codex 2026-08-24] G4 **Sessions**: multi-turn conversation with a recent window in context; start/resume/interrupt/reconnect without duplication — acceptance item 1
-  - [~ Codex 2026-08-24] G4a Durable session/turn contracts + PostgreSQL store with request-id idempotency
-  - [ ] G4b Session-aware turn runner + bounded recent conversation window in model context
+  - [x] G4a Durable session/turn contracts + PostgreSQL store with request-id idempotency
+  - [~ Codex 2026-08-24] G4b Session-aware turn runner + bounded recent conversation window in model context
   - [ ] G4c Host/CLI start/list/resume/interrupt/reconnect surfaces + live acceptance demonstration
 - [x] G5 Runtime API on localhost (D-005): `dami-host` service on 127.0.0.1:5810 — turns/SSE, surfacings, beliefs, approvals, traces, `/events`; CLI rework stays I2
 - [x] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4

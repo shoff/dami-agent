@@ -3,6 +3,7 @@ using Dami.Contracts.Events;
 using Dami.Contracts.FilePatches;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Proactive;
+using Dami.Contracts.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -30,6 +31,8 @@ public sealed class ServiceCollectionExtensionsTests
     [InlineData(typeof(ISurfacingQueue))]
     [InlineData(typeof(ICapabilityEmbeddingStore))]
     [InlineData(typeof(IFilePatchProposalStore))]
+    [InlineData(typeof(IConversationSessionStore))]
+    [InlineData(typeof(IConversationTurnStore))]
     public void AddDamiPersistence_Should_Resolve_Every_Store(Type contract)
     {
         var services = new ServiceCollection();
@@ -39,6 +42,18 @@ public sealed class ServiceCollectionExtensionsTests
         using var provider = services.BuildServiceProvider();
 
         Assert.NotNull(provider.GetService(contract));
+    }
+
+    [Fact]
+    public void AddDamiPersistence_Should_Share_One_Session_Aggregate_Store()
+    {
+        var services = new ServiceCollection();
+        services.AddDamiPersistence(CONNECTION);
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Same(
+            provider.GetRequiredService<IConversationSessionStore>(),
+            provider.GetRequiredService<IConversationTurnStore>());
     }
 
     [Fact]

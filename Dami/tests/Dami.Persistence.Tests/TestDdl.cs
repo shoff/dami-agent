@@ -20,6 +20,7 @@ public static class TestDdl
         "016_file_patch_proposals.sql",
         "017_file_patch_proposal_privileges.sql",
         "018_approval_trace_provenance.sql",
+        "019_conversation_sessions.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
     ];
@@ -52,6 +53,8 @@ public static class TestDdl
         ArgumentNullException.ThrowIfNull(schema);
 
         return $"""
+            drop table if exists {schema}.conversation_turns cascade;
+            drop table if exists {schema}.conversation_sessions cascade;
             drop table if exists {schema}.file_patch_proposals cascade;
             drop table if exists {schema}.health_examined cascade;
             drop table if exists {schema}.health_events cascade;
@@ -86,9 +89,8 @@ public static class TestDdl
         ArgumentNullException.ThrowIfNull(schema);
 
         // Order matters: children before parents, and the append-only tables need their
-        // guard dropped deliberately. That the fixture has to do this is the guarantee
-        // working, not a workaround for it.
-        return $"""
+        // guard dropped deliberately; that friction is the guarantee working.
+        return TruncateSessions(schema) + $"""
             alter table {schema}.file_patch_proposals disable trigger file_patch_proposals_append_only;
             delete from {schema}.file_patch_proposals;
             alter table {schema}.file_patch_proposals enable trigger file_patch_proposals_append_only;
@@ -112,6 +114,15 @@ public static class TestDdl
             alter table {schema}.execution_events disable trigger execution_events_append_only;
             delete from {schema}.execution_events;
             alter table {schema}.execution_events enable trigger execution_events_append_only;
+            """;
+    }
+
+    private static string TruncateSessions(string schema)
+    {
+        return $"""
+            delete from {schema}.conversation_turns;
+            delete from {schema}.conversation_sessions;
+
             """;
     }
 
