@@ -88,4 +88,13 @@ public enum ExecutionEventType
 
     /// <summary>An allowed egress failed before a response was completed.</summary>
     EgressFailed = 26,
+
+    /// <summary>A bounded worker began under a parent span (charter §7: child trace).</summary>
+    WorkerStarted = 27,
+
+    /// <summary>The worker finished and returned its evidence to the parent.</summary>
+    WorkerCompleted = 28,
+
+    /// <summary>The worker failed or overran its bound; the parent decides what that means.</summary>
+    WorkerFailed = 29,
 }

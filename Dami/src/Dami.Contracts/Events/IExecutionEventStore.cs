@@ -22,6 +22,9 @@ public interface IExecutionEventStore
     /// <summary>Replays one trace in persistence order.</summary>
     IAsyncEnumerable<ExecutionEvent> ReplayAsync(Guid traceId, CancellationToken cancellationToken);
 
+    /// <summary>Resolves a short hex prefix to a full trace id; null if none or ambiguous.</summary>
+    Task<Guid?> FindTraceByPrefixAsync(string hexPrefix, CancellationToken cancellationToken);
+
     /// <summary>Reads events appended after <paramref name="afterSequence"/>, oldest first.</summary>
     /// <remarks>
     /// How a reconnecting client catches up without re-reading the whole stream.

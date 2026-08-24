@@ -3790,3 +3790,20 @@ sent, both egress events in the trace. Executor paranoia pinned by test: Pending
 refused, Denied refused, tampered bytes refused without touching the frontier.
 Migration 013, `IEgressBriefStore`, `IPromptRedactor`, CLI verb + approve hook.
 12 suites, 397 tests, 0 warnings.
+
+## 2026-08-24 — Claude — G8+I3: the first worker, and the trace tree that proves it
+
+Acceptance item 6. `IWorkerRunner`/`WorkerRunner`: one bounded unit of work as a
+child span of an existing trace — WorkerStarted/Completed/Failed events under the
+parent span, a hard time bound via linked cancellation, and failure *recorded, not
+thrown past the trace* (the parent gets a `WorkerResult` either way; the evidence is
+the child span, which the result points at). Overruns say so: "overran its bound of
+Ns". Six runner tests pin the discipline.
+
+First live worker: `dami caption` now runs the vision model as `worker:vision-caption`
+under a real trace. And I3 with it — `dami trace` renders the §8.1 tree (span depth
+computed from parent links, children indented) and resolves the 8-char short ids
+every command prints, so the loop closes: caption → trace `07c509d0` → TraceStarted,
+nested WorkerStarted/Completed (26s, 191 chars), TraceCompleted. Scoreboard: item 6
+demonstrated, items 3 and 5 updated to what is now true. 12 suites, 405 tests,
+0 warnings.

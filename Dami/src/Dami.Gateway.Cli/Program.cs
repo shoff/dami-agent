@@ -48,6 +48,7 @@ services.AddSingleton<ManifestExecutor>();
 services.AddSingleton<BriefCommands>();
 services.AddSingleton<Dami.Core.Frontier.BriefExecutor>();
 services.AddSingleton<Dami.Contracts.Privacy.IPromptRedactor, Dami.Core.Frontier.PromptRedactor>();
+services.AddSingleton<Dami.Contracts.Workers.IWorkerRunner, Dami.Core.Workers.WorkerRunner>();
 services.AddOptions<CodexOptions>();
 services.Configure<CodexOptions>(configuration.GetSection(CodexOptions.SECTION_NAME));
 services.AddSingleton<ICodexProcess, CodexProcess>();

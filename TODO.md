@@ -107,7 +107,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [ ] G6c Model/turn tool loop with truthful events, cancellation, and approval handoff
   - [ ] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
-- [~ Claude 2026-08-23] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6
+- [x] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6 (WorkerRunner; vision caption is the first live worker)
 - [ ] G9 Frontier-informed turns (C4 now exists: build on `dami brief`/BriefExecutor)
 - [ ] G10 Identity/prompt: port the Dami identity charter into the stable prompt (§9.1); verify identity across local + frontier — acceptance item 9
 
@@ -128,7 +128,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 - [x] I1 inbox/read/good-bad-meh · beliefs/diff/correct/retract/note · recall/ask/chat/context · frontier · trace/stats/health · caption
 - [ ] I2 Rework onto the runtime API when G5 lands (verbs survive; transport changes)
-- [ ] I3 Trace tree rendering with span nesting once workers exist (charter §8.1 format)
+- [x] I3 Trace tree rendering with span nesting (charter §8.1; `dami trace` also resolves 8-char short ids now)
 - [ ] I4 Shell completion + man page (polish, low priority)
 
 ## J · GUI (Phase 7)

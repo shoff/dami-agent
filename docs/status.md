@@ -367,10 +367,10 @@ demonstrated. "partial" means a real demonstration exists for part of the item's
 |---|---|---|---|
 | 1 | Start/resume/interrupt/reconnect without duplication | partial | append idempotent on `event_id` (tested); no interactive sessions yet |
 | 2 | Stream through CLI and GUI | partial | a full turn answers via CLI (`dami chat`), unstreamed; no GUI |
-| 3 | Render tools/workers/approvals truthfully | partial | `dami trace` renders only persisted events; approvals/workers don't exist yet |
+| 3 | Render tools/workers/approvals truthfully | partial | `dami trace` renders only persisted events, child spans indented (§8.1 tree); approvals and workers both exist and appear in traces; no GUI yet |
 | 4 | Bounded terminal and file operations | not yet | — |
-| 5 | Explicit approval honored | partial in spirit | propose-only librarian executes nothing; the approval contract itself doesn't exist |
-| 6 | Worker with child trace and evidence | not yet | — |
+| 5 | Explicit approval honored | **demonstrated** | G7: durable approval contract, single-resolution in SQL; librarian propose→approve→execute live; C4 egress briefs gated the same way |
+| 6 | Worker with child trace and evidence | **demonstrated** | `WorkerRunner`: child span under the parent, hard time bound, failure recorded not thrown; `dami caption` runs vision as a worker — trace replayed with the child span nested |
 | 7 | Persist and replay a completed turn | **demonstrated** | proactive passes AND an interactive `UserTurn` (`dami chat` → `dami trace`) persisted and replayed |
 | 8 | Recover cleanly from failures | **partial** | provider failure → `TraceFailed`, contained, retried at cadence — demonstrated live twice |
 | 9 | Identity across two providers | not yet | one local provider; router exists, frontier doesn't |

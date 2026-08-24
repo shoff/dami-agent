@@ -114,6 +114,28 @@ public sealed class PostgresExecutionEventStore : IExecutionEventStore
     }
 
     /// <inheritdoc />
+    public async Task<Guid?> FindTraceByPrefixAsync(string hexPrefix, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(hexPrefix);
+
+        await using var command = this.dataSource.CreateCommand(
+            $"""
+            select distinct trace_id from {this.Table}
+             where replace(trace_id::text, '-', '') like @prefix || '%'
+             limit 2;
+            """);
+        command.Parameters.AddWithValue("prefix", hexPrefix.ToLowerInvariant());
+        var matches = new List<Guid>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            matches.Add(reader.GetGuid(0));
+        }
+
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
+    /// <inheritdoc />
     public IAsyncEnumerable<ExecutionEvent> ReadSinceAsync(
         long afterSequence,
         int limit,
