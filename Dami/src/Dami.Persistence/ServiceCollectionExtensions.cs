@@ -7,6 +7,7 @@ using Dami.Contracts.Memory;
 using Dami.Contracts.Approvals;
 using Dami.Contracts.Proactive;
 using Dami.Contracts.Sessions;
+using Dami.Contracts.ToolStaging;
 using Dami.Persistence.Approvals;
 using Dami.Persistence.Briefs;
 using Dami.Persistence.Domains;
@@ -17,6 +18,7 @@ using Dami.Persistence.Memory;
 using Dami.Persistence.Proactive;
 using Dami.Persistence.Sessions;
 using Dami.Persistence.Skills;
+using Dami.Persistence.ToolStaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -61,7 +63,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IConclusionEmbeddingStore, PostgresConclusionEmbeddingStore>();
         services.TryAddSingleton<IEgressMeter, PostgresEgressMeter>();
         services.TryAddSingleton<IEgressBriefStore, PostgresEgressBriefStore>();
-        services.TryAddSingleton<IFilePatchProposalStore, PostgresFilePatchProposalStore>();
+        RegisterProposalStores(services);
         RegisterSkillChangeStore(services);
         services.TryAddSingleton<IHealthEventStore, PostgresHealthEventStore>();
         services.TryAddSingleton<ICapabilityEmbeddingStore, PostgresCapabilityEmbeddingStore>();
@@ -81,5 +83,11 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<PostgresSkillChangeStore>());
         services.TryAddSingleton<ISkillChangeRecoveryStore>(provider =>
             provider.GetRequiredService<PostgresSkillChangeStore>());
+    }
+
+    private static void RegisterProposalStores(IServiceCollection services)
+    {
+        services.TryAddSingleton<IFilePatchProposalStore, PostgresFilePatchProposalStore>();
+        services.TryAddSingleton<IToolProposalStore, PostgresToolProposalStore>();
     }
 }

@@ -5731,3 +5731,57 @@ registry, and the final live demonstration. This avoids silently treating persis
 as promotion or treating approval as safe executable loading. F5/F5a are claimed;
 the source format, verification evidence, forbidden privilege declaration, and
 reversal path will be pinned in an ADR before the first production implementation.
+
+ADR-0018 now pins F5a's trust boundary: staging accepts a complete, bounded,
+versioned C# source-and-test artifact transactionally with `ToolProposed`, but performs
+no filesystem write, compilation, assembly load, registration, test claim, or
+approval. The fixed artifact excludes project/package/build-script inputs, requires a
+typed schema and motivating observation provenance, and declares only a read-only
+execution profile. The ADR explicitly records that declarations and source review are
+not a .NET security sandbox; F5c must separately prove verification and activation.
+The first red contract test follows.
+
+## 2026-08-24 — Codex — F5a inert tool proposal staging complete; F5b claimed
+
+The artifact-snapshot test first compiled red because no tool-staging contract
+existed. Subsequent narrow red tests proved and then drove, one behavior at a time:
+safe relative `.cs` paths; strict UTF-8 1 MiB source/test limits; a deterministic
+artifact version independent of dictionary insertion order; trace-owned request and
+version-pinned staged records; a 64 KiB rationale; 64-file, 64-observation, and 64 KiB
+parameter-schema limits; 32 retrieval tags of at most 256 UTF-8 bytes; a 4 KiB schema
+description; and 240-byte safe paths. The hash moved into Contracts when the staged
+record test exposed that a caller could otherwise forge the review version. Structural
+JSON hashing sorts object keys while preserving array/scalar semantics, so PostgreSQL
+`jsonb` canonicalization does not alter the version.
+
+The persistence happy-path test compiled red because no proposal store existed. The
+minimum implementation added migration 022, `IToolProposalStore`, the PostgreSQL
+adapter, DI composition, and a canonical `ToolProposed` event in one transaction. A
+conflicting-artifact retry initially reused the stored row; structural equality made
+that red test green. Further red integration tests found and fixed missing database
+checks for indexed capability/version values contradicting the artifact. Another red
+test demonstrated that the original ~2.25 MiB JSON cap rejected contract-valid,
+quote-heavy source and tests; the database ceiling is now 16 MiB, large enough for
+worst-case JSON escaping but still bounded. Event-write failure rollback, exact retry,
+append-only enforcement, least-privilege grants, unrelated event-ID collision rollback,
+and canonical retry timestamps were added after the relevant behavior existed and are
+recorded as post-green coverage, not TDD.
+
+One documentation/test command initially used repository-relative documentation paths
+from `Dami/` and stopped before executing its test; it changed nothing and the command
+was rerun from the correct directory. Focused final suites passed 51/51 Capabilities
+tests and 195/195 Persistence tests. The first solution build exited 0 but its terminal
+logger omitted the final counts, and the first solution test output was incomplete, so
+neither was used as final evidence. With terminal logging disabled, the mandatory gate
+built all 33 projects with 0 warnings and 0 errors and all sixteen suites passed
+713/713. Format verification then reported three whitespace-only line wraps in the new
+artifact tests; the formatter changed only those lines and verification subsequently
+exited 0.
+
+The DDL runner harness passed. Live status showed only 022 pending; it applied
+transactionally, and the subsequent status showed none pending. Direct PostgreSQL
+inspection observed zero staged rows, one append-only trigger, all three capability,
+version, and size integrity constraints, and `dami_app` privileges of SELECT/INSERT
+with UPDATE/DELETE false. No source was written, compiled, loaded, registered, or
+executed. F5a is complete with that evidence; F5b native propose/list/inspect and Host
+demonstration is claimed before code.

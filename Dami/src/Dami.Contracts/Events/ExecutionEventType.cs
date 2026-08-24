@@ -106,4 +106,7 @@ public enum ExecutionEventType
 
     /// <summary>A durable skill change failed materialization and remains auditable.</summary>
     SkillChangeFailed = 32,
+
+    /// <summary>An inert self-authored tool artifact entered the staging registry.</summary>
+    ToolProposed = 33,
 }

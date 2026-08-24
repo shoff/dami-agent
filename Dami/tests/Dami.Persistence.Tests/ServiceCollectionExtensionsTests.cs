@@ -4,6 +4,7 @@ using Dami.Contracts.FilePatches;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Proactive;
 using Dami.Contracts.Sessions;
+using Dami.Contracts.ToolStaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -33,6 +34,7 @@ public sealed class ServiceCollectionExtensionsTests
     [InlineData(typeof(IFilePatchProposalStore))]
     [InlineData(typeof(IConversationSessionStore))]
     [InlineData(typeof(IConversationTurnStore))]
+    [InlineData(typeof(IToolProposalStore))]
     public void AddDamiPersistence_Should_Resolve_Every_Store(Type contract)
     {
         var services = new ServiceCollection();

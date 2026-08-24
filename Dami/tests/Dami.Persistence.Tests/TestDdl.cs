@@ -23,6 +23,7 @@ public static class TestDdl
         "019_conversation_sessions.sql",
         "020_skill_changes.sql",
         "021_skill_change_recovery.sql",
+        "022_tool_proposals.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
     ];
@@ -55,6 +56,7 @@ public static class TestDdl
         ArgumentNullException.ThrowIfNull(schema);
 
         return $"""
+            drop table if exists {schema}.tool_proposals cascade;
             drop table if exists {schema}.skill_changes cascade;
             drop table if exists {schema}.conversation_turns cascade;
             drop table if exists {schema}.conversation_sessions cascade;
@@ -93,7 +95,7 @@ public static class TestDdl
 
         // Order matters: children before parents, and the append-only tables need their
         // guard dropped deliberately; that friction is the guarantee working.
-        return TruncateSessions(schema) + TruncateSkillChanges(schema) + $"""
+        return TruncateSessions(schema) + TruncateToolProposals(schema) + TruncateSkillChanges(schema) + $"""
             alter table {schema}.file_patch_proposals disable trigger file_patch_proposals_append_only;
             delete from {schema}.file_patch_proposals;
             alter table {schema}.file_patch_proposals enable trigger file_patch_proposals_append_only;
@@ -126,6 +128,16 @@ public static class TestDdl
             alter table {schema}.skill_changes disable trigger skill_changes_append_only;
             delete from {schema}.skill_changes;
             alter table {schema}.skill_changes enable trigger skill_changes_append_only;
+
+            """;
+    }
+
+    private static string TruncateToolProposals(string schema)
+    {
+        return $"""
+            alter table {schema}.tool_proposals disable trigger tool_proposals_append_only;
+            delete from {schema}.tool_proposals;
+            alter table {schema}.tool_proposals enable trigger tool_proposals_append_only;
 
             """;
     }
