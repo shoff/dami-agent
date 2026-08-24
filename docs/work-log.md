@@ -4136,6 +4136,89 @@ fixtures. G6c3b1 owns the contract, migration 016, and PostgreSQL round-trip/ide
 G6c3b2 owns path/preimage validation and filing the G7 request without touching the
 target. G6c3b1 is claimed before adding DDL or persistence code.
 
+## 2026-08-23 — Codex — G6c3b1: immutable patch proposal persistence
+
+G6c3b1 now has a source-neutral `FilePatchProposal` contract, a focused
+`IFilePatchProposalStore`, PostgreSQL persistence, and migrations 016/017. Proposal
+identity, approval/trace/span provenance, workspace-relative resource, exact replacement
+text, replacement SHA-256, optional preimage SHA-256, and creation time are immutable.
+The contract recomputes the UTF-8 replacement hash using pooled bytes plus a stack hash,
+rejects invalid hashes and PostgreSQL-incompatible NUL content, and exposes no mutation
+method. The database has one proposal per approval, an append-only trigger, and a
+runtime surface limited to SELECT/INSERT.
+
+The store files the pending G7 request and its proposal in one PostgreSQL transaction.
+This closes a race found during adversarial review: two independent store calls could
+have exposed an actionable approval before the reviewed bytes existed or left an orphan
+after a proposal failure. Exact proposal and approval replays converge; reuse of either
+identity with different durable data throws without changing the original. Approval SQL
+and binding are shared with `PostgresApprovalService` through the internal
+`ApprovalRequestCommand`, avoiding a second implementation of the request insert.
+
+True TDD chronology and honest deviations:
+
+- The first round-trip test compiled red with four missing file-patch namespaces/types;
+  the minimum contracts, store, DDL, fixture inclusion, and DI registration made it
+  green. Exact replay then failed red with PostgreSQL 23505 before conflict handling was
+  added. Conflicting replay, concurrent replay, and the first content/hash invariant
+  were added afterward as adversarial coverage, not described as red-first TDD.
+- A NUL-content test failed red because construction succeeded, then passed after the
+  contract rejected the value. The DDL-owner mutation test failed red because UPDATE
+  succeeded; adding the append-only trigger made the behavior fail as required. Its
+  initial SQLSTATE expectation was a test-scaffold error (`55000`); the existing guard
+  correctly raises `restrict_violation` (`23001`), and the assertion was corrected.
+- The atomic approval/proposal API compiled red with six missing-overload errors. The
+  transaction made the new rollback case and the slice pass 8/8. A conflicting approval
+  replay then failed red because no exception was thrown; exact approval verification
+  made it green and the DRY approval-command extraction retained 9/9.
+- Live catalog evidence then showed production default ACLs granted UPDATE/DELETE even
+  though migration 016 only granted SELECT/INSERT. The first test did not reproduce it
+  because `dami_test` lacks that production default ACL; a source assertion subsequently
+  failed red on the missing explicit revoke. Migration 017 made it green. The assertion's
+  first green attempt still failed on a newline-only expected-string mismatch, which was
+  corrected without changing production behavior.
+
+Concurrent-test evidence exposed a separate infrastructure defect now tracked as N6.
+One persistence run failed 90/126 while Claude's simultaneous suite dropped and rebuilt
+the fixed `dami_test` objects; the clean rerun passed 126/126. A later proposal run hit
+foreign-key 23503 when another process deleted its approval between inserts; its clean
+rerun passed 6/6. These were not counted as product failures or passing runs. The final
+transactional design removes the application-level approval/proposal gap, but the
+cross-process fixture collision remains and is not silently widened into G6c3b1.
+
+Coordination stayed path-scoped, with one exception outside Codex's control: Claude's
+K2 commit `97090b8` captured the already-present shared DI registration, test-DDL 016
+entry, and migration-number work-log correction. The proposal files and migration
+itself were not captured, so that released commit temporarily referenced the in-flight
+types. This completion commit supplies them. An early ownership command repeated the
+`Dami/` prefix from inside that directory and failed harmlessly; the corrected paths
+were immediately chowned to Steve. No Claude-owned K2/K3 production file is staged here.
+
+Live migration chronology was likewise kept literal. Status probes without the explicit
+loopback `dami_ddl` identity misleadingly reported no applied migrations; direct psql
+showed the missing OS role and no state changed. With the correct connection, 016 was
+the sole pending migration. Its first application failed and rolled back because the
+pre-existing `approvals` table was owned by `postgres`, denying `dami_ddl` the foreign
+key. Catalog inspection confirmed no proposal table or migration row; ownership was
+repaired only for `dami.approvals` to the documented `dami_ddl` role, preserving the
+three `dami_app` grants. Migration 016 then applied. The live ACL finding above drove
+and applied 017. Final status reports none pending; repository/database checksums match
+(`016` `26233cee...e977`, `017` `2abb0bb9...c1e`); the table owner is `dami_ddl`; the
+append-only trigger is enabled; `dami_app` has SELECT/INSERT and lacks UPDATE, DELETE,
+TRUNCATE, REFERENCES, and TRIGGER. A live UPDATE as `dami_app` exits 1 with permission
+denied.
+
+Definitive verification used `/tmp/dami-g6c3b1-gate.1oUT9D/repo` at released HEAD
+`39a51d3`, overlaid with only the eleven Codex code/test/DDL paths. Its fixture used the
+temporary `dami_test_codex_g6c3b1` schema so concurrent agents could not invalidate the
+result. The focused slice passed 11/11; `dotnet build Dami.sln --nologo` completed with
+0 warnings and 0 errors; all twelve suites passed 463/463; and `dotnet format Dami.sln
+--verify-no-changes --no-restore --verbosity minimal` exited 0 without diagnostics.
+The scratch schema and worktree were removed. The first cleanup command lost its shell
+variable between tool invocations, attempted the nonexistent `/repo`, and failed
+harmlessly; the explicit-path retry removed the actual worktree. G6c3b1 is flipped to
+`[x]`, and G6c3b2 is claimed before native proposal code begins.
+
 ## 2026-08-24 — Claude — H6: the scout has real interests now, and a rate-limit fix
 
 "Blocked on Steve" was wrong here too — Steve's interests are in his own corpus.
@@ -4246,3 +4329,18 @@ turn, that is a 20–40× reduction even at the charter ceiling and ~250× at me
 context. The grounding gate is doing its job: the off-topic "sourdough" query pulls
 the *least* context (147), because most candidates fail the distance gate rather than
 padding the window. Scoreboard item 12: demonstrated.
+
+## 2026-08-24 — Claude — K2 quality: extraction is subject-focused now; D5 deferred with reason
+
+The first live health pass extracted noise — a sensei's weight, the dog's
+euthanasia — because the prompt said "extract health facts" without saying *whose*.
+Tightened it: facts ABOUT THE USER only, explicitly excluding other people and pets,
+and not treating moods or work stress as clinical unless the note frames them so.
+Cleared the six rebuildable rows and re-ran under the new prompt (derived data, like
+embeddings — clearing and rebuilding is the sanctioned path).
+
+Recorded why D5 (cheap-model routing) is deliberately NOT built rather than pending:
+every interactive turn routes LocalOnly today, and frontier routing is a C4 consent
+decision, not an automatic route — a classifier that auto-picked frontier would
+fight the consent principle. It is correct as-is; revisit only on observed
+misrouting once frontier turns are routine (G9).

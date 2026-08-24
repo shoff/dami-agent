@@ -68,7 +68,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] D2 `IModelRouter` with D-012 as the unconditional first rule; degrade-to-local when no frontier
 - [x] D3 Frontier adapters: Codex-subscription (live) + Anthropic (built, dormant)
 - [x] D4 Streaming completion contract — `IChatClient.StreamAsync`, Ollama JSONL impl, thinking excluded (tests + live)
-- [ ] D5 Cheap-model-assisted routing (replace the static work-kind table when it misroutes in practice)
+- [DEFERRED: correct as-is] D5 Cheap-model-assisted routing — deliberately not built: every interactive turn currently routes LocalOnly (TurnRunner passes LocalOnly), and frontier routing is a C4 *consent* decision, not an automatic route. A cheap-model classifier that auto-picked frontier would fight C4. Revisit only when real misrouting is observed AND frontier turns are routine (G9).
 - [ ] D6 VRAM budget plan for simultaneous residents (embed+rerank+LLM+vision+TTS vs 16 GB) — measure, then pin `[BLOCKED: needs L-phase TTS choice]`
 
 ## E · Transport (§7.5) — Codex's lane
@@ -112,8 +112,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [~ Codex 2026-08-23] G6c3 Approval-gated write/patch handoff through the G7 contract
       - [x] G6c3a Trace-aware capability execution request for approval provenance
       - [~ Codex 2026-08-23] G6c3b Durable hash-pinned root-confined file-patch proposal + native capability
-        - [~ Codex 2026-08-23] G6c3b1 Immutable file-patch proposal contract + PostgreSQL persistence
-        - [ ] G6c3b2 Root-confined propose-only native capability + G7 request
+        - [x] G6c3b1 Immutable file-patch proposal contract + PostgreSQL persistence
+        - [~ Codex 2026-08-23] G6c3b2 Root-confined propose-only native capability + G7 request
       - [ ] G6c3c Approved patch executor + open/closed runtime approval dispatch
   - [ ] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
@@ -179,6 +179,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] N3 Enable `CA2254` (structured logging) and decide on `CS1591` (XML docs) — deliberate not-yets in standards §12
 - [ ] N4 Scheduler concurrency test flake (Codex's b27f638) — deflake or redesign `[~ Codex implied]`
 - [x] N5 (stores half) Property tests: corpus byte-exact round-trip, append idempotency, replay order, ledger as-of reconstruction — fixed seeds; codec half stays transport-lane
+- [ ] N6 Persistence integration fixture isolation: concurrent solution runs currently drop the shared `dami_test` objects and create false cascading failures
 
 ---
 

@@ -20,11 +20,17 @@ public sealed class HealthCollectorService : IProactiveService
 {
     private const string INSTRUCTIONS =
         """
-        Extract health facts from the note below. Output a JSON array; each element is
+        Extract health facts ABOUT THE USER from the note below — the user's own
+        diagnoses, appointments, medications, vitals, procedures, or symptoms. Do NOT
+        extract health facts about other people the note mentions (family, friends,
+        colleagues, pets), and do NOT treat moods, work stress, or preferences as
+        medical unless the note frames them as a clinical symptom. Output a JSON array;
+        each element is
         {"date":"YYYY-MM-DD","category":"diagnosis|appointment|medication|vital|procedure|symptom","description":"..."}.
-        Use ONLY facts stated in the note. If the note contains no health information,
-        output exactly []. Use the note's own dates; if a fact has no date, use the note
-        date given. Keep each description to one clause. Output only the JSON array.
+        Use ONLY facts stated in the note. If the note has no health information about
+        the user, output exactly []. Use the note's own dates; if a fact has no date,
+        use the note date given. Keep each description to one clause. Output only the
+        JSON array.
         """;
 
     private readonly IHealthEventStore healthStore;
