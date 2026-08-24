@@ -6496,6 +6496,20 @@ Steve: `dotnet build Dami.sln` built all 35 projects with 0 warnings and 0 error
 failed and 0 skipped. F5c3b2 is complete; F5c3b3 owns Host startup composition and its
 restart-recovery demonstration.
 
+## 2026-08-24 — Codex — F5c3b3 claimed
+
+Claimed the bounded Host composition slice for the completed durable recovery seam:
+construct the immutable sandbox runtime services, run recovery before readiness, and
+demonstrate that an approved durable activation is republished after a real Host
+restart. F5c3c retains approval/promotion surfaces and the separate human-promotion
+demonstration.
+
+Shared-tree process record: after Codex staged the reviewed F5c3b2 paths, Claude's
+concurrent embedding-evaluation commit consumed the shared Git index and pushed them
+together as `29be598`. The commit is authored by Steve, contains the exact gated
+F5c3b2 files and evidence plus Claude's explicitly separate retrieval-eval paths, and
+left no uncommitted state. Public history was not rewritten.
+
 ## 2026-08-24 — Claude — D-010 finally has numbers (ADR-0015)
 
 D-010 has said since the beginning that the embedding model must be chosen by
