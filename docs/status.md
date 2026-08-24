@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-24 08:34 CDT (`2026-08-24T13:34Z`)
+- **Last updated:** 2026-08-24 09:13 CDT (`2026-08-24T14:13Z`)
 - **Updated from:** direct workstation inspection and solution test evidence
 - **Current phases:** 0, 1, and 3 in progress
 
@@ -107,7 +107,7 @@ rather than assuming — but nothing else blocks the phase.
 | TCP connection, one connection | done | outbound and accepted loopback sockets verified; accepted-socket seam owns the socket, enables `NoDelay`, and has exception-safe idempotent disposal |
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
-| Capability registry | in progress | Native, MCP, and filesystem skills share one catalog. F3 and F4a/F4b are complete. F4c1 adds version-pinned lifecycle documents and atomic source snapshots; F4c2 adds transactional diff/event write-ahead; F4c3a adds crash-recoverable Linux filesystem convergence and terminal-event recovery. F4c3b native/Host demonstration is claimed. |
+| Capability registry | done for v1 | Native, MCP, and filesystem skills share one catalog. Skills load progressively and can be authored, atomically revised, retired, recovered, and invoked through one native lifecycle capability. Every change has an immutable diff row plus requested and terminal events. Tool staging remains the separate F5 scope. |
 | Model routing, sessions, events, CLI | partial | Routed/streaming/tool-enabled turns and the G6 live demonstration exist. G4 sessions are complete: durable idempotent turns, bounded recent context, localhost and thin-CLI lifecycle/reconnect surfaces, active model cancellation, resume, and retry convergence are demonstrated live. Streaming remains tool-less. |
 
 Verification on 2026-08-23 for G6c3a in an isolated concurrent-work gate:
@@ -244,6 +244,21 @@ with 0 warnings and 0 errors, all sixteen suites passed 678/678, and format/anal
 verification exited 0. The migration runner harness passed; migration 021 is applied
 live with none pending and its partial skill-outcome index was inspected directly.
 F4c3a is complete; F4c3b native/Host lifecycle demonstration is claimed.
+
+Verification on 2026-08-24 for F4c3b: red-first native tests observed missing
+author, revise, and retire translations before deterministic child-span commands were
+implemented; Host composition first failed with no lifecycle service. The live model
+then exposed an omitted-empty-collection contract defect, which was reproduced by a
+focused failing test before the parser defaulted absent collections to empty. Native
+tests passed 39/39 and Host tests passed 18/18, including real temporary-filesystem
+author/revise/retire and startup recovery. The final solution gate built all 33
+projects with 0 warnings and 0 errors, all sixteen suites passed 688/688, and format
+verification exited 0. The release Host is deployed with a Steve-owned skill root;
+live turns authored version `9a6611c5...`, revised it to `cb4e5d2b...`, then retired
+it. PostgreSQL contains exactly three immutable rows, three requested events, and
+three successful terminal events for skill `27b90cfb-3449-4260-9e56-abdcfe83f157`.
+Restart recovery reported zero pending changes, `/health` returned `ok`, and migrations
+001–021 remain applied with none pending. F4/F4c/F4c3/F4c3b are complete.
 
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 

@@ -5648,3 +5648,73 @@ showed only 021 pending; it applied transactionally, subsequent status showed no
 pending, and direct `pg_indexes` inspection observed the intended partial
 `execution_events_skill_outcomes` index. F4c3a is `[x]`; F4c3b native/Host lifecycle
 demonstration is claimed.
+
+## 2026-08-24 — Codex — F4c3b native lifecycle capability started
+
+Verified commit `932c4a6` is authored by Steve, contains no attribution trailer, is
+clean, and is synchronized with `origin/main`. Re-read `TODO.md`, `CLAUDE.md`,
+`AGENTS.md`, onboarding, workstation runbook §7, the F4c3a recovery boundary, Host
+composition, and architecture §7.6.5 before changing behavior. The first red slice
+will require one native capability to translate author/revise/retire JSON into the
+existing version-pinned lifecycle contract, deriving retry identity from trace/span
+rather than trusting model-supplied identity. Host composition and a real temporary
+filesystem lifecycle demonstration remain subsequent red slices; no production code
+has changed in this slice yet.
+
+## 2026-08-24 — Codex — F4c3b native and live lifecycle complete
+
+The author test compiled red because `ManageSkillCapabilityHandler` did not exist.
+The minimum handler created a deterministic change ID and deterministic child span
+from the owning trace/tool span, preserved the tool span as parent provenance, parsed
+the complete skill document, and called the existing lifecycle abstraction. The
+revise test then failed on the author-only parser; adding an exact preimage version
+made it green. The retire test next failed on the two-operation parser; retirement
+now supplies the preimage and no replacement. Discovery, constructor null rejection,
+retry-stable identifiers, schema metadata, and returned evidence were added after
+those implementations and are recorded as post-green coverage.
+
+The Host composition test failed with no `ISkillLifecycleService`. Configured skill
+roots now compose the shared versioner, materializer, loader/reloader, recovery
+processor, lifecycle service, trusted native handler, and ordered loader-then-recovery
+hosted services. Startup drains pending changes in bounded batches and refuses
+readiness after a recorded recovery failure. The real temporary-filesystem Host test
+invoked the production executor to author, revise, read both exact versions, and
+retire; a seeded write-ahead record also converged at startup. Both integration tests
+passed on their first behavioral runs and are integration coverage, not red-first
+TDD. The complete Host suite initially failed because an older configured-root test
+reached PostgreSQL through the new recovery service and looked for `/root/.pgpass`;
+isolating its lifecycle/recovery stores restored the suite without changing
+production behavior.
+
+The first mandatory gate built 33 projects with 0 warnings and 0 errors and all
+sixteen suites passed 687/687. Format verification then failed on whitespace in two
+new test files; only formatter-owned whitespace changed, and verification subsequently
+exited 0. Deployment published the release Host, created the Steve-owned
+`/home/steve/.local/share/dami/skills` root, and enabled it through the systemd
+`skills.conf` drop-in. Startup logged zero recovered changes and `/health` returned
+`ok`; DDL status showed migrations 001–021 applied with none pending.
+
+The first live author turn timed out at 180 seconds before any skill write. Inspection
+showed the known workstation failure mode: `qwen3:8b` was at 100% CPU with zero VRAM.
+Restarting only `dami-llm` and warming it restored 100% GPU. The next turn reached the
+native tool but failed truthfully before write because the model omitted the
+schema-optional empty `relatedCapabilities` array. A focused regression test then
+failed on omitted `tags`; the minimum fix treats absent tags, related capabilities,
+and references as empty while still rejecting malformed supplied values.
+
+After redeployment, three real localhost turns authored skill
+`27b90cfb-3449-4260-9e56-abdcfe83f157` at version `9a6611c5...`, revised it with the
+exact preimage to `cb4e5d2b...`, and retired that exact version. Direct filesystem
+inspection observed the authored/revised body and then no visible skill directory.
+Direct PostgreSQL inspection observed exactly three immutable skill-change rows,
+three `SkillChangeRequested` events, and three successful `SkillChanged` events. A
+Host restart reported zero pending recovery changes, retained only the internal
+retirement tombstone, and returned healthy. The final solution gate and exact final
+counts follow before commit; F4/F4c/F4c3/F4c3b are marked complete only with that
+evidence.
+
+After the live-regression fix and formatter-only whitespace correction, the mandatory
+final gate built all 33 projects with 0 warnings and 0 errors, all sixteen suites
+passed 688/688, and `dotnet format Dami.sln --verify-no-changes --no-restore` exited
+0. No new migration was required. The deployed Host remains healthy and the skill
+change ledger has no pending migration or recovery work.

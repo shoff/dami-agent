@@ -4,7 +4,7 @@
 evening if nobody told you.** Written for an agent or a human arriving at this host
 without the history.
 
-- **Last updated:** 2026-08-23 10:55 CDT
+- **Last updated:** 2026-08-24 09:13 CDT
 - **Host:** Linux Mint 22.3 (Ubuntu 24.04 `noble` base), RTX 4080 16 GiB, 125 GiB RAM
 - **Companion docs:** `status.md` for what is done, `onboarding.md` for orientation,
   `decisions/` for why
@@ -217,6 +217,14 @@ shell, interpreter, package manager, file reader, or Git executable in the allow
 The native executor timeout is 15 seconds and one turn may make at most four tool calls.
 After `systemctl start`, `is-active` can precede Kestrel readiness by about one second;
 verify `/health` after the journal reports `Now listening`.
+
+Skill loading and free author/revise/retire are enabled by
+`/etc/systemd/system/dami-host.service.d/skills.conf`. The source root is
+`/home/steve/.local/share/dami/skills`, owned by `steve`; internal `.dami-*` stage and
+retirement markers are intentionally ignored by discovery. At startup the Host first
+publishes the visible filesystem snapshot, then converges any durable changes lacking
+a successful terminal event before Kestrel becomes ready. Verify the journal line
+`Skill recovery completed with 0 change(s)` and `/health` after a deployment.
 
 ### 4.x NVIDIA driver stack is held (A5)
 

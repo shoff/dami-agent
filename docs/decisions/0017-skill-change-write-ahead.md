@@ -38,7 +38,11 @@ same-filesystem staging, atomic Linux directory exchange, durable retirement
 tombstones, idempotent convergence after each namespace transition, registry
 postcondition verification, and success/failure terminal events. Migration 021 adds a
 partial payload-reference index for bounded pending-change scans and is applied live.
-F4c3b still owns the native/Host lifecycle demonstration.
+F4c3b adds the trusted `manage-skill` native capability, Host lifecycle/recovery
+composition, and a live model/tool-loop demonstration. The deployed Host authored,
+revised, and retired skill `27b90cfb-3449-4260-9e56-abdcfe83f157`; PostgreSQL recorded
+three immutable commands plus three requested and three successful terminal events.
+Restart recovery reported zero pending changes. F4c is complete.
 
 ## Consequences
 

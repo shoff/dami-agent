@@ -1,5 +1,6 @@
 using Dami.Capabilities;
 using Dami.Capabilities.Native;
+using Dami.Capabilities.Skills;
 using Dami.Contracts.Approvals;
 using Dami.Contracts.Capabilities;
 using Dami.Contracts.Models;
@@ -36,7 +37,23 @@ public static class NativeToolServiceCollectionExtensions
         RegisterReadFile(services, configuration, activeTypes);
         RegisterRunProcess(services, configuration, activeTypes);
         RegisterFilePatch(services, configuration, activeTypes);
+        RegisterSkillLifecycle(services, configuration, activeTypes);
         return activeTypes;
+    }
+
+    private static void RegisterSkillLifecycle(
+        IServiceCollection services,
+        IConfiguration configuration,
+        ISet<Type> activeTypes)
+    {
+        string? root = configuration[$"{SkillLoaderOptions.SECTION_NAME}:RootDirectory"];
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return;
+        }
+
+        services.AddSingleton<ManageSkillCapabilityHandler>();
+        activeTypes.Add(typeof(ManageSkillCapabilityHandler));
     }
 
     private static void RegisterReadFile(

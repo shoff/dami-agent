@@ -3,6 +3,7 @@ using System.Text.Json;
 using Dami.Capabilities;
 using Dami.Capabilities.Mcp;
 using Dami.Capabilities.Native;
+using Dami.Capabilities.Skills;
 using Dami.Contracts.Capabilities;
 using Dami.Contracts.Context;
 using Dami.Contracts.Events;
@@ -59,9 +60,7 @@ public sealed class HostCompositionTests
 
         try
         {
-            await using WebApplicationFactory<Program> factory =
-                new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-                    builder.UseSetting("Skills:RootDirectory", root));
+            await using WebApplicationFactory<Program> factory = CreateSkillFactory(root);
             using var client = factory.CreateClient();
             using HttpResponseMessage health = await client.GetAsync("/health", CancellationToken.None);
             CapabilityEntry skill = Assert.Single(
@@ -79,6 +78,50 @@ public sealed class HostCompositionTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task Host_Should_Compose_The_Configured_Skill_Lifecycle_And_Native_Tool()
+    {
+        string root = Directory.CreateDirectory(
+            Path.Combine(Path.GetTempPath(), "dami-host-lifecycle-" + Guid.NewGuid().ToString("N")))
+            .FullName;
+        try
+        {
+            await using WebApplicationFactory<Program> factory = CreateSkillFactory(root);
+            using var client = factory.CreateClient();
+            using HttpResponseMessage health = await client.GetAsync("/health", CancellationToken.None);
+            var lifecycle = factory.Services.GetRequiredService<ISkillLifecycleService>();
+            CapabilityEntry tool = Assert.Single(
+                factory.Services.GetRequiredService<ICapabilityInventory>().Snapshot(),
+                item => item.Name == "manage-skill");
+
+            Assert.Equal(
+                (HttpStatusCode.OK, typeof(SkillLifecycleService), CapabilitySource.Native, true),
+                (health.StatusCode, lifecycle.GetType(), tool.Source,
+                    factory.Services.GetRequiredService<INativeCapabilityCatalog>()
+                        .Find(tool.CapabilityId) is ManageSkillCapabilityHandler));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static WebApplicationFactory<Program> CreateSkillFactory(string root)
+    {
+        var recoveryStore = Substitute.For<ISkillChangeRecoveryStore>();
+        recoveryStore.FindPendingAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<SkillChangeRecord>());
+        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Skills:RootDirectory", root);
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton(Substitute.For<ISkillChangeStore>());
+                services.AddSingleton(recoveryStore);
+            });
+        });
     }
 
     private static async Task WriteSkillAsync(string root, Guid skillId)

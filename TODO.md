@@ -100,17 +100,17 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [x] F3d Host composition and local fake-server integration demonstration
     - [x] F3d1 Compose shared native/MCP catalogs, execution dispatch, scoped egress, and owned startup/shutdown lifecycle
     - [x] F3d2 Exercise discovery and invocation end to end against a local Streamable HTTP fake server
-- [~ Codex 2026-08-24] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
+- [x] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
   - [x] F4a `Dami.Capabilities.Skills` bounded filesystem loading, stable versioning, references, and unified-registry publication
   - [x] F4b Progressive disclosure: selected skill bodies in the bounded turn prompt; bundled files loaded only on demand
     - [x] F4b1 Bounded on-demand skill content reader + one-pass tool/skill selection contract
     - [x] F4b2 TurnRunner prompt budget + Host composition and behavioral demonstration
-  - [~ Codex 2026-08-24] F4c Atomic author/revise/retire lifecycle with every diff recorded in the durable execution stream
+  - [x] F4c Atomic author/revise/retire lifecycle with every diff recorded in the durable execution stream
     - [x] F4c1 Version-pinned lifecycle contract + atomic skill-source snapshot replacement
     - [x] F4c2 Transactional durable diff ledger + execution event write-ahead (migration and least privilege)
-    - [~ Codex 2026-08-24] F4c3 Crash-recoverable filesystem materialization + Host/native lifecycle demonstration
+    - [x] F4c3 Crash-recoverable filesystem materialization + Host/native lifecycle demonstration
       - [x] F4c3a Version-consistent staged filesystem materialization + terminal-event recovery
-      - [~ Codex 2026-08-24] F4c3b Native author/revise/retire capability + Host/live lifecycle demonstration
+      - [x] F4c3b Native author/revise/retire capability + Host/live lifecycle demonstration
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
 
 ## G · Interactive runtime
