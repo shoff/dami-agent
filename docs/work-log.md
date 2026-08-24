@@ -6312,3 +6312,11 @@ code with PKCE for a browser GUI, and reserves approval resolution for a distinc
 scope. MCP and inference sidecars receive no API credential by default. The ADR does
 not claim a library or schema has been proven; those require a TDD implementation spike
 when G5a is claimed.
+
+## 2026-08-24 — Codex — F5c3b2 claimed
+
+Claimed the next bounded promotion slice: materialize the exact verified output into
+an immutable runtime location and converge durable approved activation records into
+F5c3b1's handler/schema/metadata publication seam after a crash or restart. F5c3b3
+retains Host composition and live startup proof. The first recovery/materialization
+behavior will be written and observed failing before production implementation.
