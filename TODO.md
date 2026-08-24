@@ -107,6 +107,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [~ Codex 2026-08-23] G6c Model/turn tool loop with truthful events, cancellation, and approval handoff
     - [x] G6c1 Provider-neutral bounded tool-loop state machine + truthful events
     - [~ Codex 2026-08-23] G6c2 Ollama tool-call adapter with only semantically selected schemas
+      - [~ Codex 2026-08-23] G6c2a Typed source-neutral advertised-tool schema + stable-ID mapping
+      - [ ] G6c2b Ollama `/api/chat` request/history/parser adapter; send only the supplied selected set
     - [ ] G6c3 Approval-gated write/patch handoff through the G7 contract
   - [ ] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
@@ -130,7 +132,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 ## I · CLI (18 verbs, on PATH)
 
 - [x] I1 inbox/read/good-bad-meh · beliefs/diff/correct/retract/note · recall/ask/chat/context · frontier · trace/stats/health · caption
-- [ ] I2 Rework onto the runtime API when G5 lands (verbs survive; transport changes)
+- [~ Claude 2026-08-24] I2 Rework onto the runtime API (G5 landed; verbs survive, transport changes; health stays direct as the outage diagnostic)
 - [x] I3 Trace tree rendering with span nesting (charter §8.1; `dami trace` also resolves 8-char short ids now)
 - [x] I4 Shell completion + man page (installed: /etc/bash_completion.d/dami, man 1 dami; sources in tools/cli/)
 

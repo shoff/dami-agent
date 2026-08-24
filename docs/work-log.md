@@ -3936,3 +3936,17 @@ sequence zero. Mid-demo the sidecar had silently fallen to 100% CPU again — th
 llm-guard failure class, restarted and verified back to 100% GPU. The CLI still
 talks to stores directly; moving it onto this API is I2, deliberately separate.
 12 suites, 414 tests, 0 warnings.
+
+## 2026-08-23 — Codex — G6c2 split at the provider boundary
+
+G6c2 inspection found that the registry currently carries opaque `SchemaReference`
+URIs while `IToolCallingChatClient` accepts anonymous strings. That surface cannot
+safely map an Ollama function name back to the stable capability id and leaves JSON
+ownership and validation ambiguous. G6c2 is therefore split without widening scope:
+G6c2a introduces the typed source-neutral advertised-tool schema and mapping boundary;
+G6c2b owns only Ollama's `/api/chat` request, response, and history wire adaptation and
+must transmit exactly the selected schemas supplied to it.
+
+The installed sidecar reports Ollama 0.32.15, and `qwen3:8b` reports `completion`,
+`tools`, and `thinking` capabilities. Official Ollama API documentation confirms the
+native chat/tool-call shape. G6c2a is claimed before changing contracts.
