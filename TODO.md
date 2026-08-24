@@ -132,7 +132,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] I1 inbox/read/good-bad-meh · beliefs/diff/correct/retract/note · recall/ask/chat/context · frontier · trace/stats/health · caption
 - [ ] I2 Rework onto the runtime API when G5 lands (verbs survive; transport changes)
 - [x] I3 Trace tree rendering with span nesting (charter §8.1; `dami trace` also resolves 8-char short ids now)
-- [ ] I4 Shell completion + man page (polish, low priority)
+- [x] I4 Shell completion + man page (installed: /etc/bash_completion.d/dami, man 1 dami; sources in tools/cli/)
 
 ## J · GUI (Phase 7)
 

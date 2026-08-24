@@ -3869,3 +3869,11 @@ opening). The core argument: push interruptions land on the resource this system
 exists to protect, and they poison H8's feedback signal — `bad` would start meaning
 "bad timing" instead of "bad find". Decision is Steve's; board item moved to his
 queue with the ADR attached.
+
+## 2026-08-24 — Claude — I4: completion and a man page
+
+`tools/cli/dami-completion.bash` (all 23 verbs, file completion for `caption`) and
+`tools/cli/dami.1`, installed to /etc/bash_completion.d/ and man1. `man dami` reads
+as a map of the system: surfacings, memory/beliefs, turns, frontier (including the
+ADR-0013 brief flow), approvals, operations. Verified: `dami re<tab>` → recent read
+recall retract.

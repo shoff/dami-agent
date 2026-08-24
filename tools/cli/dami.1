@@ -1,0 +1,89 @@
+.TH DAMI 1 "August 2026" "Dami Core" "User Commands"
+.SH NAME
+dami \- trace-first personal assistant runtime, from the shell
+.SH SYNOPSIS
+.B dami
+.I verb
+.RI [ args ]
+.SH DESCRIPTION
+Every consequential operation is a durable, replayable event. What the commands
+print is rendered from the persisted stream \- the display invents nothing.
+.SH SURFACINGS
+.TP
+.B dami inbox
+Pending surfacings, newest first. The default when no verb is given.
+.TP
+.B dami recent
+Recently delivered surfacings.
+.TP
+.B dami read \fIid8\fR
+Read one surfacing in full and mark it delivered.
+.TP
+.B dami good\fR|\fBbad\fR|\fBmeh \fIid8\fR [\fInote\fR]
+React. Reactions feed the taste model and tune the surfacing threshold.
+.SH MEMORY AND BELIEFS
+.TP
+.B dami recall \fIquery\fR
+Semantic recall over the observation corpus.
+.TP
+.B dami beliefs \fR[\fIdate\fR]
+The active belief ledger, or the ledger as of a date.
+.TP
+.B dami retract \fIid8\fR \fIreason\fR
+Retract a belief. The retraction is durable; the vector goes with it.
+.TP
+.B dami note \fItext\fR
+Append an observation by hand.
+.SH TURNS
+.TP
+.B dami chat \fImessage\fR
+One full interactive turn: context, routing, local model, traced.
+.TP
+.B dami ask \fIquestion\fR
+A lighter question against the local model with retrieved context.
+.TP
+.B dami context \fIrequest\fR
+Show exactly what would enter the prompt, and its token cost.
+.TP
+.B dami caption \fIimage\fR
+Caption an image with the local vision model, run as a bounded worker
+under a real trace. The image never leaves the host.
+.SH FRONTIER
+.TP
+.B dami frontier \fIquestion\fR
+A bare question to the frontier via the codex subscription. No memories
+are sent (ADR-0011).
+.TP
+.B dami brief \fIquestion\fR
+Draft a redacted, memory-informed brief. The exact bytes print for review
+and egress only after \fBdami approve\fR (ADR-0013: consent is the transform).
+.SH APPROVALS
+.TP
+.B dami approvals
+Pending approvals.
+.TP
+.B dami approve \fIid8\fR
+Approve and execute: librarian manifests move files; frontier briefs egress.
+.TP
+.B dami deny \fIid8\fR [\fIreason\fR]
+Deny. It never runs.
+.SH OPERATIONS
+.TP
+.B dami trace \fIid\fR
+Replay one trace, child spans indented. Accepts the 8-char short ids
+other commands print.
+.TP
+.B dami health
+Service health, including the GPU-residency check for the LLM sidecar.
+.TP
+.B dami stats
+Corpus and event-stream counts.
+.SH FILES
+.TP
+.I /opt/dami/cli
+The published CLI. \fI/usr/local/bin/dami\fR points here.
+.TP
+.I ~/dev/dami-agent/docs/
+Charter, architecture, decision records, runbook.
+.SH SEE ALSO
+The work log and status board in \fIdocs/\fR are the running record.
