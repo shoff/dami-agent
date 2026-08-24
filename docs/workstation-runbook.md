@@ -208,6 +208,16 @@ in `X-Dami-Trace`), `/surfacings` (+`/{id}/feedback`), `/beliefs`, `/approvals`
 Verify: `curl -s 127.0.0.1:5810/health`. Redeploy: publish to
 `~/.cache/dami-pub/host`, stop, rsync to `/opt/dami/host`, start.
 
+Native turn tools are enabled by
+`/etc/systemd/system/dami-host.service.d/native-tools.conf`. All file access is rooted
+at `/home/steve/DamiWorkspace` (not the repository); read and approved patch content are
+capped at 64 KiB. Process execution has a 64 KiB combined-output cap and only the
+literal aliases `pwd` → `/usr/bin/pwd` and `printf` → `/usr/bin/printf`; there is no
+shell, interpreter, package manager, file reader, or Git executable in the allowlist.
+The native executor timeout is 15 seconds and one turn may make at most four tool calls.
+After `systemctl start`, `is-active` can precede Kestrel readiness by about one second;
+verify `/health` after the journal reports `Now listening`.
+
 ### 4.x NVIDIA driver stack is held (A5)
 
 All 29 `nvidia-*`/`libnvidia-*` packages are `apt-mark hold` as of 2026-08-23

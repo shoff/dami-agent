@@ -4566,3 +4566,76 @@ capabilities, 32/32 native, and 69/69 Core. The exact full tree then passed
 twelve suites (133 PostgreSQL), and `dotnet format Dami.sln --verify-no-changes
 --no-restore --verbosity minimal` with exit 0. No migration is required. G6d1 is `[x]`;
 G6d2 is claimed for isolated workspace configuration, deployment, and live evidence.
+
+## 2026-08-23 — Codex — G6d2 live bounded tools demonstrated; G7 trace gap found
+
+Production is now configured through
+`/etc/systemd/system/dami-host.service.d/native-tools.conf` with the dedicated
+Steve-owned `/home/steve/DamiWorkspace` root, 64 KiB read/patch/output bounds, a
+15-second native execution timeout, a four-call turn bound, and only `pwd` and `printf`
+executable aliases. No shell, interpreter, file reader, package manager, or Git binary
+is exposed. Release output was published as Steve to
+`/home/steve/.cache/dami-pub/host-g6d2.JlFUkw`, then the runbook stop/rsync/start path
+updated `/opt/dami/host`. The first immediate health curl raced Kestrel and failed to
+connect although systemd had reported active; five seconds later the journal showed
+Production listening on loopback and `/health` returned `{"status":"ok"}`. The runbook
+now records that readiness nuance and the exact native policy.
+
+Migration status was initially queried as the Steve OS user without explicit loopback
+`dami_ddl`, repeating the known identity trap and falsely listing every migration as
+pending; it was read-only and changed nothing. Repeating with `PGHOST=127.0.0.1`,
+`PGUSER=dami_ddl`, and Steve's passfile showed migrations 001–017 applied and none
+pending. No migration was needed.
+
+The first live read turn timed out at the client's 180-second bound. Trace
+`08ab4563…` terminated as `TraceCancelled`; retrieval/reranking had completed in under a
+second and the stall was Ollama. `/api/ps` reported `size_vram: 0`, container NVML
+returned `Unknown Error`, and Ollama logged CUDA initialization failure plus CPU model
+buffers. The existing `dami-llm-guard` recovery was triggered; it detected the degraded
+placement and restarted `dami-llm`. Container NVML then reported the RTX 4080, a bounded
+warm-up loaded qwen3:8b fully (`size_vram == size == 5,578,204,118`), and `nvidia-smi`
+showed the runner using 5,606 MiB. No inference setting was weakened.
+
+Live acceptance evidence after recovery:
+
+- Trace `033a3241-0839-4e39-8dd0-05935cafce1f` selected three tools, invoked stable id
+  `946a3c12…`, and returned `bounded read evidence: original bytes` from `read-demo.txt`.
+  The file was 38 bytes with SHA-256 `5983abe4…74cb1e1`.
+- Trace `142c125d-e1c6-4e19-a97a-e2771c061f61` invoked stable id `4e448f5c…` and the
+  no-shell `pwd` alias returned `/home/steve/DamiWorkspace`.
+- Trace `398805c8-2266-4339-86b4-111d9798293c` invoked stable id `a5107cc1…` and filed
+  create-only approval `526f81ea-3efb-c3a5-5a21-9252dabf8c18`; filesystem inspection
+  proved `approved-demo.txt` absent before approval. The model's prose invented a
+  `d6a44b24132f` “todo ID,” so that statement was discarded in favor of durable state.
+  Direct inspection showed exact persisted hex
+  `617070726f76616c2067617465642065766964656e6365`, expected hash null, and replacement
+  hash `3fca2859…d3ad1a`. Approval returned `executed: created approved-demo.txt`; the
+  Steve-owned 23-byte file had exactly that hash and byte sequence.
+- A hostile process prompt requested alias `sh` with `touch should-not-exist.txt`.
+  It returned HTTP 500, created no target, and trace
+  `12a6db66-8166-400c-aece-73a6f11467aa` durably recorded ToolFailed then TraceFailed
+  with `Executable alias 'sh' is not allowlisted.`
+- The live capability vector table contains exactly the three configured stable ids at
+  version 1.0.0 under `BAAI/bge-m3`; disabled capabilities are absent.
+
+This demonstrates acceptance item 4, so G6/G6d/G6d2 are `[x]`. The audit also disproved
+one status claim: neither `ApprovalRequested` nor `ApprovalResolved` exists in the
+proposal trace, and repository search found both enum values unused outside their
+declaration. The approval row itself is correct (`Approved`, exact resolution note and
+timestamp), but trace completeness is not. G7 is reopened with claimed G7a to make
+approval state changes and their execution events atomic rather than papering over the
+gap after the fact.
+
+An attempted chained post-check was rejected before execution because it included an
+`rm -f` cleanup of the exact temporary HTTP body. The file was instead deleted through
+the patch mechanism; separate health and Git checks then passed (`active`, health
+`{"status":"ok"}`, no diff whitespace errors, and remote parity before this docs commit).
+
+## 2026-08-23 — Codex — G7a atomic approval trace events started
+
+G7a will extend the persistence boundary so an approval row and its
+`ApprovalRequested` event commit together, and a successful single-resolution update
+and `ApprovalResolved` event commit together. The file-patch aggregate's transactional
+insert must use the same event path; otherwise the live case that found the defect
+would remain exceptional. Tests will first prove rollback/no-orphan behavior and exact
+trace/event metadata against PostgreSQL before production SQL changes.

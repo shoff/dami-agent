@@ -99,7 +99,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] G3 Streaming turns end to end — `BeginStreamingAsync`/`TurnStream`, trace completes and corpus records when drained, one coalesced ResponseStreaming event, `dami chat` streams live — acceptance item 2 (CLI half)
 - [ ] G4 **Sessions**: multi-turn conversation with a recent window in context; start/resume/interrupt/reconnect without duplication — acceptance item 1 (natural Codex continuation from transport; unclaimed)
 - [x] G5 Runtime API on localhost (D-005): `dami-host` service on 127.0.0.1:5810 — turns/SSE, surfacings, beliefs, approvals, traces, `/events`; CLI rework stays I2
-- [~ Codex 2026-08-23] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4
+- [x] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4
   - [x] G6a Source-neutral invocation/result contract + native implementation registry and timeout boundary
   - [x] G6b Root-confined file operations + allowlisted no-shell process execution
     - [x] G6b1 Canonical-path/symlink-safe bounded file reading
@@ -115,10 +115,11 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
         - [x] G6c3b1 Immutable file-patch proposal contract + PostgreSQL persistence
         - [x] G6c3b2 Root-confined propose-only native capability + G7 request
       - [x] G6c3c Approved patch executor + open/closed runtime approval dispatch
-  - [~ Codex 2026-08-23] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
+  - [x] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
     - [x] G6d1 Native schema/activation composition + tool-enabled whole-turn runtime
-    - [~ Codex 2026-08-23] G6d2 Deploy and demonstrate bounded read/process/propose/approve behavior live
-- [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
+    - [x] G6d2 Deploy and demonstrate bounded read/process/propose/approve behavior live
+- [~ Codex 2026-08-23] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
+  - [~ Codex 2026-08-23] G7a Atomically persist `ApprovalRequested`/`ApprovalResolved` trace events with approval transitions (live G6d audit found both enum values unused)
 - [x] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6 (WorkerRunner; vision caption is the first live worker)
 - [STEVE] G9 Frontier-informed turns — the mechanism shipped (C4 briefs + server-side execution); what remains is the posture ADR-0013 deferred: should `dami chat` ever offer a brief unprompted? Steve's call
 - [x] G10 Identity/prompt: charter reconstructed from migrated identity data (docs/identity/); §9.1 stable block installed at /opt/dami/identity-prompt.md; identity demonstrated across qwen3 + codex — acceptance item 9. SOUL.md reconciles at M4.
