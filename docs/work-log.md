@@ -3727,3 +3727,11 @@ retrieval* through an append-only sidecar — the same pattern B10 shipped — n
 deleted. Thresholds (500 k rows / 10 GB) make it a tripwire with a plan attached,
 not a running process. Proposed, not accepted: excluding anything from Steve's
 memory record is Steve's decision, so the board item moves to his queue.
+
+## 2026-08-23 — Claude — A5: NVIDIA stack held
+
+All 29 nvidia/libnvidia packages `apt-mark hold` at driver 595.84. Rationale and the
+controlled-update procedure (unhold → upgrade → reboot → `dami health` green →
+re-hold from a fresh dpkg listing) are in runbook §4. An unattended driver bump is
+the silent-CPU-fallback failure class with extra steps; now it can only happen on
+purpose.

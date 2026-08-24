@@ -37,7 +37,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] A2 Inference sidecars pinned & GPU-resident: TEI embed (8080), TEI rerank (8081), Ollama (11434) + `dami-llm-guard` timer for the CPU-fallback failure
 - [x] A3 Timeshift snapshots (ADR-0002) · nightly verified pg dumps (ADR-0003) · systemd `dami-proactive` service · `dami` CLI on PATH
 - [ ] A4 Off-host, encrypted backup destination + stated RPO (closes the register's backup decision; ADR-0003 is interim-only) `[STEVE: destination choice]`
-- [ ] A5 `apt-mark hold` / controlled-update windows for the NVIDIA driver stack
+- [x] A5 `apt-mark hold` / controlled-update windows for the NVIDIA driver stack (29 pkgs held @ 595.84; procedure in runbook §4)
 - [ ] A6 PostgreSQL 16 vs 17/18 decision while databases are still small `[STEVE]`
 - [ ] A7 ADR-0001 (host OS = Mint) accept/reject `[STEVE]`
 
@@ -59,7 +59,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] C1 `Dami.Privacy`: allowlist egress client, refusal-is-loud, every send/refusal a trace event; composition-root audit point
 - [x] C2 Frontier gate ADR-0010: `IFrontierChat`, prompt-never-in-labels, LocalOnly unreachable-by-construction for context-bearing turns
 - [x] C3 Subscription frontier ADR-0011: `CodexChatClient` via `codex exec` (browser login, zero API cost), read-only sandboxed, live-verified
-- [ ] C4 **Redaction/consent step** so memory-informed prompts can become Egressable deliberately (unlocks frontier `chat`; needs its own ADR — the highest-leverage open design in the suite)
+- [~ Claude 2026-08-23] C4 **Redaction/consent step** so memory-informed prompts can become Egressable deliberately (unlocks frontier `chat`; needs its own ADR — the highest-leverage open design in the suite)
 - [x] C5 Egress budget/rate alarm (a runaway proactive loop calling frontier nightly should trip something)
 
 ## D · Model layer (§7.4)

@@ -197,6 +197,27 @@ against a bad update, not against drive failure.
 
 ---
 
+
+### 4.x NVIDIA driver stack is held (A5)
+
+All 29 `nvidia-*`/`libnvidia-*` packages are `apt-mark hold` as of 2026-08-23
+(driver 595.84). An unattended driver bump breaks dkms/CUDA userland alignment
+and takes TEI + the LLM sidecar down with it — exactly the silent-CPU-fallback
+class of failure the llm-guard timer exists for.
+
+To update deliberately (the controlled window):
+
+```bash
+sudo apt-mark unhold $(apt-mark showhold | grep nvidia)
+sudo apt update && sudo apt upgrade      # driver + libnvidia move together
+sudo reboot                              # dkms rebuild + module reload
+dami health                              # MUST be green before re-holding
+sudo apt-mark hold $(dpkg -l | grep -E "^ii +(nvidia-|libnvidia-)" | awk '{print $2}')
+```
+
+Re-hold with the dpkg listing (not the old hold list) so renamed packages after
+a major-version jump are captured.
+
 ## 5. Measured performance
 
 Recorded so nobody re-derives them, and so regressions are visible.
