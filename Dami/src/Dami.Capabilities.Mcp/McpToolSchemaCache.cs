@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using ModelContextProtocol.Client;
 
@@ -22,8 +23,10 @@ internal sealed class McpToolSchemaCache
         {
             McpClientTool tool = tools[index];
             string reference = this.ReferenceFor(tool.Name);
-            replacement.Add(reference, tool.ProtocolTool.InputSchema.Clone());
-            descriptors[index] = new McpToolDescriptor(tool.Name, tool.Description, reference);
+            JsonElement schema = tool.ProtocolTool.InputSchema.Clone();
+            replacement.Add(reference, schema);
+            descriptors[index] = new McpToolDescriptor(
+                tool.Name, tool.Description, reference, VersionFor(schema));
         }
 
         Volatile.Write(ref this.schemas, replacement);
@@ -39,5 +42,11 @@ internal sealed class McpToolSchemaCache
     private string ReferenceFor(string toolName)
     {
         return $"mcp://{this.serverId:D}/tools/{Uri.EscapeDataString(toolName)}/schema";
+    }
+
+    private static string VersionFor(JsonElement schema)
+    {
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(schema);
+        return Convert.ToHexStringLower(SHA256.HashData(json));
     }
 }

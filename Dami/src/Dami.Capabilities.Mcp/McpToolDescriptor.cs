@@ -4,4 +4,5 @@ namespace Dami.Capabilities.Mcp;
 public sealed record McpToolDescriptor(
     string Name,
     string? Description,
-    string SchemaReference);
+    string SchemaReference,
+    string Version);

@@ -38,6 +38,8 @@ public sealed class McpServerConnectionTests
         Assert.Equal("weather", tool.Name);
         Assert.Equal("Look up the current weather.", tool.Description);
         Assert.Contains(registration.ServerId.ToString("D"), tool.SchemaReference);
+        Assert.Equal(64, tool.Version.Length);
+        Assert.All(tool.Version, character => Assert.True(char.IsAsciiHexDigitLower(character)));
         var schema = connection.FindSchema(tool.SchemaReference);
         Assert.NotNull(schema);
         Assert.Equal("object", schema.Value.GetProperty("type").GetString());

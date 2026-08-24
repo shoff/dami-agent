@@ -5027,3 +5027,45 @@ solution gate built 31 projects with 0 warnings and 0 errors, all fifteen suites
 578/578, and format/analyzer verification exited 0. No schema, migration, Host
 composition, or deployment change was needed. F3a is `[x]`; F3b secure registry
 ingestion is claimed next.
+
+## 2026-08-24 — Codex — F3b secure MCP registry ingestion complete
+
+The first untrusted-normalization test failed red at CS0246 for the missing summary
+boundary. `IMcpDescriptionSummarizer` and `McpCapabilityNormalizer` then replaced raw
+remote prose before constructing a `CapabilityEntry`. The normalized entry carries MCP
+source and explicit server trust, retains only the local schema reference and schema
+fingerprint, and uses a deterministic server-ID/tool-name UUID. Its advertised function
+name is derived from that UUID, so remote tool names do not enter model context. The
+identity hash uses stack storage for ordinary names and a pooled buffer for large names;
+the formatted function name has only its required final string allocation.
+
+The concrete local summarizer test compiled red because the type did not exist. Its
+implementation uses only `IChatClient` (the loopback model abstraction) and JSON-encodes
+server/tool/description fields under an explicit untrusted-data, never-follow prompt.
+A subsequent behavioral test failed because blank model output was accepted. The
+shared summary validator now rejects blank, multiline, over-240-character, and verbatim
+source replay output. Another adversarial test failed red because a substitute
+summarizer could bypass the concrete validator and replay the raw description; the
+normalizer now enforces the same invariant at the registry boundary for every
+implementation, with the validation logic deduplicated into one internal component.
+
+The loader test compiled red on the missing `IMcpToolSource`. `McpServerConnection` now
+implements that narrow discovery/cache interface, and `McpCapabilityLoader` prepares
+every normalized entry plus model-facing object schema before publishing to the two
+existing registries. The real `CapabilityRegistry` and `CapabilityToolSchemaRegistry`
+test observe only `Creates a calendar event.`; the injected raw instruction exists in
+neither retrieval metadata nor the advertised schema description. Schema fingerprints
+are lowercase SHA-256 and change the capability version when remote schema bytes change.
+
+Trusted verbatim description, summarizer bypass, stable identity across reload times,
+and the real 64-character schema fingerprint were added after their implementations and
+are coverage rather than red-first TDD. A final optional-description test was genuinely
+red with `ArgumentException` for whitespace from a trusted server; trusted and untrusted
+missing descriptions now receive bounded neutral fallbacks instead of breaking the
+entire discovery load.
+
+The focused MCP suite passed 13/13. The mandatory solution gate built 31 projects with
+0 warnings and 0 errors, all fifteen suites passed 585/585, and format/analyzer
+verification exited 0. No schema, migration, Host composition, or deployment change
+was needed. F3b is `[x]`; F3c privacy-aware selection and source-neutral MCP execution
+are claimed next.

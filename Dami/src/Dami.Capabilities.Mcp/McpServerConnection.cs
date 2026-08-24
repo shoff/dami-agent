@@ -4,7 +4,7 @@ using ModelContextProtocol.Client;
 namespace Dami.Capabilities.Mcp;
 
 /// <summary>Owns one MCP client connection and its discovered tool-schema cache.</summary>
-public sealed class McpServerConnection : IAsyncDisposable
+public sealed class McpServerConnection : IMcpToolSource, IAsyncDisposable
 {
     private readonly McpToolSchemaCache schemaCache;
     private McpClient? client;

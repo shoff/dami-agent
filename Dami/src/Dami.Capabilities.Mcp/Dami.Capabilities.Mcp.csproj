@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <ProjectReference Include="../Dami.Capabilities/Dami.Capabilities.csproj" />
+        <ProjectReference Include="../Dami.Contracts/Dami.Contracts.csproj" />
     </ItemGroup>
 
     <ItemGroup>
