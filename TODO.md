@@ -120,8 +120,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] G6d2 Deploy and demonstrate bounded read/process/propose/approve behavior live
 - [~ Codex 2026-08-23] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
   - [~ Codex 2026-08-23] G7a Atomically persist `ApprovalRequested`/`ApprovalResolved` trace events with approval transitions (live G6d audit found both enum values unused)
-    - [~ Codex 2026-08-23] G7a1 Add explicit approval origin + optional parent-span provenance through contract, PostgreSQL, and migration 018
-    - [ ] G7a2 Insert request/resolution events atomically and demonstrate them live
+    - [x] G7a1 Add explicit approval origin + optional parent-span provenance through contract, PostgreSQL, and migration 018
+    - [~ Codex 2026-08-23] G7a2 Insert request/resolution events atomically and demonstrate them live
 - [x] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6 (WorkerRunner; vision caption is the first live worker)
 - [STEVE] G9 Frontier-informed turns — the mechanism shipped (C4 briefs + server-side execution); what remains is the posture ADR-0013 deferred: should `dami chat` ever offer a brief unprompted? Steve's call
 - [x] G10 Identity/prompt: charter reconstructed from migrated identity data (docs/identity/); §9.1 stable block installed at /opt/dami/identity-prompt.md; identity demonstrated across qwen3 + codex — acceptance item 9. SOUL.md reconciles at M4.

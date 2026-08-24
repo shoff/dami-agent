@@ -1,4 +1,5 @@
 using Dami.Contracts.Approvals;
+using Dami.Contracts.Events;
 using Dami.Contracts.FilePatches;
 using Dami.Persistence.Approvals;
 using Dami.Persistence.FilePatches;
@@ -31,6 +32,18 @@ public sealed class PostgresFilePatchProposalStoreTests
         var found = await store.FindByApprovalAsync(proposal.ApprovalId, CancellationToken.None);
 
         Assert.Equal(proposal, found);
+    }
+
+    [Fact]
+    public async Task CreateAsync_Should_Round_Trip_The_Approval_Parent_Span()
+    {
+        await this.fixture.ResetAsync();
+        var (_, approvals, approval, _) = await this.CreateStoredProposalAsync();
+
+        var found = await approvals.FindAsync(approval.ApprovalId, CancellationToken.None);
+
+        Assert.Equal(approval.ParentSpanId, found!.ParentSpanId);
+        Assert.Equal(approval.Origin, found.Origin);
     }
 
     [Fact]
@@ -160,10 +173,12 @@ public sealed class PostgresFilePatchProposalStoreTests
         var options = Options.Create(new PostgresOptions { SchemaName = DatabaseFixture.SCHEMA });
         var approvals = new PostgresApprovalService(
             this.fixture.DataSource, options, NullLogger<PostgresApprovalService>.Instance);
+        var spanId = Guid.NewGuid();
         var approval = new ApprovalRequest(
-            Guid.NewGuid(), Guid.NewGuid(), "file-patch", "replace file", "filesystem", "notes.txt", at);
+            Guid.NewGuid(), Guid.NewGuid(), "file-patch", "replace file", "filesystem", "notes.txt", at,
+            origin: ExecutionOrigin.UserTurn, parentSpanId: spanId);
         var proposal = new FilePatchProposal(
-            Guid.NewGuid(), approval.ApprovalId, approval.TraceId, Guid.NewGuid(), "notes.txt",
+            Guid.NewGuid(), approval.ApprovalId, approval.TraceId, spanId, "notes.txt",
             "replacement text", FilePatchProposal.HashOf("replacement text"), new string('a', 64), at);
         var store = new PostgresFilePatchProposalStore(this.fixture.DataSource, options);
         await store.CreateAsync(approval, proposal, CancellationToken.None);

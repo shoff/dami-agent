@@ -1,4 +1,5 @@
 using Dami.Contracts.Approvals;
+using Dami.Contracts.Events;
 using Dami.Persistence.Approvals;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -28,6 +29,24 @@ public sealed class PostgresApprovalServiceTests
         await service.RequestAsync(Request(), CancellationToken.None);
 
         Assert.Single(await this.PendingAsync(service));
+    }
+
+    [Fact]
+    public async Task RequestAsync_Should_Round_Trip_Execution_Provenance()
+    {
+        await this.fixture.ResetAsync();
+        var service = this.CreateService();
+        var parentSpanId = Guid.NewGuid();
+        var request = new ApprovalRequest(
+            Guid.NewGuid(), Guid.NewGuid(), "media-librarian", "move files", "filesystem",
+            "manifest.json", at, origin: ExecutionOrigin.ScheduledService,
+            parentSpanId: parentSpanId);
+
+        await service.RequestAsync(request, CancellationToken.None);
+        var found = await service.FindAsync(request.ApprovalId, CancellationToken.None);
+
+        Assert.Equal(ExecutionOrigin.ScheduledService, found!.Origin);
+        Assert.Equal(parentSpanId, found.ParentSpanId);
     }
 
     [Fact]

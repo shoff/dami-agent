@@ -112,7 +112,8 @@ public sealed class MediaLibrarianService : IProactiveService
             new ApprovalRequest(
                 approvalId, context.TraceId, this.ServiceName,
                 $"Execute the proposed organization of {proposals.Count} file(s)",
-                "filesystem", manifestPath, this.clock.GetUtcNow()),
+                "filesystem", manifestPath, this.clock.GetUtcNow(),
+                origin: Dami.Contracts.Events.ExecutionOrigin.ScheduledService),
             cancellationToken).ConfigureAwait(false);
 
         var surfacing = new Surfacing(

@@ -1,3 +1,5 @@
+using Dami.Contracts.Events;
+
 namespace Dami.Contracts.Approvals;
 
 /// <summary>One consequential action, blocked until a human resolves it (charter §10.2).</summary>
@@ -15,12 +17,20 @@ public sealed record ApprovalRequest
         ApprovalStatus status = ApprovalStatus.Pending,
         DateTimeOffset? resolvedAt = null,
         string? resolvedNote = null,
-        DateTimeOffset? expiresAt = null)
+        DateTimeOffset? expiresAt = null,
+        ExecutionOrigin origin = ExecutionOrigin.UserTurn,
+        Guid? parentSpanId = null)
     {
         ArgumentNullException.ThrowIfNull(requestedBy);
         ArgumentNullException.ThrowIfNull(action);
         ArgumentNullException.ThrowIfNull(scope);
         ArgumentNullException.ThrowIfNull(resource);
+        if (parentSpanId == Guid.Empty || parentSpanId == approvalId)
+        {
+            throw new ArgumentException(
+                "An approval parent span must be non-empty and distinct from the approval id.",
+                nameof(parentSpanId));
+        }
 
         this.ApprovalId = approvalId;
         this.TraceId = traceId;
@@ -33,6 +43,8 @@ public sealed record ApprovalRequest
         this.ResolvedAt = resolvedAt;
         this.ResolvedNote = resolvedNote;
         this.ExpiresAt = expiresAt;
+        this.Origin = origin;
+        this.ParentSpanId = parentSpanId;
     }
 
     /// <summary>Stable identifier.</summary>
@@ -67,4 +79,10 @@ public sealed record ApprovalRequest
 
     /// <summary>After this, unanswered means denied.</summary>
     public DateTimeOffset? ExpiresAt { get; }
+
+    /// <summary>Whether the gated action began in a user turn or background work.</summary>
+    public ExecutionOrigin Origin { get; }
+
+    /// <summary>The originating execution span, when one is known.</summary>
+    public Guid? ParentSpanId { get; }
 }

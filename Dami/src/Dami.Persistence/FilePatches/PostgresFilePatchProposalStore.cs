@@ -157,6 +157,8 @@ public sealed class PostgresFilePatchProposalStore : IFilePatchProposalStore
                and resource = @resource
                and status = @status
                and requested_at = @at
+               and origin = @origin
+               and parent_span_id is not distinct from @parent_span
                and resolved_at is null
                and resolved_note is null
                and expires_at is not distinct from @expires

@@ -100,7 +100,7 @@ public sealed class PostgresApprovalService : IApprovalService
     {
         return $"""
             select approval_id, trace_id, requested_by, action, scope, resource, status,
-                   requested_at, resolved_at, resolved_note, expires_at
+                   requested_at, resolved_at, resolved_note, expires_at, origin, parent_span_id
             from {table}
             """;
     }
@@ -133,6 +133,8 @@ public sealed class PostgresApprovalService : IApprovalService
             requestedAt: reader.GetFieldValue<DateTimeOffset>(7),
             resolvedAt: reader.IsDBNull(8) ? null : reader.GetFieldValue<DateTimeOffset>(8),
             resolvedNote: reader.IsDBNull(9) ? null : reader.GetString(9),
-            expiresAt: reader.IsDBNull(10) ? null : reader.GetFieldValue<DateTimeOffset>(10));
+            expiresAt: reader.IsDBNull(10) ? null : reader.GetFieldValue<DateTimeOffset>(10),
+            origin: Enum.Parse<Dami.Contracts.Events.ExecutionOrigin>(reader.GetString(11)),
+            parentSpanId: reader.IsDBNull(12) ? null : reader.GetGuid(12));
     }
 }

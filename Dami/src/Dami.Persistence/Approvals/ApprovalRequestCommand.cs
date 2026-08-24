@@ -12,8 +12,9 @@ internal static class ApprovalRequestCommand
         return $"""
             insert into {table}
                 (approval_id, trace_id, requested_by, action, scope, resource, status,
-                 requested_at, expires_at)
-            values (@id, @trace, @by, @action, @scope, @resource, @status, @at, @expires)
+                 requested_at, expires_at, origin, parent_span_id)
+            values (@id, @trace, @by, @action, @scope, @resource, @status, @at, @expires,
+                    @origin, @parent_span)
             on conflict (approval_id) do nothing;
             """;
     }
@@ -31,5 +32,8 @@ internal static class ApprovalRequestCommand
         command.Parameters.AddWithValue("status", request.Status.ToString());
         command.Parameters.AddWithValue("at", request.RequestedAt);
         command.Parameters.AddWithValue("expires", (object?)request.ExpiresAt ?? DBNull.Value);
+        command.Parameters.AddWithValue("origin", request.Origin.ToString());
+        command.Parameters.AddWithValue(
+            "parent_span", (object?)request.ParentSpanId ?? DBNull.Value);
     }
 }

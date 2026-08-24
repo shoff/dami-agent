@@ -4648,3 +4648,34 @@ G7a1 adds provenance to the contract/store through migration 018 (with honest ba
 for existing rows where possible), then G7a2 makes request/resolution event insertion
 atomic with the state transition and proves the live trace. No production code changed
 before this split.
+
+## 2026-08-23 — Codex — G7a1 approval trace provenance complete
+
+`ApprovalRequest` now owns its settled D-018 `ExecutionOrigin` and optional originating
+`ParentSpanId`; it rejects an empty or self-parent id. The PostgreSQL command/store
+round-trips both fields, exact file-patch approval replay compares them, interactive
+file-patch proposals attach to their actual tool span, and media-librarian requests are
+explicitly `ScheduledService` rather than inferred later. The default remains
+`UserTurn` for source-compatible interactive callers; production background code sets
+its origin explicitly.
+
+Migration 018 adds the columns and database checks, classifies the shipped
+`media-librarian` requester as ScheduledService and other historical requesters as
+UserTurn (the strongest evidence available in old rows), and joins immutable patch
+proposals to recover their parent tool spans. The first focused test failed red with
+CS1739/CS1061 because the constructor and properties did not exist. Contract, migration,
+and store changes made it pass 1/1 against PostgreSQL. File-patch aggregate provenance
+was added after green as cross-store coverage; the persistence suite passed 135/135.
+
+The migration ownership command first repeated the `Dami/` path prefix while already
+inside that directory and failed harmlessly before its chained build. The corrected
+`../tools/ddl/...` path made the migration Steve-owned. The exact full tree passed
+`dotnet build Dami.sln --nologo` with 0 warnings/0 errors, all 499 tests across twelve
+suites, and format verification with exit 0.
+
+Live status with explicit loopback `dami_ddl` showed only 018 pending. It applied in one
+transaction; repeat status shows migrations 001–018 applied and none pending. Live rows
+now read: `frontier-brief|UserTurn|NULL`,
+`media-librarian|ScheduledService|NULL`, and
+`native:propose-file-patch|UserTurn|f395c371-c6c5-4fb9-92d3-b68b5b261e6c`—the exact
+G6d proposal tool span. G7a1 is `[x]`; G7a2 is claimed to make the events atomic.

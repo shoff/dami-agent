@@ -124,7 +124,9 @@ public sealed class ProposeFilePatchCapabilityHandler : INativeCapabilityHandler
             action,
             "filesystem",
             proposal.RelativePath,
-            proposal.CreatedAt);
+            proposal.CreatedAt,
+            origin: Dami.Contracts.Events.ExecutionOrigin.UserTurn,
+            parentSpanId: proposal.SpanId);
     }
 
     private static CapabilityExecutionResult CreateResult(FilePatchProposal proposal)

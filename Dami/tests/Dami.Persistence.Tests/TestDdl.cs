@@ -19,6 +19,7 @@ public static class TestDdl
         "015_health_examined.sql",
         "016_file_patch_proposals.sql",
         "017_file_patch_proposal_privileges.sql",
+        "018_approval_trace_provenance.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
     ];

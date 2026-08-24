@@ -140,6 +140,13 @@ truthful span parenting passed in the 69/69 Core suite. The solution build compl
 with 0 warnings and 0 errors, all twelve suites passed 497/497, and format verification
 exited 0.
 
+Verification on 2026-08-23 for G7a1: explicit approval origin and optional parent-span
+provenance passed 135/135 PostgreSQL integration tests; the solution build completed
+with 0 warnings and 0 errors, all twelve suites passed 499/499, and format verification
+exited 0. Migration 018 is checksummed and applied with none pending; live backfill
+classifies the librarian `ScheduledService`, both interactive requesters `UserTurn`, and
+attaches the file-patch approval to its exact tool span.
+
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
 | Item | State | Evidence |
