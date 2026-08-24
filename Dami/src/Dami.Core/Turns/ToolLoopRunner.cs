@@ -107,7 +107,8 @@ public sealed class ToolLoopRunner
         CapabilityExecutionResult result;
         try
         {
-            result = await this.executor.ExecuteAsync(invocation, cancellationToken).ConfigureAwait(false);
+            var request = new CapabilityExecutionRequest(traceId, spanId, invocation);
+            result = await this.executor.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

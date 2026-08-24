@@ -33,7 +33,8 @@ public sealed class ReadFileCapabilityHandlerTests : IDisposable
             new ReadFileCapabilityOptions { RootDirectory = this.scratch, MaxBytes = 1024 });
         var arguments = JsonSerializer.SerializeToElement(new { path = "notes.txt" });
 
-        var result = await handler.ExecuteAsync(arguments, CancellationToken.None);
+        var result = await handler.ExecuteAsync(
+            TestCapabilityRequests.Create(arguments), CancellationToken.None);
 
         Assert.Equal("bounded content", result.Output);
         Assert.Equal("notes.txt", result.Evidence["path"]);
@@ -51,7 +52,7 @@ public sealed class ReadFileCapabilityHandlerTests : IDisposable
         var arguments = JsonSerializer.SerializeToElement(new { path = "link/secret.txt" });
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => handler.ExecuteAsync(arguments, CancellationToken.None));
+            () => handler.ExecuteAsync(TestCapabilityRequests.Create(arguments), CancellationToken.None));
     }
 
     [Fact]
@@ -63,7 +64,7 @@ public sealed class ReadFileCapabilityHandlerTests : IDisposable
         var arguments = JsonSerializer.SerializeToElement(new { path = "large.txt" });
 
         var exception = await Assert.ThrowsAsync<InvalidDataException>(
-            () => handler.ExecuteAsync(arguments, CancellationToken.None));
+            () => handler.ExecuteAsync(TestCapabilityRequests.Create(arguments), CancellationToken.None));
 
         Assert.Contains("4 bytes", exception.Message, StringComparison.Ordinal);
     }

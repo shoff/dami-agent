@@ -52,26 +52,27 @@ public sealed class RunProcessCapabilityHandler : INativeCapabilityHandler
 
     /// <inheritdoc />
     public async Task<CapabilityExecutionResult> ExecuteAsync(
-        JsonElement arguments,
+        CapabilityExecutionRequest request,
         CancellationToken cancellationToken)
     {
-        var request = Parse(arguments);
-        if (!this.allowedExecutables.TryGetValue(request.Executable, out var executablePath))
+        ArgumentNullException.ThrowIfNull(request);
+        var processRequest = Parse(request.Invocation.Arguments);
+        if (!this.allowedExecutables.TryGetValue(processRequest.Executable, out var executablePath))
         {
             throw new UnauthorizedAccessException(
-                $"Executable alias '{request.Executable}' is not allowlisted.");
+                $"Executable alias '{processRequest.Executable}' is not allowlisted.");
         }
 
-        using var process = CreateProcess(executablePath, this.rootDirectory, request.Arguments);
+        using var process = CreateProcess(executablePath, this.rootDirectory, processRequest.Arguments);
         if (!process.Start())
         {
-            throw new InvalidOperationException($"Executable '{request.Executable}' did not start.");
+            throw new InvalidOperationException($"Executable '{processRequest.Executable}' did not start.");
         }
 
         try
         {
             return await this.RunStartedAsync(
-                process, request.Executable, cancellationToken).ConfigureAwait(false);
+                process, processRequest.Executable, cancellationToken).ConfigureAwait(false);
         }
         finally
         {

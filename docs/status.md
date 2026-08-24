@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-23 20:44 CDT (`2026-08-24T01:44Z`)
+- **Last updated:** 2026-08-23 21:00 CDT (`2026-08-24T02:00Z`)
 - **Updated from:** direct workstation inspection and solution test evidence
 - **Current phases:** 0, 1, and 3 in progress
 
@@ -108,10 +108,10 @@ rather than assuming — but nothing else blocks the phase.
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
 | Capability registry | in progress | Core stable-ID lookup, immutable metadata, tool/skill invariants, and cycle-safe bundle expansion have 18 tests. `Dami.Capabilities.Native` discovers attribute-declared tools without activation (1 test). Semantic retrieval, native execution/host registration, MCP, and skill loading remain. |
-| Model routing, sessions, events, CLI | partial | Routed and streaming turns exist. G6c1 adds the bounded model/tool state machine; G6c2 adds typed selected schemas plus the Ollama `/api/chat` adapter with stable-ID/provider-call-ID mapping and accepted live history. Approval handoff, sessions, runtime wiring, and the live tool demonstration remain. |
+| Model routing, sessions, events, CLI | partial | Routed and streaming turns exist. G6c1 adds the bounded model/tool state machine; G6c2 adds selected-schema Ollama tool calling; G6c3a now preserves trace/span provenance through the executor and native-handler boundary. Approval proposal/execution, sessions, runtime wiring, and the live tool demonstration remain. |
 
-Verification on 2026-08-23 for G6c2b on the shared current tree:
-`dotnet test Dami.sln` executed 437 tests across twelve suites with 0 failures;
+Verification on 2026-08-23 for G6c3a in an isolated concurrent-work gate:
+`dotnet test Dami.sln` executed 439 tests across twelve suites with 0 failures;
 the preceding `dotnet build Dami.sln` completed with 0 warnings and 0 errors, and
 `dotnet format Dami.sln --verify-no-changes --no-restore` exited 0.
 

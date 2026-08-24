@@ -39,10 +39,11 @@ public sealed class ReadFileCapabilityHandler : INativeCapabilityHandler
 
     /// <inheritdoc />
     public async Task<CapabilityExecutionResult> ExecuteAsync(
-        JsonElement arguments,
+        CapabilityExecutionRequest request,
         CancellationToken cancellationToken)
     {
-        var relativePath = ReadRelativePath(arguments);
+        ArgumentNullException.ThrowIfNull(request);
+        var relativePath = ReadRelativePath(request.Invocation.Arguments);
         var fullPath = this.pathResolver.ResolveFile(relativePath);
         return await this.ReadAsync(relativePath, fullPath, cancellationToken).ConfigureAwait(false);
     }

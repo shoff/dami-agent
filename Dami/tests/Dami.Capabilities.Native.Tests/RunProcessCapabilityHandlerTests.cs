@@ -36,7 +36,8 @@ public sealed class RunProcessCapabilityHandlerTests : IDisposable
             arguments = new[] { "%s", literal },
         });
 
-        var result = await handler.ExecuteAsync(arguments, CancellationToken.None);
+        var result = await handler.ExecuteAsync(
+            TestCapabilityRequests.Create(arguments), CancellationToken.None);
 
         Assert.Equal(literal, result.Output);
         Assert.False(File.Exists(marker));
@@ -60,7 +61,7 @@ public sealed class RunProcessCapabilityHandlerTests : IDisposable
         });
 
         var exception = await Assert.ThrowsAsync<InvalidDataException>(
-            () => handler.ExecuteAsync(arguments, CancellationToken.None));
+            () => handler.ExecuteAsync(TestCapabilityRequests.Create(arguments), CancellationToken.None));
 
         Assert.Contains("4 bytes", exception.Message, StringComparison.Ordinal);
     }

@@ -27,10 +27,11 @@ public sealed class NativeCapabilityExecutor : ICapabilityExecutor
 
     /// <inheritdoc />
     public async Task<CapabilityExecutionResult> ExecuteAsync(
-        CapabilityInvocation invocation,
+        CapabilityExecutionRequest request,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(invocation);
+        ArgumentNullException.ThrowIfNull(request);
+        var invocation = request.Invocation;
         INativeCapabilityHandler handler = this.catalog.Find(invocation.CapabilityId)
             ?? throw new KeyNotFoundException(
                 $"Native capability '{invocation.CapabilityId}' is not registered.");
@@ -40,7 +41,7 @@ public sealed class NativeCapabilityExecutor : ICapabilityExecutor
         try
         {
             var execution = handler.ExecuteAsync(
-                invocation.Arguments,
+                request,
                 timeout.Token);
             return await execution
                 .WaitAsync(this.executionTimeout, cancellationToken).ConfigureAwait(false);

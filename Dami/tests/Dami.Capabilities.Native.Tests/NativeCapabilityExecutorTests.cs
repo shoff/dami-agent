@@ -15,12 +15,13 @@ public sealed class NativeCapabilityExecutorTests
         var executor = new NativeCapabilityExecutor(
             registry,
             new NativeCapabilityExecutorOptions { ExecutionTimeout = TimeSpan.FromSeconds(1) });
-        var invocation = CreateInvocation(capabilityId);
+        var request = CreateRequest(capabilityId);
 
         CapabilityExecutionResult result = await executor
-            .ExecuteAsync(invocation, CancellationToken.None);
+            .ExecuteAsync(request, CancellationToken.None);
 
-        Assert.Equal("notes.txt", handler.Arguments.GetProperty("path").GetString());
+        Assert.Same(request, handler.Request);
+        Assert.Equal("notes.txt", handler.Request.Invocation.Arguments.GetProperty("path").GetString());
         Assert.Equal("completed", result.Output);
         Assert.Equal("notes.txt", result.Evidence["path"]);
     }
@@ -34,34 +35,34 @@ public sealed class NativeCapabilityExecutorTests
         var executor = new NativeCapabilityExecutor(
             registry,
             new NativeCapabilityExecutorOptions { ExecutionTimeout = TimeSpan.FromMilliseconds(20) });
-        var invocation = CreateInvocation(capabilityId);
+        var request = CreateRequest(capabilityId);
 
         var exception = await Assert.ThrowsAsync<TimeoutException>(
-            () => executor.ExecuteAsync(invocation, CancellationToken.None));
+            () => executor.ExecuteAsync(request, CancellationToken.None));
 
         Assert.Contains(capabilityId.ToString(), exception.Message, StringComparison.Ordinal);
     }
 
-    private static CapabilityInvocation CreateInvocation(Guid capabilityId)
+    private static CapabilityExecutionRequest CreateRequest(Guid capabilityId)
     {
         using var document = JsonDocument.Parse("{\"path\":\"notes.txt\"}");
-        return new CapabilityInvocation(capabilityId, document.RootElement);
+        return TestCapabilityRequests.Create(capabilityId, document.RootElement);
     }
 
     private sealed class RecordingHandler : INativeCapabilityHandler
     {
-        public JsonElement Arguments { get; private set; }
+        public CapabilityExecutionRequest Request { get; private set; } = null!;
 
         public Task<CapabilityExecutionResult> ExecuteAsync(
-            JsonElement arguments,
+            CapabilityExecutionRequest request,
             CancellationToken cancellationToken)
         {
-            this.Arguments = arguments;
+            this.Request = request;
             var result = new CapabilityExecutionResult(
                 "completed",
                 new Dictionary<string, string>
                 {
-                    ["path"] = arguments.GetProperty("path").GetString()!,
+                    ["path"] = request.Invocation.Arguments.GetProperty("path").GetString()!,
                 });
             return Task.FromResult(result);
         }
@@ -70,7 +71,7 @@ public sealed class NativeCapabilityExecutorTests
     private sealed class IgnoringCancellationHandler : INativeCapabilityHandler
     {
         public async Task<CapabilityExecutionResult> ExecuteAsync(
-            JsonElement arguments,
+            CapabilityExecutionRequest request,
             CancellationToken cancellationToken)
         {
             await Task.Delay(TimeSpan.FromMilliseconds(200));

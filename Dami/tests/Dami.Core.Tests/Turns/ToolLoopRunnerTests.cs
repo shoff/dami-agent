@@ -33,7 +33,8 @@ public sealed class ToolLoopRunnerTests
         var model = new RecordingToolCallingClient(
             [ToolModelTurn.ForCall("call-1", invocation), ToolModelTurn.ForAnswer("final answer")]);
         var executor = Substitute.For<ICapabilityExecutor>();
-        executor.ExecuteAsync(invocation, Arg.Any<CancellationToken>()).Returns(result);
+        executor.ExecuteAsync(Arg.Any<CapabilityExecutionRequest>(), Arg.Any<CancellationToken>())
+            .Returns(result);
         var runner = new ToolLoopRunner(
             model,
             executor,
@@ -47,22 +48,36 @@ public sealed class ToolLoopRunnerTests
             traceId, parentSpanId, "read my notes", [schema], CancellationToken.None);
 
         Assert.Equal("final answer", answer);
-        Assert.Equal(
-            [ExecutionEventType.ToolRequested, ExecutionEventType.ToolStarted, ExecutionEventType.ToolCompleted],
-            this.events.Select(item => item.Type));
         this.AssertSuccessfulEvents(traceId, parentSpanId);
         Assert.DoesNotContain(this.events, item => item.Label.Contains("file contents", StringComparison.Ordinal));
         Assert.Single(model.ExchangesOnCalls[1]);
         Assert.Same(result, model.ExchangesOnCalls[1][0].Result);
         Assert.Same(schema, Assert.Single(model.SchemasOnCalls[0]));
+        await this.AssertExecutionProvenanceAsync(executor, traceId, invocation);
     }
 
     private void AssertSuccessfulEvents(Guid traceId, Guid parentSpanId)
     {
+        Assert.Equal(
+            [ExecutionEventType.ToolRequested, ExecutionEventType.ToolStarted, ExecutionEventType.ToolCompleted],
+            this.events.Select(item => item.Type));
         Assert.All(this.events, item => Assert.Equal(traceId, item.TraceId));
         Assert.All(this.events, item => Assert.Equal(parentSpanId, item.ParentSpanId));
         Assert.Single(this.events.Select(item => item.SpanId).Distinct());
         Assert.All(this.events, item => Assert.Equal("call-1", item.Metadata!["call_id"]));
+    }
+
+    private async Task AssertExecutionProvenanceAsync(
+        ICapabilityExecutor executor,
+        Guid traceId,
+        CapabilityInvocation invocation)
+    {
+        await executor.Received(1).ExecuteAsync(
+            Arg.Is<CapabilityExecutionRequest>(request =>
+                request.TraceId == traceId
+                && request.SpanId == this.events[0].SpanId
+                && ReferenceEquals(request.Invocation, invocation)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -71,7 +86,7 @@ public sealed class ToolLoopRunnerTests
         var invocation = CreateInvocation();
         var model = new RecordingToolCallingClient([ToolModelTurn.ForCall("call-1", invocation)]);
         var executor = Substitute.For<ICapabilityExecutor>();
-        executor.ExecuteAsync(invocation, Arg.Any<CancellationToken>())
+        executor.ExecuteAsync(Arg.Any<CapabilityExecutionRequest>(), Arg.Any<CancellationToken>())
             .Returns<Task<CapabilityExecutionResult>>(_ => throw new IOException("read failed"));
         var runner = new ToolLoopRunner(
             model,
@@ -96,7 +111,7 @@ public sealed class ToolLoopRunnerTests
         var invocation = CreateInvocation();
         var model = new RecordingToolCallingClient([ToolModelTurn.ForCall("call-1", invocation)]);
         var executor = Substitute.For<ICapabilityExecutor>();
-        executor.ExecuteAsync(invocation, cancellation.Token)
+        executor.ExecuteAsync(Arg.Any<CapabilityExecutionRequest>(), cancellation.Token)
             .Returns(_ => CancelExecutionAsync(cancellation));
         var runner = new ToolLoopRunner(
             model,
@@ -123,7 +138,8 @@ public sealed class ToolLoopRunnerTests
             "file contents", new Dictionary<string, string> { ["path"] = "notes.txt" });
         var model = new RetainingToolCallingClient(invocation);
         var executor = Substitute.For<ICapabilityExecutor>();
-        executor.ExecuteAsync(invocation, Arg.Any<CancellationToken>()).Returns(result);
+        executor.ExecuteAsync(Arg.Any<CapabilityExecutionRequest>(), Arg.Any<CancellationToken>())
+            .Returns(result);
         var runner = new ToolLoopRunner(
             model,
             executor,
@@ -147,7 +163,8 @@ public sealed class ToolLoopRunnerTests
         var model = new RecordingToolCallingClient(
             [ToolModelTurn.ForCall("call-1", invocation), ToolModelTurn.ForCall("call-2", invocation)]);
         var executor = Substitute.For<ICapabilityExecutor>();
-        executor.ExecuteAsync(invocation, Arg.Any<CancellationToken>()).Returns(result);
+        executor.ExecuteAsync(Arg.Any<CapabilityExecutionRequest>(), Arg.Any<CancellationToken>())
+            .Returns(result);
         var runner = new ToolLoopRunner(
             model,
             executor,
@@ -160,7 +177,8 @@ public sealed class ToolLoopRunnerTests
             [CreateSchema(invocation.CapabilityId)], CancellationToken.None));
 
         Assert.Contains("bound of 1", exception.Message, StringComparison.Ordinal);
-        await executor.Received(1).ExecuteAsync(invocation, Arg.Any<CancellationToken>());
+        await executor.Received(1).ExecuteAsync(
+            Arg.Any<CapabilityExecutionRequest>(), Arg.Any<CancellationToken>());
         Assert.Equal(3, this.events.Count);
     }
 
@@ -172,7 +190,8 @@ public sealed class ToolLoopRunnerTests
             "file contents", new Dictionary<string, string> { ["path"] = "notes.txt" });
         var model = new RecordingToolCallingClient([ToolModelTurn.ForCall("call-1", invocation)]);
         var executor = Substitute.For<ICapabilityExecutor>();
-        executor.ExecuteAsync(invocation, Arg.Any<CancellationToken>()).Returns(result);
+        executor.ExecuteAsync(Arg.Any<CapabilityExecutionRequest>(), Arg.Any<CancellationToken>())
+            .Returns(result);
         this.eventStore.AppendAsync(
                 Arg.Is<ExecutionEvent>(item => item.Type == ExecutionEventType.ToolCompleted),
                 Arg.Any<CancellationToken>())
