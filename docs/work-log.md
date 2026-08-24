@@ -3594,6 +3594,13 @@ all twelve suites passed 375/375; and `dotnet format Dami.sln --verify-no-change
 G6a is flipped to `[x]`, and G6b is claimed before any filesystem or process code is
 written.
 
+G6b is split before implementation because file confinement and process isolation are
+different security responsibilities. G6b1 is claimed for canonical-path and symlink-
+safe bounded file reading. G6b2 will own allowlisted executable resolution, literal
+`ArgumentList` arguments, redirected bounded output, and `UseShellExecute=false`.
+Write/patch capability remains in G6c's approval handoff; it is not being smuggled into
+a read/process slice without the already-built G7 approval boundary.
+
 ## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
 
 Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,
