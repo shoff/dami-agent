@@ -3635,6 +3635,35 @@ options, rooted resolver, and test overlaid. `dotnet build Dami.sln --nologo` pr
 --verify-no-changes --no-restore --verbosity minimal` exited 0. No migration is
 involved. G6b1 is flipped to `[x]`, and G6b2 is claimed before process code is written.
 
+G6b2 began with a shell-injection test only. It allowlisted `/usr/bin/printf` under an
+alias and passed a payload containing `; touch <marker>` as a literal argument. The
+compile failed red with CS0246 for the absent process handler/options. The minimum
+implementation snapshots aliases to existing absolute executable files, fixes the
+working directory to the canonical configured root, sets `UseShellExecute=false`, and
+adds every argument exclusively through `ProcessStartInfo.ArgumentList`. Stdout and
+stderr were drained concurrently and cancellation killed the process tree. The test
+then passed 1/1: the payload was printed exactly, no marker was created, and exit/alias
+evidence was returned.
+
+A second test required five output bytes to fail under a four-byte combined limit. It
+failed red because the initial `ReadToEndAsync` implementation returned all five. The
+replacement uses two cleared `ArrayPool<byte>` captures over the raw stdout/stderr
+streams and one atomic shared budget. Exceeding the budget asynchronously cancels a
+linked token, whose callback kills the entire process tree; successful output is
+strictly decoded only after both pipes and process exit complete. The first green
+compile was correctly stopped by VSTHRD103 for synchronous cancellation and DAMI0003
+at 31 lines. Awaiting `CancelAsync` and extracting successful-result construction made
+the unchanged cap behavior pass 1/1. The process class passed 2/2 and the entire native
+suite passed 9/9.
+
+G6b2 and G6b are demonstrated. Definitive verification ran in
+`/tmp/dami-g6b2-gate.2F0Mej/repo` at released HEAD `a1d9033` with only the process
+handler, options, bounded-capture helper, and test overlaid, isolating Claude's active
+G8 work. `dotnet build Dami.sln --nologo` produced 0 warnings and 0 errors; all twelve
+suites passed 399/399; and `dotnet format Dami.sln --verify-no-changes --no-restore
+--verbosity minimal` exited 0. No migration is involved. G6b/G6b2 are flipped to
+`[x]`, and G6c is claimed before model or turn orchestration changes begin.
+
 ## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
 
 Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,

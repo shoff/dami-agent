@@ -101,10 +101,10 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [ ] G5 Runtime API on localhost (D-005) so CLI/GUI/voice become thin clients; retire the CLI's direct-store deviation
 - [~ Codex 2026-08-23] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4
   - [x] G6a Source-neutral invocation/result contract + native implementation registry and timeout boundary
-  - [~ Codex 2026-08-23] G6b Root-confined file operations + allowlisted no-shell process execution
+  - [x] G6b Root-confined file operations + allowlisted no-shell process execution
     - [x] G6b1 Canonical-path/symlink-safe bounded file reading
-    - [~ Codex 2026-08-23] G6b2 Allowlisted executable + `ArgumentList` process execution with bounded output and no shell
-  - [ ] G6c Model/turn tool loop with truthful events, cancellation, and approval handoff
+    - [x] G6b2 Allowlisted executable + `ArgumentList` process execution with bounded output and no shell
+  - [~ Codex 2026-08-23] G6c Model/turn tool loop with truthful events, cancellation, and approval handoff
   - [ ] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
 - [x] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6 (WorkerRunner; vision caption is the first live worker)
