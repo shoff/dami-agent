@@ -118,6 +118,9 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] F5c1 Version-pinned promotion/approval state machine + transactional ledger/events
     - [x] F5c2 Fixed package-free build/test envelope + bounded bubblewrap execution
     - [~ Codex 2026-08-24] F5c3 Failure-atomic activation/recovery + Host/live human-promotion demonstration
+      - [~ Codex 2026-08-24] F5c3a Durable exact-artifact verification/activation state and terminal events
+      - [ ] F5c3b Failure-atomic registry publication + startup recovery
+      - [ ] F5c3c Host promotion surfaces + live conforming proposal demonstration
 
 ## G · Interactive runtime
 

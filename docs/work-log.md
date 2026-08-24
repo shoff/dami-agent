@@ -6019,3 +6019,16 @@ passed 1/1. F5c2 is complete with those observations, and F5c3 activation/recove
 claimed before implementation. The final mandatory solution gate built all 35 projects
 with 0 warnings and 0 errors, all seventeen test assemblies passed 751/751, and format
 verification exited 0 without diagnostics.
+
+## 2026-08-24 — Codex — F5c3 split; F5c3a claimed
+
+Pulled the synchronized clean tree after F5c2 and re-read `CLAUDE.md`, `AGENTS.md`,
+onboarding, workstation runbook §7, ADR-0019, the F5/status text, and the current
+capability registries, promotion store, skill recovery processor, approval dispatcher,
+and Host composition. F5c3 crosses three independently testable failure boundaries, so
+it is split before production code: F5c3a owns durable exact-artifact verification and
+activation state plus terminal events; F5c3b owns exact-instance rollback across
+handler, schema, and metadata publication plus startup convergence; F5c3c owns the
+localhost human-promotion surfaces and live conforming end-to-end proof. F5c3a is
+claimed. Its first behavior change will begin with a focused failing test; no production
+implementation has changed in this slice yet.
