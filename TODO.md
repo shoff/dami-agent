@@ -36,7 +36,10 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] A1 Host validated: Mint 22.3, GPU/CUDA proven in containers, .NET 10, PGDG Postgres 16 + pgvector 0.8.6, least-privilege roles (`dami_ddl`/`dami_app`)
 - [x] A2 Inference sidecars pinned & GPU-resident: TEI embed (8080), TEI rerank (8081), Ollama (11434) + `dami-llm-guard` timer for the CPU-fallback failure
 - [x] A3 Timeshift snapshots (ADR-0002) · nightly verified pg dumps (ADR-0003) · systemd `dami-proactive` service · `dami` CLI on PATH
-- [ ] A4 Off-host, encrypted backup destination + stated RPO (closes the register's backup decision; ADR-0003 is interim-only) `[STEVE: destination choice]`
+- [ ] A4 Off-host, **encrypted** backup destination + stated RPO `[STEVE: destination + a GPG key]`
+  - [x] A4a **Second-device mirror** (Claude 2026-08-24) — the cluster AND every backup sat on `/dev/nvme1n1p6`; one drive failure lost all of it. `dami-pg-backup` now mirrors each verified run to `/var/backups/dami` on `/dev/nvme0n1p3`, re-verifying checksums at the destination and warning loudly (without failing the primary) if it cannot. Survives a dead disk — **not** a fire, a theft, or this machine being wrong, which is what A4 is still for
+  - [ ] A4b Encryption: no GPG key exists on this host. Steve creates one (`gpg --full-generate-key`) and the mirror encrypts to it — no stored passphrase, only he can decrypt
+  - [ ] A4c Off-host destination: Steve's choice (NAS, the Mac, cloud)
 - [x] A5 `apt-mark hold` / controlled-update windows for the NVIDIA driver stack (29 pkgs held @ 595.84; procedure in runbook §4)
 - [STEVE] A6 PostgreSQL major version — **ADR-0016 proposed** (Claude 2026-08-24): migration to 17 rehearsed end to end on a scratch cluster — dump 38s, restore 21s, **0 errors**, all row counts matched, pgvector working, append-only guards still refusing DELETE/UPDATE. Recommends 17 now while the DB is 108 MB, for the rehearsal value rather than any feature. Accept/reject
 - [ ] A7 ADR-0001 (host OS = Mint) accept/reject `[STEVE]`

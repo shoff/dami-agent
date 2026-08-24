@@ -6647,3 +6647,27 @@ only that version, plus a live conforming proposal demonstration through the dep
 sandbox. The required pre-claim `git pull --ff-only` first failed under root because
 root has no GitHub SSH key; rerunning as Steve reported `Already up to date` and changed
 nothing. No authentication redesign or non-tool approval work enters this slice.
+
+## 2026-08-24 — Claude — A4a: the backups were on the same disk as the database
+
+Checked where things actually live rather than assuming: the PostgreSQL data directory
+is `/home/steve/Data/pgsql-dami-data` and the backup directory is
+`/home/steve/Data/pg-backups` — **both on `/dev/nvme1n1p6`**. One drive failure took
+the database and every copy of it. The nightly job was working perfectly and protecting
+against nothing but a bad `DELETE`.
+
+`dami-pg-backup` now mirrors each verified run to `/var/backups/dami` on
+`/dev/nvme0n1p3`, a different physical NVMe, and re-verifies the checksums at the
+destination — a mirror nobody checks is a belief, not a backup. The mirror is
+deliberately non-fatal: if it cannot be written or verified it warns loudly and the
+primary run still succeeds, because a broken second copy should never cost the first.
+Its first attempt did exactly that, refusing to write because the service runs as
+`postgres` and `/var/backups` is root-owned — the failure was visible rather than
+silent, which is the whole point.
+
+Stated plainly, because it would be easy to now believe this is done: **this is not
+A4**. It survives a dead disk. It does not survive a fire, a theft, or this machine
+being wrong. A4 needs an off-host destination (Steve's choice) and encryption — and
+there is no GPG key on this host at all, so encrypting to Steve's key is something
+only he can start. Both are now named separately on the board rather than hidden
+inside one unfinished item.
