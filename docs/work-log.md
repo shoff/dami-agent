@@ -6320,3 +6320,27 @@ an immutable runtime location and converge durable approved activation records i
 F5c3b1's handler/schema/metadata publication seam after a crash or restart. F5c3b3
 retains Host composition and live startup proof. The first recovery/materialization
 behavior will be written and observed failing before production implementation.
+
+## 2026-08-24 — Claude — Regression tests for the two bugs that reached Steve
+
+Both defects he hit today lived in Host endpoint composition, and both were caught by
+a human rather than the suite. Now covered — and each test was mutation-checked by
+reverting its fix to confirm it actually fails:
+
+- **Surfacing feedback** (6 tests): rating delivers the surfacing so it leaves the
+  queue, records the reaction, joins it to the corpus, combines a note with the
+  verdict, and 404s an unknown prefix without delivering anything. Reverting the
+  `DeliverAsync` call turns one red.
+- **Frontier and refusals** (7 tests): a boundary refusal returns 403 with its reason
+  rather than an unhandled 500; a flagged turn routes to the frontier, reports zero
+  memories, and leaves the local runner untouched; an unflagged turn stays local.
+  Changing the 403 to a 500 turns one red.
+
+Correction to my earlier claim that the Host had no tests: Codex had already built
+`Dami.Host.Tests` with 21 tests over sessions, composition, skills, and tool
+proposals. None touched surfacing feedback, frontier turns, or refusals — the actual
+gap, and exactly where my bugs shipped. Host suite is now 36.
+
+I also briefly overwrote Codex's `Dami.Host.Tests.csproj` by creating the project I
+assumed was missing; restored from git within the minute, their test files untouched.
+Check `git ls-files` before creating anything in a shared tree.
