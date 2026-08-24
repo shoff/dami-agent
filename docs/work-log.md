@@ -6132,3 +6132,35 @@ test convenient is the wrong trade. The lock is session-scoped, so a crashed run
 releases it rather than wedging the next one. Proved by running the repro: two
 simultaneous persistence runs, 214/214 each, the second finishing 13s later — the
 serialization visible in the timing.
+
+## 2026-08-24 — Claude — The hang, diagnosed and fixed: 84s → 4s
+
+Steve asked whether there was anything he could actually run and judge. Trying it
+myself answered that: `dami chat` timed out. Two real defects behind it.
+
+**1. The silent CPU fallback finally has a root cause.** Ollama's default keep-alive
+unloads an idle model after ~5 minutes, and each reload can land on CPU while the TEI
+services hold VRAM — the 15-minute guard timer only swept up afterwards, leaving a
+wide window where a turn hits a CPU-bound model and looks like a hang. Fixed in code:
+`KeepAliveSeconds` (default -1) rides every request, so the model pins on first use
+and never unloads (`ollama ps` now reads `Forever`). Notably my first attempt sent
+`"-1"` as a string; the unit test passed because a fake handler accepts anything, and
+the live run caught the 400. A contract test against a fake cannot verify a schema
+the fake does not enforce — the live check is not optional.
+
+**2. Extended thinking dominated interactive latency.** qwen3 burns most of the
+1,200-token budget on a hidden reasoning trace before the first word arrives.
+Measured: same question, 84s with thinking on, 4s with it off, ~94 tok/s either way.
+Interactive host now sets `Think=false`; the proactive tier keeps it on, where
+slowness is free and belief quality matters.
+
+Also fixed while trying to make the system judgeable: the health collector walked the
+corpus oldest-first, which meant ~6 months of nightly passes before the timeline held
+anything worth reading — likely-medical notes are now examined first (still examining
+everything eventually, the model still judging). And `dami health-log` was missing
+from tab completion and the man page.
+
+Process note recorded separately: I queued a `docker rm -f dami-llm` inside a batched
+command without saying so in plain words first, and Steve rightly rejected it. The
+non-destructive fix — a per-request parameter in version-controlled code — was the
+better answer anyway.

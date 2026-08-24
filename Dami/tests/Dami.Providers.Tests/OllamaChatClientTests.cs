@@ -40,11 +40,35 @@ public sealed class OllamaChatClientTests
         }
     }
 
-    private static OllamaChatClient CreateClient()
+    [Fact]
+    public async Task StreamAsync_Should_Pin_The_Model_Resident()
     {
         var handler = new StreamHandler(STREAM);
+        var client = CreateClient(handler);
+
+        await foreach (var _ in client.StreamAsync("hi", CancellationToken.None))
+        {
+            // drain
+        }
+
+        Assert.Contains("\"keep_alive\":-1", handler.LastBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_Should_Pin_The_Model_Resident()
+    {
+        var handler = new StreamHandler("""{"response":"hi","done":true}""");
+        var client = CreateClient(handler);
+
+        await client.CompleteAsync("hi", CancellationToken.None);
+
+        Assert.Contains("\"keep_alive\":-1", handler.LastBody, StringComparison.Ordinal);
+    }
+
+    private static OllamaChatClient CreateClient(StreamHandler? handler = null)
+    {
         return new OllamaChatClient(
-            new HttpClient(handler),
+            new HttpClient(handler ?? new StreamHandler(STREAM)),
             Options.Create(new OllamaOptions()),
             NullLogger<OllamaChatClient>.Instance);
     }
@@ -58,14 +82,23 @@ public sealed class OllamaChatClientTests
             this.body = body;
         }
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        /// <summary>The JSON the client last sent — what the sidecar would actually receive.</summary>
+        public string LastBody { get; private set; } = string.Empty;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            if (request.Content is not null)
+            {
+                this.LastBody = await request.Content.ReadAsStringAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(this.body),
-            });
+            };
         }
     }
 }

@@ -25,4 +25,18 @@ public sealed class OllamaOptions
 
     /// <summary>Cap on generated tokens per completion.</summary>
     public int MaxTokens { get; set; } = 1200;
+
+    /// <summary>
+    /// Seconds the sidecar keeps the model resident: <c>-1</c> never unloads (the
+    /// default here, deliberately), <c>0</c> unloads immediately.
+    /// </summary>
+    /// <remarks>
+    /// The sidecar's own default unloads after about five minutes idle, and each
+    /// reload is a fresh chance to land on CPU when the embedding and rerank services
+    /// hold VRAM. That silent fallback has bitten this host repeatedly: the answer
+    /// still arrives, just at a few tokens a second, so it reads as a hang rather than
+    /// a failure. Pinning the model removes the reload, and with it the window.
+    /// </remarks>
+    public int KeepAliveSeconds { get; set; } = -1;
 }
+

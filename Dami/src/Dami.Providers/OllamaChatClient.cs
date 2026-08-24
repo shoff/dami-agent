@@ -43,6 +43,7 @@ public sealed class OllamaChatClient : IChatClient
             prompt,
             think = this.ollamaOptions.Think,
             stream = false,
+            keep_alive = this.ollamaOptions.KeepAliveSeconds,
             options = new { num_predict = this.ollamaOptions.MaxTokens },
         };
 
@@ -94,6 +95,7 @@ public sealed class OllamaChatClient : IChatClient
             prompt,
             think = this.ollamaOptions.Think,
             stream = true,
+            keep_alive = this.ollamaOptions.KeepAliveSeconds,
             options = new { num_predict = this.ollamaOptions.MaxTokens },
         };
 

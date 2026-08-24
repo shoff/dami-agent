@@ -227,6 +227,33 @@ publishes the visible filesystem snapshot, then converges any durable changes la
 a successful terminal event before Kestrel becomes ready. Verify the journal line
 `Skill recovery completed with 0 change(s)` and `/health` after a deployment.
 
+### The silent CPU fallback — root cause found and fixed (2026-08-24)
+
+The sidecar had fallen back to `100% CPU` six times. Root cause: Ollama's default
+keep-alive unloads an idle model after ~5 minutes, and **every reload is a fresh
+chance to land on CPU** when the TEI embedding/rerank services hold VRAM. The
+15-minute guard timer only swept up afterwards, so an interactive turn could hit a
+CPU-bound model and appear to hang — generation still works, at ~2 tok/s instead of
+~94.
+
+Fixed in code, not by container surgery: `OllamaOptions.KeepAliveSeconds` (default
+`-1`) is sent with every request, so the model pins on first use and never unloads.
+`ollama ps` should read `Forever` in the UNTIL column. The guard timer stays as a
+backstop.
+
+Note the value must be a **number** (`-1`), not the string `"-1"` — Ollama returns
+400 for the string form, and a unit test against a fake handler cannot catch that.
+
+### Interactive latency: thinking is off for turns, on for reflection
+
+`qwen3:8b` generates a long hidden reasoning trace when `think` is true, and the
+user waits for all of it inside a 1,200-token budget. Measured on this host: the
+same question took **84s with thinking on, 4s with it off** — generation itself runs
+at ~94 tok/s either way. `/opt/dami/host/appsettings.json` therefore sets
+`Ollama.Think=false` for the interactive runtime, while the proactive tier keeps it
+on, where a slow careful pass costs nobody anything and belief quality matters.
+Revert by deleting that key.
+
 ### 4.x NVIDIA driver stack is held (A5)
 
 All 29 `nvidia-*`/`libnvidia-*` packages are `apt-mark hold` as of 2026-08-23
