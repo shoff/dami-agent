@@ -3664,6 +3664,14 @@ suites passed 399/399; and `dotnet format Dami.sln --verify-no-changes --no-rest
 --verbosity minimal` exited 0. No migration is involved. G6b/G6b2 are flipped to
 `[x]`, and G6c is claimed before model or turn orchestration changes begin.
 
+G6c is split before implementation along architectural seams. G6c1 is claimed for a
+provider-neutral bounded tool-loop state machine and truthful requested/started/
+completed/failed events. G6c2 will adapt Ollama's structured tool protocol and expose
+only schemas from the semantically selected bundle. G6c3 will route consequential
+write/patch operations through the existing G7 approval contract. This prevents model
+wire JSON, execution orchestration, event persistence, and approval policy from
+collapsing into one `TurnRunner` method.
+
 ## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
 
 Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,

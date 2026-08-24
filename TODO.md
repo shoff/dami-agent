@@ -105,6 +105,9 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] G6b1 Canonical-path/symlink-safe bounded file reading
     - [x] G6b2 Allowlisted executable + `ArgumentList` process execution with bounded output and no shell
   - [~ Codex 2026-08-23] G6c Model/turn tool loop with truthful events, cancellation, and approval handoff
+    - [~ Codex 2026-08-23] G6c1 Provider-neutral bounded tool-loop state machine + truthful events
+    - [ ] G6c2 Ollama tool-call adapter with only semantically selected schemas
+    - [ ] G6c3 Approval-gated write/patch handoff through the G7 contract
   - [ ] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
 - [x] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6 (WorkerRunner; vision caption is the first live worker)
