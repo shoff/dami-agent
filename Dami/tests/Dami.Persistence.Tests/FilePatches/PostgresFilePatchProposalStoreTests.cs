@@ -2,6 +2,7 @@ using Dami.Contracts.Approvals;
 using Dami.Contracts.Events;
 using Dami.Contracts.FilePatches;
 using Dami.Persistence.Approvals;
+using Dami.Persistence.Events;
 using Dami.Persistence.FilePatches;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -47,6 +48,20 @@ public sealed class PostgresFilePatchProposalStoreTests
     }
 
     [Fact]
+    public async Task CreateAsync_Should_Append_ApprovalRequested_In_The_Aggregate_Transaction()
+    {
+        await this.fixture.ResetAsync();
+        var (_, _, approval, _) = await this.CreateStoredProposalAsync();
+
+        var events = await this.ReplayAsync(approval.TraceId);
+
+        var requested = Assert.Single(events);
+        Assert.Equal(ExecutionEventType.ApprovalRequested, requested.Type);
+        Assert.Equal(approval.ApprovalId, requested.SpanId);
+        Assert.Equal(approval.ParentSpanId, requested.ParentSpanId);
+    }
+
+    [Fact]
     public async Task CreateAsync_Should_Be_Idempotent_For_The_Exact_Proposal()
     {
         await this.fixture.ResetAsync();
@@ -56,6 +71,7 @@ public sealed class PostgresFilePatchProposalStoreTests
 
         Assert.Equal(proposal, await store.FindByApprovalAsync(
             proposal.ApprovalId, CancellationToken.None));
+        Assert.Single(await this.ReplayAsync(approval.TraceId));
     }
 
     [Fact]
@@ -107,6 +123,21 @@ public sealed class PostgresFilePatchProposalStoreTests
 
         Assert.Null(await approvals.FindAsync(
             conflictingApproval.ApprovalId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CreateAsync_Should_Roll_Back_The_Aggregate_When_The_Event_Fails()
+    {
+        await this.fixture.ResetAsync();
+        var (store, approvals, approval, proposal) = this.CreateProposalAggregate();
+        await using var rejection = await RejectingExecutionEventTrigger.CreateAsync(
+            this.fixture.DataSource, DatabaseFixture.SCHEMA, ExecutionEventType.ApprovalRequested);
+
+        await Assert.ThrowsAsync<PostgresException>(
+            () => store.CreateAsync(approval, proposal, CancellationToken.None));
+
+        Assert.Null(await approvals.FindAsync(approval.ApprovalId, CancellationToken.None));
+        Assert.Null(await store.FindByApprovalAsync(approval.ApprovalId, CancellationToken.None));
     }
 
     [Fact]
@@ -170,6 +201,19 @@ public sealed class PostgresFilePatchProposalStoreTests
         FilePatchProposal Proposal)>
         CreateStoredProposalAsync()
     {
+        var aggregate = this.CreateProposalAggregate();
+        await aggregate.Store.CreateAsync(
+            aggregate.Approval, aggregate.Proposal, CancellationToken.None);
+        return aggregate;
+    }
+
+    private (
+        PostgresFilePatchProposalStore Store,
+        PostgresApprovalService Approvals,
+        ApprovalRequest Approval,
+        FilePatchProposal Proposal)
+        CreateProposalAggregate()
+    {
         var options = Options.Create(new PostgresOptions { SchemaName = DatabaseFixture.SCHEMA });
         var approvals = new PostgresApprovalService(
             this.fixture.DataSource, options, NullLogger<PostgresApprovalService>.Instance);
@@ -181,7 +225,20 @@ public sealed class PostgresFilePatchProposalStoreTests
             Guid.NewGuid(), approval.ApprovalId, approval.TraceId, spanId, "notes.txt",
             "replacement text", FilePatchProposal.HashOf("replacement text"), new string('a', 64), at);
         var store = new PostgresFilePatchProposalStore(this.fixture.DataSource, options);
-        await store.CreateAsync(approval, proposal, CancellationToken.None);
         return (store, approvals, approval, proposal);
+    }
+
+    private async Task<List<ExecutionEvent>> ReplayAsync(Guid traceId)
+    {
+        var options = Options.Create(new PostgresOptions { SchemaName = DatabaseFixture.SCHEMA });
+        var store = new PostgresExecutionEventStore(
+            this.fixture.DataSource, options, NullLogger<PostgresExecutionEventStore>.Instance);
+        var events = new List<ExecutionEvent>();
+        await foreach (var executionEvent in store.ReplayAsync(traceId, CancellationToken.None))
+        {
+            events.Add(executionEvent);
+        }
+
+        return events;
     }
 }

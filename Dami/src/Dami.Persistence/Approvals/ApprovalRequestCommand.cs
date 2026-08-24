@@ -6,6 +6,23 @@ namespace Dami.Persistence.Approvals;
 /// <summary>Shared SQL and parameters for idempotently filing an approval request.</summary>
 internal static class ApprovalRequestCommand
 {
+    public static async Task EnsureExactReplayAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string table,
+        ApprovalRequest request,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(ExactReplaySql(table), connection, transaction);
+        AddParameters(command, request);
+        var exact = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        if (exact is not true)
+        {
+            throw new InvalidOperationException(
+                $"Approval '{request.ApprovalId}' conflicts with its immutable stored value.");
+        }
+    }
+
     public static string InsertSql(string table)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(table);
@@ -35,5 +52,25 @@ internal static class ApprovalRequestCommand
         command.Parameters.AddWithValue("origin", request.Origin.ToString());
         command.Parameters.AddWithValue(
             "parent_span", (object?)request.ParentSpanId ?? DBNull.Value);
+    }
+
+    private static string ExactReplaySql(string table)
+    {
+        return $"""
+            select trace_id = @trace
+               and requested_by = @by
+               and action = @action
+               and scope = @scope
+               and resource = @resource
+               and status = @status
+               and requested_at = @at
+               and origin = @origin
+               and parent_span_id is not distinct from @parent_span
+               and resolved_at is null
+               and resolved_note is null
+               and expires_at is not distinct from @expires
+              from {table}
+             where approval_id = @id;
+            """;
     }
 }

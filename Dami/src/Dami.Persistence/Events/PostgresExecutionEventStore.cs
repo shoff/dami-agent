@@ -5,7 +5,6 @@ using Dami.Contracts.Events;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
-using NpgsqlTypes;
 
 namespace Dami.Persistence.Events;
 
@@ -46,24 +45,7 @@ public sealed class PostgresExecutionEventStore : IExecutionEventStore
     /// </remarks>
     public static string BuildAppendSql(string table)
     {
-        ArgumentNullException.ThrowIfNull(table);
-
-        return $"""
-            with appended as (
-                insert into {table}
-                    (event_id, trace_id, span_id, parent_span_id, origin, actor_id,
-                     type, status, occurred_at, label, payload_reference, metadata)
-                values
-                    (@event_id, @trace_id, @span_id, @parent_span_id, @origin, @actor_id,
-                     @type, @status, @occurred_at, @label, @payload_reference, @metadata)
-                on conflict (event_id) do nothing
-                returning sequence
-            )
-            select sequence from appended
-            union all
-            select sequence from {table} where event_id = @event_id
-            limit 1;
-            """;
+        return ExecutionEventCommand.AppendSql(table);
     }
 
     /// <summary>Replay SQL, ordered by the sequence the store assigned.</summary>
@@ -86,7 +68,7 @@ public sealed class PostgresExecutionEventStore : IExecutionEventStore
         ArgumentNullException.ThrowIfNull(executionEvent);
 
         await using var command = this.dataSource.CreateCommand(BuildAppendSql(this.Table));
-        AddAppendParameters(command, executionEvent);
+        ExecutionEventCommand.AddParameters(command, executionEvent);
 
         var scalar = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
 
@@ -159,27 +141,6 @@ public sealed class PostgresExecutionEventStore : IExecutionEventStore
                    type, status, occurred_at, label, payload_reference, metadata
             from {table}
             """;
-    }
-
-    private static void AddAppendParameters(NpgsqlCommand command, ExecutionEvent source)
-    {
-        command.Parameters.AddWithValue("event_id", source.EventId);
-        command.Parameters.AddWithValue("trace_id", source.TraceId);
-        command.Parameters.AddWithValue("span_id", source.SpanId);
-        command.Parameters.AddWithValue("parent_span_id", (object?)source.ParentSpanId ?? DBNull.Value);
-        command.Parameters.AddWithValue("origin", source.Origin.ToString());
-        command.Parameters.AddWithValue("actor_id", source.ActorId);
-        command.Parameters.AddWithValue("type", source.Type.ToString());
-        command.Parameters.AddWithValue("status", source.Status.ToString());
-        command.Parameters.AddWithValue("occurred_at", source.OccurredAt);
-        command.Parameters.AddWithValue("label", source.Label);
-        command.Parameters.AddWithValue("payload_reference", (object?)source.PayloadReference ?? DBNull.Value);
-
-        var metadata = source.Metadata is null
-            ? (object)DBNull.Value
-            : JsonSerializer.Serialize(source.Metadata);
-
-        command.Parameters.Add(new NpgsqlParameter("metadata", NpgsqlDbType.Jsonb) { Value = metadata });
     }
 
     private async IAsyncEnumerable<ExecutionEvent> StreamAsync(

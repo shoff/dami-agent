@@ -1,6 +1,7 @@
 using Dami.Contracts.Approvals;
 using Dami.Contracts.FilePatches;
 using Dami.Persistence.Approvals;
+using Dami.Persistence.Events;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
@@ -11,6 +12,7 @@ public sealed class PostgresFilePatchProposalStore : IFilePatchProposalStore
 {
     private readonly NpgsqlDataSource dataSource;
     private readonly string approvalsTable;
+    private readonly string eventsTable;
     private readonly string table;
 
     /// <summary>Creates the proposal store.</summary>
@@ -23,6 +25,7 @@ public sealed class PostgresFilePatchProposalStore : IFilePatchProposalStore
         this.dataSource = dataSource;
         var schema = options.Value.SchemaName;
         this.approvalsTable = $"{schema}.approvals";
+        this.eventsTable = $"{schema}.execution_events";
         this.table = $"{schema}.file_patch_proposals";
     }
 
@@ -41,6 +44,12 @@ public sealed class PostgresFilePatchProposalStore : IFilePatchProposalStore
             connection, transaction, approval, cancellationToken).ConfigureAwait(false);
         await this.InsertProposalAsync(
             connection, transaction, proposal, cancellationToken).ConfigureAwait(false);
+        await ExecutionEventCommand.AppendAsync(
+            connection,
+            transaction,
+            this.eventsTable,
+            ApprovalExecutionEventFactory.Requested(approval),
+            cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -69,8 +78,9 @@ public sealed class PostgresFilePatchProposalStore : IFilePatchProposalStore
         var inserted = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         if (inserted == 0)
         {
-            await this.EnsureExactApprovalReplayAsync(
-                connection, transaction, approval, cancellationToken).ConfigureAwait(false);
+            await ApprovalRequestCommand.EnsureExactReplayAsync(
+                connection, transaction, this.approvalsTable, approval, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
@@ -142,50 +152,11 @@ public sealed class PostgresFilePatchProposalStore : IFilePatchProposalStore
         }
     }
 
-    private async Task EnsureExactApprovalReplayAsync(
-        NpgsqlConnection connection,
-        NpgsqlTransaction transaction,
-        ApprovalRequest approval,
-        CancellationToken cancellationToken)
-    {
-        await using var command = new NpgsqlCommand(
-            $"""
-            select trace_id = @trace
-               and requested_by = @by
-               and action = @action
-               and scope = @scope
-               and resource = @resource
-               and status = @status
-               and requested_at = @at
-               and origin = @origin
-               and parent_span_id is not distinct from @parent_span
-               and resolved_at is null
-               and resolved_note is null
-               and expires_at is not distinct from @expires
-              from {this.approvalsTable}
-             where approval_id = @id;
-            """,
-            connection,
-            transaction);
-        ApprovalRequestCommand.AddParameters(command, approval);
-        var exact = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-        if (exact is not true)
-        {
-            throw new InvalidOperationException(
-                $"Approval '{approval.ApprovalId}' conflicts with its immutable requested value.");
-        }
-    }
-
     private static void ValidateAggregate(ApprovalRequest approval, FilePatchProposal proposal)
     {
         ArgumentNullException.ThrowIfNull(approval);
         ArgumentNullException.ThrowIfNull(proposal);
-        if (approval.Status != ApprovalStatus.Pending
-            || approval.ResolvedAt is not null
-            || approval.ResolvedNote is not null)
-        {
-            throw new ArgumentException("File patch approvals must be unresolved and pending.", nameof(approval));
-        }
+        ApprovalRequestGuard.EnsurePending(approval, nameof(approval));
 
         if (approval.ApprovalId != proposal.ApprovalId
             || approval.TraceId != proposal.TraceId

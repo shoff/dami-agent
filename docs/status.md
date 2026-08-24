@@ -147,6 +147,15 @@ exited 0. Migration 018 is checksummed and applied with none pending; live backf
 classifies the librarian `ScheduledService`, both interactive requesters `UserTurn`, and
 attaches the file-patch approval to its exact tool span.
 
+Verification on 2026-08-24 for G7a2: approval request/resolution event persistence,
+immutable retry convergence, domain validation, and database fault rollback passed
+23/23 focused and 143/143 PostgreSQL integration tests. The solution build completed
+with 0 warnings and 0 errors, all twelve suites passed 507/507, and format verification
+exited 0. No migration is required beyond applied migration 018. Live trace
+`a2d560a7…` recorded `ApprovalRequested` sequence 217 and `ApprovalResolved` sequence
+220 on approval span `ce44b31d…`, parented to tool span `dbbcefd0…`; denial left the
+proposed target absent. G7/G7a are closed.
+
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
 | Item | State | Evidence |
@@ -406,7 +415,7 @@ demonstrated. "partial" means a real demonstration exists for part of the item's
 |---|---|---|---|
 | 1 | Start/resume/interrupt/reconnect without duplication | partial | append idempotent on `event_id` (tested); no interactive sessions yet |
 | 2 | Stream through CLI and GUI | **demonstrated** | `dami chat` streams over SSE from dami-host; the web view at :5810/ streams the same turns and renders the same event feed |
-| 3 | Render tools/workers/approvals truthfully | partial | `dami trace` renders only persisted events and tool spans are parented beneath capability selection. Workers are represented, but the G6d live audit proved `ApprovalRequested`/`ApprovalResolved` are not yet emitted; G7a is claimed. No rich-client GUI yet. |
+| 3 | Render tools/workers/approvals truthfully | partial | `dami trace` renders only persisted events; tools and approvals have truthful parent spans, both approval lifecycle events were demonstrated live on trace `a2d560a7…`, and workers are represented. No rich-client GUI yet. |
 | 4 | Bounded terminal and file operations | **demonstrated** | G6 live on the production Host: trace `033a3241…` read the exact 38-byte workspace file; `142c125d…` executed allowlisted no-shell `pwd`; `398805c8…` proposed a create while the target stayed absent, then approval created the exact reviewed 23 bytes (`3fca2859…`); `12a6db66…` rejected alias `sh`, emitted ToolFailed/TraceFailed, and created nothing. |
 | 5 | Explicit approval honored | **demonstrated** | G7: durable approval contract, single-resolution in SQL; librarian propose→approve→execute live; C4 egress briefs gated the same way |
 | 6 | Worker with child trace and evidence | **demonstrated** | `WorkerRunner`: child span under the parent, hard time bound, failure recorded not thrown; `dami caption` runs vision as a worker — trace replayed with the child span nested |

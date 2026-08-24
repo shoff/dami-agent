@@ -4679,3 +4679,53 @@ now read: `frontier-brief|UserTurn|NULL`,
 `media-librarian|ScheduledService|NULL`, and
 `native:propose-file-patch|UserTurn|f395c371-c6c5-4fb9-92d3-b68b5b261e6c`—the exact
 G6d proposal tool span. G7a1 is `[x]`; G7a2 is claimed to make the events atomic.
+
+## 2026-08-24 — Codex — G7a2 atomic approval trace events complete
+
+The first request-event test completed red 0/1 because the trace was empty (an earlier
+30-second invocation yielded without a terminal result and was not counted), then
+passed 1/1 after the approval insert and deterministic `ApprovalRequested` append were
+put in one PostgreSQL transaction. The resolution test completed red 0/1 because no
+matching event existed; its first implementation then failed DAMI0003 at 49 body lines.
+Command creation and resolution reading were extracted without suppression, after
+which it passed 1/1. The file-patch aggregate test separately completed red 0/1 with an
+empty trace, then passed after proposal, approval, and request event shared its existing
+transaction.
+
+`ExecutionEventCommand` now owns append SQL/JSON parameters for both standalone and
+transactional stores. `ApprovalExecutionEventFactory` derives retry-stable IDs with
+stack-allocated GUID bytes and SHA-256 state, uses the approval ID as the lifecycle
+span, retains origin/parent provenance, and maps denial/expiry to Cancelled. A
+conflicting immutable replay test failed red because no exception was thrown, then
+passed after exact replay SQL moved into one shared approval command. A pre-resolved
+request test failed red with PostgreSQL check violation instead of `ArgumentException`,
+then passed after a shared pending-request domain guard. The affected approval and
+file-patch slice passed 23/23 and the full persistence suite passed 143/143.
+
+PostgreSQL fault-injection coverage rejects each event type inside the database. It
+proved a rejected request event leaves no approval, a rejected resolution event leaves
+the approval Pending, and a rejected file-patch request event leaves neither approval
+nor proposal. These rollback tests were written after the event transactions existed,
+so they are coverage, not red-first TDD; the emission, resolution, aggregate, replay,
+and domain-validation behaviors above were red-first. This is an explicit deviation
+from the session plan, which had said rollback would be proved first.
+
+The mandatory full gate completed with build 0 warnings/0 errors, 507/507 tests across
+twelve suites, and format verification exit 0. The first direct Release publish over
+the running apphost failed with MSB3027/MSB3021 (`Text file busy`) after ten retries.
+A fresh `/tmp/dami-host-g7a2.7lJPx9` staging publish succeeded; stopping the unit,
+copying the complete artifacts, restoring Steve ownership, and restarting succeeded.
+The first health probe mistakenly used port 5077 and failed; unit evidence showed the
+documented loopback port 5810, which returned `{"status":"ok"}`. A later inspection
+attempt failed because `jq` is not installed, so raw API output was used. A migration
+check first named nonexistent `tools/migrate.sh` and failed before any action; the
+correct `tools/ddl/apply.sh --status` showed 001–018 applied and none pending. The
+known staging directory was then removed.
+
+Live local turn `a2d560a7-d547-4a9f-a4a3-fcdda5f0fe18` proposed creating
+`g7a2-live.txt`. Sequence 217 is `ApprovalRequested/Waiting` on approval span
+`ce44b31d-f986-467c-224e-85e293a824ad`, parented to exact tool span
+`dbbcefd0-ba4a-4f9e-85b8-6077581a0a8c`, with `UserTurn` origin. Denial through the
+runtime API added sequence 220, `ApprovalResolved/Cancelled`, on the same span and
+parent. Filesystem observation reported `target_absent=true`; the denial executed
+nothing. The service remained active and healthy. G7, G7a, and G7a2 are `[x]`.

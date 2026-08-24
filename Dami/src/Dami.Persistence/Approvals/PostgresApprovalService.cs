@@ -1,6 +1,7 @@
 using System.Data;
 using System.Runtime.CompilerServices;
 using Dami.Contracts.Approvals;
+using Dami.Persistence.Events;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -35,15 +36,35 @@ public sealed class PostgresApprovalService : IApprovalService
 
     private string Table => $"{this.storeOptions.SchemaName}.approvals";
 
+    private string EventsTable => $"{this.storeOptions.SchemaName}.execution_events";
+
     /// <inheritdoc />
     public async Task RequestAsync(ApprovalRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ApprovalRequestGuard.EnsurePending(request, nameof(request));
 
-        await using var command = this.dataSource.CreateCommand(
-            ApprovalRequestCommand.InsertSql(this.Table));
+        await using var connection = await this.dataSource
+            .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection
+            .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(
+            ApprovalRequestCommand.InsertSql(this.Table), connection, transaction);
         ApprovalRequestCommand.AddParameters(command, request);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        var inserted = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        if (inserted == 0)
+        {
+            await ApprovalRequestCommand.EnsureExactReplayAsync(
+                connection, transaction, this.Table, request, cancellationToken).ConfigureAwait(false);
+        }
+
+        await ExecutionEventCommand.AppendAsync(
+            connection,
+            transaction,
+            this.EventsTable,
+            ApprovalExecutionEventFactory.Requested(request),
+            cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -67,21 +88,14 @@ public sealed class PostgresApprovalService : IApprovalService
             throw new ArgumentException("Pending is not a resolution.", nameof(resolution));
         }
 
-        await using var command = this.dataSource.CreateCommand(
-            $"""
-            update {this.Table}
-               set status = @status, resolved_at = @at, resolved_note = @note
-             where approval_id = @id and status = 'Pending';
-            """);
-        command.Parameters.AddWithValue("id", approvalId);
-        command.Parameters.AddWithValue("status", resolution.ToString());
-        command.Parameters.AddWithValue("at", resolvedAt);
-        command.Parameters.AddWithValue("note", (object?)note ?? DBNull.Value);
-
-        var changed = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        var changed = await this.ResolvePendingAsync(
+            approvalId, resolution, note, resolvedAt, cancellationToken).ConfigureAwait(false);
         this.logger.LogInformation(
-            "Approval {ApprovalId} resolved {Resolution}: {Changed} row(s)", approvalId, resolution, changed);
-        return changed == 1;
+            "Approval {ApprovalId} resolved {Resolution}: {Changed} row(s)",
+            approvalId,
+            resolution,
+            changed ? 1 : 0);
+        return changed;
     }
 
     /// <inheritdoc />
@@ -137,4 +151,69 @@ public sealed class PostgresApprovalService : IApprovalService
             origin: Enum.Parse<Dami.Contracts.Events.ExecutionOrigin>(reader.GetString(11)),
             parentSpanId: reader.IsDBNull(12) ? null : reader.GetGuid(12));
     }
+
+    private async Task<bool> ResolvePendingAsync(
+        Guid approvalId,
+        ApprovalStatus resolution,
+        string? note,
+        DateTimeOffset resolvedAt,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await this.dataSource
+            .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection
+            .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = CreateResolutionCommand(
+            connection, transaction, this.Table, approvalId, resolution, note, resolvedAt);
+        var resolved = await ReadResolutionAsync(command, cancellationToken).ConfigureAwait(false);
+        if (resolved is null)
+        {
+            return false;
+        }
+
+        await ExecutionEventCommand.AppendAsync(
+            connection, transaction, this.EventsTable,
+            ApprovalExecutionEventFactory.Resolved(resolved), cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    private static NpgsqlCommand CreateResolutionCommand(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string table,
+        Guid approvalId,
+        ApprovalStatus resolution,
+        string? note,
+        DateTimeOffset resolvedAt)
+    {
+        var command = new NpgsqlCommand(
+            $"""
+            update {table}
+               set status = @status, resolved_at = @at, resolved_note = @note
+             where approval_id = @id and status = 'Pending'
+             returning approval_id, trace_id, requested_by, action, scope, resource, status,
+                       requested_at, resolved_at, resolved_note, expires_at, origin, parent_span_id;
+            """,
+            connection,
+            transaction);
+        command.Parameters.AddWithValue("id", approvalId);
+        command.Parameters.AddWithValue("status", resolution.ToString());
+        command.Parameters.AddWithValue("at", resolvedAt);
+        command.Parameters.AddWithValue("note", (object?)note ?? DBNull.Value);
+        return command;
+    }
+
+    private static async Task<ApprovalRequest?> ReadResolutionAsync(
+        NpgsqlCommand command,
+        CancellationToken cancellationToken)
+    {
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SingleResult,
+            cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+            ? Read(reader)
+            : null;
+    }
+
 }
