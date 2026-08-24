@@ -109,6 +109,16 @@ app.Use(async (context, next) =>
         await context.Response.WriteAsJsonAsync(new { refused = refusal.Message })
             .ConfigureAwait(false);
     }
+    catch (Exception failure) when (!context.Response.HasStarted)
+    {
+        // Name the cause. An empty 500 makes every client report the host as
+        // unreachable, which sends the reader to the network when the truth was a
+        // sidecar that had stopped. This is a single-user host on loopback; the
+        // detail is Steve's to see.
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        await context.Response.WriteAsJsonAsync(
+            new { error = failure.Message, kind = failure.GetType().Name }).ConfigureAwait(false);
+    }
 });
 
 // J3 first cut: a zero-install conversation + live-graph view, rendered entirely

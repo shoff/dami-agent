@@ -525,7 +525,7 @@ demonstrated. "partial" means a real demonstration exists for part of the item's
 | 5 | Explicit approval honored | **demonstrated** | G7: durable approval contract, single-resolution in SQL; librarian propose→approve→execute live; C4 egress briefs gated the same way |
 | 6 | Worker with child trace and evidence | **demonstrated** | `WorkerRunner`: child span under the parent, hard time bound, failure recorded not thrown; `dami caption` runs vision as a worker — trace replayed with the child span nested |
 | 7 | Persist and replay a completed turn | **demonstrated** | proactive passes AND an interactive `UserTurn` (`dami chat` → `dami trace`) persisted and replayed |
-| 8 | Recover cleanly from failures | **partial** | provider failure → `TraceFailed`, contained, retried at cadence — demonstrated live twice |
+| 8 | Recover cleanly from failures | **demonstrated** | deliberate injection: embeddings sidecar stopped mid-turn → the turn failed in ~2s (no hang), `TraceFailed` recorded the true cause (`Connection refused 127.0.0.1:8080`), the host stayed up, and the next turn succeeded unaided once the sidecar returned. The client now names the cause instead of blaming transport |
 | 9 | Identity across two providers | **demonstrated** | §9.1 identity block from one installed file leads local prompts; a persona-only voice line rides frontier prompts — "who are you" answers as Dami on qwen3 AND codex |
 | 10 | Relevant memory without flooding the prompt | **demonstrated** | `ContextBuilder` hard budget (2.5k tokens) over embed→ANN→rerank, tested; vs Hermes's measured 90–126k |
 | 11 | Discord without duplicate gateways | not yet | — |

@@ -6368,3 +6368,22 @@ errors from Codex's untracked in-flight slice. My own projects were clean in iso
 and the commit touched only my files, but our own rule says to say so *before*
 committing rather than after. In a shared tree the solution-wide gate is not a
 reliable signal; build the projects you touched and report the tree state separately.
+
+## 2026-08-24 — Claude — Acceptance item 8, found by breaking it on purpose
+
+Stopped the embeddings sidecar mid-turn to see whether a dependency failure is
+contained. The runtime behaved correctly — the turn failed in about two seconds
+rather than hanging, `TraceFailed` recorded the true cause (`Connection refused
+127.0.0.1:8080`), the host stayed up, and the next turn succeeded unaided once the
+sidecar came back. But the *client* said "dami-host unreachable", which points at the
+network when the truth was a stopped container. A correct system that misreports its
+own failure is still a system you cannot debug.
+
+Fixed on both paths: unhandled failures now answer 500 with `{error, kind}` naming the
+cause, and the CLI distinguishes "the runtime failed: <cause>" from "dami-host
+unreachable", pointing at the trace. The streaming path needed its own fix — it calls
+`PostStreamAsync` and was still using `EnsureSuccessStatusCode`, so the first attempt
+only fixed the JSON path and the live re-test caught it. Verified end to end by
+re-injecting the same failure and reading the message.
+
+Scoreboard item 8: demonstrated. 37 Host tests.

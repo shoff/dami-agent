@@ -52,6 +52,21 @@ public sealed class FrontierEndpointsTests
     }
 
     [Fact]
+    public async Task PostFrontier_Should_Name_The_Cause_When_A_Dependency_Fails()
+    {
+        this.frontierChat.CompleteAsync(Arg.Any<FrontierPrompt>(), Arg.Any<CancellationToken>())
+            .Returns<Task<string>>(_ => throw new HttpRequestException(
+                "Connection refused (127.0.0.1:8080)"));
+
+        using var response = await this.AskFrontierAsync();
+
+        using var body = await response.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.Contains(
+            "Connection refused", body!.RootElement.GetProperty("error").GetString()!,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PostTurn_Should_Use_The_Frontier_When_Asked()
     {
         this.frontierChat.CompleteAsync(Arg.Any<FrontierPrompt>(), Arg.Any<CancellationToken>())

@@ -44,7 +44,7 @@ public sealed class ChatCommands
         {
             using var response = await this.api.PostStreamAsync(
                 "/turns/stream", new { message = request }, cancellationToken).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
+            await DamiApiClient.ThrowIfFailedAsync(response, cancellationToken).ConfigureAwait(false);
 
             Console.WriteLine(
                 $"[{Header(response, "X-Dami-Route")} · ~{Header(response, "X-Dami-Ctx-Tokens")} ctx tokens"

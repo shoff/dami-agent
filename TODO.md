@@ -143,6 +143,10 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   grants, and revocation; scoped CLI/GUI/service clients and separately authorized
   approval resolution (ADR-0020)
 - [x] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4
+- [x] G11 **Subscription frontier restored and made usable** (Claude 2026-08-24) — a deploy had reverted the host `appsettings.json` and silently switched `Codex:Enabled` off; runtime config now lives in the `dami-host` systemd drop-in where deploys cannot reach it. `EgressRefusedException` no longer escapes as a 500 (it returns 403 + reason, and the CLI prints `refused:` instead of blaming transport)
+- [x] G12 **`dami chat --frontier`** (Claude 2026-08-24) — the ChatGPT subscription as a turn mode: identity + question, no retrieved memory, fully traced. No API key anywhere (`auth_mode: chatgpt`)
+- [x] G13 **Multi-turn frontier through the durable sessions** (Claude 2026-08-24) — `FrontierTracedTurnRunner` implements Codex's `ITracedTurnRunner` seam, so a subscription turn inherits reservation/interruption/replay/durable-completion unchanged; selected per turn by a keyed `ISessionTurnRunner`, so **one session can mix models**. D-012 preserved: a frontier turn carries only exchanges whose own trace shows a completed egress; local memory-rich answers are withheld and the withholding is logged. Demonstrated live in a mixed session
+  - `dami session turn <id> --frontier <message>`
   - [x] G6a Source-neutral invocation/result contract + native implementation registry and timeout boundary
   - [x] G6b Root-confined file operations + allowlisted no-shell process execution
     - [x] G6b1 Canonical-path/symlink-safe bounded file reading
@@ -195,6 +199,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [ ] J2 Framework decision: Tauri/React vs Avalonia — comparative spike per charter §8.3, driven by recorded events `[STEVE: preference input]`
 - [x] J3 (first cut) Conversation view + live execution graph — web view at http://127.0.0.1:5810/ (SSE chat, /events graph with span nesting, inbox reactions, beliefs); J2's rich client remains open
 - [x] J4 Ledger/audit UI: belief correct/retract/diff + health timeline in the web view (the CLI verbs, visual)
+- [x] J5 Approvals actionable in the web view (Claude 2026-08-24) — approve/deny in place, showing what the approval *did* (files moved, or the frontier's answer); with tools and workers already rendering from the live stream this closes **acceptance item 3**
 
 ## K · Domains (Phase 5/8)
 
@@ -228,6 +233,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [ ] N4 Scheduler concurrency test flake (Codex's b27f638) — deflake or redesign `[~ Codex implied]`
 - [x] N5 (stores half) Property tests: corpus byte-exact round-trip, append idempotency, replay order, ledger as-of reconstruction — fixed seeds; codec half stays transport-lane
 - [x] N6 Persistence fixture isolation: concurrent runs serialize on a session advisory lock (proved with two simultaneous runs, 214/214 each)
+- [x] N7 Host endpoint regression tests (Claude 2026-08-24) — the two bugs Steve hit both lived in Host composition and were caught by a human, not the suite: surfacing feedback recorded but never delivered (so the click looked dead), and refusals escaping as 500s. 13 tests added to Codex's `Dami.Host.Tests`, each mutation-checked by reverting its fix. Host suite 21 → 36
+- [x] N8 Interactive failure reporting: the runtime names the cause (500 + `{error}`), and the CLI separates "the runtime failed: <cause>" from "dami-host unreachable". Fixed on both the JSON and streaming paths — the streaming path was the one still calling `EnsureSuccessStatusCode`. Closes **acceptance item 8**
 
 ---
 

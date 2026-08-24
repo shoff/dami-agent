@@ -52,6 +52,48 @@ public sealed class DamiApiClient
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Turns a failed response into a named failure. The streaming path cannot go through
+    /// <see cref="ReadAsync"/>, and calling EnsureSuccessStatusCode there is what made a
+    /// stopped sidecar report as an unreachable host.
+    /// </summary>
+    public static async Task ThrowIfFailedAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new Dami.Contracts.Privacy.EgressRefusedException(ReasonFrom(body));
+        }
+
+        throw new DamiRuntimeException(DetailFrom(body, response.StatusCode));
+    }
+
+    private static string DetailFrom(string body, System.Net.HttpStatusCode status)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.TryGetProperty("error", out var error))
+            {
+                return error.GetString() ?? body;
+            }
+        }
+        catch (JsonException)
+        {
+            // Fall through to the raw body.
+        }
+
+        return body.Length > 0 ? body : $"the runtime returned {(int)status}";
+    }
+
     private static string ReasonFrom(string body)
     {
         try
@@ -85,9 +127,37 @@ public sealed class DamiApiClient
             throw new Dami.Contracts.Privacy.EgressRefusedException(ReasonFrom(refusal));
         }
 
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken)
+                .ConfigureAwait(false);
+            throw new DamiRuntimeException(DetailFrom(body, response.StatusCode));
+        }
+
         var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         return JsonDocument.Parse(text);
+    }
+}
+
+/// <summary>The runtime answered, and the answer was a failure. Distinct from being unable
+/// to reach it at all — conflating the two sends the reader to the wrong problem.</summary>
+public sealed class DamiRuntimeException : Exception
+{
+    /// <summary>Creates the exception.</summary>
+    public DamiRuntimeException(string message)
+        : base(message)
+    {
+    }
+
+    /// <summary>Creates the exception.</summary>
+    public DamiRuntimeException()
+    {
+    }
+
+    /// <summary>Creates the exception.</summary>
+    public DamiRuntimeException(string message, Exception innerException)
+        : base(message, innerException)
+    {
     }
 }
 
@@ -101,6 +171,15 @@ public static class ApiCall
         try
         {
             return await verb().ConfigureAwait(false);
+        }
+        catch (DamiRuntimeException failure)
+        {
+            await Console.Error.WriteLineAsync($"the runtime failed: {failure.Message}")
+                .ConfigureAwait(false);
+            await Console.Error.WriteLineAsync(
+                "the trace records the cause: dami trace <id>, or journalctl -u dami-host")
+                .ConfigureAwait(false);
+            return 1;
         }
         catch (HttpRequestException exception)
         {
