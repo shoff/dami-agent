@@ -5149,3 +5149,21 @@ The mandatory solution gate built all 31 projects with 0 warnings and 0 errors, 
 fifteen suites passed 598/598, and format/analyzer verification exited 0. No schema,
 migration, Host, deployment, or live-service change was required. F3c2 is `[x]`; F3c3's
 D-012 remote transport boundary is claimed next.
+
+## 2026-08-24 — Codex — F3c3 split at the remote egress boundary
+
+Inspection of D-012, ADR-0010, `HttpEgressClient`, and the official SDK constructor
+showed that remote Streamable HTTP cannot safely be enabled by handing the SDK an
+ordinary `HttpClient`. MCP needs arbitrary JSON-RPC request bodies, redirects, session
+headers, and streamed responses, while the existing general egress client is
+intentionally bodyless. A long-lived MCP connection also needs the privacy class and
+caller trace on each operation; a connection-wide fixed trace would make concurrent
+tool calls audit into the wrong graph, and selection-only privacy would still permit a
+trusted remote MCP server to receive LocalOnly arguments.
+
+F3c3 is therefore split before remote code: F3c3a records the decision and builds a
+fail-closed body-capable HTTP gate with explicit Egressable context, allowlist, budget,
+redirect revalidation, bounded responses, and durable events. F3c3b carries route
+privacy plus trace provenance into each MCP operation and gives the SDK only the gated
+HTTP path. The convenience factory remains loopback-only throughout; F3d remains solely
+the Host composition and fake-server demonstration. F3c3a is claimed first.
