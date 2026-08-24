@@ -69,7 +69,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] D3 Frontier adapters: Codex-subscription (live) + Anthropic (built, dormant)
 - [x] D4 Streaming completion contract — `IChatClient.StreamAsync`, Ollama JSONL impl, thinking excluded (tests + live)
 - [DEFERRED: correct as-is] D5 Cheap-model-assisted routing — deliberately not built: every interactive turn currently routes LocalOnly (TurnRunner passes LocalOnly), and frontier routing is a C4 *consent* decision, not an automatic route. A cheap-model classifier that auto-picked frontier would fight C4. Revisit only when real misrouting is observed AND frontier turns are routine (G9).
-- [ ] D6 VRAM budget plan for simultaneous residents (embed+rerank+LLM+vision+TTS vs 16 GB) — measure, then pin `[BLOCKED: needs L-phase TTS choice]`
+- [~ Claude 2026-08-24] D6 VRAM budget — measured with four residents (qwen3:8b pinned + TEI embed + TEI rerank + faster-whisper small.en): **9.7 GB used of 16.4 GB, 6.2 GB free**. Vision loads on demand; TTS is the remaining unknown `[STEVE: L4 voice choice sets the last number]`
 
 ## E · Transport (§7.5) — Codex's lane
 
@@ -210,9 +210,9 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 ## L · Voice & presence (Phase 9 — after runtime streaming)
 
-- [ ] L1 PipeWire validation: mic/speaker enumeration + capture/playback test `[STEVE: present for audio test]`
-- [ ] L2 Wake word "Hey Dami" (DAH-mee) + utterance capture; suppression during playback
-- [ ] L3 Local STT (Faster-Whisper-class, pinned container, GPU budget vs D6)
+- [x] L1 PipeWire validation (Claude 2026-08-24) — PipeWire 1.0.5, USB audio device, capture verified producing signal. **Finding: this host has no analog microphone.** The only input is `alsa_input.usb-Generic_USB_Audio-00.iec958-stereo` (S/PDIF digital); the other two sources are output monitors. `[STEVE: a real mic is needed for L2/L5]`
+- [ ] L2 Wake word "Hey Dami" (DAH-mee) + utterance capture; suppression during playback. **Evidence from L3: general-purpose STT will not do this** — Whisper hears "Hey Dami" as `HEY BABY`. Needs a dedicated wake-word engine (openWakeWord/Porcupine) trained on the phrase, and a real microphone
+- [x] L3 Local STT (Claude 2026-08-24) — `dami-stt` sidecar (faster-whisper small.en, CUDA, loopback 8090), `ITranscriptionClient`/`WhisperTranscriptionClient`, `/transcribe` run as a bounded worker under a real trace, `dami listen <file>`. Warm latency ~1s for 5s of audio (5x realtime). Audio never leaves the host
 - [ ] L4 TTS engine + **legally clean voice source with documented consent** `[STEVE: voice choice]`
 - [ ] L5 End-to-end spoken cycle — acceptance item 14
 - [ ] L6 Avatar: decide after voice proves itself (register: may distract from presence)

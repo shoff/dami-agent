@@ -3,7 +3,7 @@ _dami_completions()
 {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     if [ "$COMP_CWORD" -eq 1 ]; then
-        local verbs="inbox recent read good bad meh trace health health-log stats recall ask context caption chat sessions session frontier brief approvals approve deny beliefs correct retract note"
+        local verbs="inbox recent read good bad meh trace health health-log listen stats recall ask context caption chat sessions session frontier brief approvals approve deny beliefs correct retract note"
         mapfile -t COMPREPLY < <(compgen -W "$verbs" -- "$cur")
         return
     fi

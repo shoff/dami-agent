@@ -50,6 +50,7 @@ services.AddSingleton<FrontierCommands>();
 services.AddSingleton<ApprovalCommands>();
 services.AddSingleton<BriefCommands>();
 services.AddSingleton<HealthLogCommands>();
+services.AddSingleton<ListenCommands>();
 
 await using var provider = services.BuildServiceProvider();
 
@@ -71,7 +72,8 @@ try
         provider.GetRequiredService<FrontierCommands>(),
         provider.GetRequiredService<ApprovalCommands>(),
         provider.GetRequiredService<BriefCommands>(),
-        provider.GetRequiredService<HealthLogCommands>());
+        provider.GetRequiredService<HealthLogCommands>(),
+        provider.GetRequiredService<ListenCommands>());
 }
 catch (Dami.Contracts.Privacy.EgressRefusedException exception)
 {

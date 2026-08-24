@@ -6321,6 +6321,52 @@ F5c3b1's handler/schema/metadata publication seam after a crash or restart. F5c3
 retains Host composition and live startup proof. The first recovery/materialization
 behavior will be written and observed failing before production implementation.
 
+## 2026-08-24 — Codex — F5c3b2 in progress; immutable recovery red/green trail
+
+Implemented the bounded recovery slice through focused red/green increments. The first
+materializer test compiled red because `SandboxedToolMaterializer` did not exist; two
+test-style/analyzer errors were corrected while it remained red, then the missing-type
+failure passed after the minimum version-addressed atomic installer. It rebuilds the
+durable proposal through the fixed package-free verifier, requires the rebuilt
+`Tool.dll` digest to equal the PostgreSQL verification record, installs only that DLL
+and a trusted fixed runtime configuration, and reuses an already-exact target without
+rebuilding. A symbolic-link capability-directory test then failed behaviorally because
+materialization escaped the configured root; validating the per-capability directory
+before build/move made it green.
+
+Recovery orchestration was also driven red-first. The absent recovery processor/source
+contracts compiled red, then the first activation-before-success sequence passed. A
+second test observed that a materialization failure wrote no terminal failure; the
+processor now records a bounded exception-type failure only for a promotion that has
+not already succeeded. A concurrency test observed two simultaneous PostgreSQL source
+snapshots (`MaxConcurrent=2`); the processor now serializes the snapshot and complete
+batch (`MaxConcurrent=1`) so a second caller cannot act on stale activation state.
+The live activator test compiled red on the absent materializer boundary and passed
+after adding idempotent handler/schema/metadata convergence through F5c3b1.
+
+The PostgreSQL recovery-source test compiled red on the absent implementation, then
+reached the correct row but failed because record equality compared independently
+rehydrated collection instances. That assertion was an invalid persistence oracle and
+was corrected to compare durable proposal id, artifact version, capability id, and the
+exact verification record. The focused query then passed, and coverage also confirmed
+that already-activated tools remain in the startup batch for in-memory republication.
+The DI-resolution test observed a null recovery source before its registration and
+passed 12/12 after registration.
+
+Focused evidence so far: sandboxed capabilities passed 19/19; persistence passed
+218/218. The live systemd+bubblewrap check first failed as root with `Failed to start
+transient service unit: Transport endpoint is not connected` because root cannot use
+Steve's user systemd bus. Re-running the exact test as `steve` passed in 47 seconds:
+restore, build, proposal tests, exact materialization, and invocation from the installed
+runtime directory all completed. The required solution build completed across 33
+projects with 0 warnings and 0 errors.
+
+The first full solution test gate is not green and is not reported as green: 791/793
+passed; two concurrent Claude-lane Host frontier tests failed while reading missing JSON
+properties (`PostTurn_Should_Use_The_Frontier_When_Asked` and
+`PostTurn_Should_Send_No_Retrieved_Memory_To_The_Frontier`). Codex did not modify or
+stage that lane. F5c3b2 remains claimed and uncommitted until the shared tree is green.
+
 ## 2026-08-24 — Claude — Regression tests for the two bugs that reached Steve
 
 Both defects he hit today lived in Host endpoint composition, and both were caught by
@@ -6387,3 +6433,29 @@ only fixed the JSON path and the live re-test caught it. Verified end to end by
 re-injecting the same failure and reading the message.
 
 Scoreboard item 8: demonstrated. 37 Host tests.
+
+## 2026-08-24 — Claude — L1/L3: speech to text, local and traced
+
+`dami listen <file>` transcribes on the host and nothing leaves it. `dami-stt`
+(faster-whisper small.en on CUDA, loopback 8090, model cache on the data drive) behind
+`ITranscriptionClient`, with `/transcribe` running the work as a **bounded worker under
+a real trace** — the same G8 machinery as vision, so a transcription that overruns is
+contained and replayable. Warm latency ~1s for 5s of audio, about 5x realtime.
+
+Three findings that change the L-phase plan, all from actually running it:
+
+1. **This host has no analog microphone.** The only capture device is an S/PDIF digital
+   input on the USB audio interface; the other two "sources" are output monitors.
+   Capture works and produces signal, but L2 and L5 need real hardware.
+2. **Whisper hears "Hey Dami" as "HEY BABY".** A general-purpose STT model will not
+   carry the wake word — L2 needs a dedicated wake-word engine trained on the phrase,
+   not a transcription model. Better to know now than after building on the assumption.
+3. **D6 has real numbers**: four residents (qwen3:8b pinned, TEI embed, TEI rerank,
+   faster-whisper) sit at 9.7 GB of 16.4 GB with 6.2 GB free. Only the TTS choice is
+   still unmeasured.
+
+Two bugs found on the way, both mine: `IWorkerRunner` was never registered in the
+Host's DI — the endpoint could not bind, ASP.NET fell back to expecting JSON, and the
+symptom was a misleading 415 that I initially chased as content negotiation. The
+item-8 fix earned its keep immediately: the CLI said "the runtime failed: returned
+415" rather than "host unreachable", which is what made it findable.

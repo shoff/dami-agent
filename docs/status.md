@@ -531,7 +531,7 @@ demonstrated. "partial" means a real demonstration exists for part of the item's
 | 11 | Discord without duplicate gateways | not yet | — |
 | 12 | Materially lower prompt/tool overhead than Hermes | **demonstrated** | measured live through dami-host: retrieved context 147–404 tokens across five varied queries (health, work, off-topic); the §9.1 stable block adds ~300, so a full turn sits well under the charter's 5k target — against Hermes's measured 90–126k, a 20–40× cut at the ceiling and ~250× at measured context |
 | 13 | Back up and restore runtime + databases | partial | nightly verified pg dumps, one real restore performed; host restore unrehearsed by decision |
-| 14 | Spoken wake→STT→agent→TTS cycle | not yet | Phase 9 |
+| 14 | Spoken wake→STT→agent→TTS cycle | partial | **STT half done**: `dami-stt` sidecar + `dami listen` transcribes locally as a bounded traced worker, ~1s per 5s of audio. Blocked on hardware and a choice: this host has no analog mic, and Whisper hears "Hey Dami" as "HEY BABY" so the wake word needs a dedicated engine; TTS voice source is L4 |
 
 ## 6. Next actions, in order
 

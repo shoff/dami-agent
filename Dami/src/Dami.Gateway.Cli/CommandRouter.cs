@@ -47,6 +47,7 @@ public static class CommandRouter
           dami context <request>         show what would enter the prompt, and its token cost
           dami caption <image-path>      caption an image locally; it never leaves the host
           dami health-log                the structured health timeline (K2), local only
+          dami listen <audio-file>       transcribe speech locally; audio never leaves the host
         """;
 
     /// <summary>Runs one command. Returns the process exit code.</summary>
@@ -66,7 +67,8 @@ public static class CommandRouter
         FrontierCommands frontier,
         ApprovalCommands approvals,
         BriefCommands briefs,
-        HealthLogCommands healthLog)
+        HealthLogCommands healthLog,
+        ListenCommands listen)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
@@ -84,6 +86,7 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(approvals);
         ArgumentNullException.ThrowIfNull(briefs);
         ArgumentNullException.ThrowIfNull(healthLog);
+        ArgumentNullException.ThrowIfNull(listen);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -95,7 +98,7 @@ public static class CommandRouter
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
             args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            chat, sessions, frontier, approvals, briefs, healthLog, cancellation.Token)
+            chat, sessions, frontier, approvals, briefs, healthLog, listen, cancellation.Token)
             .ConfigureAwait(false);
     }
 
@@ -117,6 +120,7 @@ public static class CommandRouter
         ApprovalCommands approvals,
         BriefCommands briefs,
         HealthLogCommands healthLog,
+        ListenCommands listen,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -139,6 +143,8 @@ public static class CommandRouter
             "frontier" when args.Length > 1 =>
                 await frontier.AskAsync(string.Join(' ', args[1..]), cancellationToken)
                     .ConfigureAwait(false),
+            "listen" when args.Length > 1 =>
+                await listen.TranscribeAsync(args[1], cancellationToken).ConfigureAwait(false),
             "brief" when args.Length > 1 =>
                 await briefs.DraftAsync(string.Join(' ', args[1..]), cancellationToken)
                     .ConfigureAwait(false),

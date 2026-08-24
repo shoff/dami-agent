@@ -18,6 +18,7 @@ public static class RuntimeEndpoints
         CorpusEndpoints.Map(app);
         FrontierEndpoints.Map(app);
         HealthDomainEndpoints.Map(app);
+        TranscriptionEndpoints.Map(app);
         ToolProposalEndpoints.Map(app);
     }
 }

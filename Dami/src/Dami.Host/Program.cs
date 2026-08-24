@@ -69,6 +69,15 @@ builder.Services.AddHttpClient<IChatClient, OllamaChatClient>(client =>
     client.Timeout = TimeSpan.FromMinutes(10));
 builder.Services.AddHttpClient<IEmbeddingClient, TeiEmbeddingClient>();
 builder.Services.AddHttpClient<IRerankClient, TeiRerankClient>();
+
+// Bounded workers with child traces (G8). The transcription endpoint runs through this.
+builder.Services.AddSingleton<Dami.Contracts.Workers.IWorkerRunner, Dami.Core.Workers.WorkerRunner>();
+
+// L3: local speech to text. Loopback only — spoken input is as personal as the corpus.
+builder.Services.Configure<WhisperOptions>(
+    builder.Configuration.GetSection(WhisperOptions.SECTION_NAME));
+builder.Services.AddHttpClient<ITranscriptionClient, WhisperTranscriptionClient>(client =>
+    client.Timeout = TimeSpan.FromMinutes(5));
 builder.Services.AddDamiNativeTools(builder.Configuration, TimeProvider.System);
 builder.Services.AddDamiMcpTools(builder.Configuration);
 builder.Services.AddDamiSkills(builder.Configuration, TimeProvider.System);

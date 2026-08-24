@@ -37,6 +37,23 @@ public sealed class DamiApiClient
         return await ReadAsync(response, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>POSTs raw bytes (audio, images) and returns the JSON reply.</summary>
+    public async Task<JsonDocument?> PostBytesAsync(
+        string path,
+        byte[] payload,
+        string contentType,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        ArgumentNullException.ThrowIfNull(contentType);
+
+        using var content = new ByteArrayContent(payload);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        using var response = await this.httpClient
+            .PostAsync(new Uri(BASE_URL + path), content, cancellationToken).ConfigureAwait(false);
+        return await ReadAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>POSTs and streams the server-sent-event response.</summary>
     public async Task<HttpResponseMessage> PostStreamAsync(
         string path,
