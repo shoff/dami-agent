@@ -1,5 +1,6 @@
 using Dami.Contracts.Briefs;
 using Dami.Contracts.Domains;
+using Dami.Contracts.Gateways;
 using Dami.Contracts.Capabilities;
 using Dami.Contracts.Events;
 using Dami.Contracts.FilePatches;
@@ -11,6 +12,7 @@ using Dami.Contracts.ToolStaging;
 using Dami.Persistence.Approvals;
 using Dami.Persistence.Briefs;
 using Dami.Persistence.Domains;
+using Dami.Persistence.Gateways;
 using Dami.Persistence.Capabilities;
 using Dami.Persistence.Events;
 using Dami.Persistence.FilePatches;
@@ -65,15 +67,21 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IEgressBriefStore, PostgresEgressBriefStore>();
         RegisterProposalStores(services);
         RegisterSkillChangeStore(services);
+        RegisterDomainAndSessionStores(services);
+
+        return services;
+    }
+
+    private static void RegisterDomainAndSessionStores(IServiceCollection services)
+    {
         services.TryAddSingleton<IHealthEventStore, PostgresHealthEventStore>();
+        services.TryAddSingleton<IGatewayAuthority, PostgresGatewayAuthority>();
         services.TryAddSingleton<ICapabilityEmbeddingStore, PostgresCapabilityEmbeddingStore>();
         services.TryAddSingleton<PostgresSessionStore>();
         services.TryAddSingleton<IConversationSessionStore>(provider =>
             provider.GetRequiredService<PostgresSessionStore>());
         services.TryAddSingleton<IConversationTurnStore>(provider =>
             provider.GetRequiredService<PostgresSessionStore>());
-
-        return services;
     }
 
     private static void RegisterSkillChangeStore(IServiceCollection services)

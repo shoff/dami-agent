@@ -6564,3 +6564,25 @@ nightly backup had that gap. It does not — `dami-pg-backup` already runs
 `pg_dumpall --globals-only`, and the current globals file contains both `dami_app` and
 `dami_ddl`. Nothing to fix; the restore *order* is now documented in the runbook,
 because meeting that error cold looks like a corrupt backup when it is not.
+
+## 2026-08-24 — Claude — M1a: "only one authoritative gateway", made structural
+
+The charter says the Discord gateway must run on exactly one authoritative host during
+cutover, and that the Mac must not run a second. Two bots on one token answer every
+message twice, and neither process can observe the other doing it — so the rule cannot
+be a convention, it has to be something a second instance physically cannot violate.
+
+`IGatewayAuthority` over a Postgres session advisory lock (migration 017). Authority is
+taken, not assumed: an instance that cannot acquire it refuses to serve rather than
+running "probably alone". The lock is the truth; the `gateway_authority` row is
+bookkeeping so an operator can answer "who holds it, since when, on what host" without
+attaching a debugger. Crash recovery is free — a dead holder's session ends and
+Postgres releases the lock, with no stale flag for anyone to clear by hand.
+
+Five tests, including handover after release and that a different gateway name is not
+blocked. One real bug found by them: disposing an `NpgsqlConnection` returns it to the
+**pool** rather than ending the session, so the advisory lock survived a graceful
+shutdown and would have locked out every subsequent instance until a restart. Released
+explicitly now; process death still covers the ungraceful case.
+
+Remaining for M1 is the Discord client binding itself, which needs a bot token.

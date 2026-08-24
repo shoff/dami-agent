@@ -219,7 +219,9 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 ## M · Gateways, shadow, cutover (Phase 10)
 
-- [ ] M1 Discord gateway (single authoritative instance rule) — acceptance item 11
+- [~ Claude 2026-08-24] M1 Discord gateway (single authoritative instance rule) — acceptance item 11
+  - [x] M1a **Gateway authority** — the charter's "no second authoritative gateway" made structural: `IGatewayAuthority` over a Postgres session advisory lock (migration 017). A second instance cannot acquire it and must refuse to serve; a crashed holder releases automatically (its session dies) with no stale flag to clear. 5 tests incl. handover-after-release. Found and fixed a real trap: disposing an `NpgsqlConnection` returns it to the *pool* rather than ending the session, so the lock survived graceful shutdown until released explicitly
+  - [ ] M1b Discord client binding + message→session-turn mapping `[STEVE: bot token]`
 - [ ] M2 Hermes instrumentation for the §7.3 comparison (TTFT/round-trips) `[BLOCKED: Mac access]`
 - [ ] M3 Shadow mode: identical inputs to Hermes and Dami Core, compare
 - [ ] M4 Remaining Phase 0: non-Weaviate Mac backups (config, plugins, scripts, launchd inventory) `[BLOCKED: Mac access]`
