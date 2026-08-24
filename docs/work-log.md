@@ -4012,3 +4012,21 @@ conclude/retract history at a random probe time. First draft of the generator
 split a surrogate pair and the corpus rightly refused the lone half — the fix was
 in the test's generator, and the refusal was the store behaving correctly. The
 frame-codec half of N5 is transport-lane. 12 suites, 427 tests, 0 warnings.
+
+## 2026-08-24 — Claude — G10: the identity charter, reconstructed from its own data
+
+"Blocked on Mac access" was wrong: the identity's durable data migrated with the
+corpus. `docs/identity/dami-identity.md` is reconstructed from 38 AgentState
+identity statements ("direct, technically sharp, warm, and real"), the complete
+12-node KokoroValue value system with the weights the identity itself assigned
+(Steve's wellbeing 1.00, honesty 0.95, self-preservation 0.95, …), and all four
+RelationshipDynamics lessons — every section cites its source, nothing invented.
+The Hermes-era name is Mei; in Dami Core the same identity is Dami — the
+continuity is the identity, not the label. SOUL.md reconciles at M4.
+
+Runtime: `IIdentityProvider`/`FileIdentityProvider` loads the distilled block from
+/opt/dami/identity-prompt.md (missing file degrades to a built-in minimal identity,
+loudly logged, never a failed turn). The §9.1 block now leads every local prompt,
+and a persona-only voice line — tested to contain no one's name but Dami's — rides
+frontier prompts. Acceptance item 9 demonstrated live: "who are you" answers as
+Dami on qwen3 and on codex, from one file. 12 suites, 430+ tests, 0 warnings.

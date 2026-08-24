@@ -25,7 +25,10 @@ var connectionString =
 builder.Services.AddDamiPersistence(connectionString);
 builder.Services.AddSingleton(TimeProvider.System);
 
-// Turns: the same runner the CLI proved out.
+// Turns: the same runner the CLI proved out — leading with the §9.1 identity block.
+builder.Services.Configure<Dami.Core.Identity.IdentityOptions>(
+    builder.Configuration.GetSection(Dami.Core.Identity.IdentityOptions.SECTION_NAME));
+builder.Services.AddSingleton<IIdentityProvider, Dami.Core.Identity.FileIdentityProvider>();
 builder.Services.AddSingleton<ITurnRunner, TurnRunner>();
 builder.Services.AddSingleton<Dami.Contracts.Context.IContextBuilder, ContextBuilder>();
 builder.Services.Configure<ContextOptions>(builder.Configuration.GetSection(ContextOptions.SECTION_NAME));

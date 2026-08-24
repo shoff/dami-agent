@@ -21,12 +21,16 @@ public static class FrontierEndpoints
     private static void MapBareQuestion(WebApplication app)
     {
         app.MapPost("/frontier", async (
-            QuestionRequest request, IFrontierChat frontier, CancellationToken token) =>
+            QuestionRequest request, IFrontierChat frontier, IIdentityProvider identity,
+            CancellationToken token) =>
         {
             var traceId = Guid.NewGuid();
+            // Acceptance item 9: the same identity, whichever provider answers. The voice
+            // line is persona only — no memories, no personal data (ADR-0011 unchanged).
             var answer = await frontier.CompleteAsync(
                 new FrontierPrompt(
-                    request.Question, "api frontier question", PrivacyClass.Egressable,
+                    $"{identity.FrontierVoice}\n\n{request.Question}",
+                    "api frontier question", PrivacyClass.Egressable,
                     traceId, ExecutionOrigin.UserTurn),
                 token).ConfigureAwait(false);
             return Results.Ok(new { traceId, answer });

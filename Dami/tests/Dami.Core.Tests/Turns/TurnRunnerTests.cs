@@ -20,6 +20,7 @@ public sealed class TurnRunnerTests
     private readonly IChatClient chatClient = Substitute.For<IChatClient>();
     private readonly IExecutionEventStore eventStore = Substitute.For<IExecutionEventStore>();
     private readonly IObservationCorpus observationCorpus = Substitute.For<IObservationCorpus>();
+    private readonly IIdentityProvider identityProvider = Substitute.For<IIdentityProvider>();
 
     [Fact]
     public async Task RunAsync_Should_Emit_A_UserTurn_Trace_From_Start_To_Completion()
@@ -58,6 +59,19 @@ public sealed class TurnRunnerTests
         await this.CreateRunner().RunAsync("a question", CancellationToken.None);
 
         Assert.Contains("prefers evidence to assertion", prompt);
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Lead_The_Prompt_With_The_Identity_Preamble()
+    {
+        this.Arrange();
+        string? prompt = null;
+        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+            .Returns("an answer");
+
+        await this.CreateRunner().RunAsync("a question", CancellationToken.None);
+
+        Assert.StartsWith("You are Dami", prompt, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -247,8 +261,10 @@ public sealed class TurnRunnerTests
 
     private TurnRunner CreateRunner()
     {
+        this.identityProvider.Preamble.Returns("You are Dami, Steve's assistant.");
         return new TurnRunner(
             this.contextBuilder, this.modelRouter, this.chatClient, this.eventStore,
-            this.observationCorpus, new FakeTimeProvider(now), NullLogger<TurnRunner>.Instance);
+            this.observationCorpus, this.identityProvider, new FakeTimeProvider(now),
+            NullLogger<TurnRunner>.Instance);
     }
 }

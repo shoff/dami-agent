@@ -28,6 +28,7 @@ public sealed class TurnRunner : ITurnRunner
     private readonly IChatClient chatClient;
     private readonly IExecutionEventStore eventStore;
     private readonly IObservationCorpus observationCorpus;
+    private readonly IIdentityProvider identityProvider;
     private readonly TimeProvider clock;
     private readonly ILogger<TurnRunner> logger;
 
@@ -38,10 +39,12 @@ public sealed class TurnRunner : ITurnRunner
         IChatClient chatClient,
         IExecutionEventStore eventStore,
         IObservationCorpus observationCorpus,
+        IIdentityProvider identityProvider,
         TimeProvider clock,
         ILogger<TurnRunner> logger)
     {
         ArgumentNullException.ThrowIfNull(contextBuilder);
+        ArgumentNullException.ThrowIfNull(identityProvider);
         ArgumentNullException.ThrowIfNull(modelRouter);
         ArgumentNullException.ThrowIfNull(chatClient);
         ArgumentNullException.ThrowIfNull(eventStore);
@@ -54,6 +57,7 @@ public sealed class TurnRunner : ITurnRunner
         this.chatClient = chatClient;
         this.eventStore = eventStore;
         this.observationCorpus = observationCorpus;
+        this.identityProvider = identityProvider;
         this.clock = clock;
         this.logger = logger;
     }
@@ -165,7 +169,7 @@ public sealed class TurnRunner : ITurnRunner
             traceId, ExecutionEventType.CapabilitySelected, ExecutionStatus.Succeeded,
             $"routed {route.Tier}: {route.Reason}", cancellationToken).ConfigureAwait(false);
 
-        return (context, route, BuildPrompt(request, context, this.clock.GetUtcNow()));
+        return (context, route, this.BuildPrompt(request, context, this.clock.GetUtcNow()));
     }
 
     private async Task<TurnResult> CompleteTurnAsync(
@@ -199,13 +203,14 @@ public sealed class TurnRunner : ITurnRunner
         return new TurnResult(traceId, answer.Trim(), context, route);
     }
 
-    private static string BuildPrompt(string request, AssembledContext context, DateTimeOffset today)
+    private string BuildPrompt(string request, AssembledContext context, DateTimeOffset today)
     {
         var prompt = new StringBuilder();
+        // §9.1: the stable identity block leads the prompt — one source, every provider.
+        prompt.AppendLine(this.identityProvider.Preamble);
         prompt.AppendLine(
-            "You are Dami, Steve's assistant. Use the context below when it is relevant;");
-        prompt.AppendLine(
-            "say plainly when it is not sufficient. Be concise and concrete.");
+            "Use the context below when it is relevant; say plainly when it is not");
+        prompt.AppendLine("sufficient. Be concise and concrete.");
         // The temporal anchor: without it the model treated a March memory as the
         // current crisis. Dated memories are history unless they say otherwise.
         prompt.Append("Today is ").Append(today.ToString("yyyy-MM-dd"))
