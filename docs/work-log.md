@@ -4193,6 +4193,9 @@ itself were not captured, so that released commit temporarily referenced the in-
 types. This completion commit supplies them. An early ownership command repeated the
 `Dami/` prefix from inside that directory and failed harmlessly; the corrected paths
 were immediately chowned to Steve. No Claude-owned K2/K3 production file is staged here.
+After the final gate, Claude's `e797497` also captured the already-present G6c3b1 board
+completion, G6c3b2 claim, N6 entry, and most of this evidence block; the remaining
+evidence correction and all proposal implementation paths stay in this scoped commit.
 
 Live migration chronology was likewise kept literal. Status probes without the explicit
 loopback `dami_ddl` identity misleadingly reported no applied migrations; direct psql
@@ -4208,16 +4211,20 @@ append-only trigger is enabled; `dami_app` has SELECT/INSERT and lacks UPDATE, D
 TRUNCATE, REFERENCES, and TRIGGER. A live UPDATE as `dami_app` exits 1 with permission
 denied.
 
-Definitive verification used `/tmp/dami-g6c3b1-gate.1oUT9D/repo` at released HEAD
-`39a51d3`, overlaid with only the eleven Codex code/test/DDL paths. Its fixture used the
-temporary `dami_test_codex_g6c3b1` schema so concurrent agents could not invalidate the
-result. The focused slice passed 11/11; `dotnet build Dami.sln --nologo` completed with
-0 warnings and 0 errors; all twelve suites passed 463/463; and `dotnet format Dami.sln
+Definitive verification was rerun after three concurrent commits advanced the tree,
+using `/tmp/dami-g6c3b1-final.yHA4qt/repo` at released HEAD `8e7481e`, overlaid with only
+the eleven Codex code/test/DDL paths. Its fixture used the temporary
+`dami_test_codex_g6c3b1_final` schema so concurrent agents could not invalidate the
+result. The focused slice had passed 11/11; `dotnet build Dami.sln --nologo` completed
+with 0 warnings and 0 errors; all twelve suites passed 464/464; and `dotnet format Dami.sln
 --verify-no-changes --no-restore --verbosity minimal` exited 0 without diagnostics.
-The scratch schema and worktree were removed. The first cleanup command lost its shell
-variable between tool invocations, attempted the nonexistent `/repo`, and failed
-harmlessly; the explicit-path retry removed the actual worktree. G6c3b1 is flipped to
-`[x]`, and G6c3b2 is claimed before native proposal code begins.
+The final scratch schema and worktree were removed. The earlier gate cleanup's first
+command lost its shell variable between tool invocations, attempted the nonexistent
+`/repo`, and failed harmlessly; the explicit-path retry removed the actual worktree.
+G6c3b1 is flipped to `[x]`, and G6c3b2 is claimed before native proposal code begins.
+After `e797497` advanced the released tree once more, the mandatory gate ran directly
+on the exact combined working tree with no competing test process observed: build 0
+warnings/0 errors, all twelve suites 464/464, and format verification exit 0.
 
 ## 2026-08-24 — Claude — H6: the scout has real interests now, and a rate-limit fix
 

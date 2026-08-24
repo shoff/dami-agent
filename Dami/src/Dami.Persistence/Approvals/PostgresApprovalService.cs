@@ -41,22 +41,8 @@ public sealed class PostgresApprovalService : IApprovalService
         ArgumentNullException.ThrowIfNull(request);
 
         await using var command = this.dataSource.CreateCommand(
-            $"""
-            insert into {this.Table}
-                (approval_id, trace_id, requested_by, action, scope, resource, status,
-                 requested_at, expires_at)
-            values (@id, @trace, @by, @action, @scope, @resource, @status, @at, @expires)
-            on conflict (approval_id) do nothing;
-            """);
-        command.Parameters.AddWithValue("id", request.ApprovalId);
-        command.Parameters.AddWithValue("trace", request.TraceId);
-        command.Parameters.AddWithValue("by", request.RequestedBy);
-        command.Parameters.AddWithValue("action", request.Action);
-        command.Parameters.AddWithValue("scope", request.Scope);
-        command.Parameters.AddWithValue("resource", request.Resource);
-        command.Parameters.AddWithValue("status", request.Status.ToString());
-        command.Parameters.AddWithValue("at", request.RequestedAt);
-        command.Parameters.AddWithValue("expires", (object?)request.ExpiresAt ?? DBNull.Value);
+            ApprovalRequestCommand.InsertSql(this.Table));
+        ApprovalRequestCommand.AddParameters(command, request);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

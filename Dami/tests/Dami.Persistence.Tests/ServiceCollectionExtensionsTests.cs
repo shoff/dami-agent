@@ -1,5 +1,6 @@
 using Dami.Contracts.Capabilities;
 using Dami.Contracts.Events;
+using Dami.Contracts.FilePatches;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Proactive;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,7 @@ public sealed class ServiceCollectionExtensionsTests
     [InlineData(typeof(IPushbackLedger))]
     [InlineData(typeof(ISurfacingQueue))]
     [InlineData(typeof(ICapabilityEmbeddingStore))]
+    [InlineData(typeof(IFilePatchProposalStore))]
     public void AddDamiPersistence_Should_Resolve_Every_Store(Type contract)
     {
         var services = new ServiceCollection();
