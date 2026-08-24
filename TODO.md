@@ -111,7 +111,10 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] F4c3 Crash-recoverable filesystem materialization + Host/native lifecycle demonstration
       - [x] F4c3a Version-consistent staged filesystem materialization + terminal-event recovery
       - [x] F4c3b Native author/revise/retire capability + Host/live lifecycle demonstration
-- [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
+- [~ Codex 2026-08-24] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
+  - [~ Codex 2026-08-24] F5a Version-pinned bounded proposal contract + transactional staging ledger/events
+  - [ ] F5b Native propose/list/inspect boundary + Host staged-proposal demonstration
+  - [ ] F5c Human single-resolution promotion gate + live-registry activation and live demonstration
 
 ## G · Interactive runtime
 

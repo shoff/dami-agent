@@ -5718,3 +5718,16 @@ final gate built all 33 projects with 0 warnings and 0 errors, all sixteen suite
 passed 688/688, and `dotnet format Dami.sln --verify-no-changes --no-restore` exited
 0. No new migration was required. The deployed Host remains healthy and the skill
 change ledger has no pending migration or recovery work.
+
+## 2026-08-24 — Codex — F5 split; F5a claimed
+
+After pushing F4c3b, pulled `main` and re-read the authoritative F5/D-016 text plus
+the existing capability, approval, proposal, persistence, and code-audit boundaries.
+F5 crosses three independently testable trust transitions and is split before code:
+F5a owns an immutable bounded source/tests/rationale/motivation proposal and its
+transactional staging/event ledger; F5b owns model-invokable proposal plus human
+inspection surfaces; F5c owns single-resolution approval, activation into the live
+registry, and the final live demonstration. This avoids silently treating persistence
+as promotion or treating approval as safe executable loading. F5/F5a are claimed;
+the source format, verification evidence, forbidden privilege declaration, and
+reversal path will be pinned in an ADR before the first production implementation.
