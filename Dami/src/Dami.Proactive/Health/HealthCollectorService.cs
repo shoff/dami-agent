@@ -20,17 +20,26 @@ public sealed class HealthCollectorService : IProactiveService
 {
     private const string INSTRUCTIONS =
         """
-        Extract health facts ABOUT THE USER from the note below — the user's own
-        diagnoses, appointments, medications, vitals, procedures, or symptoms. Do NOT
-        extract health facts about other people the note mentions (family, friends,
-        colleagues, pets), and do NOT treat moods, work stress, or preferences as
-        medical unless the note frames them as a clinical symptom. Output a JSON array;
-        each element is
+        Extract clinical health facts about THE NOTE'S SUBJECT (the user) only.
+
+        Include: their diagnoses, appointments, medications, vitals, procedures,
+        symptoms — each one a specific, checkable clinical fact.
+
+        Exclude, and this matters more than completeness:
+        - Anything about another person. If the note names someone else (a family
+          member, friend, colleague, patient, pet) and describes THEIR health, output
+          nothing for it. When you cannot tell whose health it is, output nothing.
+        - Interpretation, psychology, and meaning. "Diagnosis intensifies his urgency
+          about legacy" is an insight, not a health event. Moods, stress, motivation
+          and existential reflection are not clinical facts.
+        - Vague restatements. "Cardiac diagnosis" and "heart diagnosis" carry no
+          information; either name the condition or output nothing.
+
+        Output a JSON array; each element is
         {"date":"YYYY-MM-DD","category":"diagnosis|appointment|medication|vital|procedure|symptom","description":"..."}.
-        Use ONLY facts stated in the note. If the note has no health information about
-        the user, output exactly []. Use the note's own dates; if a fact has no date,
-        use the note date given. Keep each description to one clause. Output only the
-        JSON array.
+        Use ONLY facts stated in the note. If there is no clinical fact about the
+        subject, output exactly []. Use the note's own dates; if a fact has no date,
+        use the note date given. One clause per description. Output only the array.
         """;
 
     private readonly IHealthEventStore healthStore;
@@ -203,8 +212,33 @@ public sealed class HealthCollectorService : IProactiveService
             date = parsed;
         }
 
-        fact = (date, category, description.Trim());
+        description = description.Trim();
+        if (!IsSpecific(description))
+        {
+            return false;
+        }
+
+        fact = (date, category, description);
         return true;
+    }
+
+    /// <summary>
+    /// Rejects entries that name no condition. Deliberately a short list of known
+    /// non-answers rather than a length or word-count heuristic: the first version of
+    /// this guard used "fewer than three words" and threw away "BP 120/80", which is
+    /// exactly the kind of specific vital the domain exists to hold. Terse is not the
+    /// same as empty, and repetition is a separate problem solved by deduplication.
+    /// </summary>
+    private static bool IsSpecific(string description)
+    {
+        string[] contentless =
+        [
+            "cardiac diagnosis", "heart diagnosis", "health condition", "medical condition",
+            "a diagnosis", "diagnosis given", "health issue", "medical issue",
+            "medical history", "health status", "a condition",
+        ];
+        return description.Length > 3
+            && !contentless.Contains(description.TrimEnd('.').ToLowerInvariant());
     }
 
     private static string? ExtractArray(string reply)

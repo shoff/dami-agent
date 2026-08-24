@@ -94,6 +94,42 @@ public sealed class HealthCollectorServiceTests
     }
 
     [Fact]
+    public async Task RunPassAsync_Should_Reject_A_Contentless_Description()
+    {
+        this.Arrange("note", """[{"category":"diagnosis","description":"Cardiac diagnosis"}]""");
+
+        await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        await this.healthStore.DidNotReceiveWithAnyArgs().RecordAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task RunPassAsync_Should_Keep_A_Terse_But_Specific_Fact()
+    {
+        // "BP 120/80" and "aortic stenosis" are short and entirely specific. An earlier
+        // word-count guard discarded both; terse is not the same as empty.
+        this.Arrange("note", """[{"category":"vital","description":"BP 120/80"}]""");
+
+        await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        await this.healthStore.Received(1).RecordAsync(
+            Arg.Any<HealthEvent>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunPassAsync_Should_Keep_A_Specific_Clinical_Fact()
+    {
+        this.Arrange(
+            "note",
+            """[{"category":"procedure","description":"Heart catheterization scheduled at Methodist Hospital"}]""");
+
+        await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        await this.healthStore.Received(1).RecordAsync(
+            Arg.Any<HealthEvent>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RunPassAsync_Should_Produce_No_Surfacings()
     {
         this.Arrange(

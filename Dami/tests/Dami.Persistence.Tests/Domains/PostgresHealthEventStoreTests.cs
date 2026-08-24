@@ -106,21 +106,44 @@ public sealed class PostgresHealthEventStoreTests
     }
 
     [Fact]
-    public async Task TimelineAsync_Should_Return_Newest_First()
+    public async Task TimelineAsync_Should_Collapse_The_Same_Fact_Stated_Twice()
     {
         await this.fixture.ResetAsync();
         var (corpus, store) = this.CreateStores();
-        var observation = await SeedObservationAsync(corpus, "cardiac history");
+        // The same condition stated in two different notes: two observations, so the
+        // per-observation constraint cannot collapse them.
+        var first = await SeedObservationAsync(corpus, "note one");
+        var second = await SeedObservationAsync(corpus, "note two");
         await store.RecordAsync(
-            new HealthEvent(Guid.NewGuid(), observation, new DateOnly(2026, 1, 30),
-                HealthCategory.Diagnosis, "diagnosed"), CancellationToken.None);
+            new HealthEvent(Guid.NewGuid(), first, new DateOnly(2026, 1, 30),
+                HealthCategory.Diagnosis, "Severe aortic stenosis"), CancellationToken.None);
         await store.RecordAsync(
-            new HealthEvent(Guid.NewGuid(), observation, new DateOnly(2026, 3, 11),
-                HealthCategory.Procedure, "valve replacement"), CancellationToken.None);
+            new HealthEvent(Guid.NewGuid(), second, new DateOnly(2026, 3, 4),
+                HealthCategory.Diagnosis, "severe aortic stenosis "), CancellationToken.None);
 
         var timeline = await this.TimelineAsync(store);
 
-        Assert.Equal("valve replacement", timeline[0].Description);
+        Assert.Single(timeline);
+    }
+
+    [Fact]
+    public async Task TimelineAsync_Should_Keep_The_Earliest_Occurrence_Of_A_Fact()
+    {
+        await this.fixture.ResetAsync();
+        var (corpus, store) = this.CreateStores();
+        var first = await SeedObservationAsync(corpus, "note one");
+        var second = await SeedObservationAsync(corpus, "note two");
+        await store.RecordAsync(
+            new HealthEvent(Guid.NewGuid(), second, new DateOnly(2026, 3, 4),
+                HealthCategory.Diagnosis, "Severe aortic stenosis"), CancellationToken.None);
+        await store.RecordAsync(
+            new HealthEvent(Guid.NewGuid(), first, new DateOnly(2026, 1, 30),
+                HealthCategory.Diagnosis, "Severe aortic stenosis"), CancellationToken.None);
+
+        var timeline = await this.TimelineAsync(store);
+
+        // When it became true, not when it was last mentioned.
+        Assert.Equal(new DateOnly(2026, 1, 30), timeline[0].EventDate);
     }
 
     private static async Task<Guid> SeedObservationAsync(IObservationCorpus corpus, string body)

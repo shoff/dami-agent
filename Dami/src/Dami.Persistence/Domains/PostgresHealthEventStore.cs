@@ -106,9 +106,16 @@ public sealed class PostgresHealthEventStore : IHealthEventStore
 
         var command = this.dataSource.CreateCommand(
             $"""
-            select health_event_id, observation_id, event_date, category, description
+            -- The same fact is stated in many notes ("aortic stenosis" appears in
+            -- dozens), and each note is a separate observation, so the per-observation
+            -- uniqueness constraint cannot collapse them. Deduplicate on the wording
+            -- at read time and keep the EARLIEST occurrence, which is when the fact
+            -- entered the record — the timeline should say when something became true,
+            -- not when it was last mentioned.
+            select distinct on (lower(btrim(description)))
+                   health_event_id, observation_id, event_date, category, description
               from {this.Schema}.health_events
-             order by event_date desc
+             order by lower(btrim(description)), event_date
              limit @limit;
             """);
         command.Parameters.AddWithValue("limit", limit);

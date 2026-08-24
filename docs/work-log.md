@@ -6691,3 +6691,33 @@ copies it.
 
 Host-level restore stays unrehearsed by Steve's own 2026-08-22 decision, recorded as
 such rather than counted as done.
+
+## 2026-08-24 — Claude — Health extraction: what a real backfill exposed
+
+Ran the collector over 150 of the 1,432 likely-medical observations rather than waiting
+the ~40 nights the nightly rate implies. The results were the point: good extractions
+sat next to three distinct failure modes, none visible from unit tests.
+
+1. **Someone else's health in Steve's record.** "Riza is diagnosed BPD and psychosis"
+   was filed as his diagnosis. The prompt already said "about the user"; the model
+   ignored it for a named third party. Now stated as the rule that outranks
+   completeness, with the explicit instruction that an unattributable fact is dropped.
+2. **Interpretation filed as clinical fact.** "Diagnosis intensifies his urgency about
+   legacy" is an insight — true, valuable, and not a health event. Psychology, mood,
+   and existential reflection are now excluded by name.
+3. **Contentless rows.** "Cardiac diagnosis", "heart diagnosis" — a row that names no
+   condition costs storage and crowds the timeline it is meant to inform.
+
+And a duplicate problem I initially misdiagnosed as vagueness: "aortic stenosis"
+appeared six times because it is stated in six notes, and the per-observation
+uniqueness constraint cannot collapse across observations. `TimelineAsync` now
+deduplicates by wording and keeps the **earliest** occurrence — the timeline should say
+when something became true, not when it was last mentioned.
+
+My first specificity guard was wrong and an existing test caught it: "fewer than three
+words" discarded `BP 120/80`, exactly the kind of specific vital the domain exists to
+hold. Terse is not empty. The guard is now a short list of known non-answers.
+
+Worth saying plainly: this table holds genuinely sensitive material — the backfill
+surfaced facts about Steve's health well beyond the cardiac history. Its LocalOnly
+posture and the absence of any egress path are not theoretical niceties.
