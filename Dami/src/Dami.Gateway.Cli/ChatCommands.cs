@@ -12,6 +12,30 @@ public sealed class ChatCommands
         this.api = api;
     }
 
+    /// <summary>
+    /// Runs one turn on the subscription frontier (ADR-0011): Dami's identity and the
+    /// question, no retrieved memory. For memory-informed frontier work use `dami brief`,
+    /// where the exact bytes are reviewed before anything leaves.
+    /// </summary>
+    public Task<int> FrontierTurnAsync(string request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ApiCall.RunAsync(async () =>
+        {
+            Console.WriteLine("[Frontier · codex subscription · no memories sent]");
+            Console.WriteLine();
+            using var reply = await this.api.PostAsync(
+                "/turns", new { message = request, frontier = true }, cancellationToken)
+                .ConfigureAwait(false);
+            var root = reply!.RootElement;
+            Console.WriteLine(root.GetProperty("answer").GetString());
+            Console.WriteLine();
+            Console.WriteLine(
+                $"replay: dami trace {root.GetProperty("traceId").GetGuid().ToString("N")[..8]}");
+            return 0;
+        });
+    }
+
     /// <summary>Runs one streaming turn, printing tokens as they arrive.</summary>
     public Task<int> TurnAsync(string request, CancellationToken cancellationToken)
     {

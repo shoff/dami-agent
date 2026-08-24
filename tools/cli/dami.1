@@ -39,6 +39,11 @@ Append an observation by hand.
 .B dami chat \fImessage\fR
 One full interactive turn: context, routing, local model, traced.
 .TP
+.B dami chat --frontier \fImessage\fR
+The same turn answered by your ChatGPT subscription through the codex
+CLI \- no API key, no billing. Dami's identity is sent; your memories
+are not. For a memory-informed frontier answer use \fBdami brief\fR.
+.TP
 .B dami ask \fIquestion\fR
 A lighter question against the local model with retrieved context.
 .TP

@@ -23,7 +23,7 @@ public static class RuntimeEndpoints
 }
 
 /// <summary>One interactive turn.</summary>
-public sealed record TurnRequest(string Message);
+public sealed record TurnRequest(string Message, bool Frontier = false);
 
 /// <summary>A reaction to a surfacing.</summary>
 public sealed record FeedbackRequest(string Verdict, string? Note);

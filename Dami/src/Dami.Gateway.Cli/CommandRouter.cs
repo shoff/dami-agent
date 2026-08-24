@@ -28,6 +28,8 @@ public static class CommandRouter
           dami recall <query>            semantic search over everything Dami has seen
           dami ask <question>            answer from the corpus, with citations (local LLM)
           dami chat <message>            one full interactive turn - context, routing, traced
+          dami chat --frontier <message> the same turn on your ChatGPT subscription
+                                         (codex CLI, no API key); no memories are sent
           dami sessions                  list recent durable conversation sessions
           dami session start [id]        start a session (client-generated id when omitted)
           dami session resume <id>       resume an interrupted session
@@ -214,7 +216,10 @@ public static class CommandRouter
             "ask" => await ask.AskAsync(rest, cancellationToken).ConfigureAwait(false),
             "context" => await contextCommands.ShowAsync(rest, cancellationToken).ConfigureAwait(false),
             "caption" => await vision.CaptionAsync(args[1], cancellationToken).ConfigureAwait(false),
-            "chat" => await chat.TurnAsync(rest, cancellationToken).ConfigureAwait(false),
+            "chat" => rest.StartsWith("--frontier", StringComparison.Ordinal)
+                ? await chat.FrontierTurnAsync(
+                    rest["--frontier".Length..].Trim(), cancellationToken).ConfigureAwait(false)
+                : await chat.TurnAsync(rest, cancellationToken).ConfigureAwait(false),
             _ => Usage(),
         };
     }

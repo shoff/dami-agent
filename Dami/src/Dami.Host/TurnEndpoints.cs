@@ -1,3 +1,6 @@
+using Dami.Contracts.Context;
+using Dami.Contracts.Events;
+using Dami.Contracts.Models;
 using Dami.Core.Turns;
 
 namespace Dami.Host;
@@ -14,8 +17,17 @@ public static class TurnEndpoints
 
     private static void MapWhole(WebApplication app)
     {
-        app.MapPost("/turns", async (TurnRequest request, ITurnRunner runner, CancellationToken token) =>
+        app.MapPost("/turns", async (
+            TurnRequest request, ITurnRunner runner, IFrontierChat frontier,
+            IIdentityProvider identity, IExecutionEventStore events, TimeProvider clock,
+            CancellationToken token) =>
         {
+            if (request.Frontier)
+            {
+                return await FrontierTurnAsync(
+                    request.Message, frontier, identity, events, clock, token).ConfigureAwait(false);
+            }
+
             var result = await runner.RunAsync(request.Message, token).ConfigureAwait(false);
             return Results.Ok(new
             {
@@ -28,6 +40,64 @@ public static class TurnEndpoints
             });
         });
 
+    }
+
+    /// <summary>
+    /// A turn answered by the subscription frontier (ADR-0011) rather than the sidecar.
+    /// It carries Dami's identity and the question — and deliberately no retrieved
+    /// memory, which is what keeps it Egressable without a consent step. Memory-informed
+    /// frontier work goes through the C4 brief flow instead, where Steve approves the
+    /// exact bytes.
+    /// </summary>
+    private static async Task<IResult> FrontierTurnAsync(
+        string message,
+        IFrontierChat frontier,
+        IIdentityProvider identity,
+        IExecutionEventStore events,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        var traceId = Guid.NewGuid();
+        var spanId = Guid.NewGuid();
+        await MarkAsync(events, traceId, spanId, clock, ExecutionEventType.TraceStarted,
+            ExecutionStatus.Running, "frontier turn started", cancellationToken).ConfigureAwait(false);
+
+        var answer = await frontier.CompleteAsync(
+            new FrontierPrompt(
+                $"{identity.FrontierVoice}\n\n{message}", "frontier chat turn",
+                PrivacyClass.Egressable, traceId, ExecutionOrigin.UserTurn),
+            cancellationToken).ConfigureAwait(false);
+
+        await MarkAsync(events, traceId, spanId, clock, ExecutionEventType.TraceCompleted,
+            ExecutionStatus.Succeeded, $"frontier turn: {answer.Length} chars", cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(new
+        {
+            traceId,
+            answer,
+            contextTokens = 0,
+            beliefs = 0,
+            memories = 0,
+            route = "Frontier",
+        });
+    }
+
+    private static Task MarkAsync(
+        IExecutionEventStore events,
+        Guid traceId,
+        Guid spanId,
+        TimeProvider clock,
+        ExecutionEventType type,
+        ExecutionStatus status,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        return events.AppendAsync(
+            new ExecutionEvent(
+                Guid.NewGuid(), traceId, spanId, null, ExecutionOrigin.UserTurn, "dami-host",
+                type, status, clock.GetUtcNow(), label),
+            cancellationToken);
     }
 
     private static void MapStream(WebApplication app)

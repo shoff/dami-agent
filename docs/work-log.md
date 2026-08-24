@@ -6218,3 +6218,22 @@ capability Hermes did not have.
 
 Verified after the fix: `dami frontier` answers in 10s on the subscription, traced,
 no billing.
+
+## 2026-08-24 — Claude — `dami chat --frontier`: the subscription as a chat mode
+
+The subscription was reachable only through `dami frontier`, a one-shot question verb
+— which is why it did not feel like a capability the system had. The frontier is now a
+turn mode: `dami chat --frontier <message>` runs the same turn shape against the
+ChatGPT subscription through the codex CLI, carrying Dami's identity and the question
+and **no retrieved memory** — which is precisely what keeps it Egressable without a
+consent step. Memory-informed frontier work still goes through C4's brief flow, where
+the exact bytes are reviewed before anything leaves.
+
+Fully traced like any other turn: TraceStarted → EgressRequested → EgressCompleted →
+TraceCompleted, replayable with `dami trace`. Verified live against the same question
+on both paths — local qwen3 and the subscription — and documented in `man dami`.
+
+12 suites, 763 tests, 0 warnings. Remaining gap, stated honestly: this mode is
+single-turn. Codex has built session infrastructure (`IConversationSessionStore`);
+threading frontier turns through it for real multi-turn continuity is the next step,
+and I left their in-flight files alone rather than entangle with them.
