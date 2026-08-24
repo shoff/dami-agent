@@ -14,6 +14,9 @@ namespace Dami.Capabilities.Native;
     "Propose replacing one text file beneath the configured root; never writes the target.",
     "native://propose-file-patch/schema/v1",
     "1.0.0",
+    ParametersJson = """
+        {"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"],"additionalProperties":false}
+        """,
     Tags = new[] { "files", "write", "approval" })]
 public sealed class ProposeFilePatchCapabilityHandler : INativeCapabilityHandler
 {

@@ -13,6 +13,9 @@ namespace Dami.Capabilities.Native;
     "Read one UTF-8 text file beneath the configured workspace root.",
     "native://read-file/schema/v1",
     "1.0.0",
+    ParametersJson = """
+        {"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}
+        """,
     Tags = new[] { "files", "read" })]
 public sealed class ReadFileCapabilityHandler : INativeCapabilityHandler
 {

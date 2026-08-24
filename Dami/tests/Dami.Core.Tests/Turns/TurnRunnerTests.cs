@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Dami.Contracts.Capabilities;
 using Dami.Contracts.Context;
 using Dami.Contracts.Events;
 using Dami.Contracts.Memory;
@@ -21,6 +23,8 @@ public sealed class TurnRunnerTests
     private readonly IExecutionEventStore eventStore = Substitute.For<IExecutionEventStore>();
     private readonly IObservationCorpus observationCorpus = Substitute.For<IObservationCorpus>();
     private readonly IIdentityProvider identityProvider = Substitute.For<IIdentityProvider>();
+    private readonly ICapabilityToolResolver toolResolver = Substitute.For<ICapabilityToolResolver>();
+    private readonly IToolLoopRunner toolLoop = Substitute.For<IToolLoopRunner>();
 
     [Fact]
     public async Task RunAsync_Should_Emit_A_UserTurn_Trace_From_Start_To_Completion()
@@ -34,6 +38,80 @@ public sealed class TurnRunnerTests
                 item.Type == ExecutionEventType.TraceCompleted
                 && item.Origin == ExecutionOrigin.UserTurn),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Resolve_Selected_Tools_And_Use_The_Tool_Loop()
+    {
+        this.Arrange();
+        var schema = CreateToolSchema();
+        var toolResolver = Substitute.For<ICapabilityToolResolver>();
+        toolResolver.ResolveAsync("read notes", Arg.Any<CancellationToken>())
+            .Returns([schema]);
+        var toolLoop = Substitute.For<IToolLoopRunner>();
+        toolLoop.RunAsync(
+                Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<CapabilityToolSchema>>(), Arg.Any<CancellationToken>())
+            .Returns("tool-backed answer");
+        this.identityProvider.Preamble.Returns("You are Dami, Steve's assistant.");
+        var runner = new TurnRunner(
+            this.contextBuilder, this.modelRouter, this.chatClient, this.eventStore,
+            this.observationCorpus, this.identityProvider, toolResolver, toolLoop,
+            new FakeTimeProvider(now), NullLogger<TurnRunner>.Instance);
+
+        var result = await runner.RunAsync("read notes", CancellationToken.None);
+
+        Assert.Equal("tool-backed answer", result.Answer);
+        await toolResolver.Received(1).ResolveAsync("read notes", Arg.Any<CancellationToken>());
+        await toolLoop.Received(1).RunAsync(
+            result.TraceId,
+            Arg.Is<Guid>(spanId => spanId != Guid.Empty),
+            Arg.Is<string>(prompt => prompt.Contains("read notes", StringComparison.Ordinal)),
+            Arg.Is<IReadOnlyList<CapabilityToolSchema>>(items =>
+                items.Count == 1 && ReferenceEquals(items[0], schema)),
+            Arg.Any<CancellationToken>());
+        await this.chatClient.DidNotReceive().CompleteAsync(
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Parent_Tool_Events_To_The_Capability_Selection()
+    {
+        this.Arrange();
+        ExecutionEvent? selection = null;
+        this.eventStore.AppendAsync(
+                Arg.Do<ExecutionEvent>(item =>
+                    selection = item.Type == ExecutionEventType.CapabilitySelected ? item : selection),
+                Arg.Any<CancellationToken>())
+            .Returns(1L);
+
+        var result = await this.CreateRunner().RunAsync("read notes", CancellationToken.None);
+
+        Assert.NotNull(selection);
+        await this.toolLoop.Received(1).RunAsync(
+            result.TraceId, selection.SpanId, Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<CapabilityToolSchema>>(), Arg.Any<CancellationToken>());
+    }
+
+    private static CapabilityToolSchema CreateToolSchema()
+    {
+        return new CapabilityToolSchema(
+            Guid.NewGuid(), "read_file", "Read a file.",
+            JsonSerializer.SerializeToElement(new { type = "object" }));
+    }
+
+    private Task<string> CaptureToolPromptAsync(Action<string> capture)
+    {
+        return this.toolLoop.RunAsync(
+            Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Do<string>(capture),
+            Arg.Any<IReadOnlyList<CapabilityToolSchema>>(), Arg.Any<CancellationToken>());
+    }
+
+    private Task<string> AnyToolLoopCallAsync()
+    {
+        return this.toolLoop.RunAsync(
+            Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<CapabilityToolSchema>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -53,7 +131,7 @@ public sealed class TurnRunnerTests
             beliefs: ["prefers evidence to assertion"],
             memories: ["worked on the transport codec"]);
         string? prompt = null;
-        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+        this.CaptureToolPromptAsync(text => prompt = text)
             .Returns("an answer");
 
         await this.CreateRunner().RunAsync("a question", CancellationToken.None);
@@ -66,7 +144,7 @@ public sealed class TurnRunnerTests
     {
         this.Arrange();
         string? prompt = null;
-        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+        this.CaptureToolPromptAsync(text => prompt = text)
             .Returns("an answer");
 
         await this.CreateRunner().RunAsync("a question", CancellationToken.None);
@@ -84,7 +162,7 @@ public sealed class TurnRunnerTests
         this.modelRouter.Route(Arg.Any<string>(), Arg.Any<PrivacyClass>())
             .Returns(new ModelRoute(ModelTier.Local, PrivacyClass.LocalOnly, "test"));
         string? prompt = null;
-        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+        this.CaptureToolPromptAsync(text => prompt = text)
             .Returns("an answer");
 
         await this.CreateRunner().RunAsync("a question", CancellationToken.None);
@@ -97,7 +175,7 @@ public sealed class TurnRunnerTests
     {
         this.Arrange();
         string? prompt = null;
-        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+        this.CaptureToolPromptAsync(text => prompt = text)
             .Returns("an answer");
 
         await this.CreateRunner().RunAsync("a question", CancellationToken.None);
@@ -123,7 +201,7 @@ public sealed class TurnRunnerTests
     public async Task RunAsync_Should_Record_A_Failed_Turn_And_Rethrow()
     {
         this.Arrange();
-        this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        this.AnyToolLoopCallAsync()
             .Returns<Task<string>>(_ => throw new InvalidOperationException("model down"));
 
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -149,7 +227,7 @@ public sealed class TurnRunnerTests
     {
         this.Arrange(memories: []);
         string? prompt = null;
-        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+        this.CaptureToolPromptAsync(text => prompt = text)
             .Returns("an answer");
 
         await this.CreateRunner().RunAsync("a question", CancellationToken.None);
@@ -173,7 +251,7 @@ public sealed class TurnRunnerTests
     public async Task RunAsync_Should_Not_Record_A_Failed_Turn_As_An_Interaction()
     {
         this.Arrange();
-        this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        this.AnyToolLoopCallAsync()
             .Returns<Task<string>>(_ => throw new InvalidOperationException("down"));
 
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -257,6 +335,12 @@ public sealed class TurnRunnerTests
             .Returns(new ModelRoute(ModelTier.Local, PrivacyClass.LocalOnly, "test"));
         this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("an answer");
+        this.toolResolver.ResolveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<CapabilityToolSchema>());
+        this.toolLoop.RunAsync(
+                Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<CapabilityToolSchema>>(), Arg.Any<CancellationToken>())
+            .Returns("an answer");
     }
 
     private TurnRunner CreateRunner()
@@ -264,7 +348,8 @@ public sealed class TurnRunnerTests
         this.identityProvider.Preamble.Returns("You are Dami, Steve's assistant.");
         return new TurnRunner(
             this.contextBuilder, this.modelRouter, this.chatClient, this.eventStore,
-            this.observationCorpus, this.identityProvider, new FakeTimeProvider(now),
+            this.observationCorpus, this.identityProvider, this.toolResolver, this.toolLoop,
+            new FakeTimeProvider(now),
             NullLogger<TurnRunner>.Instance);
     }
 }

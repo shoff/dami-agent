@@ -31,6 +31,9 @@ public sealed class NativeCapabilityAttribute : Attribute
     /// <summary>Gets the typed schema reference.</summary>
     public string SchemaReference { get; }
 
+    /// <summary>Gets or sets the JSON object schema advertised to the model.</summary>
+    public string ParametersJson { get; set; } = string.Empty;
+
     /// <summary>Gets the capability contract version.</summary>
     public string Version { get; }
 

@@ -1,4 +1,5 @@
 using System.Text;
+using Dami.Contracts.Capabilities;
 using Dami.Contracts.Context;
 using Dami.Contracts.Events;
 using Dami.Contracts.Memory;
@@ -29,6 +30,8 @@ public sealed class TurnRunner : ITurnRunner
     private readonly IExecutionEventStore eventStore;
     private readonly IObservationCorpus observationCorpus;
     private readonly IIdentityProvider identityProvider;
+    private readonly ICapabilityToolResolver toolResolver;
+    private readonly IToolLoopRunner toolLoop;
     private readonly TimeProvider clock;
     private readonly ILogger<TurnRunner> logger;
 
@@ -40,6 +43,8 @@ public sealed class TurnRunner : ITurnRunner
         IExecutionEventStore eventStore,
         IObservationCorpus observationCorpus,
         IIdentityProvider identityProvider,
+        ICapabilityToolResolver toolResolver,
+        IToolLoopRunner toolLoop,
         TimeProvider clock,
         ILogger<TurnRunner> logger)
     {
@@ -49,6 +54,8 @@ public sealed class TurnRunner : ITurnRunner
         ArgumentNullException.ThrowIfNull(chatClient);
         ArgumentNullException.ThrowIfNull(eventStore);
         ArgumentNullException.ThrowIfNull(observationCorpus);
+        ArgumentNullException.ThrowIfNull(toolResolver);
+        ArgumentNullException.ThrowIfNull(toolLoop);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
 
@@ -58,6 +65,8 @@ public sealed class TurnRunner : ITurnRunner
         this.eventStore = eventStore;
         this.observationCorpus = observationCorpus;
         this.identityProvider = identityProvider;
+        this.toolResolver = toolResolver;
+        this.toolLoop = toolLoop;
         this.clock = clock;
         this.logger = logger;
     }
@@ -114,6 +123,8 @@ public sealed class TurnRunner : ITurnRunner
 
         var (context, route, prompt) = await this.PrepareAsync(traceId, request, cancellationToken)
             .ConfigureAwait(false);
+        await this.EmitCapabilitySelectedAsync(
+            traceId, Guid.NewGuid(), route, toolCount: 0, cancellationToken).ConfigureAwait(false);
 
         // One coalesced streaming event, per the architecture: never one event per token.
         await this.EmitAsync(
@@ -165,10 +176,6 @@ public sealed class TurnRunner : ITurnRunner
 
         // Retrieved context is profile-derived, so the turn is LocalOnly by construction.
         var route = this.modelRouter.Route("synthesis", PrivacyClass.LocalOnly);
-        await this.EmitAsync(
-            traceId, ExecutionEventType.CapabilitySelected, ExecutionStatus.Succeeded,
-            $"routed {route.Tier}: {route.Reason}", cancellationToken).ConfigureAwait(false);
-
         return (context, route, this.BuildPrompt(request, context, this.clock.GetUtcNow()));
     }
 
@@ -198,7 +205,13 @@ public sealed class TurnRunner : ITurnRunner
         var (context, route, prompt) = await this.PrepareAsync(traceId, request, cancellationToken)
             .ConfigureAwait(false);
 
-        var answer = await this.chatClient.CompleteAsync(prompt, cancellationToken).ConfigureAwait(false);
+        var toolSchemas = await this.toolResolver.ResolveAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        var capabilitySpanId = Guid.NewGuid();
+        await this.EmitCapabilitySelectedAsync(
+            traceId, capabilitySpanId, route, toolSchemas.Count, cancellationToken).ConfigureAwait(false);
+        var answer = await this.toolLoop.RunAsync(
+            traceId, capabilitySpanId, prompt, toolSchemas, cancellationToken).ConfigureAwait(false);
 
         return new TurnResult(traceId, answer.Trim(), context, route);
     }
@@ -277,10 +290,34 @@ public sealed class TurnRunner : ITurnRunner
         string label,
         CancellationToken cancellationToken)
     {
+        return this.EmitAsync(
+            traceId, Guid.NewGuid(), type, status, label, cancellationToken);
+    }
+
+    private Task EmitCapabilitySelectedAsync(
+        Guid traceId,
+        Guid spanId,
+        ModelRoute route,
+        int toolCount,
+        CancellationToken cancellationToken)
+    {
+        return this.EmitAsync(
+            traceId, spanId, ExecutionEventType.CapabilitySelected, ExecutionStatus.Succeeded,
+            $"{toolCount} tools selected; routed {route.Tier}: {route.Reason}", cancellationToken);
+    }
+
+    private Task<long> EmitAsync(
+        Guid traceId,
+        Guid spanId,
+        ExecutionEventType type,
+        ExecutionStatus status,
+        string label,
+        CancellationToken cancellationToken)
+    {
         var executionEvent = new ExecutionEvent(
             eventId: Guid.NewGuid(),
             traceId: traceId,
-            spanId: Guid.NewGuid(),
+            spanId: spanId,
             parentSpanId: null,
             origin: ExecutionOrigin.UserTurn,
             actorId: ACTOR,

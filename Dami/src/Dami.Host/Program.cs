@@ -1,4 +1,3 @@
-using Dami.Capabilities.Native;
 using Dami.Contracts.Approvals;
 using Dami.Contracts.Models;
 using Dami.Core.Approvals;
@@ -15,6 +14,11 @@ using Dami.Providers;
 // thin clients of the same surface. Localhost-only is a privacy boundary, not a
 // deployment detail — exposing this beyond loopback is a separate auth decision.
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseDefaultServiceProvider(options =>
+{
+    options.ValidateOnBuild = true;
+    options.ValidateScopes = true;
+});
 builder.WebHost.UseUrls("http://127.0.0.1:5810");
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(
@@ -43,6 +47,7 @@ builder.Services.AddHttpClient<IChatClient, OllamaChatClient>(client =>
     client.Timeout = TimeSpan.FromMinutes(10));
 builder.Services.AddHttpClient<IEmbeddingClient, TeiEmbeddingClient>();
 builder.Services.AddHttpClient<IRerankClient, TeiRerankClient>();
+builder.Services.AddDamiNativeTools(builder.Configuration, TimeProvider.System);
 
 // Approvals execute in the runtime (D-005): librarian manifests and egress briefs.
 builder.Services.AddSingleton<ManifestExecutor>();
@@ -51,15 +56,6 @@ builder.Services.AddSingleton<IApprovalExecutionHandler>(services =>
     services.GetRequiredService<ManifestExecutor>());
 builder.Services.AddSingleton<IApprovalExecutionHandler>(services =>
     services.GetRequiredService<BriefExecutor>());
-var filePatchOptions = new ProposeFilePatchCapabilityOptions();
-builder.Configuration.GetSection(ProposeFilePatchCapabilityOptions.SECTION_NAME).Bind(filePatchOptions);
-if (!string.IsNullOrWhiteSpace(filePatchOptions.RootDirectory))
-{
-    builder.Services.AddSingleton(filePatchOptions);
-    builder.Services.AddSingleton<FilePatchExecutor>();
-    builder.Services.AddSingleton<IApprovalExecutionHandler>(services =>
-        services.GetRequiredService<FilePatchExecutor>());
-}
 
 builder.Services.AddSingleton<ApprovalExecutionDispatcher>();
 builder.Services.AddSingleton<Dami.Contracts.Privacy.IPromptRedactor, PromptRedactor>();

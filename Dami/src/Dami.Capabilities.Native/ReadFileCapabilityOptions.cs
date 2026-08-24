@@ -3,6 +3,9 @@ namespace Dami.Capabilities.Native;
 /// <summary>Filesystem bounds for the native read-file capability.</summary>
 public sealed class ReadFileCapabilityOptions
 {
+    /// <summary>Configuration section name.</summary>
+    public const string SECTION_NAME = "ReadFile";
+
     /// <summary>Gets or sets the only directory tree visible to the capability.</summary>
     public string RootDirectory { get; set; } = string.Empty;
 

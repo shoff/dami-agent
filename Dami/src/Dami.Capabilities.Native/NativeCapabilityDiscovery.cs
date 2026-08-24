@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Text.Json;
+using Dami.Contracts.Capabilities;
 
 namespace Dami.Capabilities.Native;
 
@@ -21,22 +23,33 @@ public sealed class NativeCapabilityDiscovery : INativeCapabilityDiscovery
                 continue;
             }
 
-            var entry = new CapabilityEntry(
-                Guid.Parse(metadata.CapabilityId),
-                metadata.Name,
-                metadata.Description,
-                CapabilityKind.Tool,
-                CapabilitySource.Native,
-                TrustLevel.Trusted,
-                metadata.Tags,
-                metadata.SchemaReference,
-                null,
-                [],
-                metadata.Version,
-                registeredAt);
-            registrations.Add(new NativeCapabilityRegistration(type.AsType(), entry));
+            registrations.Add(CreateRegistration(type, metadata, registeredAt));
         }
 
         return Array.AsReadOnly(registrations.ToArray());
+    }
+
+    private static NativeCapabilityRegistration CreateRegistration(
+        TypeInfo type,
+        NativeCapabilityAttribute metadata,
+        DateTimeOffset registeredAt)
+    {
+        var entry = new CapabilityEntry(
+            Guid.Parse(metadata.CapabilityId),
+            metadata.Name,
+            metadata.Description,
+            CapabilityKind.Tool,
+            CapabilitySource.Native,
+            TrustLevel.Trusted,
+            metadata.Tags,
+            metadata.SchemaReference,
+            null,
+            [],
+            metadata.Version,
+            registeredAt);
+        using var parameters = JsonDocument.Parse(metadata.ParametersJson);
+        var schema = new CapabilityToolSchema(
+            entry.CapabilityId, entry.Name, entry.Description, parameters.RootElement);
+        return new NativeCapabilityRegistration(type.AsType(), entry, schema);
     }
 }

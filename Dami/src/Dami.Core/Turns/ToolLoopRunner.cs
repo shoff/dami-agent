@@ -5,7 +5,7 @@ using Dami.Contracts.Models;
 namespace Dami.Core.Turns;
 
 /// <summary>Runs a bounded provider-neutral model/tool conversation.</summary>
-public sealed class ToolLoopRunner
+public sealed class ToolLoopRunner : IToolLoopRunner
 {
     private const string ACTOR = "runtime";
 

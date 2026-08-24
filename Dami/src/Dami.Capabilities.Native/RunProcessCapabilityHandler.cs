@@ -14,6 +14,9 @@ namespace Dami.Capabilities.Native;
     "Run an allowlisted executable with literal arguments beneath the workspace root.",
     "native://run-process/schema/v1",
     "1.0.0",
+    ParametersJson = """
+        {"type":"object","properties":{"executable":{"type":"string"},"arguments":{"type":"array","items":{"type":"string"}}},"required":["executable","arguments"],"additionalProperties":false}
+        """,
     Tags = new[] { "terminal", "process" })]
 public sealed class RunProcessCapabilityHandler : INativeCapabilityHandler
 {

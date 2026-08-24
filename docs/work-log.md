@@ -4508,3 +4508,61 @@ Streaming remains a separate constraint because its current contract transports 
 tokens and cannot interleave tool calls. The board now splits G6d into G6d1 (these
 composition/runtime seams for whole turns) and G6d2 (deployment plus live evidence)
 instead of quietly widening one implementation step.
+
+## 2026-08-23 — Codex — G6d1 native tools composed into whole turns
+
+G6d1 closes the four composition seams found at start. Native attributes now carry the
+typed JSON object parameters beside their stable id/name/description, and discovery
+produces a `CapabilityToolSchema` without constructing handlers. The loader can publish
+an already-filtered set into separate source-neutral metadata and schema registries;
+the Host publishes only handlers whose complete configuration is present, so a disabled
+tool is neither advertised nor executable. `NativeCapabilityActivator` resolves that
+same set into the thread-safe execution registry and fails loudly on a missing handler.
+
+`SemanticCapabilityToolResolver` maps the semantically retrieved bundle to typed tool
+schemas in the selected order, excludes skill entries, and rejects a selected tool with
+no schema. `TurnRunner.RunAsync` now resolves that selected surface and depends on the
+focused `IToolLoopRunner` abstraction; it no longer calls plain completion. The actual
+`CapabilitySelected` span parents all tool request/start/completion events. Streaming
+continues through `IChatClient.StreamAsync` with an explicit zero-tool selection event:
+its current token-stream contract cannot interleave tool calls, so claiming streaming
+tool execution here would be false and belongs with a future streaming-tool protocol.
+
+The Host composition root now registers capability inventory/index synchronization,
+semantic retrieval, typed schemas, configured native handlers, timeout execution,
+Ollama's selected-schema adapter, and the bounded loop. File patch approval execution
+is registered with the patch capability only when an explicit root exists. Run-process
+configuration is all-or-nothing (root plus nonempty executable allowlist); partial
+configuration fails startup rather than creating a misleading surface. Default-service
+provider scope/build validation is enabled.
+
+True red-green chronology:
+
+- The first whole-turn test failed cleanly with CS0246 for the absent tool resolver and
+  loop abstractions plus CS1729 for the missing TurnRunner dependencies (after fixing a
+  test-body `DAMI0003` scaffold failure). The minimum dependency-inverted path passed
+  1/1. Updating the existing tests to observe the new collaborator exposed seven red
+  contract-adaptation failures; every original prompt/failure assertion was preserved,
+  and Core returned green.
+- The trace-parent test then failed red because ToolLoopRunner received a fresh orphan
+  span rather than the persisted `CapabilitySelected` span. Passing the persisted
+  selection span made it green; Core passed 69/69.
+- Semantic typed-schema mapping failed to compile because neither registry nor resolver
+  existed. The minimum stable-order implementation passed 1/1.
+- Native discovery schema publication failed to compile because the attribute,
+  registration, and loader had no schema surface. The first implementation hit
+  `DAMI0003` at 31 lines; extracting registration construction made discovery pass 2/2
+  without handler activation.
+- Explicit activation failed to compile for the absent activator, then passed 1/1.
+  Publishing a preselected discovery set likewise failed red with CS1061 before the
+  focused `Publish` seam was added. The native suite passed 32/32.
+
+Host compilation could not serve as the intended integration red because Microsoft DI
+is lazy: the project still built before registrations existed. This is recorded rather
+than described as TDD. After composition, the Host build first failed on IDE0005 for an
+unused import; removing it produced 0 warnings/0 errors. Affected suites passed 27/27
+capabilities, 32/32 native, and 69/69 Core. The exact full tree then passed
+`dotnet build Dami.sln --nologo` with 0 warnings and 0 errors, all 497 tests across
+twelve suites (133 PostgreSQL), and `dotnet format Dami.sln --verify-no-changes
+--no-restore --verbosity minimal` with exit 0. No migration is required. G6d1 is `[x]`;
+G6d2 is claimed for isolated workspace configuration, deployment, and live evidence.

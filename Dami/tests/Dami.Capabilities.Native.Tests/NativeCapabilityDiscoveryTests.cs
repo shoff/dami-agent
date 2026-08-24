@@ -9,7 +9,9 @@ public sealed class NativeCapabilityDiscoveryTests
     {
         var registeredAt = new DateTimeOffset(2026, 8, 23, 11, 2, 0, TimeSpan.FromHours(-5));
         var registry = new CapabilityRegistry();
-        var loader = new NativeCapabilityLoader(new NativeCapabilityDiscovery(), registry);
+        var schemas = new CapabilityToolSchemaRegistry();
+        var loader = new NativeCapabilityLoader(
+            new NativeCapabilityDiscovery(), registry, schemas);
 
         IReadOnlyList<NativeCapabilityRegistration> registrations = loader.Load(
             typeof(NativeCapabilityDiscoveryTests).Assembly,
@@ -17,6 +19,7 @@ public sealed class NativeCapabilityDiscoveryTests
 
         NativeCapabilityRegistration registration = Assert.Single(registrations);
         Assert.Same(registration.Entry, registry.Find(Guid.Parse(CAPABILITY_ID)));
+        Assert.Same(registration.Schema, schemas.Find(Guid.Parse(CAPABILITY_ID)));
         Assert.Equal(0, AnnotatedTool.ConstructionCount);
     }
 
@@ -38,11 +41,30 @@ public sealed class NativeCapabilityDiscoveryTests
         Assert.Equal(TrustLevel.Trusted, registration.Entry.Trust);
         Assert.Equal(["vision", "comparison"], registration.Entry.Tags);
         Assert.Equal("native://compare-images/schema", registration.Entry.SchemaReference);
+        Assert.Equal("compare-images", registration.Schema.Name);
+        Assert.Equal("object", registration.Schema.Parameters.GetProperty("type").GetString());
         Assert.Null(registration.Entry.BodyReference);
         Assert.Empty(registration.Entry.RelatedCapabilities);
         Assert.Equal("1.0.0", registration.Entry.Version);
         Assert.Equal(registeredAt, registration.Entry.RegisteredAt);
         Assert.Equal(0, AnnotatedTool.ConstructionCount);
+    }
+
+    [Fact]
+    public void Publish_Should_Register_An_Already_Selected_Discovery_Set()
+    {
+        var registry = new CapabilityRegistry();
+        var schemas = new CapabilityToolSchemaRegistry();
+        var discovery = new NativeCapabilityDiscovery();
+        var registrations = discovery.Discover(
+            typeof(NativeCapabilityDiscoveryTests).Assembly, DateTimeOffset.UnixEpoch);
+        var loader = new NativeCapabilityLoader(discovery, registry, schemas);
+
+        loader.Publish(registrations);
+
+        var registration = Assert.Single(registrations);
+        Assert.Same(registration.Entry, registry.Find(registration.Entry.CapabilityId));
+        Assert.Same(registration.Schema, schemas.Find(registration.Entry.CapabilityId));
     }
 
     [NativeCapability(
@@ -51,6 +73,7 @@ public sealed class NativeCapabilityDiscoveryTests
         "Compare two images.",
         "native://compare-images/schema",
         "1.0.0",
+        ParametersJson = """{"type":"object","properties":{}}""",
         Tags = new[] { "vision", "comparison" })]
     private sealed class AnnotatedTool
     {

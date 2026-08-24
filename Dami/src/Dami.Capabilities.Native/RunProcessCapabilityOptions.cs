@@ -3,6 +3,9 @@ namespace Dami.Capabilities.Native;
 /// <summary>Execution policy for the native run-process capability.</summary>
 public sealed class RunProcessCapabilityOptions
 {
+    /// <summary>Configuration section name.</summary>
+    public const string SECTION_NAME = "RunProcess";
+
     /// <summary>Gets or sets the fixed process working directory.</summary>
     public string RootDirectory { get; set; } = string.Empty;
 
