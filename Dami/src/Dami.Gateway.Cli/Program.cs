@@ -45,6 +45,9 @@ services.AddSingleton<ChatCommands>();
 services.AddSingleton<FrontierCommands>();
 services.AddSingleton<ApprovalCommands>();
 services.AddSingleton<ManifestExecutor>();
+services.AddSingleton<BriefCommands>();
+services.AddSingleton<Dami.Core.Frontier.BriefExecutor>();
+services.AddSingleton<Dami.Contracts.Privacy.IPromptRedactor, Dami.Core.Frontier.PromptRedactor>();
 services.AddOptions<CodexOptions>();
 services.Configure<CodexOptions>(configuration.GetSection(CodexOptions.SECTION_NAME));
 services.AddSingleton<ICodexProcess, CodexProcess>();
@@ -84,7 +87,8 @@ try
         provider.GetRequiredService<StatsCommands>(),
         provider.GetRequiredService<ChatCommands>(),
         provider.GetRequiredService<FrontierCommands>(),
-        provider.GetRequiredService<ApprovalCommands>());
+        provider.GetRequiredService<ApprovalCommands>(),
+        provider.GetRequiredService<BriefCommands>());
 }
 catch (Dami.Contracts.Privacy.EgressRefusedException exception)
 {

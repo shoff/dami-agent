@@ -3735,3 +3735,24 @@ controlled-update procedure (unhold → upgrade → reboot → `dami health` gre
 re-hold from a fresh dpkg listing) are in runbook §4. An unattended driver bump is
 the silent-CPU-fallback failure class with extra steps; now it can only happen on
 purpose.
+
+## 2026-08-23 — Claude — C4: consent is the transform (ADR-0013)
+
+The register's "highest-leverage open design" is closed. LocalOnly context earns
+Egressable through exactly one door: `dami brief <question>` assembles context,
+has the local model draft a redacted brief ("the user", no names, technical content
+intact), stores the exact bytes hash-pinned behind a G7 approval, and prints them in
+full. `dami approve` hands the approval to `BriefExecutor`, which refuses anything
+not Approved, recomputes the SHA-256 at send time, refuses on mismatch, and sends
+through the ADR-0011 door — inheriting the egress event trail and the C5 budget.
+The `ModelRouter`'s unconditional LocalOnly rule never changed; the redactor's
+draft is explicitly untrusted (redaction alone converts nothing — the approval of
+those bytes is what creates Egressable).
+
+Live, end to end: a question about the aortic-stenosis history drew 8 corpus items;
+the draft stripped the surgeon's name and every identifier; approve sent it; a
+2,277-char frontier answer came back, recorded in the brief row next to what was
+sent, both egress events in the trace. Executor paranoia pinned by test: Pending
+refused, Denied refused, tampered bytes refused without touching the frontier.
+Migration 013, `IEgressBriefStore`, `IPromptRedactor`, CLI verb + approve hook.
+12 suites, 397 tests, 0 warnings.

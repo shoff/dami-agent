@@ -30,6 +30,8 @@ public static class CommandRouter
           dami chat <message>            one full interactive turn - context, routing, traced
           dami frontier <question>       a bare question to the frontier via your subscription;
                                          no memories are sent (ADR-0011)
+          dami brief <question>          draft a redacted, memory-informed brief for the
+                                         frontier; egresses only after dami approve (C4)
           dami context <request>         show what would enter the prompt, and its token cost
           dami caption <image-path>      caption an image locally; it never leaves the host
         """;
@@ -48,7 +50,8 @@ public static class CommandRouter
         StatsCommands stats,
         ChatCommands chat,
         FrontierCommands frontier,
-        ApprovalCommands approvals)
+        ApprovalCommands approvals,
+        BriefCommands briefs)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
@@ -63,6 +66,7 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(chat);
         ArgumentNullException.ThrowIfNull(frontier);
         ArgumentNullException.ThrowIfNull(approvals);
+        ArgumentNullException.ThrowIfNull(briefs);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -74,7 +78,7 @@ public static class CommandRouter
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
             args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            chat, frontier, approvals, cancellation.Token).ConfigureAwait(false);
+            chat, frontier, approvals, briefs, cancellation.Token).ConfigureAwait(false);
     }
 
     private static async Task<int> DispatchAsync(
@@ -92,6 +96,7 @@ public static class CommandRouter
         ChatCommands chat,
         FrontierCommands frontier,
         ApprovalCommands approvals,
+        BriefCommands briefs,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -116,6 +121,9 @@ public static class CommandRouter
                 await DispatchApprovalsAsync(verb, args, approvals, cancellationToken).ConfigureAwait(false),
             "frontier" when args.Length > 1 =>
                 await frontier.AskAsync(string.Join(' ', args[1..]), cancellationToken)
+                    .ConfigureAwait(false),
+            "brief" when args.Length > 1 =>
+                await briefs.DraftAsync(string.Join(' ', args[1..]), cancellationToken)
                     .ConfigureAwait(false),
             "beliefs" or "correct" or "retract" or "note" =>
                 await DispatchBeliefsAsync(verb, args, beliefs, cancellationToken).ConfigureAwait(false),

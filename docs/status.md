@@ -120,6 +120,7 @@ Verification on 2026-08-23: `Dami.Transport.Tests` executed 57 tests with 0 fail
 |---|---|---|
 | `Dami.Privacy` egress enforcement, verified by test | done | allowlist + tripwire; refused requests never reach the network (fake handler asserted empty); every send/refusal a durable event in the caller's trace |
 | Egress budget/rate alarm (C5) | done | event stream is the meter (refused attempts count); both doors gated; edge-transition surfacing demonstrated live — `refused:` at bound 1, `Egress budget tripped` in the queue, normal traffic unaffected |
+| Redaction/consent egress (C4, ADR-0013) | done | `dami brief` → hash-pinned bytes behind a G7 approval → `dami approve` sends byte-exactly through the ADR-0011 door; demonstrated live with the medical history — names stripped, 2,277-char answer recorded |
 | `IProactiveService` contract, scheduling, thresholding | done | `ProactivePassRunner` + `ProactiveScheduler` over a durable run log; failures count as runs; one failing service does not stop the rest |
 | Interest scout running | done | live pass against the real HN front page: egress → parse → loopback-TEI scoring → 3 surfacings, fully replayable trace |
 | Surfacing channel (a queue Steve reads when he wants) | done | `dami inbox` / `read` / `recent`; D-021 cap observed live — a second pass's candidates all `Suppressed`, stored auditable |

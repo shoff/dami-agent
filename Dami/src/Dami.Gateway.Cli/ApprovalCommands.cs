@@ -8,20 +8,24 @@ public sealed class ApprovalCommands
 {
     private readonly IApprovalService approvalService;
     private readonly ManifestExecutor manifestExecutor;
+    private readonly Dami.Core.Frontier.BriefExecutor briefExecutor;
     private readonly TimeProvider clock;
 
     /// <summary>Creates the commands.</summary>
     public ApprovalCommands(
         IApprovalService approvalService,
         ManifestExecutor manifestExecutor,
+        Dami.Core.Frontier.BriefExecutor briefExecutor,
         TimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(approvalService);
         ArgumentNullException.ThrowIfNull(manifestExecutor);
+        ArgumentNullException.ThrowIfNull(briefExecutor);
         ArgumentNullException.ThrowIfNull(clock);
 
         this.approvalService = approvalService;
         this.manifestExecutor = manifestExecutor;
+        this.briefExecutor = briefExecutor;
         this.clock = clock;
     }
 
@@ -66,6 +70,15 @@ public sealed class ApprovalCommands
             var (moved, skipped) = await this.manifestExecutor
                 .ExecuteAsync(request.ApprovalId, cancellationToken).ConfigureAwait(false);
             Console.WriteLine($"executed: {moved} moved, {skipped} skipped");
+        }
+
+        if (request.RequestedBy == "frontier-brief")
+        {
+            Console.WriteLine("sending the approved brief to the frontier...");
+            var answer = await this.briefExecutor
+                .ExecuteAsync(request.ApprovalId, cancellationToken).ConfigureAwait(false);
+            Console.WriteLine();
+            Console.WriteLine(answer);
         }
 
         return 0;

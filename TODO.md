@@ -59,7 +59,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] C1 `Dami.Privacy`: allowlist egress client, refusal-is-loud, every send/refusal a trace event; composition-root audit point
 - [x] C2 Frontier gate ADR-0010: `IFrontierChat`, prompt-never-in-labels, LocalOnly unreachable-by-construction for context-bearing turns
 - [x] C3 Subscription frontier ADR-0011: `CodexChatClient` via `codex exec` (browser login, zero API cost), read-only sandboxed, live-verified
-- [~ Claude 2026-08-23] C4 **Redaction/consent step** so memory-informed prompts can become Egressable deliberately (unlocks frontier `chat`; needs its own ADR — the highest-leverage open design in the suite)
+- [x] C4 **Redaction/consent step** (ADR-0013) so memory-informed prompts can become Egressable deliberately (unlocks frontier `chat`; needs its own ADR — the highest-leverage open design in the suite)
 - [x] C5 Egress budget/rate alarm (a runaway proactive loop calling frontier nightly should trip something)
 
 ## D · Model layer (§7.4)
@@ -108,7 +108,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [ ] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
 - [ ] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6
-- [ ] G9 Frontier-informed turns once C4 exists (redacted context → Egressable)
+- [ ] G9 Frontier-informed turns (C4 now exists: build on `dami brief`/BriefExecutor)
 - [ ] G10 Identity/prompt: port the Dami identity charter into the stable prompt (§9.1); verify identity across local + frontier — acceptance item 9
 
 ## H · Proactive tier (D-001/D-019/D-020/D-021) — running unattended

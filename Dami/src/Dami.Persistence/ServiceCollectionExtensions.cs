@@ -1,9 +1,11 @@
+using Dami.Contracts.Briefs;
 using Dami.Contracts.Capabilities;
 using Dami.Contracts.Events;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Approvals;
 using Dami.Contracts.Proactive;
 using Dami.Persistence.Approvals;
+using Dami.Persistence.Briefs;
 using Dami.Persistence.Capabilities;
 using Dami.Persistence.Events;
 using Dami.Persistence.Memory;
@@ -51,6 +53,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IApprovalService, PostgresApprovalService>();
         services.TryAddSingleton<IConclusionEmbeddingStore, PostgresConclusionEmbeddingStore>();
         services.TryAddSingleton<IEgressMeter, PostgresEgressMeter>();
+        services.TryAddSingleton<IEgressBriefStore, PostgresEgressBriefStore>();
         services.TryAddSingleton<ICapabilityEmbeddingStore, PostgresCapabilityEmbeddingStore>();
 
         return services;
