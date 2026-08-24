@@ -228,6 +228,23 @@ publishes the visible filesystem snapshot, then converges any durable changes la
 a successful terminal event before Kestrel becomes ready. Verify the journal line
 `Skill recovery completed with 0 change(s)` and `/health` after a deployment.
 
+### Restoring the database: roles first, then the dump
+
+`pg_dump` does not carry roles. Restoring a `dami-data` dump onto a fresh cluster
+without them fails with dozens of `role "dami_app" does not exist` errors on every
+GRANT — confusing if you meet it cold, and it looks like a corrupt backup when it
+is not. `dami-pg-backup` already captures them; the order is:
+
+```bash
+sudo -u postgres psql -p <port> -f globals-<stamp>.sql        # roles first
+sudo -u postgres psql -p <port> -tAc 'create database "dami-data"'
+sudo -u postgres pg_restore -p <port> -d dami-data dami-data-<stamp>.dump
+```
+
+Rehearsed 2026-08-24 against PostgreSQL 17: 0 errors, all row counts matched,
+pgvector working, and the append-only triggers still refused DELETE and UPDATE on
+the restored copy. See ADR-0016.
+
 ### The silent CPU fallback — root cause found and fixed (2026-08-24)
 
 The sidecar had fallen back to `100% CPU` six times. Root cause: Ollama's default

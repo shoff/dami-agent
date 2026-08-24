@@ -38,7 +38,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] A3 Timeshift snapshots (ADR-0002) · nightly verified pg dumps (ADR-0003) · systemd `dami-proactive` service · `dami` CLI on PATH
 - [ ] A4 Off-host, encrypted backup destination + stated RPO (closes the register's backup decision; ADR-0003 is interim-only) `[STEVE: destination choice]`
 - [x] A5 `apt-mark hold` / controlled-update windows for the NVIDIA driver stack (29 pkgs held @ 595.84; procedure in runbook §4)
-- [ ] A6 PostgreSQL 16 vs 17/18 decision while databases are still small `[STEVE]`
+- [STEVE] A6 PostgreSQL major version — **ADR-0016 proposed** (Claude 2026-08-24): migration to 17 rehearsed end to end on a scratch cluster — dump 38s, restore 21s, **0 errors**, all row counts matched, pgvector working, append-only guards still refusing DELETE/UPDATE. Recommends 17 now while the DB is 108 MB, for the rehearsal value rather than any feature. Accept/reject
 - [ ] A7 ADR-0001 (host OS = Mint) accept/reject `[STEVE]`
 
 ## B · Data foundation & memory (D-007/D-009/D-010)

@@ -6539,3 +6539,28 @@ default embedding URL rather than the one under test, so every comparison run wa
 labelled with the incumbent's name. I caught it because the header said "bge-m3" while
 the metrics had visibly changed. A benchmark that mislabels its subject is worse than
 no benchmark.
+
+## 2026-08-24 — Claude — A6: the Postgres upgrade, rehearsed rather than argued (ADR-0016)
+
+Rather than write a recommendation from theory, I proved the path. Installed
+PostgreSQL 17 alongside the live 16, created a scratch cluster on 5433, and restored
+the live database into it: dump 38s/34 MB, restore 21s, **0 errors**, every row count
+matched exactly (7,092 observations, 7,051 embeddings, 477 events, 5 conclusions),
+pgvector 0.8.6 working with a real nearest-neighbour query, and — the invariant that
+matters most — the append-only triggers still refused both DELETE and UPDATE on the
+restored copy. Scratch cluster dropped afterwards; production was never touched.
+
+The recommendation is 17, and the argument is not a feature. It is that this project
+insists everywhere else that a migration path must exist before it is needed —
+per-row embedding versioning, the date-repair sidecar, supersession instead of
+overwrite — and the major-version upgrade was the one migration nobody had rehearsed.
+It gets more expensive every month the corpus grows. 18 is packaged and would
+probably work; 17 has a year more field time under pgvector, and this system takes the
+boring option where the exciting one buys nothing measurable.
+
+One suspicion I raised and then disproved: a restore fails with 63 permission errors
+if roles are not restored first, because `pg_dump` does not carry them. I assumed the
+nightly backup had that gap. It does not — `dami-pg-backup` already runs
+`pg_dumpall --globals-only`, and the current globals file contains both `dami_app` and
+`dami_ddl`. Nothing to fix; the restore *order* is now documented in the runbook,
+because meeting that error cold looks like a corrupt backup when it is not.
