@@ -11,4 +11,7 @@ public enum CapabilitySource
 
     /// <summary>A progressively disclosed skill directory.</summary>
     Skill,
+
+    /// <summary>A human-approved self-authored tool executed only in an OS sandbox.</summary>
+    Sandboxed,
 }

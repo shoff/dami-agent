@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Dami.Contracts.ToolStaging;
 
 namespace Dami.Capabilities.Sandboxed;
@@ -63,7 +62,8 @@ public sealed class ToolArtifactVerifier
             throw new InvalidDataException("The fixed build produced no tool assembly.");
         }
 
-        string assemblySha256 = await HashAssemblyAsync(assemblyPath, cancellationToken)
+        string assemblySha256 = await ToolAssemblyDigest.ComputeAsync(
+            assemblyPath, cancellationToken)
             .ConfigureAwait(false);
         return new VerifiedToolArtifact(
             artifact.Version, assemblyPath, assemblySha256, tests.StandardOutput);
@@ -89,19 +89,4 @@ public sealed class ToolArtifactVerifier
         return result;
     }
 
-    private static async Task<string> HashAssemblyAsync(
-        string assemblyPath,
-        CancellationToken cancellationToken)
-    {
-        await using var stream = new FileStream(
-            assemblyPath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 1,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        byte[] digest = await SHA256.HashDataAsync(stream, cancellationToken)
-            .ConfigureAwait(false);
-        return Convert.ToHexStringLower(digest);
-    }
 }

@@ -6267,3 +6267,37 @@ host logged `withheld 1 local exchange(s) from the prompt (D-012)`. Continuity w
 it is safe, silence where it is not.
 
 `dami session turn <id> --frontier <message>`. 12 suites, 769 tests, 0 warnings.
+
+## 2026-08-24 — Codex — F5c3b1 complete; exact rollback and execution identity proven
+
+Completed the already-claimed F5c3b1 slice without widening it into materialization or
+Host recovery. A dynamic sandboxed execution registry now owns immutable registrations
+for one capability id, verification record, and artifact directory. Publication occurs
+in dependency order — execution handler, typed schema, searchable metadata — and a
+later failure removes only the exact handler/schema instances introduced by that
+attempt. Existing registrations are preserved. The sandboxed executor dispatches only
+the fixed `dotnet /tool/Tool.dll` command through the existing process boundary, mounts
+the registered artifact read-only, and re-hashes `Tool.dll` before every launch so
+changed bytes fail before the process runner is called.
+
+TDD record: the first publisher test compiled red on the absent registration,
+registry, publisher, and revertible-registry seams, then passed after the minimum
+dependency-ordered publication and exact-instance rollback implementation. The first
+executor test compiled red on the absent execution source and passed after fixed-command
+JSON stdin dispatch. The assembly-tamper test then failed behaviorally because execution
+still launched changed bytes; extracting the verifier's SHA-256 operation into the
+shared digest and checking the registered assembly made it green. These failures and
+the intermediate 12/12 and 18/18 focused results were recorded in the preceding
+in-progress entry rather than rewritten after the fact.
+
+Final evidence from `Dami/`: focused sandboxed tests passed 12/12. `dotnet build
+Dami.sln` completed across 33 projects with 0 warnings and 0 errors. `dotnet test
+Dami.sln --no-build` passed all seventeen suites, 769/769 tests, with 0 failed and 0
+skipped. F5c3b1 is complete. F5c3b2 still owns immutable artifact materialization and
+durable recovery; F5c3b3 still owns Host startup composition and the recovery
+demonstration.
+
+Steve also resolved the audit's local-client authentication direction: use OIDC and
+persist the authentication state in PostgreSQL. The remaining audit questions are not
+stop-work gates; Codex is to choose pragmatic v1 designs, document the choices, and
+iterate later.

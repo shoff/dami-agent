@@ -6,7 +6,8 @@ namespace Dami.Capabilities;
 public sealed class CapabilityRegistry :
     ICapabilityCatalog,
     ICapabilityInventory,
-    ICapabilitySourceSnapshotRegistrar
+    ICapabilitySourceSnapshotRegistrar,
+    IRevertibleRegistrar<CapabilityEntry>
 {
     private ConcurrentDictionary<Guid, CapabilityEntry> entries = [];
     private readonly object writeGate = new();
@@ -84,6 +85,26 @@ public sealed class CapabilityRegistry :
     {
         ConcurrentDictionary<Guid, CapabilityEntry> snapshot = Volatile.Read(ref this.entries);
         return Array.AsReadOnly(snapshot.Values.OrderBy(entry => entry.CapabilityId).ToArray());
+    }
+
+    /// <inheritdoc />
+    public bool TryRemoveExact(CapabilityEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        lock (this.writeGate)
+        {
+            ConcurrentDictionary<Guid, CapabilityEntry> current = Volatile.Read(ref this.entries);
+            if (!current.TryGetValue(entry.CapabilityId, out CapabilityEntry? registered)
+                || !ReferenceEquals(registered, entry))
+            {
+                return false;
+            }
+
+            var replacement = new ConcurrentDictionary<Guid, CapabilityEntry>(current);
+            bool removed = replacement.TryRemove(entry.CapabilityId, out _);
+            Volatile.Write(ref this.entries, replacement);
+            return removed;
+        }
     }
 
     private static void RegisterOne(
