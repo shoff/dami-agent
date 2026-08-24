@@ -16,6 +16,7 @@ public static class RuntimeEndpoints
         EventEndpoints.Map(app);
         CorpusEndpoints.Map(app);
         FrontierEndpoints.Map(app);
+        HealthDomainEndpoints.Map(app);
     }
 }
 

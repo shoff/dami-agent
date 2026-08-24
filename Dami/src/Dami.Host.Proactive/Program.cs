@@ -7,6 +7,7 @@ using Dami.Privacy;
 using Dami.Proactive;
 using Dami.Proactive.Audit;
 using Dami.Proactive.CodeAudit;
+using Dami.Proactive.Health;
 using Dami.Proactive.Embedder;
 using Dami.Proactive.Librarian;
 using Dami.Proactive.Reflection;
@@ -60,6 +61,12 @@ builder.Services.AddSingleton<IProactiveService, InterestScout>();
 
 // D-011's quarterly decay detector. Local-only: no egress dependency, by design.
 builder.Services.AddSingleton<IProactiveService, PushbackAuditService>();
+
+// K2: the health domain collector — reads observations, writes structured health rows
+// (LocalOnly, no egress path), the timeline D-007's reflection join will read.
+builder.Services.Configure<HealthCollectorOptions>(
+    builder.Configuration.GetSection(HealthCollectorOptions.SECTION_NAME));
+builder.Services.AddSingleton<IProactiveService, HealthCollectorService>();
 
 // D-016: the codebase audit reads the repo and proposes; it commits nothing.
 builder.Services.Configure<CodebaseAuditOptions>(

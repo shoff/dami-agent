@@ -151,7 +151,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 ## K · Domains (Phase 5/8)
 
 - [ ] K1 Domain inventory with Steve: which sources exist for health / civic / network / estate / workshop, and where `[STEVE]`
-- [ ] K2 One domain end to end (schema + collector + contract tests + privacy review) — pick the one with the best data
+- [x] K2 Health domain end to end — schema (014/015) + HealthCollectorService + IHealthEventStore + /health-log + `dami health-log` + privacy review (LocalOnly, no egress path)
 - [ ] K3 Reflection consumes domain rows (the cross-domain join that justifies D-007)
 - [ ] K4 Remaining domains, one at a time
 

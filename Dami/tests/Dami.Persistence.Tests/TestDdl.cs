@@ -15,6 +15,9 @@ public static class TestDdl
         "011_capability_embeddings.sql",
         "012_observation_date_repairs.sql",
         "013_egress_briefs.sql",
+        "014_health_events.sql",
+        "015_health_examined.sql",
+        "016_file_patch_proposals.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
     ];
@@ -47,6 +50,9 @@ public static class TestDdl
         ArgumentNullException.ThrowIfNull(schema);
 
         return $"""
+            drop table if exists {schema}.file_patch_proposals cascade;
+            drop table if exists {schema}.health_examined cascade;
+            drop table if exists {schema}.health_events cascade;
             drop table if exists {schema}.egress_briefs cascade;
             drop table if exists {schema}.observation_date_repairs cascade;
             drop table if exists {schema}.capability_embeddings cascade;
@@ -81,6 +87,11 @@ public static class TestDdl
         // guard dropped deliberately. That the fixture has to do this is the guarantee
         // working, not a workaround for it.
         return $"""
+            alter table {schema}.file_patch_proposals disable trigger file_patch_proposals_append_only;
+            delete from {schema}.file_patch_proposals;
+            alter table {schema}.file_patch_proposals enable trigger file_patch_proposals_append_only;
+            delete from {schema}.health_examined;
+            delete from {schema}.health_events;
             delete from {schema}.egress_briefs;
             delete from {schema}.observation_date_repairs;
             delete from {schema}.capability_embeddings;

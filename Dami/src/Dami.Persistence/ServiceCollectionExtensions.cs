@@ -1,13 +1,17 @@
 using Dami.Contracts.Briefs;
+using Dami.Contracts.Domains;
 using Dami.Contracts.Capabilities;
 using Dami.Contracts.Events;
+using Dami.Contracts.FilePatches;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Approvals;
 using Dami.Contracts.Proactive;
 using Dami.Persistence.Approvals;
 using Dami.Persistence.Briefs;
+using Dami.Persistence.Domains;
 using Dami.Persistence.Capabilities;
 using Dami.Persistence.Events;
+using Dami.Persistence.FilePatches;
 using Dami.Persistence.Memory;
 using Dami.Persistence.Proactive;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,6 +58,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IConclusionEmbeddingStore, PostgresConclusionEmbeddingStore>();
         services.TryAddSingleton<IEgressMeter, PostgresEgressMeter>();
         services.TryAddSingleton<IEgressBriefStore, PostgresEgressBriefStore>();
+        services.TryAddSingleton<IFilePatchProposalStore, PostgresFilePatchProposalStore>();
+        services.TryAddSingleton<IHealthEventStore, PostgresHealthEventStore>();
         services.TryAddSingleton<ICapabilityEmbeddingStore, PostgresCapabilityEmbeddingStore>();
 
         return services;

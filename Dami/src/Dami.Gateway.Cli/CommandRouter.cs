@@ -34,6 +34,7 @@ public static class CommandRouter
                                          frontier; egresses only after dami approve (C4)
           dami context <request>         show what would enter the prompt, and its token cost
           dami caption <image-path>      caption an image locally; it never leaves the host
+          dami health-log                the structured health timeline (K2), local only
         """;
 
     /// <summary>Runs one command. Returns the process exit code.</summary>
@@ -51,7 +52,8 @@ public static class CommandRouter
         ChatCommands chat,
         FrontierCommands frontier,
         ApprovalCommands approvals,
-        BriefCommands briefs)
+        BriefCommands briefs,
+        HealthLogCommands healthLog)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
@@ -67,6 +69,7 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(frontier);
         ArgumentNullException.ThrowIfNull(approvals);
         ArgumentNullException.ThrowIfNull(briefs);
+        ArgumentNullException.ThrowIfNull(healthLog);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -78,7 +81,7 @@ public static class CommandRouter
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
             args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            chat, frontier, approvals, briefs, cancellation.Token).ConfigureAwait(false);
+            chat, frontier, approvals, briefs, healthLog, cancellation.Token).ConfigureAwait(false);
     }
 
     private static async Task<int> DispatchAsync(
@@ -97,6 +100,7 @@ public static class CommandRouter
         FrontierCommands frontier,
         ApprovalCommands approvals,
         BriefCommands briefs,
+        HealthLogCommands healthLog,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -111,9 +115,9 @@ public static class CommandRouter
                     cancellationToken).ConfigureAwait(false),
             "trace" when args.Length > 1 =>
                 await traces.ReplayAsync(args[1], cancellationToken).ConfigureAwait(false),
-            "health" or "stats" => verb == "health"
-                ? await health.CheckAsync(cancellationToken).ConfigureAwait(false)
-                : await stats.ShowAsync(cancellationToken).ConfigureAwait(false),
+            "health" or "stats" or "health-log" =>
+                await DispatchStatusAsync(verb, health, stats, healthLog, cancellationToken)
+                    .ConfigureAwait(false),
             "recall" or "ask" or "context" or "caption" or "chat" when args.Length > 1 =>
                 await DispatchModelAsync(verb, args, recall, ask, contextCommands, vision, chat,
                     cancellationToken).ConfigureAwait(false),
@@ -128,6 +132,21 @@ public static class CommandRouter
             "beliefs" or "correct" or "retract" or "note" =>
                 await DispatchBeliefsAsync(verb, args, beliefs, cancellationToken).ConfigureAwait(false),
             _ => Usage(),
+        };
+    }
+
+    private static async Task<int> DispatchStatusAsync(
+        string verb,
+        HealthCommands health,
+        StatsCommands stats,
+        HealthLogCommands healthLog,
+        CancellationToken cancellationToken)
+    {
+        return verb switch
+        {
+            "health" => await health.CheckAsync(cancellationToken).ConfigureAwait(false),
+            "stats" => await stats.ShowAsync(cancellationToken).ConfigureAwait(false),
+            _ => await healthLog.ShowAsync(cancellationToken).ConfigureAwait(false),
         };
     }
 

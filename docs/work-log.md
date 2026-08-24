@@ -4132,7 +4132,7 @@ to `[x]`; G6c3b is claimed before proposal or persistence changes begin.
 
 G6c3b is split once more before implementation because durable immutable proposal
 storage and root-confined proposal creation have different failure modes and test
-fixtures. G6c3b1 owns the contract, migration 014, and PostgreSQL round-trip/idempotency;
+fixtures. G6c3b1 owns the contract, migration 016, and PostgreSQL round-trip/idempotency;
 G6c3b2 owns path/preimage validation and filing the G7 request without touching the
 target. G6c3b1 is claimed before adding DDL or persistence code.
 
@@ -4154,3 +4154,25 @@ it stays testable — the new test drives a FakeTimeProvider by hand and proves 
 feeds fetch only as time advances. Live: the scout now pulls real items on Steve's
 topics (they suppressed under today's D-021 cap, which is correct). 12 suites, 440
 tests, 0 warnings.
+
+## 2026-08-24 — Claude — K2: the health domain, end to end (D-007's own example)
+
+The first domain schema — the exact case D-007 was written around ("correlate
+embeddings against health rows"). Health is the best-attested data in the corpus
+(aortic-stenosis, surgery, cardiac) and the most sensitive, so it is the right
+first domain and it is LocalOnly by construction.
+
+Migration 014 `health_events` (typed category, event date, description, provenance
+FK to the source observation, idempotent on observation+description) and 015
+`health_examined` (the collector's high-water marker, so a note with nothing
+medical is read once, not every pass — the embedder's coverage pattern).
+`HealthCollectorService` (nightly): reads unexamined observations, has the loopback
+model extract facts as JSON, writes the structured rows, marks examined. It sends
+nothing — no egress client, no frontier — and surfaces nothing; building the
+timeline is maintenance. Non-JSON and unknown categories are dropped, not crashed
+(pinned). `IHealthEventStore`, the `/health-log` API route, and `dami health-log`.
+
+Privacy review written (`docs/domains/health-privacy-review.md`): the domain has no
+egress path, argued path by path — collector, store, API (loopback), and the C4
+consent door (which reads context memories, not health rows). Approved LocalOnly.
+8 new tests (3 store + 5 collector). 12 suites, 457 tests, 0 warnings.
