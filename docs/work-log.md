@@ -4639,3 +4639,12 @@ and `ApprovalResolved` event commit together. The file-patch aggregate's transac
 insert must use the same event path; otherwise the live case that found the defect
 would remain exceptional. Tests will first prove rollback/no-orphan behavior and exact
 trace/event metadata against PostgreSQL before production SQL changes.
+
+Persistence inspection found that `ApprovalRequest` carries `TraceId` but neither an
+`ExecutionOrigin` nor the originating parent span. Emitting now would force brittle
+`RequestedBy` inference, misclassify media-librarian work as `UserTurn`, and leave the
+live file-patch approval detached from its tool span. G7a is therefore split explicitly:
+G7a1 adds provenance to the contract/store through migration 018 (with honest backfill
+for existing rows where possible), then G7a2 makes request/resolution event insertion
+atomic with the state transition and proves the live trace. No production code changed
+before this split.
