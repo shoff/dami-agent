@@ -4,6 +4,7 @@ using Dami.Contracts.Context;
 using Dami.Contracts.Events;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Models;
+using Dami.Core.Sessions;
 using Microsoft.Extensions.Logging;
 
 namespace Dami.Core.Turns;
@@ -20,7 +21,7 @@ namespace Dami.Core.Turns;
 /// routes it to the sidecar. Frontier turns become possible when a redaction step
 /// exists; that is a future ADR, not a flag.
 /// </remarks>
-public sealed class TurnRunner : ITurnRunner
+public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
 {
     private const string ACTOR = "runtime";
 
@@ -74,16 +75,32 @@ public sealed class TurnRunner : ITurnRunner
     /// <inheritdoc />
     public async Task<TurnResult> RunAsync(string request, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
+        return await this.RunTracedAsync(
+            Guid.NewGuid(), request, ConversationWindow.Empty, cancellationToken).ConfigureAwait(false);
+    }
 
-        var traceId = Guid.NewGuid();
+    /// <inheritdoc />
+    public async Task<TurnResult> RunTracedAsync(
+        Guid traceId,
+        string request,
+        ConversationWindow conversation,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(conversation);
+        if (traceId == Guid.Empty)
+        {
+            throw new ArgumentException("A traced turn requires a non-empty trace id.", nameof(traceId));
+        }
+
         await this.EmitAsync(
             traceId, ExecutionEventType.TraceStarted, ExecutionStatus.Running,
             "turn started", cancellationToken).ConfigureAwait(false);
 
         try
         {
-            return await this.CompleteTurnAsync(traceId, request, cancellationToken).ConfigureAwait(false);
+            return await this.CompleteTurnAsync(
+                traceId, request, conversation, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -121,7 +138,8 @@ public sealed class TurnRunner : ITurnRunner
             traceId, ExecutionEventType.TraceStarted, ExecutionStatus.Running,
             "turn started (streaming)", cancellationToken).ConfigureAwait(false);
 
-        var (context, route, prompt) = await this.PrepareAsync(traceId, request, cancellationToken)
+        var (context, route, prompt) = await this.PrepareAsync(
+            traceId, request, ConversationWindow.Empty, cancellationToken)
             .ConfigureAwait(false);
         await this.EmitCapabilitySelectedAsync(
             traceId, Guid.NewGuid(), route, toolCount: 0, cancellationToken).ConfigureAwait(false);
@@ -161,6 +179,7 @@ public sealed class TurnRunner : ITurnRunner
     private async Task<(AssembledContext Context, ModelRoute Route, string Prompt)> PrepareAsync(
         Guid traceId,
         string request,
+        ConversationWindow conversation,
         CancellationToken cancellationToken)
     {
         await this.EmitAsync(
@@ -171,20 +190,23 @@ public sealed class TurnRunner : ITurnRunner
 
         await this.EmitAsync(
             traceId, ExecutionEventType.ContextRetrieved, ExecutionStatus.Succeeded,
-            $"{context.Memories.Count} memories, {context.Beliefs.Count} beliefs, ~{context.EstimatedTokens} tokens",
+            $"{context.Memories.Count} memories, {context.Beliefs.Count} beliefs, ~{context.EstimatedTokens + conversation.EstimatedTokens} tokens",
             cancellationToken).ConfigureAwait(false);
 
         // Retrieved context is profile-derived, so the turn is LocalOnly by construction.
         var route = this.modelRouter.Route("synthesis", PrivacyClass.LocalOnly);
-        return (context, route, this.BuildPrompt(request, context, this.clock.GetUtcNow()));
+        return (context, route, this.BuildPrompt(
+            request, context, conversation, this.clock.GetUtcNow()));
     }
 
     private async Task<TurnResult> CompleteTurnAsync(
         Guid traceId,
         string request,
+        ConversationWindow conversation,
         CancellationToken cancellationToken)
     {
-        var result = await this.ExecuteAsync(traceId, request, cancellationToken).ConfigureAwait(false);
+        var result = await this.ExecuteAsync(
+            traceId, request, conversation, cancellationToken).ConfigureAwait(false);
 
         // F-05: interactions are continuously recorded. The turn joins the corpus so
         // the next turn - and the weekly reflection - can see this one happened.
@@ -200,9 +222,11 @@ public sealed class TurnRunner : ITurnRunner
     private async Task<TurnResult> ExecuteAsync(
         Guid traceId,
         string request,
+        ConversationWindow conversation,
         CancellationToken cancellationToken)
     {
-        var (context, route, prompt) = await this.PrepareAsync(traceId, request, cancellationToken)
+        var (context, route, prompt) = await this.PrepareAsync(
+            traceId, request, conversation, cancellationToken)
             .ConfigureAwait(false);
 
         var toolSchemas = await this.toolResolver.ResolveAsync(request, cancellationToken)
@@ -216,7 +240,11 @@ public sealed class TurnRunner : ITurnRunner
         return new TurnResult(traceId, answer.Trim(), context, route);
     }
 
-    private string BuildPrompt(string request, AssembledContext context, DateTimeOffset today)
+    private string BuildPrompt(
+        string request,
+        AssembledContext context,
+        ConversationWindow conversation,
+        DateTimeOffset today)
     {
         var prompt = new StringBuilder();
         // §9.1: the stable identity block leads the prompt — one source, every provider.
@@ -232,10 +260,27 @@ public sealed class TurnRunner : ITurnRunner
         prompt.AppendLine();
 
         AppendContext(prompt, context);
+        AppendConversation(prompt, conversation);
 
         prompt.AppendLine();
         prompt.Append("Steve: ").AppendLine(request);
         return prompt.ToString();
+    }
+
+    private static void AppendConversation(StringBuilder prompt, ConversationWindow conversation)
+    {
+        if (conversation.Turns.Count == 0)
+        {
+            return;
+        }
+
+        prompt.AppendLine();
+        prompt.AppendLine("Recent conversation (oldest to newest):");
+        foreach (var turn in conversation.Turns)
+        {
+            prompt.Append("Steve: ").AppendLine(turn.Request.Message);
+            prompt.Append("Dami: ").AppendLine(turn.Response);
+        }
     }
 
     private static void AppendContext(StringBuilder prompt, AssembledContext context)

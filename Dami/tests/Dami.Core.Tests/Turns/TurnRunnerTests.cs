@@ -4,6 +4,8 @@ using Dami.Contracts.Context;
 using Dami.Contracts.Events;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Models;
+using Dami.Contracts.Sessions;
+using Dami.Core.Sessions;
 using Dami.Core.Turns;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -137,6 +139,28 @@ public sealed class TurnRunnerTests
         await this.CreateRunner().RunAsync("a question", CancellationToken.None);
 
         Assert.Contains("prefers evidence to assertion", prompt);
+    }
+
+    [Fact]
+    public async Task RunTracedAsync_Should_Use_The_Reserved_Trace_And_Recent_Conversation()
+    {
+        this.Arrange();
+        var traceId = Guid.NewGuid();
+        var request = new ConversationTurnRequest(
+            Guid.NewGuid(), Guid.NewGuid(), "earlier question", now.AddMinutes(-2));
+        var earlier = new ConversationTurn(
+            1, request, Guid.NewGuid(), ConversationTurnState.Completed,
+            "earlier answer", now.AddMinutes(-1));
+        string? prompt = null;
+        this.CaptureToolPromptAsync(text => prompt = text).Returns("current answer");
+
+        var result = await ((ITracedTurnRunner)this.CreateRunner()).RunTracedAsync(
+            traceId, "current question", new ConversationWindow([earlier], 20), CancellationToken.None);
+
+        Assert.Equal(traceId, result.TraceId);
+        Assert.Contains("Steve: earlier question", prompt);
+        Assert.Contains("Dami: earlier answer", prompt);
+        Assert.Contains("Steve: current question", prompt);
     }
 
     [Fact]

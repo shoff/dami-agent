@@ -4791,3 +4791,45 @@ turn `55555555…` with trace `66666666…`, transitioned the turn to Completed 
 user/assistant strings, and read `Active|Completed|live rollback proof|durable response`.
 Rollback completed and a separate count returned zero, so no synthetic session row
 remains. G4a is `[x]`; G4b is claimed for runtime integration and the bounded window.
+
+## 2026-08-24 — Codex — G4b session-aware turn runner complete
+
+The first conversation-window test failed red with CS0234 because the Core session
+namespace did not exist. `ConversationWindowBuilder` then made the bounded store read
+pass 1/1. A token-pressure test failed red because all three exchanges were retained;
+newest-to-oldest whole-exchange selection made it pass while preserving chronological
+prompt order. The traced prompt test failed red with CS0246 because there was no stable
+trace execution boundary. `ITracedTurnRunner` and the existing `TurnRunner` integration
+made it pass with the reserved trace and exact prior Steve/Dami exchange captured in
+the model prompt.
+
+The session orchestrator test failed red on its missing type, then passed after the
+minimal reserve → window → traced execution → durable completion flow. Its reconnect
+test next failed because a completed request was re-executed and reported as new;
+the existing reservation now returns its stored trace/answer without context lookup,
+model execution, or state rewrite. A failure test failed red because the reserved turn
+was not terminalized, then passed after a non-cancelable failure cleanup boundary.
+Cancellation coverage was added after that branch existed, so it is coverage rather
+than red-first TDD; it verifies interruption and no erroneous failure transition.
+
+Adversarial tests exposed two further defects red-first: a one-character exchange was
+estimated as 12 rather than 13 tokens, and cancellation arriving after model execution
+threw during persistence and could strand a successful turn Running. Token fragments
+now round up with overflow-safe arithmetic, and once an answer exists completion/read
+use a non-cancelable durability boundary. A simultaneous interruption still wins the
+SQL transition and returns the stored Interrupted state; that race assertion was
+post-green coverage. Three immutability tests failed together: callers could mutate a
+window's backing list, windows accepted Running turns, and builders observed mutable
+options after construction. Windows then copied the list, but a fourth red test proved
+the copied array remained writable through an `IList<T>` cast; it is now exposed
+through a read-only wrapper. Builders capture validated scalar bounds. The unnecessary
+conversation property was removed from `TurnResult`, keeping the existing output
+abstraction narrow.
+
+Observed behavior in the focused 31/31 session/turn run included the exact prior
+conversation in oldest-to-newest prompt order, reserved trace reuse, replay with zero
+model calls, durable failure/interruption cleanup, and completion winning a late client
+disconnect. Core passed 83/83. The mandatory solution gate built with 0 warnings and 0
+errors, all twelve suites passed 543/543, and format/analyzer verification formatted 0
+of 446 files. No migration was needed. G4b is `[x]`; G4c is claimed for Host/CLI
+lifecycle surfaces and a live acceptance demonstration.
