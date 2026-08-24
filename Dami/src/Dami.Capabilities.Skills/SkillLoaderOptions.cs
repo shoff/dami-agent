@@ -3,6 +3,9 @@ namespace Dami.Capabilities.Skills;
 /// <summary>Bounds filesystem skill discovery and content hashing.</summary>
 public sealed class SkillLoaderOptions
 {
+    /// <summary>Configuration section name.</summary>
+    public const string SECTION_NAME = "Skills";
+
     /// <summary>Gets or sets the directory containing one folder per skill.</summary>
     public string RootDirectory { get; set; } = string.Empty;
 

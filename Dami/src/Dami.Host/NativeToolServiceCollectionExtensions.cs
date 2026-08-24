@@ -117,6 +117,7 @@ public static class NativeToolServiceCollectionExtensions
         services.AddSingleton<ICapabilityCatalog>(capabilities);
         services.AddSingleton<ICapabilityInventory>(capabilities);
         services.AddSingleton<ICapabilityRegistrar>(capabilities);
+        services.AddSingleton<ICapabilityBatchRegistrar>(capabilities);
         services.AddSingleton<ICapabilityToolSchemaCatalog>(schemas);
         services.AddSingleton<ICapabilityToolSchemaRegistrar>(schemas);
         services.AddSingleton<IReadOnlyList<NativeCapabilityRegistration>>(active);
@@ -138,7 +139,7 @@ public static class NativeToolServiceCollectionExtensions
             provider.GetRequiredService<ICapabilityCatalog>(),
             provider.GetRequiredService<ICapabilityBundleExpander>(),
             options));
-        services.AddSingleton<ICapabilityToolResolver, SemanticCapabilityToolResolver>();
+        services.AddSingleton<ICapabilitySelectionResolver, SemanticCapabilitySelectionResolver>();
     }
 
     private static void RegisterExecution(

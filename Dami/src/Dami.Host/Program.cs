@@ -59,6 +59,7 @@ builder.Services.AddHttpClient<IEmbeddingClient, TeiEmbeddingClient>();
 builder.Services.AddHttpClient<IRerankClient, TeiRerankClient>();
 builder.Services.AddDamiNativeTools(builder.Configuration, TimeProvider.System);
 builder.Services.AddDamiMcpTools(builder.Configuration);
+builder.Services.AddDamiSkills(builder.Configuration, TimeProvider.System);
 
 // Approvals execute in the runtime (D-005): librarian manifests and egress briefs.
 builder.Services.AddSingleton<ManifestExecutor>();

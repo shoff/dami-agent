@@ -51,6 +51,54 @@ public sealed class HostCompositionTests
     }
 
     [Fact]
+    public async Task Host_Should_Load_And_Disclose_A_Configured_Filesystem_Skill()
+    {
+        var skillId = Guid.NewGuid();
+        string root = Path.Combine(Path.GetTempPath(), "dami-host-skills-" + Guid.NewGuid().ToString("N"));
+        await WriteSkillAsync(root, skillId);
+
+        try
+        {
+            await using WebApplicationFactory<Program> factory =
+                new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+                    builder.UseSetting("Skills:RootDirectory", root));
+            using var client = factory.CreateClient();
+            using HttpResponseMessage health = await client.GetAsync("/health", CancellationToken.None);
+            CapabilityEntry skill = Assert.Single(
+                factory.Services.GetRequiredService<ICapabilityInventory>().Snapshot(),
+                item => item.CapabilityId == skillId);
+            string section = await factory.Services.GetRequiredService<ISkillPromptBuilder>()
+                .BuildAsync(
+                    [new SkillSelection(skillId, skill.Name, skill.BodyReference!, skill.Version)],
+                    CancellationToken.None);
+
+            Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+            Assert.Contains("Compare images pixel by pixel.", section, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task WriteSkillAsync(string root, Guid skillId)
+    {
+        string directory = Directory.CreateDirectory(Path.Combine(root, "image-comparison")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(directory, "skill.json"), $$"""
+            {
+              "id": "{{skillId:D}}",
+              "name": "image-comparison",
+              "description": "Procedure for comparing images.",
+              "tags": ["vision"],
+              "relatedCapabilities": [],
+              "references": []
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(directory, "SKILL.md"), "Compare images pixel by pixel.");
+    }
+
+    [Fact]
     public async Task Host_Should_Discover_Invoke_And_Close_A_Local_Streamable_Http_Server()
     {
         await using var server = await FakeMcpHttpServer.StartAsync();

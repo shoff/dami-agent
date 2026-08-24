@@ -4,7 +4,7 @@ using Dami.Contracts.Context;
 
 namespace Dami.Capabilities.Tests;
 
-public sealed class SemanticCapabilityToolResolverTests
+public sealed class SemanticCapabilitySelectionResolverTests
 {
     private static readonly DateTimeOffset at =
         new(2026, 8, 24, 5, 0, 0, TimeSpan.Zero);
@@ -44,13 +44,13 @@ public sealed class SemanticCapabilityToolResolverTests
         schemas.Register(secondSchema);
         schemas.Register(firstSchema);
         var selected = new CapabilityBundle("selected", [first, skill, second]);
-        var resolver = new SemanticCapabilityToolResolver(
+        var resolver = new SemanticCapabilitySelectionResolver(
             new StubResolver(selected), schemas);
 
-        var result = await resolver.ResolveAsync(
+        CapabilitySelection result = await resolver.ResolveAsync(
             "use tools", PrivacyClass.LocalOnly, CancellationToken.None);
 
-        Assert.Equal([firstSchema, secondSchema], result);
+        Assert.Equal([firstSchema, secondSchema], result.Tools);
     }
 
     private static CapabilityEntry CreateEntry(string name, CapabilityKind kind)

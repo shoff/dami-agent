@@ -5418,3 +5418,46 @@ solution gate built all 33 projects with 0 warnings and 0 errors, all sixteen su
 passed 629/629, and format/analyzer verification exited 0. No schema, migration,
 deployment, or live-service change was required. F4b1 is `[x]`; F4b2 TurnRunner prompt
 budgeting and Host composition are claimed next.
+
+## 2026-08-24 — Codex — F4b progressive disclosure complete; F4c claimed
+
+The first prompt-builder test compiled red because no builder or options existed. Its
+initial implementation then hit DAMI0003 at 53 body lines; extracting load, measurement,
+and rendering responsibilities made the analyzer green without weakening it. The
+builder snapshots hard ceilings (default 8 skills and 8,000 rendered characters), reads
+only selected bodies, never reads bundled references, and renders the measured section
+with one `string.Create` allocation. A later metadata-budget test failed because the
+body was still read before the fixed heading could be known not to fit. Fixed metadata
+is now measured and refused before content I/O; body length is then charged before the
+single render.
+
+The TurnRunner integration test compiled red for the missing prompt-builder contract
+and constructor. `TurnRunner` now depends on the source-neutral one-pass selection and
+the narrow `ISkillPromptBuilder`, resolves capabilities once after privacy routing, and
+uses the same prepared prompt for ordinary and streaming turns. Tool activation remains
+unchanged; skills are procedures in prompt context, not executable sources. The broader
+Core run then exposed an older test that bypassed its normal fixture setup and received
+a null selection. Empty selection/prompt defaults were centralized in the fixture, with
+no production change.
+
+The Host test first hit DAMI0003 in its 38-line fixture; extracting skill-file setup
+produced the clean behavioral red: strict DI validation could not resolve the new
+selection contract. Host now references the Skills project, registers the batch
+registrar, one semantic tool/skill resolver, bounded prompt builder, optional no-skill
+reader, and configured skill loader as an owned hosted lifecycle. The real temporary
+folder was published into the shared inventory and disclosed exactly `Compare images
+pixel by pixel.` through the production service graph. The superseded tool-only resolver
+and interface were removed after migration rather than left as dead abstractions.
+
+Adversarial review found that a disclosure failure during streaming setup left a
+started trace without a terminal event. The test failed after observing only
+`TraceStarted`, `ContextRetrievalStarted`, and `ContextRetrieved`. Streaming preparation
+now records `TraceFailed` or `TraceCancelled` with non-cancelled persistence before
+rethrowing, matching ordinary-turn trace integrity. The prepared-turn carrier is a
+readonly record struct, avoiding one per-turn heap allocation.
+
+The focused capability, Skills, Core, and Host suites passed 36/36, 10/10, 96/96, and
+15/15. The mandatory solution gate built all 33 projects with 0 warnings and 0 errors,
+all sixteen suites passed 634/634, and format/analyzer verification exited 0. No schema,
+migration, deployment, or live-service change was required. F4b/F4b2 are `[x]`; F4c
+atomic author/revise/retire lifecycle is claimed next.

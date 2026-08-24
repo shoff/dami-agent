@@ -31,7 +31,8 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
     private readonly IExecutionEventStore eventStore;
     private readonly IObservationCorpus observationCorpus;
     private readonly IIdentityProvider identityProvider;
-    private readonly ICapabilityToolResolver toolResolver;
+    private readonly ICapabilitySelectionResolver capabilityResolver;
+    private readonly ISkillPromptBuilder skillPromptBuilder;
     private readonly IToolLoopRunner toolLoop;
     private readonly TimeProvider clock;
     private readonly ILogger<TurnRunner> logger;
@@ -44,7 +45,8 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
         IExecutionEventStore eventStore,
         IObservationCorpus observationCorpus,
         IIdentityProvider identityProvider,
-        ICapabilityToolResolver toolResolver,
+        ICapabilitySelectionResolver capabilityResolver,
+        ISkillPromptBuilder skillPromptBuilder,
         IToolLoopRunner toolLoop,
         TimeProvider clock,
         ILogger<TurnRunner> logger)
@@ -55,7 +57,8 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
         ArgumentNullException.ThrowIfNull(chatClient);
         ArgumentNullException.ThrowIfNull(eventStore);
         ArgumentNullException.ThrowIfNull(observationCorpus);
-        ArgumentNullException.ThrowIfNull(toolResolver);
+        ArgumentNullException.ThrowIfNull(capabilityResolver);
+        ArgumentNullException.ThrowIfNull(skillPromptBuilder);
         ArgumentNullException.ThrowIfNull(toolLoop);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
@@ -66,7 +69,8 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
         this.eventStore = eventStore;
         this.observationCorpus = observationCorpus;
         this.identityProvider = identityProvider;
-        this.toolResolver = toolResolver;
+        this.capabilityResolver = capabilityResolver;
+        this.skillPromptBuilder = skillPromptBuilder;
         this.toolLoop = toolLoop;
         this.clock = clock;
         this.logger = logger;
@@ -138,11 +142,37 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
             traceId, ExecutionEventType.TraceStarted, ExecutionStatus.Running,
             "turn started (streaming)", cancellationToken).ConfigureAwait(false);
 
-        var (context, route, prompt) = await this.PrepareAsync(
+        try
+        {
+            return await this.PrepareStreamingAsync(traceId, request, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await this.RecordEndAsync(traceId, ExecutionEventType.TraceCancelled,
+                ExecutionStatus.Cancelled, "turn cancelled").ConfigureAwait(false);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            this.logger.LogError(exception, "Streaming turn {TraceId} failed", traceId);
+            await this.RecordEndAsync(traceId, ExecutionEventType.TraceFailed,
+                ExecutionStatus.Failed, $"turn failed: {exception.Message}").ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task<TurnStream> PrepareStreamingAsync(
+        Guid traceId,
+        string request,
+        CancellationToken cancellationToken)
+    {
+        var (context, route, prompt, selection) = await this.PrepareAsync(
             traceId, request, ConversationWindow.Empty, cancellationToken)
             .ConfigureAwait(false);
         await this.EmitCapabilitySelectedAsync(
-            traceId, Guid.NewGuid(), route, toolCount: 0, cancellationToken).ConfigureAwait(false);
+            traceId, Guid.NewGuid(), route, toolCount: 0, selection.Skills.Count, cancellationToken)
+            .ConfigureAwait(false);
 
         // One coalesced streaming event, per the architecture: never one event per token.
         await this.EmitAsync(
@@ -176,7 +206,7 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
             $"answered in {answer.Length} chars (streamed)", cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<(AssembledContext Context, ModelRoute Route, string Prompt)> PrepareAsync(
+    private async Task<PreparedTurn> PrepareAsync(
         Guid traceId,
         string request,
         ConversationWindow conversation,
@@ -195,8 +225,15 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
 
         // Retrieved context is profile-derived, so the turn is LocalOnly by construction.
         var route = this.modelRouter.Route("synthesis", PrivacyClass.LocalOnly);
-        return (context, route, this.BuildPrompt(
-            request, context, conversation, this.clock.GetUtcNow()));
+        CapabilitySelection selection = await this.capabilityResolver
+            .ResolveAsync(request, route.Privacy, cancellationToken).ConfigureAwait(false);
+        string skillPrompt = await this.skillPromptBuilder
+            .BuildAsync(selection.Skills, cancellationToken).ConfigureAwait(false);
+        return new PreparedTurn(
+            context,
+            route,
+            this.BuildPrompt(request, context, conversation, skillPrompt, this.clock.GetUtcNow()),
+            selection);
     }
 
     private async Task<TurnResult> CompleteTurnAsync(
@@ -225,18 +262,16 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
         ConversationWindow conversation,
         CancellationToken cancellationToken)
     {
-        var (context, route, prompt) = await this.PrepareAsync(
+        var (context, route, prompt, selection) = await this.PrepareAsync(
             traceId, request, conversation, cancellationToken)
             .ConfigureAwait(false);
 
-        var toolSchemas = await this.toolResolver.ResolveAsync(
-                request, route.Privacy, cancellationToken)
-            .ConfigureAwait(false);
         var capabilitySpanId = Guid.NewGuid();
         await this.EmitCapabilitySelectedAsync(
-            traceId, capabilitySpanId, route, toolSchemas.Count, cancellationToken).ConfigureAwait(false);
+            traceId, capabilitySpanId, route, selection.Tools.Count, selection.Skills.Count,
+            cancellationToken).ConfigureAwait(false);
         var answer = await this.toolLoop.RunAsync(
-            traceId, capabilitySpanId, prompt, toolSchemas,
+            traceId, capabilitySpanId, prompt, selection.Tools,
             route.Privacy, ExecutionOrigin.UserTurn, cancellationToken).ConfigureAwait(false);
 
         return new TurnResult(traceId, answer.Trim(), context, route);
@@ -246,6 +281,7 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
         string request,
         AssembledContext context,
         ConversationWindow conversation,
+        string skillPrompt,
         DateTimeOffset today)
     {
         var prompt = new StringBuilder();
@@ -261,6 +297,7 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
             .AppendLine("few weeks is history and context, not the current situation.");
         prompt.AppendLine();
 
+        prompt.Append(skillPrompt);
         AppendContext(prompt, context);
         AppendConversation(prompt, conversation);
 
@@ -346,12 +383,20 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
         Guid spanId,
         ModelRoute route,
         int toolCount,
+        int skillCount,
         CancellationToken cancellationToken)
     {
         return this.EmitAsync(
             traceId, spanId, ExecutionEventType.CapabilitySelected, ExecutionStatus.Succeeded,
-            $"{toolCount} tools selected; routed {route.Tier}: {route.Reason}", cancellationToken);
+            $"{toolCount} tools and {skillCount} skills selected; routed {route.Tier}: {route.Reason}",
+            cancellationToken);
     }
+
+    private readonly record struct PreparedTurn(
+        AssembledContext Context,
+        ModelRoute Route,
+        string Prompt,
+        CapabilitySelection Selection);
 
     private Task<long> EmitAsync(
         Guid traceId,

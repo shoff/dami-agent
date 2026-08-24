@@ -102,10 +102,10 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] F3d2 Exercise discovery and invocation end to end against a local Streamable HTTP fake server
 - [~ Codex 2026-08-24] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
   - [x] F4a `Dami.Capabilities.Skills` bounded filesystem loading, stable versioning, references, and unified-registry publication
-  - [~ Codex 2026-08-24] F4b Progressive disclosure: selected skill bodies in the bounded turn prompt; bundled files loaded only on demand
+  - [x] F4b Progressive disclosure: selected skill bodies in the bounded turn prompt; bundled files loaded only on demand
     - [x] F4b1 Bounded on-demand skill content reader + one-pass tool/skill selection contract
-    - [~ Codex 2026-08-24] F4b2 TurnRunner prompt budget + Host composition and behavioral demonstration
-  - [ ] F4c Atomic author/revise/retire lifecycle with every diff recorded in the durable execution stream
+    - [x] F4b2 TurnRunner prompt budget + Host composition and behavioral demonstration
+  - [~ Codex 2026-08-24] F4c Atomic author/revise/retire lifecycle with every diff recorded in the durable execution stream
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
 
 ## G · Interactive runtime

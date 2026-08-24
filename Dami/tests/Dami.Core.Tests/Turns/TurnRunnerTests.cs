@@ -25,8 +25,20 @@ public sealed class TurnRunnerTests
     private readonly IExecutionEventStore eventStore = Substitute.For<IExecutionEventStore>();
     private readonly IObservationCorpus observationCorpus = Substitute.For<IObservationCorpus>();
     private readonly IIdentityProvider identityProvider = Substitute.For<IIdentityProvider>();
-    private readonly ICapabilityToolResolver toolResolver = Substitute.For<ICapabilityToolResolver>();
+    private readonly ICapabilitySelectionResolver capabilityResolver =
+        Substitute.For<ICapabilitySelectionResolver>();
+    private readonly ISkillPromptBuilder skillPromptBuilder = Substitute.For<ISkillPromptBuilder>();
     private readonly IToolLoopRunner toolLoop = Substitute.For<IToolLoopRunner>();
+
+    public TurnRunnerTests()
+    {
+        this.capabilityResolver.ResolveAsync(
+                Arg.Any<string>(), Arg.Any<PrivacyClass>(), Arg.Any<CancellationToken>())
+            .Returns(new CapabilitySelection([], []));
+        this.skillPromptBuilder.BuildAsync(
+                Arg.Any<IReadOnlyList<SkillSelection>>(), Arg.Any<CancellationToken>())
+            .Returns(string.Empty);
+    }
 
     [Fact]
     public async Task RunAsync_Should_Emit_A_UserTurn_Trace_From_Start_To_Completion()
@@ -47,9 +59,10 @@ public sealed class TurnRunnerTests
     {
         this.Arrange();
         var schema = CreateToolSchema();
-        var toolResolver = Substitute.For<ICapabilityToolResolver>();
-        toolResolver.ResolveAsync("read notes", PrivacyClass.LocalOnly, Arg.Any<CancellationToken>())
-            .Returns([schema]);
+        var capabilityResolver = Substitute.For<ICapabilitySelectionResolver>();
+        capabilityResolver.ResolveAsync(
+                "read notes", PrivacyClass.LocalOnly, Arg.Any<CancellationToken>())
+            .Returns(new CapabilitySelection([schema], []));
         var toolLoop = Substitute.For<IToolLoopRunner>();
         toolLoop.RunAsync(
                 Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(),
@@ -59,17 +72,47 @@ public sealed class TurnRunnerTests
         this.identityProvider.Preamble.Returns("You are Dami, Steve's assistant.");
         var runner = new TurnRunner(
             this.contextBuilder, this.modelRouter, this.chatClient, this.eventStore,
-            this.observationCorpus, this.identityProvider, toolResolver, toolLoop,
-            new FakeTimeProvider(now), NullLogger<TurnRunner>.Instance);
+            this.observationCorpus, this.identityProvider, capabilityResolver,
+            this.skillPromptBuilder, toolLoop, new FakeTimeProvider(now),
+            NullLogger<TurnRunner>.Instance);
 
         var result = await runner.RunAsync("read notes", CancellationToken.None);
 
         Assert.Equal("tool-backed answer", result.Answer);
-        await toolResolver.Received(1).ResolveAsync(
+        await capabilityResolver.Received(1).ResolveAsync(
             "read notes", PrivacyClass.LocalOnly, Arg.Any<CancellationToken>());
         await AssertToolLoopRequestAsync(toolLoop, result.TraceId, schema);
         await this.chatClient.DidNotReceive().CompleteAsync(
             Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Disclose_Selected_Skill_Bodies_In_The_Turn_Prompt()
+    {
+        this.Arrange();
+        var skill = new SkillSelection(
+            Guid.NewGuid(), "image-comparison", "skill://body", "version-1");
+        var selectionResolver = Substitute.For<ICapabilitySelectionResolver>();
+        selectionResolver.ResolveAsync(
+                "compare images", PrivacyClass.LocalOnly, Arg.Any<CancellationToken>())
+            .Returns(new CapabilitySelection([], [skill]));
+        var skillPromptBuilder = Substitute.For<ISkillPromptBuilder>();
+        skillPromptBuilder.BuildAsync(
+                Arg.Is<IReadOnlyList<SkillSelection>>(items => items.Count == 1),
+                Arg.Any<CancellationToken>())
+            .Returns("SELECTED PROCEDURE");
+        string? prompt = null;
+        this.CaptureToolPromptAsync(text => prompt = text).Returns("answer");
+        this.identityProvider.Preamble.Returns("You are Dami, Steve's assistant.");
+        var runner = new TurnRunner(
+            this.contextBuilder, this.modelRouter, this.chatClient, this.eventStore,
+            this.observationCorpus, this.identityProvider, selectionResolver,
+            skillPromptBuilder, this.toolLoop, new FakeTimeProvider(now),
+            NullLogger<TurnRunner>.Instance);
+
+        await runner.RunAsync("compare images", CancellationToken.None);
+
+        Assert.Contains("SELECTED PROCEDURE", prompt, StringComparison.Ordinal);
     }
 
     private static async Task AssertToolLoopRequestAsync(
@@ -350,6 +393,22 @@ public sealed class TurnRunnerTests
             Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task BeginStreamingAsync_Should_Terminalize_A_Skill_Disclosure_Failure()
+    {
+        this.Arrange();
+        this.skillPromptBuilder.BuildAsync(
+                Arg.Any<IReadOnlyList<SkillSelection>>(), Arg.Any<CancellationToken>())
+            .Returns<Task<string>>(_ => throw new InvalidDataException("skill changed"));
+
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => this.CreateRunner().BeginStreamingAsync("a question", CancellationToken.None));
+
+        await this.eventStore.Received(1).AppendAsync(
+            Arg.Is<ExecutionEvent>(item => item.Type == ExecutionEventType.TraceFailed),
+            Arg.Any<CancellationToken>());
+    }
+
     private static async IAsyncEnumerable<string> FragmentsAsync(params string[] fragments)
     {
         foreach (var fragment in fragments)
@@ -373,9 +432,6 @@ public sealed class TurnRunnerTests
             .Returns(new ModelRoute(ModelTier.Local, PrivacyClass.LocalOnly, "test"));
         this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("an answer");
-        this.toolResolver.ResolveAsync(
-                Arg.Any<string>(), Arg.Any<PrivacyClass>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<CapabilityToolSchema>());
         this.toolLoop.RunAsync(
                 Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(),
                 Arg.Any<IReadOnlyList<CapabilityToolSchema>>(),
@@ -388,8 +444,8 @@ public sealed class TurnRunnerTests
         this.identityProvider.Preamble.Returns("You are Dami, Steve's assistant.");
         return new TurnRunner(
             this.contextBuilder, this.modelRouter, this.chatClient, this.eventStore,
-            this.observationCorpus, this.identityProvider, this.toolResolver, this.toolLoop,
-            new FakeTimeProvider(now),
+            this.observationCorpus, this.identityProvider, this.capabilityResolver,
+            this.skillPromptBuilder, this.toolLoop, new FakeTimeProvider(now),
             NullLogger<TurnRunner>.Instance);
     }
 }
