@@ -108,7 +108,7 @@ rather than assuming — but nothing else blocks the phase.
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
 | Capability registry | in progress | Core stable-ID lookup, immutable metadata, tool/skill invariants, and cycle-safe bundle expansion have 18 tests. `Dami.Capabilities.Native` discovers attribute-declared tools without activation (1 test). Semantic retrieval, native execution/host registration, MCP, and skill loading remain. |
-| Model routing, sessions, events, CLI | partial | Routed/streaming/tool-enabled turns and the G6 live demonstration exist. G4a/G4b provide durable idempotent turns plus a session-aware runner with an immutable, token-bounded recent window and stable trace reuse; G4c Host/CLI lifecycle surfaces are claimed. Streaming remains tool-less. |
+| Model routing, sessions, events, CLI | partial | Routed/streaming/tool-enabled turns and the G6 live demonstration exist. G4a/G4b provide durable idempotent turns plus a session-aware runner with an immutable, token-bounded recent window and stable trace reuse. G4c1 exposes tested localhost start/list/find/resume/interrupt/turn/reconnect routes; G4c2 CLI is claimed. Streaming remains tool-less. |
 
 Verification on 2026-08-23 for G6c3a in an isolated concurrent-work gate:
 `dotnet test Dami.sln` executed 439 tests across twelve suites with 0 failures;
@@ -172,6 +172,12 @@ session/turn slice. The complete Core suite passed 83/83. The solution build com
 with 0 warnings and 0 errors, all twelve suites passed 543/543, and format/analyzer
 verification formatted 0 of 446 files. No schema change was required. G4b is complete;
 G4c Host/CLI lifecycle surfaces and the live acceptance exercise are claimed.
+
+Verification on 2026-08-24 for G4c1: lifecycle application behavior passed 4/4
+focused Core tests; real in-memory Host routing, JSON, validation, composition, turn,
+and reconnect behavior passed 10/10. The solution build completed with 0 warnings and
+0 errors, all thirteen suites passed 557/557, and format/analyzer verification exited
+0. No schema change was required. G4c1 is complete; G4c2 thin CLI commands are claimed.
 
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
@@ -430,7 +436,7 @@ demonstrated. "partial" means a real demonstration exists for part of the item's
 
 | # | Item | State | Evidence |
 |---|---|---|---|
-| 1 | Start/resume/interrupt/reconnect without duplication | partial | G4a/G4b prove durable request-id convergence, stable trace reuse, replay without model re-execution, atomic interruption, and a bounded recent window; G4c Host/CLI surfaces and live demonstration remain |
+| 1 | Start/resume/interrupt/reconnect without duplication | partial | G4a/G4b prove durable request-id convergence, stable trace reuse, replay without model re-execution, atomic interruption, and a bounded recent window; G4c1 adds tested localhost lifecycle/turn/reconnect routes. CLI and live demonstration remain |
 | 2 | Stream through CLI and GUI | **demonstrated** | `dami chat` streams over SSE from dami-host; the web view at :5810/ streams the same turns and renders the same event feed |
 | 3 | Render tools/workers/approvals truthfully | partial | `dami trace` renders only persisted events; tools and approvals have truthful parent spans, both approval lifecycle events were demonstrated live on trace `a2d560a7…`, and workers are represented. No rich-client GUI yet. |
 | 4 | Bounded terminal and file operations | **demonstrated** | G6 live on the production Host: trace `033a3241…` read the exact 38-byte workspace file; `142c125d…` executed allowlisted no-shell `pwd`; `398805c8…` proposed a create while the target stayed absent, then approval created the exact reviewed 23 bytes (`3fca2859…`); `12a6db66…` rejected alias `sh`, emitted ToolFailed/TraceFailed, and created nothing. |

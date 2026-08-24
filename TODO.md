@@ -101,8 +101,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [x] G4a Durable session/turn contracts + PostgreSQL store with request-id idempotency
   - [x] G4b Session-aware turn runner + bounded recent conversation window in model context
   - [~ Codex 2026-08-24] G4c Host/CLI start/list/resume/interrupt/reconnect surfaces + live acceptance demonstration
-    - [~ Codex 2026-08-24] G4c1 Session application boundary + Host lifecycle/turn/reconnect API
-    - [ ] G4c2 Thin CLI session start/list/resume/interrupt/turn/reconnect commands
+    - [x] G4c1 Session application boundary + Host lifecycle/turn/reconnect API
+    - [~ Codex 2026-08-24] G4c2 Thin CLI session start/list/resume/interrupt/turn/reconnect commands
     - [ ] G4c3 Deploy and demonstrate multi-turn context, interruption, resume, and retry convergence live
 - [x] G5 Runtime API on localhost (D-005): `dami-host` service on 127.0.0.1:5810 — turns/SSE, surfacings, beliefs, approvals, traces, `/events`; CLI rework stays I2
 - [x] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4

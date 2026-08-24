@@ -4,7 +4,7 @@ using Dami.Core.Turns;
 namespace Dami.Core.Sessions;
 
 /// <summary>Coordinates one idempotent durable turn without owning storage or model details.</summary>
-public sealed class SessionTurnRunner
+public sealed class SessionTurnRunner : ISessionTurnRunner
 {
     private readonly TimeProvider clock;
     private readonly ITracedTurnRunner tracedTurnRunner;

@@ -9,6 +9,7 @@ public static class RuntimeEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+        SessionEndpoints.Map(app);
         TurnEndpoints.Map(app);
         SurfacingEndpoints.Map(app);
         BeliefEndpoints.Map(app);

@@ -4843,3 +4843,36 @@ live acceptance exercise. The HTTP design uses client-stable session/request IDs
 turn-read reconnect route. Lifecycle operations are idempotent at the application
 boundary, and Core remains unaware of HTTP. G4c1 is claimed; its first behavior will be
 driven from a failing Core service test, followed by failing HTTP surface tests.
+
+## 2026-08-24 — Codex — G4c1 session Host API complete
+
+The first lifecycle-manager test completed red with CS0246 because no manager existed.
+Its first implementation reached the repository's DAMI0003 body-size limit because
+concurrent-start convergence had been added before a test asked for it. Removing that
+extra behavior made the minimal stable-ID active start pass 1/1. A separate concurrency
+test then failed red with the store's conflicting-insert exception and passed after an
+extracted create-or-reread boundary. Resume and interrupt each failed red with CS1061
+on their missing operations, then passed through one idempotent compare-and-set
+application path. The focused manager slice passes 4/4.
+
+`Dami.Host.Tests` was added with `dotnet sln add` to exercise the actual composition
+root through ASP.NET's in-memory server. The first test compiled red on the missing
+`IConversationSessionManager`; the Core lifecycle and turn interfaces, DI wiring, and
+start route supplied that boundary. Its next run failed IDE0005 on an unnecessary test
+using, then reached HTTP 201 correctly but failed because the test client's default
+enum deserializer did not accept the Host's intentional string-enum wire format. The
+test was corrected to inspect JSON without changing production behavior, and passed.
+
+Recent-list first returned MethodNotAllowed; find, resume, interrupt, session-turn, and
+turn-reconnect tests each returned NotFound before their routes existed. Each passed
+after its minimal route. Empty session ID and invalid turn payload tests both observed
+InternalServerError red; explicit boundary validation now returns BadRequest and does
+not invoke Core. The resulting 10/10 Host suite observes 201+Location start, bounded
+recent listing, current state, idempotent lifecycle calls, client-stable turn IDs,
+durable response shape, and reconnect to a Running turn's exact trace. The list limit
+guard and not-found branches were added with their handlers but do not yet have direct
+tests, so those are implementation rather than demonstrated claims.
+
+The mandatory gate built the solution with 0 warnings and 0 errors; all thirteen
+suites passed 557/557, and format/analyzer verification exited 0. No migration was
+needed beyond applied 019. G4c1 is `[x]`; G4c2 is claimed for the thin CLI commands.

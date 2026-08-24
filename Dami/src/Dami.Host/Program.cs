@@ -3,6 +3,7 @@ using Dami.Contracts.Models;
 using Dami.Core.Approvals;
 using Dami.Core.Context;
 using Dami.Core.Frontier;
+using Dami.Core.Sessions;
 using Dami.Core.Turns;
 using Dami.Host;
 using Dami.Persistence;
@@ -36,7 +37,15 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<Dami.Core.Identity.IdentityOptions>(
     builder.Configuration.GetSection(Dami.Core.Identity.IdentityOptions.SECTION_NAME));
 builder.Services.AddSingleton<IIdentityProvider, Dami.Core.Identity.FileIdentityProvider>();
-builder.Services.AddSingleton<ITurnRunner, TurnRunner>();
+builder.Services.AddSingleton<TurnRunner>();
+builder.Services.AddSingleton<ITurnRunner>(services => services.GetRequiredService<TurnRunner>());
+builder.Services.AddSingleton<ITracedTurnRunner>(services =>
+    services.GetRequiredService<TurnRunner>());
+builder.Services.Configure<SessionContextOptions>(
+    builder.Configuration.GetSection(SessionContextOptions.SECTION_NAME));
+builder.Services.AddSingleton<IConversationWindowBuilder, ConversationWindowBuilder>();
+builder.Services.AddSingleton<ISessionTurnRunner, SessionTurnRunner>();
+builder.Services.AddSingleton<IConversationSessionManager, ConversationSessionManager>();
 builder.Services.AddSingleton<Dami.Contracts.Context.IContextBuilder, ContextBuilder>();
 builder.Services.Configure<ContextOptions>(builder.Configuration.GetSection(ContextOptions.SECTION_NAME));
 builder.Services.AddSingleton<IModelRouter, ModelRouter>();
@@ -77,3 +86,8 @@ app.UseStaticFiles();
 
 app.MapDamiRuntime();
 app.Run();
+
+/// <summary>Web entry point exposed for in-memory composition tests.</summary>
+public partial class Program
+{
+}
