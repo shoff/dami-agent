@@ -199,7 +199,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 ## J · GUI (Phase 7)
 
 - [x] J1 Recorded-events spike: `tools/gui-spike/trace-viewer.html` over a real exported trace
-- [ ] J2 Framework decision: Tauri/React vs Avalonia — comparative spike per charter §8.3, driven by recorded events `[STEVE: preference input]`
+- [x] J2 **Framework decided: Avalonia** (ADR-0018, Steve 2026-08-24) — reverses the charter's Tauri/React lean. Its single stated risk ("additional work for a sophisticated animated execution graph") does not survive checking: Avalonia ships a full animation system and Nodify.Avalonia 2.0.0 exists, while the real workload is a 4–6 event span *tree* at 1.22 events/min, not the 500-node animated DAG §8.3 assumed
+- [x] J6 **`Dami.Gui` desktop client built** (Claude 2026-08-24) — conversation with SSE streaming beside the live execution graph (span tree, coloured by persisted status), plus approvals/surfacings and the belief ledger. References `Dami.Contracts` directly; compiles under the same analyzers as the runtime. Running live on `:0`
 - [x] J3 (first cut) Conversation view + live execution graph — web view at http://127.0.0.1:5810/ (SSE chat, /events graph with span nesting, inbox reactions, beliefs); J2's rich client remains open
 - [x] J4 Ledger/audit UI: belief correct/retract/diff + health timeline in the web view (the CLI verbs, visual)
 - [x] J5 Approvals actionable in the web view (Claude 2026-08-24) — approve/deny in place, showing what the approval *did* (files moved, or the frontier's answer); with tools and workers already rendering from the live stream this closes **acceptance item 3**

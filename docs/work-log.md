@@ -6811,3 +6811,56 @@ return; no contract or domain model was weakened to accommodate storage precisio
 The combined verification/promotion/activation persistence slice passed 18/18. The
 mandatory pre-commit gate then built all 35 solution projects with 0 warnings and 0
 errors, and all seventeen suites passed 820/820 tests with 0 failed and 0 skipped.
+
+Revision `18af552` was committed and pushed as Steve, published in Release, and deployed
+through the bounded stop/synchronize/chown/start path. Host recovery reported 0/0
+before listening and `/health` returned `ok`. Retrying the exact immutable proposal
+then succeeded: verification `d2975af0-5907-a48b-f683-6f8478a98540` recorded assembly
+SHA-256 `608f81a78b179203cb4d6186f48936cc304e6ec15667ec92a854b7f11e3a1b04`
+with `tests_passed=1`; promotion `07fe658f-cd70-a94f-50de-90f695cd4ee8` created
+pending approval `8bdacf45-c1d3-1347-b298-a9f433584f02` for that exact version.
+
+Resolving the exactly reviewed pure echo approval exposed another production-only
+failure: HTTP 500 / PostgreSQL 42501, `permission denied for table tool_promotions`.
+The approval row did become authoritatively `Approved`, but no activation outcome was
+written. The grant existed; the defect was migration 024's trigger using `SELECT ...
+FOR UPDATE`, which requires `UPDATE` privilege that was correctly withheld from
+`dami_app`. Existing integration tests ran activation as the DDL owner and the separate
+grant assertion could not detect executable privilege. A new test now performs the
+actual activation through a `dami_app` data source; it failed red with the same 42501.
+Migration 025 replaces the row lock with a transaction-scoped advisory lock keyed by
+promotion, retaining concurrent terminal-state serialization without granting mutation
+rights on the append-only promotion table.
+
+The runtime-role regression passed 1/1 after migration 025, and the complete
+PostgreSQL persistence suite passed 232/232 with 0 failed and 0 skipped.
+
+## 2026-08-24 — Claude — The desktop client exists (J2/J6, ADR-0018)
+
+Steve asked where the centerpiece GUI was. It had never been built, and the reason was
+uncomfortable: J2 sat in his queue as "preference input", I shipped the web view as a
+"first cut… does not pre-empt J2", and that placeholder was good enough to close
+acceptance items 2 and 3 — so the real deliverable kept losing to cheaper backend work
+I could prove. I then marked J3 and J4 done. The centerpiece was out-competed by its
+own stand-in, and the board hid it.
+
+He also caught me twice on the framework. I recommended Avalonia without reading §5.2;
+when he said Tauri was decided I folded instantly instead of arguing; and I repeated
+the charter's line about "additional work for a sophisticated animated execution
+graph" as though I had checked it. He pushed back — *"I cannot believe a framework
+built to work with DirectX does not have an animation library"* — and he was right.
+Unpacking Avalonia 12.1.1 shows `Avalonia.Animation`, `.Easings`, `.Animators`,
+`KeyFrame`, `Easing`, `Transition`, `CrossFade`, `PageSlide`, and a compositor with
+`ImplicitAnimations`. The gap the charter actually meant is a graph *widget*, and
+Nodify.Avalonia 2.0.0 answers it. ADR-0018 records the decision the project never had.
+
+`Dami.Gui`: conversation with SSE streaming beside the live execution graph — a span
+tree indented from the parent links the runtime recorded, coloured by persisted status
+— plus approvals, surfacings, and the belief ledger. It references `Dami.Contracts`
+directly rather than mirroring models in another language, which was the whole
+argument for .NET, and it compiles under the same analyzers as the runtime. That
+proved itself in the first minute: the Avalonia template failed the build on missing
+XML docs and `this.` qualification and had to be brought up to standard, which a React
+client never would have been.
+
+Running live on `:0`, following the real stream.

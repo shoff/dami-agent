@@ -1,0 +1,133 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Dami.Gui"
+        x:Class="Dami.Gui.MainWindow"
+        x:DataType="local:WindowState"
+        Title="Dami" Width="1400" Height="900"
+        Background="#101418">
+
+  <Window.Resources>
+    <SolidColorBrush x:Key="Ink">#D7DDE4</SolidColorBrush>
+    <SolidColorBrush x:Key="Dim">#7A8694</SolidColorBrush>
+    <SolidColorBrush x:Key="Panel">#171D24</SolidColorBrush>
+    <SolidColorBrush x:Key="Accent">#5AA9E6</SolidColorBrush>
+  </Window.Resources>
+
+  <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,*" Margin="10">
+
+    <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal"
+                Spacing="12" Margin="4,0,4,10">
+      <TextBlock Text="Dami" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
+      <TextBlock Text="rendered from the durable event stream — the display invents nothing"
+                 VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Dim}"/>
+      <TextBlock x:Name="StatusLine" VerticalAlignment="Center" FontSize="12"
+                 Foreground="{StaticResource Dim}"/>
+    </StackPanel>
+
+    <!-- Conversation -->
+    <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource Panel}"
+            CornerRadius="8" Padding="12" Margin="0,0,5,0">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Text="CONVERSATION" FontSize="11"
+                   Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+          <TextBox x:Name="Input" Grid.Column="0" Watermark="say something…"
+                   Background="#0D1116" Foreground="{StaticResource Ink}"
+                   BorderBrush="#2A333D" KeyDown="OnInputKeyDown"/>
+          <Button x:Name="SendButton" Grid.Column="1" Content="send" Margin="8,0,0,0"
+                  Click="OnSendClick" Background="#233041" Foreground="{StaticResource Ink}"/>
+        </Grid>
+        <ScrollViewer x:Name="ChatScroll">
+          <ItemsControl ItemsSource="{Binding Messages}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="local:Message">
+                <StackPanel Margin="0,6">
+                  <TextBlock Text="{Binding Who}" FontSize="11" Foreground="{StaticResource Dim}"/>
+                  <TextBlock Text="{Binding Body}" TextWrapping="Wrap"
+                             Foreground="{StaticResource Ink}"/>
+                  <TextBlock Text="{Binding Meta}" FontSize="11"
+                             Foreground="{StaticResource Dim}"/>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <!-- Graph + sidebar -->
+    <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="*,Auto,Auto" Margin="5,0,0,0">
+
+      <Border Grid.Row="0" Background="{StaticResource Panel}" CornerRadius="8" Padding="12">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="LIVE EXECUTION GRAPH" FontSize="11"
+                     Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+          <ScrollViewer x:Name="GraphScroll">
+            <ItemsControl ItemsSource="{Binding Graph}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="local:GraphRow">
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,1">
+                    <TextBlock Text="{Binding Time}" FontFamily="monospace" FontSize="11"
+                               Foreground="{StaticResource Dim}"/>
+                    <Border Margin="{Binding Indent}"/>
+                    <TextBlock Text="{Binding Type}" FontFamily="monospace" FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{Binding Status, Converter={x:Static local:StatusBrush.instance}}"/>
+                    <TextBlock Text="{Binding Actor}" FontFamily="monospace" FontSize="11"
+                               Foreground="{StaticResource Dim}"/>
+                    <TextBlock Text="{Binding Label}" FontSize="11"
+                               Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+      <Border Grid.Row="1" Background="{StaticResource Panel}" CornerRadius="8"
+              Padding="12" Margin="0,10,0,0" MaxHeight="220">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="WANTS YOUR ATTENTION" FontSize="11"
+                     Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Attention}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="local:SidebarItem">
+                  <StackPanel Margin="0,4">
+                    <TextBlock Text="{Binding Headline}" TextWrapping="Wrap"
+                               Foreground="{StaticResource Ink}"/>
+                    <TextBlock Text="{Binding Detail}" FontSize="11"
+                               Foreground="{StaticResource Dim}"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+      <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="8"
+              Padding="12" Margin="0,10,0,0" MaxHeight="200">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="BELIEFS" FontSize="11"
+                     Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Beliefs}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="local:SidebarItem">
+                  <StackPanel Margin="0,3">
+                    <TextBlock Text="{Binding Headline}" TextWrapping="Wrap"
+                               Foreground="{StaticResource Ink}"/>
+                    <TextBlock Text="{Binding Detail}" FontSize="11"
+                               Foreground="{StaticResource Dim}"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>
