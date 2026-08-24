@@ -3561,6 +3561,39 @@ updates the acceptance scoreboard. G6a is claimed first. This keeps dynamic disp
 OS security policy, turn orchestration, and acceptance evidence independently testable
 instead of concentrating them in `TurnRunner`.
 
+G6a began with a dispatch test only. It required a source-neutral invocation to clone a
+JSON argument object before its `JsonDocument` was disposed, registration of one native
+handler under a stable capability ID, dispatch through that ID, and immutable
+evidence-backed success. The focused compile failed red for the absent handler/result
+execution abstractions. The minimum implementation placed invocation, result, and
+executor contracts in `Dami.Contracts`; split native registration from lookup over a
+`ConcurrentDictionary`; and made the executor depend only on the lookup surface plus a
+snapshotted positive timeout.
+
+The first two green attempts were stopped by N3's then-uncommitted IDE0007 rule in the
+test's split `CapabilityInvocation` declaration and explicit `JsonDocument` local. A
+small factory preserved the disposed-document behavior while satisfying the new style
+gate. The unchanged dispatch behavior then passed 1/1: the matching handler observed
+`notes.txt`, and its returned output plus path evidence survived as an immutable
+result.
+
+Timeout was driven by a second test before the hard bound. A handler deliberately
+ignored its cancellation token and returned after 200 ms under a 20 ms limit; the test
+failed red because no `TimeoutException` was thrown. The executor now combines a linked
+cooperative token with `Task.WaitAsync`: well-behaved handlers receive cancellation,
+while a non-cooperative handler cannot indefinitely retain the caller. Internal timeout
+is translated with the capability ID and configured limit; caller-requested
+cancellation is not mislabeled. The focused test passed 1/1 and the full native suite
+passed 4/4.
+
+G6a is demonstrated. Definitive verification ran in
+`/tmp/dami-g6a-gate.MMvz4H/repo` at newly released N3 HEAD `602a8f9` with only the ten
+G6a paths overlaid. `dotnet build Dami.sln --nologo` produced 0 warnings and 0 errors;
+all twelve suites passed 375/375; and `dotnet format Dami.sln --verify-no-changes
+--no-restore --verbosity minimal` exited 0. No schema or data migration is involved.
+G6a is flipped to `[x]`, and G6b is claimed before any filesystem or process code is
+written.
+
 ## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
 
 Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,
