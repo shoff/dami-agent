@@ -3859,3 +3859,13 @@ First live pass reviewed this week's commits and said no finding — quiet, as t
 default should be. Note: full-solution tests currently carry Codex's in-flight
 ToolLoopRunner work in Core.Tests; my suites (proactive 86, and the full build of
 src/) are green and none of their files are in this commit.
+
+## 2026-08-24 — Claude — H7: surfacing channel proposed (ADR-0014)
+
+The register's "shapes the muse more than model choice" question, argued and
+proposed: queue stays canonical, nothing pushes, and the one concession is a
+once-daily count line when Steve opens a session anyway (held-until-adjacent-
+opening). The core argument: push interruptions land on the resource this system
+exists to protect, and they poison H8's feedback signal — `bad` would start meaning
+"bad timing" instead of "bad find". Decision is Steve's; board item moved to his
+queue with the ADR attached.
