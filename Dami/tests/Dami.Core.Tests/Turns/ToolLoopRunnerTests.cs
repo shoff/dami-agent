@@ -27,6 +27,7 @@ public sealed class ToolLoopRunnerTests
     public async Task RunAsync_Should_Execute_One_Tool_And_Return_The_Follow_Up_Answer()
     {
         var invocation = CreateInvocation();
+        var schema = CreateSchema(invocation.CapabilityId);
         var result = new CapabilityExecutionResult(
             "file contents", new Dictionary<string, string> { ["path"] = "notes.txt" });
         var model = new RecordingToolCallingClient(
@@ -43,19 +44,25 @@ public sealed class ToolLoopRunnerTests
         var parentSpanId = Guid.NewGuid();
 
         var answer = await runner.RunAsync(
-            traceId, parentSpanId, "read my notes", ["read-file schema"], CancellationToken.None);
+            traceId, parentSpanId, "read my notes", [schema], CancellationToken.None);
 
         Assert.Equal("final answer", answer);
         Assert.Equal(
             [ExecutionEventType.ToolRequested, ExecutionEventType.ToolStarted, ExecutionEventType.ToolCompleted],
             this.events.Select(item => item.Type));
+        this.AssertSuccessfulEvents(traceId, parentSpanId);
+        Assert.DoesNotContain(this.events, item => item.Label.Contains("file contents", StringComparison.Ordinal));
+        Assert.Single(model.ExchangesOnCalls[1]);
+        Assert.Same(result, model.ExchangesOnCalls[1][0].Result);
+        Assert.Same(schema, Assert.Single(model.SchemasOnCalls[0]));
+    }
+
+    private void AssertSuccessfulEvents(Guid traceId, Guid parentSpanId)
+    {
         Assert.All(this.events, item => Assert.Equal(traceId, item.TraceId));
         Assert.All(this.events, item => Assert.Equal(parentSpanId, item.ParentSpanId));
         Assert.Single(this.events.Select(item => item.SpanId).Distinct());
         Assert.All(this.events, item => Assert.Equal("call-1", item.Metadata!["call_id"]));
-        Assert.DoesNotContain(this.events, item => item.Label.Contains("file contents", StringComparison.Ordinal));
-        Assert.Single(model.ExchangesOnCalls[1]);
-        Assert.Same(result, model.ExchangesOnCalls[1][0].Result);
     }
 
     [Fact]
@@ -74,7 +81,8 @@ public sealed class ToolLoopRunnerTests
             new ToolLoopOptions { MaxToolCalls = 2 });
 
         await Assert.ThrowsAsync<IOException>(() => runner.RunAsync(
-            Guid.NewGuid(), Guid.NewGuid(), "read my notes", ["read-file schema"], CancellationToken.None));
+            Guid.NewGuid(), Guid.NewGuid(), "read my notes",
+            [CreateSchema(invocation.CapabilityId)], CancellationToken.None));
 
         Assert.Equal(
             [ExecutionEventType.ToolRequested, ExecutionEventType.ToolStarted, ExecutionEventType.ToolFailed],
@@ -98,7 +106,8 @@ public sealed class ToolLoopRunnerTests
             new ToolLoopOptions { MaxToolCalls = 2 });
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runner.RunAsync(
-            Guid.NewGuid(), Guid.NewGuid(), "read my notes", ["read-file schema"], cancellation.Token));
+            Guid.NewGuid(), Guid.NewGuid(), "read my notes",
+            [CreateSchema(invocation.CapabilityId)], cancellation.Token));
 
         var terminalEvent = Assert.Single(
             this.events, item => item.Type == ExecutionEventType.ToolFailed);
@@ -123,7 +132,8 @@ public sealed class ToolLoopRunnerTests
             new ToolLoopOptions { MaxToolCalls = 2 });
 
         await runner.RunAsync(
-            Guid.NewGuid(), Guid.NewGuid(), "read my notes", ["read-file schema"], CancellationToken.None);
+            Guid.NewGuid(), Guid.NewGuid(), "read my notes",
+            [CreateSchema(invocation.CapabilityId)], CancellationToken.None);
 
         Assert.Empty(model.FirstCallExchanges);
     }
@@ -146,7 +156,8 @@ public sealed class ToolLoopRunnerTests
             new ToolLoopOptions { MaxToolCalls = 1 });
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => runner.RunAsync(
-            Guid.NewGuid(), Guid.NewGuid(), "read my notes", ["read-file schema"], CancellationToken.None));
+            Guid.NewGuid(), Guid.NewGuid(), "read my notes",
+            [CreateSchema(invocation.CapabilityId)], CancellationToken.None));
 
         Assert.Contains("bound of 1", exception.Message, StringComparison.Ordinal);
         await executor.Received(1).ExecuteAsync(invocation, Arg.Any<CancellationToken>());
@@ -174,7 +185,8 @@ public sealed class ToolLoopRunnerTests
             new ToolLoopOptions { MaxToolCalls = 2 });
 
         await Assert.ThrowsAsync<IOException>(() => runner.RunAsync(
-            Guid.NewGuid(), Guid.NewGuid(), "read my notes", ["read-file schema"], CancellationToken.None));
+            Guid.NewGuid(), Guid.NewGuid(), "read my notes",
+            [CreateSchema(invocation.CapabilityId)], CancellationToken.None));
 
         Assert.DoesNotContain(this.events, item => item.Type == ExecutionEventType.ToolFailed);
     }
@@ -183,6 +195,18 @@ public sealed class ToolLoopRunnerTests
     {
         var arguments = JsonSerializer.SerializeToElement(new { path = "notes.txt" });
         return new CapabilityInvocation(Guid.NewGuid(), arguments);
+    }
+
+    private static CapabilityToolSchema CreateSchema(Guid capabilityId)
+    {
+        var parameters = JsonSerializer.SerializeToElement(new
+        {
+            type = "object",
+            properties = new { path = new { type = "string" } },
+            required = new[] { "path" },
+        });
+        return new CapabilityToolSchema(
+            capabilityId, "read_file", "Read one workspace file.", parameters);
     }
 
     private static async Task<CapabilityExecutionResult> CancelExecutionAsync(
@@ -199,12 +223,15 @@ public sealed class ToolLoopRunnerTests
 
         public List<IReadOnlyList<ToolExecutionExchange>> ExchangesOnCalls { get; } = [];
 
+        public List<IReadOnlyList<CapabilityToolSchema>> SchemasOnCalls { get; } = [];
+
         public Task<ToolModelTurn> NextAsync(
             string prompt,
-            IReadOnlyList<string> toolSchemas,
+            IReadOnlyList<CapabilityToolSchema> toolSchemas,
             IReadOnlyList<ToolExecutionExchange> exchanges,
             CancellationToken cancellationToken)
         {
+            this.SchemasOnCalls.Add(toolSchemas.ToArray());
             this.ExchangesOnCalls.Add(exchanges.ToArray());
             return Task.FromResult(this.turns.Dequeue());
         }
@@ -219,7 +246,7 @@ public sealed class ToolLoopRunnerTests
 
         public Task<ToolModelTurn> NextAsync(
             string prompt,
-            IReadOnlyList<string> toolSchemas,
+            IReadOnlyList<CapabilityToolSchema> toolSchemas,
             IReadOnlyList<ToolExecutionExchange> exchanges,
             CancellationToken cancellationToken)
         {

@@ -41,7 +41,7 @@ public sealed class ToolLoopRunner
         Guid traceId,
         Guid parentSpanId,
         string prompt,
-        IReadOnlyList<string> toolSchemas,
+        IReadOnlyList<CapabilityToolSchema> toolSchemas,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);

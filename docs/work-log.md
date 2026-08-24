@@ -3951,6 +3951,32 @@ The installed sidecar reports Ollama 0.32.15, and `qwen3:8b` reports `completion
 `tools`, and `thinking` capabilities. Official Ollama API documentation confirms the
 native chat/tool-call shape. G6c2a is claimed before changing contracts.
 
+## 2026-08-23 — Codex — G6c2a: typed advertised tool schemas
+
+`CapabilityToolSchema` now gives the provider boundary an immutable stable capability
+id, portable function name, description, and owned JSON Schema parameters object.
+Names are bounded to 64 ASCII letters/digits/underscores/hyphens without regex or LINQ;
+the parameters document is cloned and must itself describe an object, matching
+`CapabilityInvocation`'s object-only argument invariant. `IToolCallingChatClient` and
+`ToolLoopRunner` now carry these typed schemas instead of anonymous strings, and the
+runner continues to hand every model step an immutable snapshot.
+
+True TDD chronology: the changed tool-loop test first produced six clean compiler
+errors for the missing type and old string interface. Adding only the contract and
+threading it through made the focused behavior pass 1/1 after extracting assertions to
+satisfy DAMI0003's 30-line test limit. A new test then failed behaviorally because a
+JSON object containing `{ "type": "array" }` was accepted; requiring an object-valued
+argument schema made it green. Tests also pin portable names and parameter ownership
+beyond the source `JsonDocument` lifetime. The focused schema/tool-loop set passes 7/7,
+and the entire Core suite passes 56/56.
+
+Definitive verification used `/tmp/dami-g6c2a-gate.ZemFIP/repo` at committed HEAD
+`f7609c5` with only the five G6c2a files overlaid, isolating Claude's concurrent host and
+CLI edits. `dotnet build Dami.sln --nologo` completed with 0 warnings and 0 errors; all
+twelve suites passed 422/422; and `dotnet format Dami.sln --verify-no-changes
+--no-restore --verbosity minimal` exited 0. No migration is involved. G6c2a is flipped
+to `[x]`, and G6c2b is claimed before provider code changes begin.
+
 ## 2026-08-24 — Claude — I2: the CLI is now the thin client D-005 promised
 
 The direct-store deviation recorded in the CLI's own header comment since Phase 2 is
