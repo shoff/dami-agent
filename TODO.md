@@ -139,6 +139,9 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] G4c3 Deploy and demonstrate multi-turn context, interruption, resume, and retry convergence live
       - [x] G4c3a Propagate durable session interruption into active turn/model cancellation
 - [x] G5 Runtime API on localhost (D-005): `dami-host` service on 127.0.0.1:5810 — turns/SSE, surfacings, beliefs, approvals, traces, `/events`; CLI rework stays I2
+- [ ] G5a OIDC authentication on localhost with PostgreSQL-backed identities, clients,
+  grants, and revocation; scoped CLI/GUI/service clients and separately authorized
+  approval resolution (ADR-0020)
 - [x] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4
   - [x] G6a Source-neutral invocation/result contract + native implementation registry and timeout boundary
   - [x] G6b Root-confined file operations + allowlisted no-shell process execution

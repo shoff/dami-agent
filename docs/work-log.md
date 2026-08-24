@@ -6301,3 +6301,14 @@ Steve also resolved the audit's local-client authentication direction: use OIDC 
 persist the authentication state in PostgreSQL. The remaining audit questions are not
 stop-work gates; Codex is to choose pragmatic v1 designs, document the choices, and
 iterate later.
+
+## 2026-08-24 — Codex — OIDC/PostgreSQL direction recorded
+
+Recorded Steve's explicit local-API authentication decision as accepted ADR-0020 and
+added G5a to the claim board. The v1 boundary authenticates localhost clients rather
+than treating loopback as identity, stores identities/client registrations/grants and
+revocation state in PostgreSQL, uses device authorization for the CLI and authorization
+code with PKCE for a browser GUI, and reserves approval resolution for a distinct user
+scope. MCP and inference sidecars receive no API credential by default. The ADR does
+not claim a library or schema has been proven; those require a TDD implementation spike
+when G5a is claimed.
