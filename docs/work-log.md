@@ -3601,6 +3601,40 @@ safe bounded file reading. G6b2 will own allowlisted executable resolution, lite
 Write/patch capability remains in G6c's approval handoff; it is not being smuggled into
 a read/process slice without the already-built G7 approval boundary.
 
+G6b1 was developed in three red/green behaviors. First, a positive test required one
+relative UTF-8 file under a configured root to return its content with relative path,
+byte count, and SHA-256 evidence. It failed red with CS0246 for the absent handler and
+options. The minimum lexical-root reader then hit N3's private-static IDE1006 naming
+rule; after the naming-only correction, the unchanged behavior passed 1/1.
+
+Second, a test created an in-root directory symlink targeting a separate outside
+directory and requested `link/secret.txt`. The lexical implementation failed red by
+reading it. `RootedPathResolver` now canonicalizes the configured root, walks every
+existing path segment, resolves both directory and final-file links, and rechecks
+containment after every resolution. Its first compile exposed the lack of an inferred
+common type for `FileInfo`/`DirectoryInfo`; a typed factory corrected the C# issue, and
+the escape test passed 1/1. Absolute paths and lexical `..` escapes are rejected before
+walking. A hostile same-user actor swapping directory entries between resolution and
+open remains a platform-level TOCTOU limitation; on this single-user local workspace
+that actor already has Dami's privileges, but the limitation is stated rather than
+hidden.
+
+Third, a five-byte file under a four-byte limit failed red because the initial reader
+returned it. The implementation now validates a positive limit capped at 4 MiB, opens
+the file asynchronously, checks the opened length, and reads at most `MaxBytes + 1`
+through `ArrayPool<byte>`. It rechecks the actual byte count to catch growth, hashes and
+decodes only the bounded span, and returns the rented buffer with `clearArray: true` so
+personal file content does not remain pooled. N3's IDE0078 first required the numeric
+range check to use a relational pattern; the unchanged oversize behavior then passed
+1/1. The whole read-file class passed 3/3.
+
+G6b1 is demonstrated. Definitive verification ran in
+`/tmp/dami-g6b1-gate.lNa1Cz/repo` at released HEAD `3fa3589` with only the handler,
+options, rooted resolver, and test overlaid. `dotnet build Dami.sln --nologo` produced
+0 warnings and 0 errors; all twelve suites passed 387/387; and `dotnet format Dami.sln
+--verify-no-changes --no-restore --verbosity minimal` exited 0. No migration is
+involved. G6b1 is flipped to `[x]`, and G6b2 is claimed before process code is written.
+
 ## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
 
 Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,
