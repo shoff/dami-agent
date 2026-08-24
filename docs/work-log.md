@@ -6638,3 +6638,12 @@ http://127.0.0.1:5810`; systemd reported active and `/health` returned
 human-promoted tool. The two-Host automated proof supplies the nonempty recovery case;
 F5c3c retains creation, human resolution, activation, and live invocation of the first
 conforming proposal. F5c3b and F5c3b3 are complete.
+
+## 2026-08-24 — Codex — F5c3c claimed
+
+Claimed the remaining bounded F5 slice: localhost surfaces that verify an exact staged
+version, request its existing single-resolution human approval, resolve and activate
+only that version, plus a live conforming proposal demonstration through the deployed
+sandbox. The required pre-claim `git pull --ff-only` first failed under root because
+root has no GitHub SSH key; rerunning as Steve reported `Already up to date` and changed
+nothing. No authentication redesign or non-tool approval work enters this slice.

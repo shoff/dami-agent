@@ -123,7 +123,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
         - [x] F5c3b1 Sandboxed execution registry + exact-rollback publication
         - [x] F5c3b2 Immutable artifact materialization + durable recovery processor
         - [x] F5c3b3 Host startup composition + recovery demonstration
-      - [ ] F5c3c Host promotion surfaces + live conforming proposal demonstration
+      - [~ Codex 2026-08-24] F5c3c Host promotion surfaces + live conforming proposal demonstration
 
 ## G · Interactive runtime
 
