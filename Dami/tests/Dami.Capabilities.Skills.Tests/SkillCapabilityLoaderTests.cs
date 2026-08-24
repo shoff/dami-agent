@@ -197,6 +197,47 @@ public sealed class SkillCapabilityLoaderTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadAsync_Should_Replace_The_Published_Skill_Snapshot_On_Reload()
+    {
+        var skillId = Guid.NewGuid();
+        await this.WriteSkillAsync("revised", skillId);
+        var registry = new CapabilityRegistry();
+        var loader = new SkillCapabilityLoader(
+            registry, new SkillLoaderOptions { RootDirectory = this.scratch });
+        CapabilityEntry original = Assert.Single(
+            await loader.LoadAsync(registeredAt, CancellationToken.None));
+        await File.WriteAllTextAsync(
+            Path.Combine(this.scratch, "revised", "SKILL.md"), "# Revised body");
+
+        CapabilityEntry revised = Assert.Single(
+            await loader.LoadAsync(registeredAt.AddMinutes(1), CancellationToken.None));
+
+        Assert.NotEqual(original.Version, revised.Version);
+        Assert.Same(revised, registry.Find(skillId));
+    }
+
+    [Fact]
+    public async Task LoadAsync_Should_Retire_A_Removed_Skill_From_Both_Snapshots()
+    {
+        var skillId = Guid.NewGuid();
+        await this.WriteSkillAsync("retired", skillId);
+        var registry = new CapabilityRegistry();
+        var loader = new SkillCapabilityLoader(
+            registry, new SkillLoaderOptions { RootDirectory = this.scratch });
+        CapabilityEntry original = Assert.Single(
+            await loader.LoadAsync(registeredAt, CancellationToken.None));
+        Directory.Delete(Path.Combine(this.scratch, "retired"), recursive: true);
+
+        IReadOnlyList<CapabilityEntry> reloaded = await loader.LoadAsync(
+            registeredAt.AddMinutes(1), CancellationToken.None);
+
+        Assert.Empty(reloaded);
+        Assert.Null(registry.Find(skillId));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => loader.ReadBodyAsync(
+            skillId, original.Version, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task LoadAsync_Should_Reject_A_Symbolic_Link_As_The_Skill_Root()
     {
         string directory = Directory.CreateDirectory(Path.Combine(this.outside, "skill")).FullName;

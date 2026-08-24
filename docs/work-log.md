@@ -5479,3 +5479,34 @@ identity. F4c3 owns same-filesystem staged materialization, recovery/convergence
 the database commit, source reload, and a composed Host/native demonstration. F4c1 is
 claimed first; the exact ordering and reversal path will be recorded in an ADR before
 cross-resource writes are implemented.
+
+## 2026-08-24 — Codex — F4c1 lifecycle and source-snapshot contracts complete
+
+The first registry test compiled red because no source-snapshot registrar existed. The
+new narrow contract snapshots arbitrary caller input before the write lock, verifies
+every entry belongs to the declared source, rejects duplicate and cross-source ID
+collisions, builds a replacement without the old source, and publishes it with one
+volatile swap. Its deterministic observer saw only `version-1` during enumeration and
+then `version-2`; the unrelated native entry retained object identity. Existing
+single-register and batch paths share the input and duplicate validators rather than
+forking the invariants.
+
+The skill reload test then failed behaviorally because F4a's additive batch registrar
+rejected the existing stable ID. `SkillCapabilityLoader` now publishes a complete Skill
+source snapshot. Editing `SKILL.md` produced a new semantic version and atomically
+replaced the registry entry; removing the directory published an empty Skill snapshot,
+removed metadata, and made the prior body version unreadable. Content fingerprints and
+registry metadata still swap only after complete filesystem validation.
+
+The lifecycle test compiled red for the absent contracts. `SkillDocument` owns immutable
+copies of metadata, body, related IDs, and bundled text; `SkillChangeRequest` carries a
+retry-stable change ID plus exact trace/span/origin provenance. Author requires a
+matching replacement and no preimage; revise requires a matching replacement and
+preimage version; retire requires a preimage and no replacement. Post-green coverage
+also pins author/retire shape and end-to-end snapshot retirement.
+
+The focused capability suite passed 37/37 and Skills suite passed 14/14. The mandatory
+solution gate built all 33 projects with 0 warnings and 0 errors, all sixteen suites
+passed 639/639, and format/analyzer verification exited 0. No schema, migration,
+deployment, or live-service change was required. F4c1 is `[x]`; F4c2's transactional
+diff ledger and execution-event write-ahead are claimed next.

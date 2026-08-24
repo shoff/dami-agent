@@ -6,7 +6,7 @@ namespace Dami.Capabilities;
 public sealed class CapabilityRegistry :
     ICapabilityCatalog,
     ICapabilityInventory,
-    ICapabilityBatchRegistrar
+    ICapabilitySourceSnapshotRegistrar
 {
     private ConcurrentDictionary<Guid, CapabilityEntry> entries = [];
     private readonly object writeGate = new();
@@ -26,28 +26,41 @@ public sealed class CapabilityRegistry :
     public void RegisterBatch(IReadOnlyList<CapabilityEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        var prepared = new CapabilityEntry[entries.Count];
-        for (var index = 0; index < entries.Count; index++)
-        {
-            prepared[index] = entries[index]
-                ?? throw new ArgumentException("Capability batches cannot contain null.", nameof(entries));
-        }
+        CapabilityEntry[] prepared = Snapshot(entries);
 
         lock (this.writeGate)
         {
             ConcurrentDictionary<Guid, CapabilityEntry> current = Volatile.Read(ref this.entries);
-            var preparedIds = new HashSet<Guid>();
-            for (var index = 0; index < prepared.Length; index++)
-            {
-                CapabilityEntry entry = prepared[index];
-                if (!preparedIds.Add(entry.CapabilityId)
-                    || current.ContainsKey(entry.CapabilityId))
-                {
-                    throw Duplicate(entry.CapabilityId);
-                }
-            }
+            ValidateNewEntries(prepared, current);
 
             var replacement = new ConcurrentDictionary<Guid, CapabilityEntry>(current);
+            for (var index = 0; index < prepared.Length; index++)
+            {
+                RegisterOne(replacement, prepared[index]);
+            }
+
+            Volatile.Write(ref this.entries, replacement);
+        }
+    }
+
+    /// <inheritdoc />
+    public void ReplaceSourceSnapshot(
+        CapabilitySource source,
+        IReadOnlyList<CapabilityEntry> entries)
+    {
+        if (!Enum.IsDefined(source))
+        {
+            throw new ArgumentOutOfRangeException(nameof(source));
+        }
+
+        ArgumentNullException.ThrowIfNull(entries);
+        CapabilityEntry[] prepared = Snapshot(entries);
+        ValidateSource(prepared, source);
+        lock (this.writeGate)
+        {
+            ConcurrentDictionary<Guid, CapabilityEntry> current = Volatile.Read(ref this.entries);
+            ConcurrentDictionary<Guid, CapabilityEntry> replacement = WithoutSource(current, source);
+            ValidateNewEntries(prepared, replacement);
             for (var index = 0; index < prepared.Length; index++)
             {
                 RegisterOne(replacement, prepared[index]);
@@ -81,6 +94,64 @@ public sealed class CapabilityRegistry :
         {
             throw Duplicate(entry.CapabilityId);
         }
+    }
+
+    private static CapabilityEntry[] Snapshot(IReadOnlyList<CapabilityEntry> entries)
+    {
+        var snapshot = new CapabilityEntry[entries.Count];
+        for (var index = 0; index < entries.Count; index++)
+        {
+            snapshot[index] = entries[index]
+                ?? throw new ArgumentException("Capability batches cannot contain null.", nameof(entries));
+        }
+
+        return snapshot;
+    }
+
+    private static void ValidateNewEntries(
+        IReadOnlyList<CapabilityEntry> entries,
+        IReadOnlyDictionary<Guid, CapabilityEntry> existing)
+    {
+        var preparedIds = new HashSet<Guid>();
+        for (var index = 0; index < entries.Count; index++)
+        {
+            Guid capabilityId = entries[index].CapabilityId;
+            if (!preparedIds.Add(capabilityId) || existing.ContainsKey(capabilityId))
+            {
+                throw Duplicate(capabilityId);
+            }
+        }
+    }
+
+    private static void ValidateSource(
+        IReadOnlyList<CapabilityEntry> entries,
+        CapabilitySource source)
+    {
+        for (var index = 0; index < entries.Count; index++)
+        {
+            if (entries[index].Source != source)
+            {
+                throw new ArgumentException(
+                    "A source snapshot can contain entries from only its declared source.",
+                    nameof(entries));
+            }
+        }
+    }
+
+    private static ConcurrentDictionary<Guid, CapabilityEntry> WithoutSource(
+        ConcurrentDictionary<Guid, CapabilityEntry> current,
+        CapabilitySource source)
+    {
+        var replacement = new ConcurrentDictionary<Guid, CapabilityEntry>();
+        foreach (KeyValuePair<Guid, CapabilityEntry> pair in current)
+        {
+            if (pair.Value.Source != source)
+            {
+                RegisterOne(replacement, pair.Value);
+            }
+        }
+
+        return replacement;
     }
 
     private static InvalidOperationException Duplicate(Guid capabilityId)

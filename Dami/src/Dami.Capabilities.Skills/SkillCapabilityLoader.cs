@@ -15,7 +15,7 @@ public sealed class SkillCapabilityLoader : ISkillContentReader
     private static readonly UTF8Encoding strictUtf8 = new(
         encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-    private readonly ICapabilityBatchRegistrar registrar;
+    private readonly ICapabilitySourceSnapshotRegistrar registrar;
     private readonly string rootDirectory;
     private readonly int maxSkills;
     private readonly int maxDescriptorBytes;
@@ -26,7 +26,9 @@ public sealed class SkillCapabilityLoader : ISkillContentReader
         new Dictionary<Guid, SkillSource>();
 
     /// <summary>Creates a snapshotted, bounded skill loader.</summary>
-    public SkillCapabilityLoader(ICapabilityBatchRegistrar registrar, SkillLoaderOptions options)
+    public SkillCapabilityLoader(
+        ICapabilitySourceSnapshotRegistrar registrar,
+        SkillLoaderOptions options)
     {
         ArgumentNullException.ThrowIfNull(registrar);
         ArgumentNullException.ThrowIfNull(options);
@@ -60,7 +62,7 @@ public sealed class SkillCapabilityLoader : ISkillContentReader
             entries[index] = loaded[index].Entry;
         }
 
-        this.registrar.RegisterBatch(entries);
+        this.registrar.ReplaceSourceSnapshot(CapabilitySource.Skill, entries);
         var replacement = new Dictionary<Guid, SkillSource>(loaded.Length);
         for (var index = 0; index < loaded.Length; index++)
         {

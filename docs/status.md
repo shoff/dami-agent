@@ -107,7 +107,7 @@ rather than assuming — but nothing else blocks the phase.
 | TCP connection, one connection | done | outbound and accepted loopback sockets verified; accepted-socket seam owns the socket, enables `NoDelay`, and has exception-safe idempotent disposal |
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
-| Capability registry | in progress | Native, MCP, and filesystem skills share one catalog. F3 is complete. F4a adds bounded link-refusing loading, semantic versions, and atomic registry publication. F4b is complete: one semantic selection retains tools plus deferred skills, selected bodies enter a separately bounded prompt section, and bundled files stay behind version-pinned on-demand reads. F4c lifecycle is claimed. |
+| Capability registry | in progress | Native, MCP, and filesystem skills share one catalog. F3 and F4a/F4b are complete. F4c1 adds trace-owned version-pinned lifecycle documents plus atomic replacement/reload/retirement of the entire Skill source snapshot; F4c2's transactional diff/event write-ahead is claimed. |
 | Model routing, sessions, events, CLI | partial | Routed/streaming/tool-enabled turns and the G6 live demonstration exist. G4 sessions are complete: durable idempotent turns, bounded recent context, localhost and thin-CLI lifecycle/reconnect surfaces, active model cancellation, resume, and retry convergence are demonstrated live. Streaming remains tool-less. |
 
 Verification on 2026-08-23 for G6c3a in an isolated concurrent-work gate:
@@ -212,6 +212,14 @@ production Host composition in the 15/15 Host suite. The solution build complete
 across 33 projects with 0 warnings and 0 errors, all sixteen suites passed 634/634, and
 format/analyzer verification exited 0. No schema, migration, deployment, or live-service
 change was required. F4b is complete; F4c lifecycle is claimed.
+
+Verification on 2026-08-24 for F4c1: atomic source-snapshot publication and the
+existing registry contract passed 37/37; version-changing reload, retirement from both
+metadata/content snapshots, and lifecycle invariants passed 14/14 Skills tests. The
+solution build completed across 33 projects with 0 warnings and 0 errors, all sixteen
+suites passed 639/639, and format/analyzer verification exited 0. No schema, migration,
+deployment, or live-service change was required. F4c1 is complete; F4c2's transactional
+diff ledger and execution-event write-ahead are claimed.
 
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 

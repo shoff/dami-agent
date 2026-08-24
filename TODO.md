@@ -106,8 +106,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] F4b1 Bounded on-demand skill content reader + one-pass tool/skill selection contract
     - [x] F4b2 TurnRunner prompt budget + Host composition and behavioral demonstration
   - [~ Codex 2026-08-24] F4c Atomic author/revise/retire lifecycle with every diff recorded in the durable execution stream
-    - [~ Codex 2026-08-24] F4c1 Version-pinned lifecycle contract + atomic skill-source snapshot replacement
-    - [ ] F4c2 Transactional durable diff ledger + execution event write-ahead (migration and least privilege)
+    - [x] F4c1 Version-pinned lifecycle contract + atomic skill-source snapshot replacement
+    - [~ Codex 2026-08-24] F4c2 Transactional durable diff ledger + execution event write-ahead (migration and least privilege)
     - [ ] F4c3 Crash-recoverable filesystem materialization + Host/native lifecycle demonstration
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
 

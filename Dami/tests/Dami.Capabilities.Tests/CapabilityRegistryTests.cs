@@ -78,6 +78,33 @@ public sealed class CapabilityRegistryTests
     }
 
     [Fact]
+    public void ReplaceSourceSnapshot_Should_Atomically_Revise_Only_That_Source()
+    {
+        var skillId = Guid.NewGuid();
+        var native = CreateEntry(Guid.NewGuid());
+        var original = CreateEntry(
+            skillId, kind: CapabilityKind.Skill, source: CapabilitySource.Skill,
+            schemaReference: null, bodyReference: "skill://body", version: "version-1");
+        var revised = CreateEntry(
+            skillId, kind: CapabilityKind.Skill, source: CapabilitySource.Skill,
+            schemaReference: null, bodyReference: "skill://body", version: "version-2");
+        var registry = new CapabilityRegistry();
+        registry.Register(native);
+        registry.Register(original);
+        var observedVersions = new List<string?>();
+        var replacement = new ObservingBatch(
+            [revised],
+            () => observedVersions.Add(registry.Find(skillId)?.Version));
+        ICapabilitySourceSnapshotRegistrar registrar = registry;
+
+        registrar.ReplaceSourceSnapshot(CapabilitySource.Skill, replacement);
+
+        Assert.All(observedVersions, version => Assert.Equal("version-1", version));
+        Assert.Same(native, registry.Find(native.CapabilityId));
+        Assert.Same(revised, registry.Find(skillId));
+    }
+
+    [Fact]
     public void Register_MakesCapabilityAvailableByStableId()
     {
         var capabilityId = Guid.NewGuid();

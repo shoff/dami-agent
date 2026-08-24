@@ -31,7 +31,7 @@ public static class SkillServiceCollectionExtensions
 
         services.AddSingleton(options);
         services.AddSingleton<SkillCapabilityLoader>(provider => new SkillCapabilityLoader(
-            provider.GetRequiredService<ICapabilityBatchRegistrar>(), options));
+            provider.GetRequiredService<ICapabilitySourceSnapshotRegistrar>(), options));
         services.AddSingleton<ISkillContentReader>(provider =>
             provider.GetRequiredService<SkillCapabilityLoader>());
         services.AddSingleton<IHostedService>(provider => new SkillLoaderHostedService(
