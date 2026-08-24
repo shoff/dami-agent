@@ -4981,3 +4981,49 @@ remote catalog. Those are four independently demonstrable boundaries, so F3 is s
 before production work: F3a owns client/connection/discovery/schema-cache mechanics;
 F3b owns secure description ingestion; F3c owns privacy-aware selection and execution;
 F3d owns Host composition plus a local fake-server proof. Only F3a is claimed now.
+
+## 2026-08-24 — Codex — F3a MCP client foundation complete
+
+The architecture-mandated `Dami.Capabilities.Mcp` project and its test project were
+created and added with `dotnet sln add`. The first Steve-owned test invocation could not
+restore because the new directories were root-owned; ownership was corrected and that
+infrastructure failure was not counted as red. The completed registration test then
+failed at CS0246/CS0103 because no server registration or transport kind existed. The
+minimal implementation needed two IDE0005 corrections for imports made redundant by
+nested namespaces before the positive contract passed.
+
+The official `ModelContextProtocol.Core` 2.2.0 package was selected from the current
+official C# SDK guidance because this adapter needs only client and low-level test-server
+APIs. An in-memory real-protocol discovery test first needed a refreshed restore graph;
+its clean red was CS0103 for the absent `McpServerConnection`. The implementation then
+compiled after correcting the SDK's mutable `IList<McpClientTool>` return shape. Its
+first runtime reached discovery and schema assertions but timed out because the test
+incorrectly assumed disposal of caller-owned streams must terminate the independently
+owned server loop. The fixture was corrected without production changes: it explicitly
+cancels its server and observes client ownership by requiring post-disposal discovery
+to throw. The test then passed with the exact remote `weather` name/description, a local
+server-qualified schema reference, and an object JSON schema retrieved only from cache.
+
+Configuration guards were behavioral red because empty/blank/relative/insecure or
+undefined values were accepted; stable ID, name, URI, HTTPS-or-loopback, transport, and
+trust validation now fail before I/O. Transport mapping compiled red on its absent
+factory and now pins Streamable HTTP, disables an unused standalone GET stream, and
+owns the MCP session. The public registration-only connection overload compiled red
+before it existed and now honors pre-connect cancellation while the SDK transport seam
+remains internal to the adapter/test assembly.
+
+The adversarial D-012 review found that an ordinary remote SDK `HttpClientTransport`
+would bypass Dami's intentionally bodyless `IEgressClient`. A dedicated test failed red
+because the convenience factory accepted `https://mcp.example`; it now fails closed for
+every non-loopback endpoint with an explicit egress-boundary error. Remote MCP is held
+for F3c's privacy-aware transport rather than smuggled through an ordinary HttpClient.
+After green, connection lifetime and schema snapshot ownership were split for SRP; the
+schema cache now atomically replaces immutable-by-convention snapshots rather than
+accumulating stale entries. That refactor is protected by existing coverage, not a new
+red-first behavior.
+
+The focused MCP suite passed 6/6 over the real in-memory protocol. The mandatory
+solution gate built 31 projects with 0 warnings and 0 errors, all fifteen suites passed
+578/578, and format/analyzer verification exited 0. No schema, migration, Host
+composition, or deployment change was needed. F3a is `[x]`; F3b secure registry
+ingestion is claimed next.

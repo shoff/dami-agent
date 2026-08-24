@@ -89,8 +89,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] F2c1 Registry snapshot → version-aware capability-vector synchronization
     - [x] F2c2 Intent embed → ANN candidates → rerank → bundle expansion
 - [~ Codex 2026-08-24] F3 MCP client + explicit trust levels; untrusted descriptions summarized-not-followed; untrusted excluded from LocalOnly turns
-  - [~ Codex 2026-08-24] F3a `Dami.Capabilities.Mcp` client boundary: explicit server registration/trust, owned connection lifecycle, tool discovery, and schema cache
-  - [ ] F3b Secure registry ingestion: stable normalized tools; trusted descriptions admitted verbatim; untrusted descriptions locally summarized with raw text unable to enter retrieval context
+  - [x] F3a `Dami.Capabilities.Mcp` client boundary: explicit server registration/trust, owned connection lifecycle, tool discovery, and schema cache
+  - [~ Codex 2026-08-24] F3b Secure registry ingestion: stable normalized tools; trusted descriptions admitted verbatim; untrusted descriptions locally summarized with raw text unable to enter retrieval context
   - [ ] F3c Privacy-aware selection and execution: untrusted MCP excluded before LocalOnly reranking/expansion; source-neutral MCP invocation dispatch
   - [ ] F3d Host composition and local fake-server integration demonstration
 - [ ] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
