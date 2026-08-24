@@ -6459,3 +6459,69 @@ Host's DI — the endpoint could not bind, ASP.NET fell back to expecting JSON, 
 symptom was a misleading 415 that I initially chased as content negotiation. The
 item-8 fix earned its keep immediately: the CLI said "the runtime failed: returned
 415" rather than "host unreachable", which is what made it findable.
+
+## 2026-08-24 — Codex — F5c3b2 complete; immutable activation recovery proven
+
+Closed the claimed recovery slice without taking Host composition from F5c3b3. The
+materializer rebuilds through the fixed verifier, compares the rebuilt `Tool.dll`
+digest with the durable verification record, and atomically installs only that DLL
+plus the trusted runtime configuration under a version-addressed directory. Existing
+targets must match exactly: the final adversarial test first passed an unexpected
+runtime subdirectory, observed no exception, and then passed after inspection was
+tightened to reject every directory, symlink, reparse point, or unrecognized entry.
+The focused sandbox suite consequently moved from 19/19 to 20/20.
+
+The recovery source selects bounded approved/resolved promotions with their exact
+proposal and verification, retaining already-activated rows because a restarted Host
+must republish its empty in-memory registries. The processor serializes the complete
+snapshot and batch, activates before journaling success, records bounded failure
+outcomes only before durable success, and converges through an idempotent activator.
+No schema change was required; the existing proposal, verification, promotion,
+approval, and outcome tables contain the necessary immutable state.
+
+Observed live evidence: `sudo -u steve env DAMI_SANDBOX_INTEGRATION=1 dotnet test
+tests/Dami.Capabilities.Sandboxed.Tests/Dami.Capabilities.Sandboxed.Tests.csproj
+--no-build --no-restore --filter FullyQualifiedName~MaterializeAsync_Should_Run_Installed`
+passed 1/1 after restoring, compiling, testing, installing, and invoking a proposal in
+the systemd+bubblewrap boundary. Two earlier root runs failed honestly because root
+cannot use Steve's user systemd bus; their exact temporary directories were inspected
+and removed, and the test now cleans its bootstrap directory in `finally`.
+
+The first full test run as root also failed 791/793: both frontier regressions received
+`FileNotFoundException` for `/root/.pgpass`. A temporary response assertion exposed
+that exact middleware payload and was then fully reverted. This was a test-account
+error, not a Host defect. After restoring ownership, the mandatory gate was rerun as
+Steve: `dotnet build Dami.sln` built all 35 projects with 0 warnings and 0 errors, and
+`dotnet test Dami.sln --no-build` passed all seventeen suites, 794/794 tests, with 0
+failed and 0 skipped. F5c3b2 is complete; F5c3b3 owns Host startup composition and its
+restart-recovery demonstration.
+
+## 2026-08-24 — Claude — D-010 finally has numbers (ADR-0015)
+
+D-010 has said since the beginning that the embedding model must be chosen by
+measurement on the real corpus rather than leaderboard rank. The harness existed; the
+measurement had never been run. Ran it — twice, on two models, over Steve's actual
+7,048 documents.
+
+`BAAI/bge-large-en-v1.5` beats the incumbent `bge-m3` on every metric: recall@10 after
+rerank 0.8108 vs 0.7838, MRR 0.7194 vs 0.6923, nDCG@10 0.7415 vs 0.7145, at slightly
+lower ANN latency. Steve's corpus is English and bge-m3 is multilingual; that
+generality appears to cost precision here. Same 1024 dimensions, so migration is a
+re-embed with no schema change — exactly the path ADR-0009's per-row model versioning
+was built for, at a measured 193 docs/s.
+
+The run also produced the first evidence that §9.3's rerank stage earns its place
+rather than being assumed: on bge-m3 reranking lifts MRR by 0.084 and nDCG by 0.058,
+though it *costs* recall@10 (−0.027) because reordering can push a relevant document
+out of the top ten. On bge-large-en that cost vanishes — a second argument for it.
+
+Stated plainly in the ADR: the 37 relevance pairs are still drafts. The numbers are
+only as good as those labels, so this is evidence for Steve's decision, not the
+decision. `Qwen3-Embedding-4B` was not evaluated — at 2560 dims it needs halfvec and
+~8 GB, which does not fit beside 9.7 GB already resident.
+
+Found and fixed a bug in the harness while using it: it printed the model from the
+default embedding URL rather than the one under test, so every comparison run was
+labelled with the incumbent's name. I caught it because the header said "bge-m3" while
+the metrics had visibly changed. A benchmark that mislabels its subject is worse than
+no benchmark.

@@ -48,7 +48,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] B3 Corpus home: 6,995 Hermes memories exported (read-only, checksummed, vectors incl.) + imported idempotently + fully indexed; full 17-class Weaviate preservation (156 MB)
 - [x] B4 Semantic pipeline proven end to end: embed → ANN → rerank (§9.3), nightly `EmbedderService`, `dami recall`
 - [x] B5 Interim embedder ADR-0009 (bge-m3, versioned per row, re-embed path exercised)
-- [ ] B6 **Close D-010**: Steve reviews `tools/eval/REVIEW.md` (37 draft pairs, 13 top-3 misses annotated) → re-run 3-model eval → record decision `[STEVE: review]`
+- [STEVE] B6 **Close D-010** — the eval has now been RUN (Claude 2026-08-24, ADR-0015): `bge-large-en-v1.5` beats the incumbent `bge-m3` on every metric over the real 7,048-doc corpus (recall@10 0.8108 vs 0.7838 after rerank, MRR +0.027, nDCG +0.027, same 1024 dims so migration is a re-embed). Also first proof the rerank stage earns its place. **What remains is yours**: review the 37 draft relevance pairs in `tools/eval/REVIEW.md` — the numbers are only as good as those labels — then accept or reject ADR-0015
 - [ ] B7 Kokoro classes (772 memories / 3,811 concepts / 718 entities): import into corpus or leave preserved? `[STEVE: whose memories are they]`
 - [x] B8 Belief embedding: only-active-conclusions embedded for retrieval (D-009 second half; currently beliefs enter context by subject, not similarity)
 - [STEVE] B9 Observation retention/compaction policy — ADR-0012 proposed (keep words, reclaim vectors, exclude-never-erase); needs Steve's approval
@@ -121,7 +121,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
       - [x] F5c3a Durable exact-artifact verification/activation state and terminal events
       - [~ Codex 2026-08-24] F5c3b Failure-atomic registry publication + startup recovery
         - [x] F5c3b1 Sandboxed execution registry + exact-rollback publication
-        - [~ Codex 2026-08-24] F5c3b2 Immutable artifact materialization + durable recovery processor
+        - [x] F5c3b2 Immutable artifact materialization + durable recovery processor
         - [ ] F5c3b3 Host startup composition + recovery demonstration
       - [ ] F5c3c Host promotion surfaces + live conforming proposal demonstration
 
@@ -247,7 +247,7 @@ Decisions with a written proposal attached — read, then accept/reject:
 4. **A7** ADR-0001 host OS · **A6** Postgres major · **A4** backup destination
 
 Inputs only you have:
-5. **B6** review `tools/eval/REVIEW.md` → D-010 closes on a table
+5. **B6** review `tools/eval/REVIEW.md` (37 pairs) → then accept/reject **ADR-0015**; the table exists now and says bge-large-en-v1.5 wins
 6. **B7** Kokoro classes: import or leave preserved (whose memories are they?)
 7. ~~**H6** scout feeds/interests~~ — done 2026-08-24: derived from your corpus (6 interests, 2 HN feeds); adjust with `systemctl edit dami-proactive`
 8. **G10** the Dami identity charter file is on the Mac and this host has no key —

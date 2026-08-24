@@ -92,5 +92,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IToolPromotionStore, PostgresToolPromotionStore>();
         services.TryAddSingleton<IToolVerificationStore, PostgresToolVerificationStore>();
         services.TryAddSingleton<IToolActivationStore, PostgresToolActivationStore>();
+        services.TryAddSingleton<
+            IToolActivationRecoverySource, PostgresToolActivationRecoverySource>();
     }
 }

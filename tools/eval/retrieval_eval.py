@@ -157,7 +157,7 @@ def main() -> int:
 
     docs = read_jsonl(arguments.corpus)
     queries = read_jsonl(arguments.queries)
-    served = get(f"{EMBED_URL}/info")
+    served = get(f"{EMBED_BASE}/info")
     dimension = len(embed(["dimension probe"])[0])
     table = f"eval_{slug(arguments.label)}"
 

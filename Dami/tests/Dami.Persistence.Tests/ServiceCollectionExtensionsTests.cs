@@ -36,6 +36,7 @@ public sealed class ServiceCollectionExtensionsTests
     [InlineData(typeof(IConversationTurnStore))]
     [InlineData(typeof(IToolProposalStore))]
     [InlineData(typeof(IToolPromotionStore))]
+    [InlineData(typeof(IToolActivationRecoverySource))]
     public void AddDamiPersistence_Should_Resolve_Every_Store(Type contract)
     {
         var services = new ServiceCollection();

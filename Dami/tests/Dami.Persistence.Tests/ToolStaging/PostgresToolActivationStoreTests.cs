@@ -126,11 +126,62 @@ public sealed class PostgresToolActivationStoreTests
             && item.ParentSpanId == promotion.PromotionId);
     }
 
+    [Fact]
+    public async Task FindAsync_Should_Return_Approved_Exact_Pending_Activation_Async()
+    {
+        await this.fixture.ResetAsync();
+        (StagedToolProposal proposal, ToolVerificationRecord verification) =
+            await this.StageAndVerifyAsync();
+        ToolPromotionRequest promotion = await this.PromoteAndApproveAsync(proposal);
+        var source = this.CreateRecoverySource();
+
+        IReadOnlyList<ToolActivationRecoveryItem> items = await source.FindAsync(
+            10, CancellationToken.None);
+
+        ToolActivationRecoveryItem item = Assert.Single(items);
+        Assert.Equal(promotion.PromotionId, item.PromotionId);
+        Assert.Equal(proposal.Request.ProposalId, item.Proposal.Request.ProposalId);
+        Assert.Equal(proposal.ArtifactVersion, item.Proposal.ArtifactVersion);
+        Assert.Equal(
+            proposal.Request.Artifact.Schema.CapabilityId,
+            item.Proposal.Request.Artifact.Schema.CapabilityId);
+        Assert.Equal(verification, item.Verification);
+        Assert.False(item.IsActivated);
+    }
+
+    [Fact]
+    public async Task FindAsync_Should_Return_Activated_Items_For_Startup_Republication_Async()
+    {
+        await this.fixture.ResetAsync();
+        (StagedToolProposal proposal, ToolVerificationRecord verification) =
+            await this.StageAndVerifyAsync();
+        ToolPromotionRequest promotion = await this.PromoteAndApproveAsync(proposal);
+        var activated = new ToolActivationOutcome(
+            Guid.NewGuid(), promotion.PromotionId, verification.VerificationId,
+            ToolActivationStatus.Activated, null, at.AddMinutes(3));
+        await this.CreateActivationStore().RecordAsync(activated, CancellationToken.None);
+
+        IReadOnlyList<ToolActivationRecoveryItem> items = await this.CreateRecoverySource()
+            .FindAsync(10, CancellationToken.None);
+
+        Assert.True(Assert.Single(items).IsActivated);
+    }
+
     private PostgresToolActivationStore CreateActivationStore()
     {
         return new PostgresToolActivationStore(
             this.fixture.DataSource,
             Options.Create(new PostgresOptions { SchemaName = DatabaseFixture.SCHEMA }));
+    }
+
+    private PostgresToolActivationRecoverySource CreateRecoverySource()
+    {
+        var options = Options.Create(new PostgresOptions { SchemaName = DatabaseFixture.SCHEMA });
+        return new PostgresToolActivationRecoverySource(
+            this.fixture.DataSource,
+            options,
+            new PostgresToolProposalStore(this.fixture.DataSource, options),
+            new PostgresToolVerificationStore(this.fixture.DataSource, options));
     }
 
     private async Task<(StagedToolProposal Proposal, ToolVerificationRecord Verification)>
