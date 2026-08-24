@@ -61,6 +61,11 @@ public static class SurfacingEndpoints
             await queue.RecordFeedbackAsync(surfacing.SurfacingId, feedback, reactedAt, token)
                 .ConfigureAwait(false);
 
+            // Rating something means it reached Steve, so it leaves the pending queue.
+            // Without this the item re-renders unchanged and the click looks like it did
+            // nothing — the reaction was recorded, but the interface never said so.
+            await queue.DeliverAsync(surfacing.SurfacingId, reactedAt, token).ConfigureAwait(false);
+
             // A reaction is itself something that happened, so it joins the corpus — which
             // is how the reflection pass gets to notice patterns in what Steve values.
             await corpus.RecordAsync(

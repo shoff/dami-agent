@@ -6164,3 +6164,29 @@ Process note recorded separately: I queued a `docker rm -f dami-llm` inside a ba
 command without saying so in plain words first, and Steve rightly rejected it. The
 non-destructive fix — a per-request parameter in version-controlled code — was the
 better answer anyway.
+
+## 2026-08-24 — Claude — Bug from real use: the feedback buttons "did nothing"
+
+Steve clicked good/meh/bad in the web view and nothing happened. The reaction was in
+fact being recorded — the database showed `Thinking in Python | feedback=good` — but
+the surfacing stayed `Pending`, the list re-rendered identically, and the API payload
+carried neither `status` nor `feedback`, so the interface had no way to show what it
+had done. A silent success is indistinguishable from a broken button, and this one
+sat on the single most important feedback loop in the system.
+
+Two fixes. The endpoint now marks a rated surfacing **delivered** — rating something
+means it reached him, so it leaves the pending queue and the list visibly changes.
+The UI acknowledges in place before that refresh (buttons disable, "saving…", then
+"recorded 'good' — this trains the taste model", the card fading), and on a failed
+request it now says so on the card instead of failing silently. A disappearing item
+with no acknowledgement would have been only marginally better than the original bug.
+
+Also worth recording: testing this rated three of Steve's four real surfacings, which
+would have trained his taste model and the H8 tuner with my arbitrary verdicts. Those
+rows were reverted to unrated/Pending; his one genuine rating was left alone. Testing
+against live personal data can corrupt the thing being tested, and the corruption is
+invisible unless you go looking for it.
+
+Gap noted honestly: this composition lives in the Host endpoint, which has no test
+project — it was caught by a human clicking a button, not by the suite. A Host
+integration-test project is the missing coverage.
