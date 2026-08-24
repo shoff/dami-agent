@@ -94,7 +94,12 @@ Replay one trace, child spans indented. Accepts the 8-char short ids
 other commands print.
 .TP
 .B dami health
-Service health, including the GPU-residency check for the LLM sidecar.
+Service health, including the GPU-residency check for the LLM sidecar
+and the runtime API.
+.TP
+.B dami health-log
+The structured health timeline extracted from your own notes (K2).
+Local only \- these rows have no egress path.
 .TP
 .B dami stats
 Corpus and event-stream counts.

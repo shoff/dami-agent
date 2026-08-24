@@ -88,6 +88,24 @@ public sealed class PostgresHealthEventStoreTests
     }
 
     [Fact]
+    public async Task UnexaminedAsync_Should_Offer_Likely_Medical_Notes_First()
+    {
+        await this.fixture.ResetAsync();
+        var (corpus, store) = this.CreateStores();
+        // The unrelated note is OLDER, so plain oldest-first would return it first.
+        var unrelated = new Observation(
+            Guid.NewGuid(), at.AddYears(-1), "hermes-memory", "repainted the workshop shelves");
+        await corpus.RecordAsync(unrelated, CancellationToken.None);
+        var medical = new Observation(
+            Guid.NewGuid(), at, "hermes-memory", "the surgeon confirmed severe aortic stenosis");
+        await corpus.RecordAsync(medical, CancellationToken.None);
+
+        var pending = await this.UnexaminedAsync(store);
+
+        Assert.Equal(medical.ObservationId, pending[0]);
+    }
+
+    [Fact]
     public async Task TimelineAsync_Should_Return_Newest_First()
     {
         await this.fixture.ResetAsync();

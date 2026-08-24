@@ -22,6 +22,14 @@ public sealed class PostgresHealthEventStore : IHealthEventStore
         this.storeOptions = storeOptions.Value;
     }
 
+    /// <summary>Terms that make an observation worth examining sooner. Recall over
+    /// precision: a false positive costs one model call, a false negative costs months.</summary>
+    private const string HEALTH_TERMS =
+        "\\m(diagnos|surgery|surgeon|cardio|aortic|stenosis|valve|heart|blood pressure|"
+        + "medication|prescri|dose|mg\\M|symptom|pain|doctor|physician|clinic|hospital|"
+        + "appointment|echo|ekg|ecg|lab result|cholesterol|dizz|fatigue|nausea|procedure|"
+        + "anesthe|recovery|rehab|therapy|allerg|vaccin|weight|bpm|pulse)";
+
     private string Schema => this.storeOptions.SchemaName;
 
     /// <inheritdoc />
@@ -63,9 +71,15 @@ public sealed class PostgresHealthEventStore : IHealthEventStore
               left join {this.Schema}.health_examined e on e.observation_id = o.observation_id
               left join {this.Schema}.observation_date_repairs r on r.observation_id = o.observation_id
              where e.observation_id is null
-             order by o.occurred_at
+             -- Likely-medical notes first. Every observation is still examined
+             -- eventually, but oldest-first alone would spend months on unrelated
+             -- history before the timeline held anything worth reading. The filter is
+             -- a cheap SQL prefilter, never a decision: the model still judges, and a
+             -- note that merely mentions a term can still yield nothing.
+             order by (o.body ~* @health_terms) desc, o.occurred_at
              limit @limit;
             """);
+        command.Parameters.AddWithValue("health_terms", HEALTH_TERMS);
         command.Parameters.AddWithValue("limit", limit);
         return StreamUnexaminedAsync(command, cancellationToken);
     }
