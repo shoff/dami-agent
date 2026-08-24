@@ -49,6 +49,30 @@ public sealed class PostgresToolVerificationStoreTests
             && item.ParentSpanId == proposal.Request.SpanId);
     }
 
+    [Fact]
+    public async Task RecordAsync_Should_Normalize_VerifiedAt_To_Postgres_Precision_Async()
+    {
+        await this.fixture.ResetAsync();
+        StagedToolProposal proposal = CreateProposal();
+        await this.CreateProposalStore().StageAsync(proposal, CancellationToken.None);
+        DateTimeOffset subMicrosecond = at.AddTicks(7);
+        var verification = new ToolVerificationRecord(
+            Guid.NewGuid(), proposal.Request.ProposalId, proposal.ArtifactVersion,
+            new string('a', 64), "1 proposal test passed", subMicrosecond);
+        IToolVerificationStore store = this.CreateVerificationStore();
+
+        ToolVerificationRecord accepted = await store.RecordAsync(
+            verification, CancellationToken.None);
+
+        Assert.Equal(at, accepted.VerifiedAt);
+        Assert.Equal(
+            accepted,
+            await store.FindAsync(
+                proposal.Request.ProposalId,
+                proposal.ArtifactVersion,
+                CancellationToken.None));
+    }
+
     private PostgresToolVerificationStore CreateVerificationStore()
     {
         return new PostgresToolVerificationStore(

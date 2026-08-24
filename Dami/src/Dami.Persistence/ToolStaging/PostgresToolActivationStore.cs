@@ -36,17 +36,18 @@ public sealed class PostgresToolActivationStore : IToolActivationStore
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(outcome);
+        ToolActivationOutcome normalized = Normalize(outcome);
         await using var connection = await this.dataSource
             .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection
             .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        await this.InsertAsync(connection, transaction, outcome, cancellationToken)
+        await this.InsertAsync(connection, transaction, normalized, cancellationToken)
             .ConfigureAwait(false);
         ToolActivationOutcome accepted = await this.FindByIdAsync(
-            connection, transaction, outcome.ActivationId, cancellationToken)
+            connection, transaction, normalized.ActivationId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException("The tool activation outcome could not be reloaded.");
-        if (accepted != outcome)
+        if (accepted != normalized)
         {
             throw new InvalidOperationException(
                 $"Tool activation '{outcome.ActivationId}' conflicts with its stored value.");
@@ -62,6 +63,17 @@ public sealed class PostgresToolActivationStore : IToolActivationStore
             cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return accepted;
+    }
+
+    private static ToolActivationOutcome Normalize(ToolActivationOutcome outcome)
+    {
+        return new ToolActivationOutcome(
+            outcome.ActivationId,
+            outcome.PromotionId,
+            outcome.VerificationId,
+            outcome.Status,
+            outcome.FailureCode,
+            PostgresTimestamp.Normalize(outcome.OccurredAt));
     }
 
     /// <inheritdoc />

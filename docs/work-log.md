@@ -6776,3 +6776,38 @@ the rerun solution gate passed. Final pre-deployment evidence as Steve: all 35 p
 built with 0 warnings and 0 errors, scoped format verification exited 0, and all
 seventeen suites passed 817/817 tests with 0 failed and 0 skipped. F5c3c remains
 claimed until the committed build completes the live human-promotion proof.
+
+The first live conforming proposal was intentionally left immutable after exact
+inspection found its model-authored test expected `43` from an implementation that
+returns the supplied `42`; verification failed closed with HTTP 500 and persisted no
+verification or event. A second generation attempt was rejected before staging when
+Ollama emitted multiple tool calls in one step. The next single-call attempt staged
+`exact-echo-v2` as proposal `04a98141-8be1-053d-c71b-299df7210488`, capability
+`a17970dd-ef80-4108-8d45-fc3429db06d0`, artifact
+`e25134d1f7d752192eb07a5ad78f20a8e42b474d6e30a55712b78853babe2100`.
+Its stored source and test were inspected exactly and conform: the pure tool returns
+the input JSON and the fixed test compares that result with `hello`.
+
+The deployed verification compiled and passed that artifact but returned HTTP 409 and
+rolled back both verification and event. A new persistence test supplied a timestamp
+seven .NET ticks beyond a microsecond boundary and failed red with the same
+`conflicts with its stored value` exception. PostgreSQL stores `timestamptz` at
+microsecond precision while the store compared the reloaded row with the original
+100-nanosecond value. The repair is being kept at the persistence boundary: normalize
+to UTC microseconds before insert, comparison, event creation, and return.
+
+The focused verification regression then passed 1/1. The same defect was not isolated
+to verification: a promotion regression with a seven-tick-offset approval timestamp
+failed red in `EnsureExactRetry` after PostgreSQL reloaded it at microsecond precision.
+Promotion now applies the same single timestamp normalizer to requested, optional
+resolved, and optional expiry instants before persisting or emitting events.
+
+That promotion regression passed 1/1. The final exact-reload comparison in this path,
+activation outcome persistence, then failed red under the same seven-tick input with
+`Tool activation ... conflicts with its stored value`. It now normalizes `OccurredAt`
+through the same persistence helper before insert, comparison, event creation, and
+return; no contract or domain model was weakened to accommodate storage precision.
+
+The combined verification/promotion/activation persistence slice passed 18/18. The
+mandatory pre-commit gate then built all 35 solution projects with 0 warnings and 0
+errors, and all seventeen suites passed 820/820 tests with 0 failed and 0 skipped.

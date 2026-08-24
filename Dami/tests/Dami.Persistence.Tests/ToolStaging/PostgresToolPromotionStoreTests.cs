@@ -69,6 +69,28 @@ public sealed class PostgresToolPromotionStoreTests
     }
 
     [Fact]
+    public async Task RequestAsync_Should_Normalize_Approval_Timestamps_To_Postgres_Precision()
+    {
+        await this.fixture.ResetAsync();
+        StagedToolProposal proposal = CreateProposal();
+        await this.StageAndVerifyAsync(proposal);
+        ToolPromotionRequest promotion = CreatePromotion(
+            proposal,
+            requestedAt: at.AddTicks(7));
+        IToolPromotionStore store = this.CreatePromotionStore();
+
+        ToolPromotionRequest accepted = await store.RequestAsync(
+            promotion, CancellationToken.None);
+
+        Assert.Equal(at, accepted.Approval.RequestedAt);
+        Assert.Equal(
+            accepted,
+            await store.FindByApprovalAsync(
+                promotion.Approval.ApprovalId,
+                CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Migration_Should_Reject_An_Approval_Outside_The_Promotion_Boundary()
     {
         await this.fixture.ResetAsync();
@@ -252,14 +274,17 @@ public sealed class PostgresToolPromotionStoreTests
 
     private static ToolPromotionRequest CreatePromotion(
         StagedToolProposal proposal,
-        Guid? promotionId = null)
+        Guid? promotionId = null,
+        DateTimeOffset? requestedAt = null)
     {
         var approval = new ApprovalRequest(
             Guid.NewGuid(), proposal.Request.TraceId, ToolPromotionRequest.REQUESTED_BY,
             "Promote the exact verified tool artifact.", ToolPromotionRequest.SCOPE,
             ToolPromotionRequest.Resource(
                 proposal.Request.ProposalId, proposal.ArtifactVersion),
-            at, origin: proposal.Request.Origin, parentSpanId: proposal.Request.SpanId);
+            requestedAt ?? at,
+            origin: proposal.Request.Origin,
+            parentSpanId: proposal.Request.SpanId);
         return new ToolPromotionRequest(
             promotionId ?? Guid.NewGuid(), proposal.Request.ProposalId,
             proposal.ArtifactVersion, approval);

@@ -34,16 +34,17 @@ public sealed class PostgresToolVerificationStore : IToolVerificationStore
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
+        ToolVerificationRecord normalized = Normalize(record);
         await using var connection = await this.dataSource
             .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection
             .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        await this.InsertAsync(connection, transaction, record, cancellationToken)
+        await this.InsertAsync(connection, transaction, normalized, cancellationToken)
             .ConfigureAwait(false);
         ToolVerificationRecord accepted = await this.FindRequiredAsync(
-            connection, transaction, record.ProposalId, record.ArtifactVersion,
+            connection, transaction, normalized.ProposalId, normalized.ArtifactVersion,
             cancellationToken).ConfigureAwait(false);
-        if (accepted != record)
+        if (accepted != normalized)
         {
             throw new InvalidOperationException(
                 $"Tool verification for proposal '{record.ProposalId}' conflicts with its stored value.");
@@ -59,6 +60,17 @@ public sealed class PostgresToolVerificationStore : IToolVerificationStore
             cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return accepted;
+    }
+
+    private static ToolVerificationRecord Normalize(ToolVerificationRecord record)
+    {
+        return new ToolVerificationRecord(
+            record.VerificationId,
+            record.ProposalId,
+            record.ArtifactVersion,
+            record.AssemblySha256,
+            record.TestEvidence,
+            PostgresTimestamp.Normalize(record.VerifiedAt));
     }
 
     /// <inheritdoc />

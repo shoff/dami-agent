@@ -36,21 +36,50 @@ public sealed class PostgresToolPromotionStore : IToolPromotionStore
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ToolPromotionRequest normalized = Normalize(request);
         await using var connection = await this.dataSource
             .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection
             .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         await this.InsertApprovalAsync(
-            connection, transaction, request.Approval, cancellationToken).ConfigureAwait(false);
+            connection, transaction, normalized.Approval, cancellationToken).ConfigureAwait(false);
         await this.InsertPromotionAsync(
-            connection, transaction, request, cancellationToken).ConfigureAwait(false);
+            connection, transaction, normalized, cancellationToken).ConfigureAwait(false);
         ToolPromotionRequest accepted = await this.FindRequiredAsync(
-            connection, transaction, request.PromotionId, cancellationToken).ConfigureAwait(false);
-        EnsureExactRetry(request, accepted);
+            connection, transaction, normalized.PromotionId, cancellationToken).ConfigureAwait(false);
+        EnsureExactRetry(normalized, accepted);
         await this.AppendEventsAsync(
             connection, transaction, accepted, cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return accepted;
+    }
+
+    private static ToolPromotionRequest Normalize(ToolPromotionRequest request)
+    {
+        ApprovalRequest approval = request.Approval;
+        var normalizedApproval = new ApprovalRequest(
+            approval.ApprovalId,
+            approval.TraceId,
+            approval.RequestedBy,
+            approval.Action,
+            approval.Scope,
+            approval.Resource,
+            PostgresTimestamp.Normalize(approval.RequestedAt),
+            approval.Status,
+            approval.ResolvedAt is { } resolvedAt
+                ? PostgresTimestamp.Normalize(resolvedAt)
+                : null,
+            approval.ResolvedNote,
+            approval.ExpiresAt is { } expiresAt
+                ? PostgresTimestamp.Normalize(expiresAt)
+                : null,
+            approval.Origin,
+            approval.ParentSpanId);
+        return new ToolPromotionRequest(
+            request.PromotionId,
+            request.ProposalId,
+            request.ArtifactVersion,
+            normalizedApproval);
     }
 
     /// <inheritdoc />
