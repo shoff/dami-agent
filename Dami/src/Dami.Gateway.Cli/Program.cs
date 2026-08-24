@@ -45,6 +45,7 @@ services.AddSingleton<AskCommands>();
 services.AddSingleton<ContextCommands>();
 services.AddSingleton<StatsCommands>();
 services.AddSingleton<ChatCommands>();
+services.AddSingleton<SessionCommands>();
 services.AddSingleton<FrontierCommands>();
 services.AddSingleton<ApprovalCommands>();
 services.AddSingleton<BriefCommands>();
@@ -66,6 +67,7 @@ try
         provider.GetRequiredService<VisionCommands>(),
         provider.GetRequiredService<StatsCommands>(),
         provider.GetRequiredService<ChatCommands>(),
+        provider.GetRequiredService<SessionCommands>(),
         provider.GetRequiredService<FrontierCommands>(),
         provider.GetRequiredService<ApprovalCommands>(),
         provider.GetRequiredService<BriefCommands>(),

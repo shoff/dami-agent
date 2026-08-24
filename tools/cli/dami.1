@@ -48,6 +48,26 @@ Show exactly what would enter the prompt, and its token cost.
 .B dami caption \fIimage\fR
 Caption an image with the local vision model, run as a bounded worker
 under a real trace. The image never leaves the host.
+.SH SESSIONS
+.TP
+.B dami sessions
+List recent durable conversations, newest activity first.
+.TP
+.B dami session start \fR[\fIid\fR]
+Start an active session. The CLI creates a stable client ID when omitted.
+.TP
+.B dami session resume \fIid\fR
+Resume an interrupted session.
+.TP
+.B dami session interrupt \fIid\fR
+Interrupt the session and atomically interrupt any running turn.
+.TP
+.B dami session turn \fIid\fR \fImessage\fR
+Run one context-bearing turn. The request ID prints before the network call so it
+survives an SSH disconnect.
+.TP
+.B dami session reconnect \fIid\fR \fIrequest-id\fR
+Read the durable state and response without re-executing the request.
 .SH FRONTIER
 .TP
 .B dami frontier \fIquestion\fR

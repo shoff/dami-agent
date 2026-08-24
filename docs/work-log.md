@@ -4876,3 +4876,34 @@ tests, so those are implementation rather than demonstrated claims.
 The mandatory gate built the solution with 0 warnings and 0 errors; all thirteen
 suites passed 557/557, and format/analyzer verification exited 0. No migration was
 needed beyond applied 019. G4c1 is `[x]`; G4c2 is claimed for the thin CLI commands.
+
+## 2026-08-24 — Codex — G4c2 thin session CLI complete
+
+`Dami.Gateway.Cli.Tests` was added to the solution with `dotnet sln add`. The first
+start-command test compiled red because `SessionCommands` did not exist; its initial
+test build also exposed an unnecessary using and two banned wall-clock calls in test
+data. After correcting the test fixture, the first implementation failed CS0165 on a
+conditional `out` variable and VSTHRD103 on synchronous console output. Explicit
+parsing and asynchronous writes made the stable-ID POST/print behavior pass 1/1.
+
+List, resume, interrupt, turn, and reconnect each compiled red on their missing method
+before implementation and then passed individually. Turn prints its UUIDv7 request key
+before the HTTP call and renders the answer, full trace, and exact reconnect command.
+Its first test implementation also hit DAMI0003 and was extracted before production
+work. The first green attempt then failed because `Console.Out` is a synchronized
+wrapper whose `ToString()` is not captured text; the test now asserts the observable
+request-first output order, and the collection is explicitly non-parallel to prevent
+global-console races. No production behavior changed for that test correction.
+
+The session-family router compiled red because it did not exist, then passed after
+adding start/list/resume/interrupt/turn/reconnect parsing. Wiring it into the legacy
+router exposed DAMI0003 at 33 body lines; the existing inbox family was extracted into
+its own dispatcher rather than suppressing the analyzer. Empty start IDs observed exit
+1 plus an attempted HTTP call red; a combined lifecycle/turn/reconnect test then
+observed `[1,1,1]` instead of `[2,2,2]`. One shared non-empty GUID parser now rejects
+all of them before the network. Those tests pass 9/9.
+
+The CLI usage, Bash completion source, and man-page source document every session
+surface; `bash -n` passes. The mandatory solution gate built with 0 warnings and 0
+errors, all fourteen suites passed 566/566, and format/analyzer verification exited 0.
+G4c2 is `[x]`; G4c3 is claimed for publishing and live acceptance evidence.

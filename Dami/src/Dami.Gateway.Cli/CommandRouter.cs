@@ -28,6 +28,14 @@ public static class CommandRouter
           dami recall <query>            semantic search over everything Dami has seen
           dami ask <question>            answer from the corpus, with citations (local LLM)
           dami chat <message>            one full interactive turn - context, routing, traced
+          dami sessions                  list recent durable conversation sessions
+          dami session start [id]        start a session (client-generated id when omitted)
+          dami session resume <id>       resume an interrupted session
+          dami session interrupt <id>    interrupt the session and any running turn
+          dami session turn <id> <message>
+                                         run a turn; prints reconnect key before sending
+          dami session reconnect <id> <request-id>
+                                         read durable turn state without re-executing
           dami frontier <question>       a bare question to the frontier via your subscription;
                                          no memories are sent (ADR-0011)
           dami brief <question>          draft a redacted, memory-informed brief for the
@@ -50,6 +58,7 @@ public static class CommandRouter
         VisionCommands vision,
         StatsCommands stats,
         ChatCommands chat,
+        SessionCommands sessions,
         FrontierCommands frontier,
         ApprovalCommands approvals,
         BriefCommands briefs,
@@ -66,6 +75,7 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(vision);
         ArgumentNullException.ThrowIfNull(stats);
         ArgumentNullException.ThrowIfNull(chat);
+        ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(frontier);
         ArgumentNullException.ThrowIfNull(approvals);
         ArgumentNullException.ThrowIfNull(briefs);
@@ -81,7 +91,8 @@ public static class CommandRouter
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
             args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            chat, frontier, approvals, briefs, healthLog, cancellation.Token).ConfigureAwait(false);
+            chat, sessions, frontier, approvals, briefs, healthLog, cancellation.Token)
+            .ConfigureAwait(false);
     }
 
     private static async Task<int> DispatchAsync(
@@ -97,10 +108,46 @@ public static class CommandRouter
         VisionCommands vision,
         StatsCommands stats,
         ChatCommands chat,
+        SessionCommands sessions,
         FrontierCommands frontier,
         ApprovalCommands approvals,
         BriefCommands briefs,
         HealthLogCommands healthLog,
+        CancellationToken cancellationToken)
+    {
+        return verb switch
+        {
+            "inbox" or "recent" or "read" or "good" or "bad" or "meh" =>
+                await DispatchInboxAsync(verb, args, inbox, cancellationToken).ConfigureAwait(false),
+            "trace" when args.Length > 1 =>
+                await traces.ReplayAsync(args[1], cancellationToken).ConfigureAwait(false),
+            "health" or "stats" or "health-log" =>
+                await DispatchStatusAsync(verb, health, stats, healthLog, cancellationToken)
+                    .ConfigureAwait(false),
+            "recall" or "ask" or "context" or "caption" or "chat" when args.Length > 1 =>
+                await DispatchModelAsync(verb, args, recall, ask, contextCommands, vision, chat,
+                    cancellationToken).ConfigureAwait(false),
+            "sessions" or "session" =>
+                await SessionCommandRouter.RunAsync(args, sessions, cancellationToken)
+                    .ConfigureAwait(false),
+            "approvals" or "approve" or "deny" =>
+                await DispatchApprovalsAsync(verb, args, approvals, cancellationToken).ConfigureAwait(false),
+            "frontier" when args.Length > 1 =>
+                await frontier.AskAsync(string.Join(' ', args[1..]), cancellationToken)
+                    .ConfigureAwait(false),
+            "brief" when args.Length > 1 =>
+                await briefs.DraftAsync(string.Join(' ', args[1..]), cancellationToken)
+                    .ConfigureAwait(false),
+            "beliefs" or "correct" or "retract" or "note" =>
+                await DispatchBeliefsAsync(verb, args, beliefs, cancellationToken).ConfigureAwait(false),
+            _ => Usage(),
+        };
+    }
+
+    private static async Task<int> DispatchInboxAsync(
+        string verb,
+        string[] args,
+        InboxCommands inbox,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -113,24 +160,6 @@ public static class CommandRouter
                 await inbox.FeedbackAsync(
                     args[1], verb, args.Length > 2 ? string.Join(' ', args[2..]) : null,
                     cancellationToken).ConfigureAwait(false),
-            "trace" when args.Length > 1 =>
-                await traces.ReplayAsync(args[1], cancellationToken).ConfigureAwait(false),
-            "health" or "stats" or "health-log" =>
-                await DispatchStatusAsync(verb, health, stats, healthLog, cancellationToken)
-                    .ConfigureAwait(false),
-            "recall" or "ask" or "context" or "caption" or "chat" when args.Length > 1 =>
-                await DispatchModelAsync(verb, args, recall, ask, contextCommands, vision, chat,
-                    cancellationToken).ConfigureAwait(false),
-            "approvals" or "approve" or "deny" =>
-                await DispatchApprovalsAsync(verb, args, approvals, cancellationToken).ConfigureAwait(false),
-            "frontier" when args.Length > 1 =>
-                await frontier.AskAsync(string.Join(' ', args[1..]), cancellationToken)
-                    .ConfigureAwait(false),
-            "brief" when args.Length > 1 =>
-                await briefs.DraftAsync(string.Join(' ', args[1..]), cancellationToken)
-                    .ConfigureAwait(false),
-            "beliefs" or "correct" or "retract" or "note" =>
-                await DispatchBeliefsAsync(verb, args, beliefs, cancellationToken).ConfigureAwait(false),
             _ => Usage(),
         };
     }
