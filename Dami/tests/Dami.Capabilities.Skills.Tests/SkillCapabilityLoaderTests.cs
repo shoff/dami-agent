@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dami.Contracts.Capabilities;
 
 namespace Dami.Capabilities.Skills.Tests;
 
@@ -40,6 +41,60 @@ public sealed class SkillCapabilityLoaderTests : IDisposable
         Assert.Equal($"skill://{skillId:D}/SKILL.md", entry.BodyReference);
         Assert.Equal(64, entry.Version.Length);
         Assert.DoesNotContain("Use the compare tool", entry.Description, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadBodyAsync_Should_Load_The_Published_Skill_Body_On_Demand()
+    {
+        var skillId = Guid.NewGuid();
+        await this.WriteSkillAsync("body-reader", skillId);
+        var registry = new CapabilityRegistry();
+        var loader = new SkillCapabilityLoader(
+            registry, new SkillLoaderOptions { RootDirectory = this.scratch });
+        CapabilityEntry entry = Assert.Single(
+            await loader.LoadAsync(registeredAt, CancellationToken.None));
+        ISkillContentReader reader = loader;
+
+        string body = await reader.ReadBodyAsync(
+            skillId, entry.Version, CancellationToken.None);
+
+        Assert.Equal("# Body", body);
+    }
+
+    [Fact]
+    public async Task ReadReferenceAsync_Should_Load_An_Explicitly_Declared_Bundled_File()
+    {
+        var skillId = Guid.NewGuid();
+        await this.WriteSkillAsync("reference-reader", skillId);
+        var registry = new CapabilityRegistry();
+        var loader = new SkillCapabilityLoader(
+            registry, new SkillLoaderOptions { RootDirectory = this.scratch });
+        CapabilityEntry entry = Assert.Single(
+            await loader.LoadAsync(registeredAt, CancellationToken.None));
+        ISkillContentReader reader = loader;
+
+        string reference = await reader.ReadReferenceAsync(
+            skillId, entry.Version, "example.md", CancellationToken.None);
+
+        Assert.Equal("Example", reference);
+    }
+
+    [Fact]
+    public async Task ReadBodyAsync_Should_Refuse_Content_That_No_Longer_Matches_The_Published_Version()
+    {
+        var skillId = Guid.NewGuid();
+        await this.WriteSkillAsync("changed-body", skillId);
+        var registry = new CapabilityRegistry();
+        var loader = new SkillCapabilityLoader(
+            registry, new SkillLoaderOptions { RootDirectory = this.scratch });
+        CapabilityEntry entry = Assert.Single(
+            await loader.LoadAsync(registeredAt, CancellationToken.None));
+        await File.WriteAllTextAsync(
+            Path.Combine(this.scratch, "changed-body", "SKILL.md"), "# Changed");
+        ISkillContentReader reader = loader;
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => reader.ReadBodyAsync(
+            skillId, entry.Version, CancellationToken.None));
     }
 
     [Fact]

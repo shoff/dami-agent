@@ -3,11 +3,12 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Dami.Contracts.Capabilities;
 
 namespace Dami.Capabilities.Skills;
 
 /// <summary>Loads bounded local skill folders into the unified capability registry.</summary>
-public sealed class SkillCapabilityLoader
+public sealed class SkillCapabilityLoader : ISkillContentReader
 {
     private const int MAX_FILE_BYTES = 16 * 1024 * 1024;
     private const int MAX_SKILLS = 4096;
@@ -21,6 +22,8 @@ public sealed class SkillCapabilityLoader
     private readonly int maxBodyBytes;
     private readonly int maxReferences;
     private readonly int maxReferenceBytes;
+    private IReadOnlyDictionary<Guid, SkillSource> sources =
+        new Dictionary<Guid, SkillSource>();
 
     /// <summary>Creates a snapshotted, bounded skill loader.</summary>
     public SkillCapabilityLoader(ICapabilityBatchRegistrar registrar, SkillLoaderOptions options)
@@ -48,18 +51,66 @@ public sealed class SkillCapabilityLoader
         CancellationToken cancellationToken)
     {
         string[] directories = this.FindDirectories();
+        var loaded = new LoadedSkill[directories.Length];
         var entries = new CapabilityEntry[directories.Length];
         for (var index = 0; index < directories.Length; index++)
         {
-            entries[index] = await this.LoadOneAsync(
+            loaded[index] = await this.LoadOneAsync(
                 directories[index], registeredAt, cancellationToken).ConfigureAwait(false);
+            entries[index] = loaded[index].Entry;
         }
 
         this.registrar.RegisterBatch(entries);
+        var replacement = new Dictionary<Guid, SkillSource>(loaded.Length);
+        for (var index = 0; index < loaded.Length; index++)
+        {
+            replacement.Add(loaded[index].Entry.CapabilityId, loaded[index].Source);
+        }
+
+        Volatile.Write(ref this.sources, replacement);
         return Array.AsReadOnly(entries);
     }
 
-    private async Task<CapabilityEntry> LoadOneAsync(
+    /// <inheritdoc />
+    public async Task<string> ReadBodyAsync(
+        Guid skillId,
+        string expectedVersion,
+        CancellationToken cancellationToken)
+    {
+        SkillSource source = this.FindSource(skillId, expectedVersion);
+        byte[] bytes = await ReadBoundedAsync(
+            Path.Combine(source.Directory, "SKILL.md"), this.maxBodyBytes, cancellationToken)
+            .ConfigureAwait(false);
+        ValidateUtf8(bytes);
+        ValidateFingerprint(skillId, source.BodyFingerprint, bytes);
+        return strictUtf8.GetString(bytes);
+    }
+
+    /// <inheritdoc />
+    public async Task<string> ReadReferenceAsync(
+        Guid skillId,
+        string expectedVersion,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
+        SkillSource source = this.FindSource(skillId, expectedVersion);
+        if (!source.ReferenceFingerprints.TryGetValue(
+            relativePath, out byte[]? expectedFingerprint))
+        {
+            throw new InvalidDataException(
+                $"Skill '{skillId}' does not declare reference '{relativePath}'.");
+        }
+
+        string path = ResolveReference(source.Directory, relativePath);
+        byte[] bytes = await ReadBoundedAsync(path, this.maxReferenceBytes, cancellationToken)
+            .ConfigureAwait(false);
+        ValidateUtf8(bytes);
+        ValidateFingerprint(skillId, expectedFingerprint, bytes);
+        return strictUtf8.GetString(bytes);
+    }
+
+    private async Task<LoadedSkill> LoadOneAsync(
         string directory,
         DateTimeOffset registeredAt,
         CancellationToken cancellationToken)
@@ -75,13 +126,36 @@ public sealed class SkillCapabilityLoader
             Path.Combine(directory, "SKILL.md"), this.maxBodyBytes, cancellationToken)
             .ConfigureAwait(false);
         ValidateUtf8(bodyBytes);
-        string version = await this.ComputeVersionAsync(
+        VersionedContent content = await this.ComputeVersionAsync(
             directory, descriptor, bodyBytes, cancellationToken)
             .ConfigureAwait(false);
-        return CreateEntry(descriptor, version, registeredAt);
+        return new LoadedSkill(
+            CreateEntry(descriptor, content.Version, registeredAt),
+            new SkillSource(
+                directory,
+                content.Version,
+                content.BodyFingerprint,
+                content.ReferenceFingerprints));
     }
 
-    private async Task<string> ComputeVersionAsync(
+    private SkillSource FindSource(Guid skillId, string expectedVersion)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(expectedVersion);
+        IReadOnlyDictionary<Guid, SkillSource> snapshot = Volatile.Read(ref this.sources);
+        if (!snapshot.TryGetValue(skillId, out SkillSource? source))
+        {
+            throw new KeyNotFoundException($"Skill '{skillId}' has not been published.");
+        }
+
+        if (!string.Equals(source.Version, expectedVersion, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException($"Skill '{skillId}' no longer matches the selected version.");
+        }
+
+        return source;
+    }
+
+    private async Task<VersionedContent> ComputeVersionAsync(
         string directory,
         SkillDescriptor descriptor,
         byte[] bodyBytes,
@@ -91,6 +165,8 @@ public sealed class SkillCapabilityLoader
         AppendDescriptor(hash, descriptor);
         Append(hash, bodyBytes);
         var totalReferenceBytes = 0;
+        var referenceFingerprints = new Dictionary<string, byte[]>(
+            descriptor.References!.Length, StringComparer.Ordinal);
         foreach (string reference in descriptor.References!)
         {
             string path = ResolveReference(directory, reference);
@@ -99,9 +175,13 @@ public sealed class SkillCapabilityLoader
                 .ConfigureAwait(false);
             totalReferenceBytes += bytes.Length;
             Append(hash, bytes);
+            referenceFingerprints.Add(reference, SHA256.HashData(bytes));
         }
 
-        return Convert.ToHexStringLower(hash.GetHashAndReset());
+        return new VersionedContent(
+            Convert.ToHexStringLower(hash.GetHashAndReset()),
+            SHA256.HashData(bodyBytes),
+            referenceFingerprints);
     }
 
     private static void AppendDescriptor(IncrementalHash hash, SkillDescriptor descriptor)
@@ -313,6 +393,20 @@ public sealed class SkillCapabilityLoader
         }
     }
 
+    private static void ValidateFingerprint(
+        Guid skillId,
+        ReadOnlySpan<byte> expected,
+        ReadOnlySpan<byte> content)
+    {
+        Span<byte> actual = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(content, actual);
+        if (!CryptographicOperations.FixedTimeEquals(expected, actual))
+        {
+            throw new InvalidDataException(
+                $"Skill '{skillId}' content no longer matches its published version.");
+        }
+    }
+
     private static void ValidateBound(int value, int maximum, string parameterName)
     {
         if (value is < 1 || value > maximum)
@@ -320,4 +414,17 @@ public sealed class SkillCapabilityLoader
             throw new ArgumentOutOfRangeException(parameterName);
         }
     }
+
+    private sealed record LoadedSkill(CapabilityEntry Entry, SkillSource Source);
+
+    private sealed record SkillSource(
+        string Directory,
+        string Version,
+        byte[] BodyFingerprint,
+        IReadOnlyDictionary<string, byte[]> ReferenceFingerprints);
+
+    private sealed record VersionedContent(
+        string Version,
+        byte[] BodyFingerprint,
+        IReadOnlyDictionary<string, byte[]> ReferenceFingerprints);
 }

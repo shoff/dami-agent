@@ -5387,3 +5387,34 @@ split at that boundary: F4b1 owns a bounded on-demand content reader plus one so
 neutral selection result produced from one semantic lookup; F4b2 owns prompt-budget
 enforcement, TurnRunner integration, Host composition, and the behavioral proof. F4b1
 is claimed first.
+
+## 2026-08-24 — Codex — F4b1 content and selection boundaries complete; F4b2 claimed
+
+The first body-reader test compiled red at CS0246 because no skill content contract
+existed. `ISkillContentReader` now exposes body and declared-reference reads only for an
+already-published stable ID/version. `SkillCapabilityLoader` atomically replaces its
+immutable content-location snapshot only after registry publication succeeds; it does
+not retain body or reference text. The observed selected body was read back exactly as
+`# Body`.
+
+The bundled-reference test then failed on the deliberately unimplemented method. Its
+minimum implementation accepts only an exact descriptor-declared path, reuses the F4a
+containment/link checks and byte ceilings, requires strict UTF-8, and reads at the call
+site rather than exposing a directory or stream. A changed-body test next failed with
+no exception because a file edited after publication could masquerade under the old
+version. Startup now retains only SHA-256 fingerprints; each disclosed file is hashed
+into a stack buffer and compared in constant time before decoding. The stale body is
+refused, and references use the same check.
+
+The one-pass selection test compiled red for the absent resolver and contract types.
+`SemanticCapabilitySelectionResolver` now maps one ordered semantic bundle to immutable
+tool schemas plus deferred skill ID/name/body-reference/version records. The test
+observed exactly one underlying semantic call. The old tool-only resolver delegates to
+that implementation as a compatibility adapter, so there is one mapping path and no
+duplicate embedding/reranking or source-type logic in Core.
+
+The focused Skills suite passed 10/10 and capability suite passed 36/36. The mandatory
+solution gate built all 33 projects with 0 warnings and 0 errors, all sixteen suites
+passed 629/629, and format/analyzer verification exited 0. No schema, migration,
+deployment, or live-service change was required. F4b1 is `[x]`; F4b2 TurnRunner prompt
+budgeting and Host composition are claimed next.
