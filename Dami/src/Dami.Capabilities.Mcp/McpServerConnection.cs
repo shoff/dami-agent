@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
 
 namespace Dami.Capabilities.Mcp;
 
@@ -51,6 +52,31 @@ public sealed class McpServerConnection : IMcpToolSource, IAsyncDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(schemaReference);
         return this.schemaCache.Find(schemaReference);
+    }
+
+    /// <inheritdoc />
+    public async Task<McpToolInvocationResult> InvokeAsync(
+        string toolName,
+        JsonElement arguments,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(toolName);
+        if (arguments.ValueKind != JsonValueKind.Object)
+        {
+            throw new ArgumentException("MCP tool arguments must be a JSON object.", nameof(arguments));
+        }
+
+        McpClient activeClient = this.GetClient();
+        var mappedArguments = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (JsonProperty property in arguments.EnumerateObject())
+        {
+            mappedArguments.Add(property.Name, property.Value);
+        }
+
+        CallToolResult result = await activeClient.CallToolAsync(
+            toolName, mappedArguments, cancellationToken: cancellationToken).ConfigureAwait(false);
+        string output = McpToolResultTranslator.Translate(result);
+        return new McpToolInvocationResult(output, result.IsError == true);
     }
 
     /// <inheritdoc />

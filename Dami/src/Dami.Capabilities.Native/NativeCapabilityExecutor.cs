@@ -3,7 +3,7 @@ using Dami.Contracts.Capabilities;
 namespace Dami.Capabilities.Native;
 
 /// <summary>Dispatches native handlers under a cooperative execution timeout.</summary>
-public sealed class NativeCapabilityExecutor : ICapabilityExecutor
+public sealed class NativeCapabilityExecutor : ICapabilityExecutionSource
 {
     private readonly INativeCapabilityCatalog catalog;
     private readonly TimeSpan executionTimeout;
@@ -24,6 +24,9 @@ public sealed class NativeCapabilityExecutor : ICapabilityExecutor
         this.catalog = catalog;
         this.executionTimeout = options.ExecutionTimeout;
     }
+
+    /// <inheritdoc />
+    public bool Owns(Guid capabilityId) => this.catalog.Find(capabilityId) is not null;
 
     /// <inheritdoc />
     public async Task<CapabilityExecutionResult> ExecuteAsync(

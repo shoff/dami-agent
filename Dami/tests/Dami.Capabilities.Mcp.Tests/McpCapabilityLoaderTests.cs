@@ -16,9 +16,10 @@ public sealed class McpCapabilityLoaderTests
             new McpToolDescriptor("create_event", raw, "mcp://schema", "sha256:abc"));
         var registry = new CapabilityRegistry();
         var schemas = new CapabilityToolSchemaRegistry();
+        var invocations = new McpCapabilityRegistry();
         var normalizer = new McpCapabilityNormalizer(
             new StubSummarizer("Creates a calendar event."));
-        var loader = new McpCapabilityLoader(normalizer, registry, schemas);
+        var loader = new McpCapabilityLoader(normalizer, registry, schemas, invocations);
 
         var loaded = await loader.LoadAsync(
             server, source, DateTimeOffset.UnixEpoch, CancellationToken.None);
@@ -29,6 +30,11 @@ public sealed class McpCapabilityLoaderTests
         var schema = schemas.Find(entry.CapabilityId);
         Assert.NotNull(schema);
         Assert.Equal(entry.Description, schema.Description);
+        McpCapabilityRegistration invocation = Assert.IsType<McpCapabilityRegistration>(
+            invocations.Find(entry.CapabilityId));
+        Assert.Equal(server.ServerId, invocation.ServerId);
+        Assert.Equal("create_event", invocation.ToolName);
+        Assert.Same(source, invocation.Invoker);
     }
 
     private sealed class StubToolSource : IMcpToolSource, IDisposable
@@ -50,6 +56,14 @@ public sealed class McpCapabilityLoaderTests
         public JsonElement? FindSchema(string schemaReference)
         {
             return this.schema.RootElement;
+        }
+
+        public Task<McpToolInvocationResult> InvokeAsync(
+            string toolName,
+            JsonElement arguments,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new McpToolInvocationResult("unused", isError: false));
         }
 
         public void Dispose()

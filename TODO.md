@@ -93,8 +93,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [x] F3b Secure registry ingestion: stable normalized tools; trusted descriptions admitted verbatim; untrusted descriptions locally summarized with raw text unable to enter retrieval context
   - [~ Codex 2026-08-24] F3c Privacy-aware selection and execution: untrusted MCP excluded before LocalOnly reranking/expansion; source-neutral MCP invocation dispatch
     - [x] F3c1 Thread privacy classification through capability resolution; exclude untrusted MCP before LocalOnly reranking and related-capability expansion
-    - [~ Codex 2026-08-24] F3c2 Source-neutral MCP invocation registry/dispatcher with cancellation and result/error translation
-    - [ ] F3c3 D-012 remote Streamable HTTP boundary: ADR plus request-body-capable, event-metered egress transport; default remains loopback-only
+    - [x] F3c2 Source-neutral MCP invocation registry/dispatcher with cancellation and result/error translation
+    - [~ Codex 2026-08-24] F3c3 D-012 remote Streamable HTTP boundary: ADR plus request-body-capable, event-metered egress transport; default remains loopback-only
   - [ ] F3d Host composition and local fake-server integration demonstration
 - [ ] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)

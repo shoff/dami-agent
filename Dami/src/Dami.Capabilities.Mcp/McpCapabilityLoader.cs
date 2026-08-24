@@ -8,19 +8,23 @@ public sealed class McpCapabilityLoader
     private readonly McpCapabilityNormalizer normalizer;
     private readonly ICapabilityRegistrar registrar;
     private readonly ICapabilityToolSchemaRegistrar schemaRegistrar;
+    private readonly IMcpCapabilityRegistrar invocationRegistrar;
 
     /// <summary>Creates the MCP registration handoff.</summary>
     public McpCapabilityLoader(
         McpCapabilityNormalizer normalizer,
         ICapabilityRegistrar registrar,
-        ICapabilityToolSchemaRegistrar schemaRegistrar)
+        ICapabilityToolSchemaRegistrar schemaRegistrar,
+        IMcpCapabilityRegistrar invocationRegistrar)
     {
         ArgumentNullException.ThrowIfNull(normalizer);
         ArgumentNullException.ThrowIfNull(registrar);
         ArgumentNullException.ThrowIfNull(schemaRegistrar);
+        ArgumentNullException.ThrowIfNull(invocationRegistrar);
         this.normalizer = normalizer;
         this.registrar = registrar;
         this.schemaRegistrar = schemaRegistrar;
+        this.invocationRegistrar = invocationRegistrar;
     }
 
     /// <summary>Discovers, normalizes, validates, and publishes one server's tools.</summary>
@@ -59,7 +63,9 @@ public sealed class McpCapabilityLoader
             prepared[index] = new PreparedCapability(
                 entry,
                 new CapabilityToolSchema(
-                    entry.CapabilityId, entry.Name, entry.Description, parameters));
+                    entry.CapabilityId, entry.Name, entry.Description, parameters),
+                new McpCapabilityRegistration(
+                    entry.CapabilityId, server.ServerId, tool.Name, source));
         }
 
         return prepared;
@@ -69,12 +75,14 @@ public sealed class McpCapabilityLoader
     {
         foreach (PreparedCapability item in prepared)
         {
-            this.registrar.Register(item.Entry);
+            this.invocationRegistrar.Register(item.Invocation);
             this.schemaRegistrar.Register(item.Schema);
+            this.registrar.Register(item.Entry);
         }
     }
 
     private sealed record PreparedCapability(
         CapabilityEntry Entry,
-        CapabilityToolSchema Schema);
+        CapabilityToolSchema Schema,
+        McpCapabilityRegistration Invocation);
 }

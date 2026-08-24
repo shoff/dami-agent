@@ -5105,3 +5105,47 @@ solution gate built all 31 projects with 0 warnings and 0 errors, all fifteen su
 passed 589/589, and format/analyzer verification exited 0. No schema, migration, Host,
 or deployment change was required. F3c1 is `[x]`; F3c2 source-neutral MCP invocation is
 claimed next.
+
+## 2026-08-24 — Codex — F3c2 source-neutral MCP invocation complete
+
+The first execution test initially lacked the suite's explicit xUnit import; after that
+fixture correction, its clean red was CS0246 for the absent MCP invoker and result
+contracts. The minimum slice introduced a concurrent stable-ID invocation registry and
+an `ICapabilityExecutor` implementation. It dispatched the exact remote tool name while
+returning only source-neutral output and capability-ID evidence.
+
+The real protocol test then compiled red at CS1061 because `McpServerConnection` could
+discover but not invoke. It now implements the narrow invoker boundary, converts the
+snapshotted JSON object into the SDK's argument map without re-cloning its owned values,
+passes caller cancellation into `CallToolAsync`, and translates the protocol response.
+The observed in-memory server call returned exactly `sunny in Austin`. Loader
+registration compiled red at CS1729 for its absent execution registrar; discovery now
+prepares and publishes the stable ID, schema, safe metadata, exact remote name, and
+owned invoker together, with dependencies published before the retrievable entry.
+
+Tool-error translation compiled red for the absent dedicated exception. Remote error
+prose is retained on `McpToolExecutionException.RemoteMessage` for controlled handling,
+but cannot control the exception's base message. A source-neutral dispatcher test then
+compiled red for the absent execution-source contract. `CapabilityExecutorDispatcher`
+now selects exactly one owning native or MCP source, rejects no-owner and ambiguous
+ownership, snapshots its source list, and keeps Core open to additional capability
+sources without source-type branches. Native and MCP executors implement that narrow
+ownership contract.
+
+An adversarial rich-result test compiled red for the absent translator. Plain text
+blocks now use one measured `string.Create` allocation; structured, image, audio, or
+resource results serialize as complete MCP JSON rather than being silently dropped.
+The cancellation test's first compile also exposed VSTHRD003 in its captured-task
+fixture; the test was corrected to start and await execution in the assertion. A final
+output-bound test compiled red for the absent options/constructor and now rejects
+translated output above the explicitly snapshotted limit (default 65,536 characters,
+hard configuration ceiling 1,048,576) before it reaches the model loop.
+
+Post-green coverage proves duplicate-source/no-source dispatch, exact loader-to-invoker
+mapping, a complete discovery → normalization → registration → generic dispatch → real
+MCP call, and cancellation of an in-flight real protocol call. The focused MCP suite
+passed 20/20, capability dispatch passed 34/34, and native execution remained 32/32.
+The mandatory solution gate built all 31 projects with 0 warnings and 0 errors, all
+fifteen suites passed 598/598, and format/analyzer verification exited 0. No schema,
+migration, Host, deployment, or live-service change was required. F3c2 is `[x]`; F3c3's
+D-012 remote transport boundary is claimed next.
