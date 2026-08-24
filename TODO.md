@@ -99,7 +99,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
       - [x] F3c3b Thread privacy/trace provenance into MCP execution and construct the SDK transport only from the authorized HTTP gate
   - [~ Codex 2026-08-24] F3d Host composition and local fake-server integration demonstration
     - [~ Codex 2026-08-24] F3d1 Compose shared native/MCP catalogs, execution dispatch, scoped egress, and owned startup/shutdown lifecycle
-    - [ ] F3d2 Exercise discovery and invocation end to end against a local Streamable HTTP fake server
+    - [~ Codex 2026-08-24] F3d2 Exercise discovery and invocation end to end against a local Streamable HTTP fake server
 - [ ] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
 

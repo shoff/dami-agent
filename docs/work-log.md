@@ -5265,3 +5265,20 @@ composition root, and close all SDK connections with the Host. F3d2 owns the wir
 the composed Host must discover and invoke a tool through an actual local Streamable
 HTTP fake server. They are split before implementation so a DI-only test cannot be
 reported as the end-to-end demonstration. F3d1 is claimed first.
+
+## 2026-08-24 — Codex — F3d1 composition green; F3d2 claimed for lifecycle proof
+
+The first Host composition test compiled red at CS0234 because the Host had no MCP
+project reference. After adding the shared native/MCP catalogs and exact-owner executor
+dispatcher, the test failed behaviorally during strict service-provider validation:
+`McpEgressHttpMessageHandler` had an unresolved raw `HttpMessageHandler` constructor
+dependency. The composition root now explicitly constructs its owned no-redirect
+`SocketsHttpHandler`, policy gate, ambient context aliases, MCP registries, normalizer,
+loader, executor source, and hosted lifecycle. The focused composition test is green
+and observes one dispatcher with both native and MCP sources, one object behind both
+scope interfaces, and the marked concrete egress gate.
+
+F3d1 deliberately remains claimed rather than being marked done: configured startup,
+tool publication/invocation, and shutdown ownership still need behavioral evidence.
+F3d2 is now claimed to provide that evidence against a real local Streamable HTTP fake
+server; both child tasks will close together if that demonstration passes.
