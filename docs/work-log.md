@@ -5376,3 +5376,14 @@ resolution to F4b's progressive-disclosure boundary. The focused Skills suite pa
 all 33 projects with 0 warnings and 0 errors, all sixteen suites passed 625/625, and
 format/analyzer verification exited 0. No schema, migration, deployment, or live-service
 change was required. F4a is `[x]`; F4b is claimed next.
+
+## 2026-08-24 — Codex — F4b split; F4b1 claimed
+
+Turn-path inspection found that `SemanticCapabilityResolver` already returns one
+ordered bundle of tools and skills, but `SemanticCapabilityToolResolver` immediately
+discards the skills. Adding a separate skill resolver would repeat embedding and
+reranking for the same turn and could produce a different selection. F4b is therefore
+split at that boundary: F4b1 owns a bounded on-demand content reader plus one source-
+neutral selection result produced from one semantic lookup; F4b2 owns prompt-budget
+enforcement, TurnRunner integration, Host composition, and the behavioral proof. F4b1
+is claimed first.
