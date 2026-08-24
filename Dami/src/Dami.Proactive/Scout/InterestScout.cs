@@ -24,6 +24,7 @@ public sealed class InterestScout : IProactiveService
     private readonly IEgressClient egressClient;
     private readonly IEmbeddingClient embeddingClient;
     private readonly ISurfacingQueue surfacingQueue;
+    private readonly ISurfacingThresholdTuner thresholdTuner;
     private readonly InterestScoutOptions scoutOptions;
     private readonly TimeProvider clock;
     private readonly ILogger<InterestScout> logger;
@@ -33,6 +34,7 @@ public sealed class InterestScout : IProactiveService
         IEgressClient egressClient,
         IEmbeddingClient embeddingClient,
         ISurfacingQueue surfacingQueue,
+        ISurfacingThresholdTuner thresholdTuner,
         IOptions<InterestScoutOptions> scoutOptions,
         TimeProvider clock,
         ILogger<InterestScout> logger)
@@ -40,6 +42,7 @@ public sealed class InterestScout : IProactiveService
         ArgumentNullException.ThrowIfNull(egressClient);
         ArgumentNullException.ThrowIfNull(embeddingClient);
         ArgumentNullException.ThrowIfNull(surfacingQueue);
+        ArgumentNullException.ThrowIfNull(thresholdTuner);
         ArgumentNullException.ThrowIfNull(scoutOptions);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
@@ -47,6 +50,7 @@ public sealed class InterestScout : IProactiveService
         this.egressClient = egressClient;
         this.embeddingClient = embeddingClient;
         this.surfacingQueue = surfacingQueue;
+        this.thresholdTuner = thresholdTuner;
         this.scoutOptions = scoutOptions.Value;
         this.clock = clock;
         this.logger = logger;
@@ -81,7 +85,10 @@ public sealed class InterestScout : IProactiveService
 
         var reactions = await this.LoadReactionsAsync(cancellationToken).ConfigureAwait(false);
         var scored = await this.ScoreAsync(fresh, reactions, cancellationToken).ConfigureAwait(false);
-        return this.BuildResult(scored);
+        var threshold = await this.thresholdTuner
+            .EffectiveThresholdAsync(this.ServiceName, this.scoutOptions.SurfaceThreshold, cancellationToken)
+            .ConfigureAwait(false);
+        return this.BuildResult(scored, threshold);
     }
 
     private async Task<List<FeedItem>> FetchAllAsync(
@@ -225,7 +232,7 @@ public sealed class InterestScout : IProactiveService
         return best;
     }
 
-    private ProactiveResult BuildResult(List<(FeedItem Item, double Score)> scored)
+    private ProactiveResult BuildResult(List<(FeedItem Item, double Score)> scored, double threshold)
     {
         scored.Sort((left, right) => right.Score.CompareTo(left.Score));
 
@@ -234,7 +241,7 @@ public sealed class InterestScout : IProactiveService
 
         foreach (var (item, score) in scored)
         {
-            if (score < this.scoutOptions.SurfaceThreshold
+            if (score < threshold
                 || surfacings.Count >= this.scoutOptions.MaxItemsPerPass)
             {
                 break;

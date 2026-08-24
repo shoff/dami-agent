@@ -51,7 +51,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [ ] B6 **Close D-010**: Steve reviews `tools/eval/REVIEW.md` (37 draft pairs, 13 top-3 misses annotated) → re-run 3-model eval → record decision `[STEVE: review]`
 - [ ] B7 Kokoro classes (772 memories / 3,811 concepts / 718 entities): import into corpus or leave preserved? `[STEVE: whose memories are they]`
 - [x] B8 Belief embedding: only-active-conclusions embedded for retrieval (D-009 second half; currently beliefs enter context by subject, not similarity)
-- [ ] B9 Observation retention/compaction policy for `chat`-source growth (register open item)
+- [~ Claude 2026-08-23] B9 Observation retention/compaction policy for `chat`-source growth (register open item)
 - [x] B10 Repair/flag the 267 epoch-zero timestamps (278 by repair day; 74 recovered, 204 flagged) 
 
 ## C · Privacy & egress (D-012)
@@ -118,7 +118,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] H5 Capped surfacing queue (suppressions stored, not dropped) + feedback capture
 - [ ] H6 Scout: feed list & interests are starter guesses — curate `[STEVE: systemctl edit dami-proactive]`
 - [ ] H7 Surfacing channel decision: queue vs notification vs held-until-adjacent-opening (register: "shapes the muse more than model choice")
-- [~ Claude 2026-08-23] H8 Confidence threshold self-tuning from recorded reactions, without gaming itself (register open item)
+- [x] H8 Confidence threshold self-tuning from recorded reactions, without gaming itself (register open item)
 - [ ] H9 Domain collectors (health, civic, network, estate) — needs K1 first
 - [ ] H10 Codebase-audit proactive service (reads repo, proposes patches, commits nothing — D-016)
 

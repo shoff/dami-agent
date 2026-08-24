@@ -47,6 +47,11 @@ builder.Services.AddHttpClient<IEgressClient, HttpEgressClient>()
 builder.Services.Configure<TeiOptions>(builder.Configuration.GetSection(TeiOptions.SECTION_NAME));
 builder.Services.AddHttpClient<IEmbeddingClient, TeiEmbeddingClient>();
 
+// H8: thresholds tune themselves from recorded reactions, bounded and stateless.
+builder.Services.Configure<ThresholdTuningOptions>(
+    builder.Configuration.GetSection(ThresholdTuningOptions.SECTION_NAME));
+builder.Services.AddSingleton<ISurfacingThresholdTuner, ReactionThresholdTuner>();
+
 // The first proactive service (D-019).
 builder.Services.Configure<InterestScoutOptions>(
     builder.Configuration.GetSection(InterestScoutOptions.SECTION_NAME));

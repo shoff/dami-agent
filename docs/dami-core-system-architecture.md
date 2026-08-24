@@ -691,7 +691,7 @@ Payload serialization inside the transport frame — MemoryPack, hand-rolled spa
 GUI framework — Tauri/React vs Avalonia
 Local sidecar model selection and VRAM budget alongside TTS
 Surfacing channel behaviour: queue, notification, or held-until-adjacent-opening
-Confidence threshold for surfacing, and how it self-tunes without gaming itself
+~~Confidence threshold for surfacing, and how it self-tunes without gaming itself~~ — resolved 2026-08-23 (H8): pure bounded function of recorded reactions; silence moves nothing
 TTS engine and a legally clean voice source
 Avatar: whether it serves presence or is a distraction from it
 Whether the Mac remains permanently as an Apple bridge

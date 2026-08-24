@@ -3690,3 +3690,22 @@ violations, all 778 were in tests), waived in a new `tests/Directory.Build.props
 because `Method_Should_Behavior` names are the test documentation and a `<summary>`
 restating them would be noise. Standards §12 updated: both rows left the
 "not enforced" table. Full gate: 12 suites, 373 tests, 0 warnings.
+
+## 2026-08-23 — Claude — H8: the threshold tunes itself, and cannot game itself
+
+The register's open question — "how does it self-tune without gaming itself" — is
+closed by making the threshold *stateless*: `ReactionThresholdTuner` recomputes
+`base + (negativeShare − positiveShare)·gain` from the recorded reactions every
+pass, clamped to `[base − 0.10, base + 0.25]`. There is no accumulator a feedback
+loop could ratchet. Silence moves nothing — unread surfacings are not evidence, so
+staying quiet cannot improve the tuner's standing — and below 5 reactions the base
+is used untouched: no evidence, no opinion. All seven properties pinned in tests,
+including both clamp edges under a deliberately absurd gain.
+
+`ISurfacingQueue` grew `ReactionsForServiceAsync` (each service tunes on its own
+reactions, filter pinned by test) and the scout now surfaces against the tuned
+threshold (pinned: tuner says 2.0 → nothing surfaces). Live: the scout pass runs
+through the tuner and correctly holds the base — Steve has recorded exactly one
+reaction, and inventing more to demo the tuned path would have polluted the very
+signal the tuner reads. Register updated in both docs. 12 suites, 384 tests,
+0 warnings.

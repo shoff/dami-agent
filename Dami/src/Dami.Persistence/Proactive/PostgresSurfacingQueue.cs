@@ -194,6 +194,31 @@ public sealed class PostgresSurfacingQueue : ISurfacingQueue
     }
 
     /// <inheritdoc />
+    public IAsyncEnumerable<SurfacingReaction> ReactionsForServiceAsync(
+        string serviceName,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(serviceName);
+        if (limit <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit), limit, "Limit must be positive.");
+        }
+
+        var command = this.dataSource.CreateCommand(
+            $"""
+            select title, feedback
+              from {this.Table}
+             where feedback is not null and service_name = @service
+             order by feedback_at desc
+             limit @limit;
+            """);
+        command.Parameters.AddWithValue("service", serviceName);
+        command.Parameters.AddWithValue("limit", limit);
+        return StreamReactionsAsync(command, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task DeliverAsync(Guid surfacingId, DateTimeOffset deliveredAt, CancellationToken cancellationToken)
     {
         await using var command = this.dataSource.CreateCommand(

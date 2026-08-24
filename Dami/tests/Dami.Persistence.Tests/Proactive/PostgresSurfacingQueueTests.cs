@@ -204,6 +204,27 @@ public sealed class PostgresSurfacingQueueTests
     }
 
     [Fact]
+    public async Task ReactionsForServiceAsync_Should_Return_Only_That_Services_Reactions()
+    {
+        await this.fixture.ResetAsync();
+        var queue = this.CreateQueue(cap: 5);
+        var scouted = Worth("scout item");
+        var other = new Surfacing(Guid.NewGuid(), "librarian", "other item", "text", 0.85, createdAt);
+        await queue.EnqueueAsync(scouted, CancellationToken.None);
+        await queue.EnqueueAsync(other, CancellationToken.None);
+        await queue.RecordFeedbackAsync(scouted.SurfacingId, "good: yes", createdAt.AddHours(1), CancellationToken.None);
+        await queue.RecordFeedbackAsync(other.SurfacingId, "bad: no", createdAt.AddHours(1), CancellationToken.None);
+
+        var reactions = new List<SurfacingReaction>();
+        await foreach (var reaction in queue.ReactionsForServiceAsync("scout", 10, CancellationToken.None))
+        {
+            reactions.Add(reaction);
+        }
+
+        Assert.Equal("scout item", reactions.Single().Title);
+    }
+
+    [Fact]
     public void RecentAsync_Should_Reject_A_Non_Positive_Limit()
     {
         var queue = this.CreateQueue(cap: 3);

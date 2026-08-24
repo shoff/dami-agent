@@ -34,6 +34,12 @@ public interface ISurfacingQueue
     /// <remarks>What the taste model trains on. Surfacings without feedback do not appear.</remarks>
     IAsyncEnumerable<SurfacingReaction> ReactionsAsync(int limit, CancellationToken cancellationToken);
 
+    /// <summary>Most recent reactions to one service's surfacings, newest first.</summary>
+    IAsyncEnumerable<SurfacingReaction> ReactionsForServiceAsync(
+        string serviceName,
+        int limit,
+        CancellationToken cancellationToken);
+
     /// <summary>Records Steve's reaction.</summary>
     /// <exception cref="KeyNotFoundException">The surfacing does not exist.</exception>
     Task RecordFeedbackAsync(

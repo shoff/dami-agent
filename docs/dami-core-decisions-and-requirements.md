@@ -323,7 +323,7 @@ Payload serialization inside the transport frame — MemoryPack, hand-rolled spa
 GUI framework — Tauri/React vs Avalonia
 Local sidecar model and VRAM budget alongside resident TTS
 Surfacing channel behavior — queue, notification, or held-until-adjacent-opening. This single decision shapes the muse more than model choice does.
-Confidence threshold for surfacing, and how it self-tunes without gaming itself
+~~Confidence threshold for surfacing, and how it self-tunes without gaming itself~~ — resolved 2026-08-23 (H8): the effective threshold is a pure, bounded function of recorded reactions — `base + (negativeShare − positiveShare)·gain`, clamped to `[base − 0.10, base + 0.25]`, minimum-evidence gated, and silence moves nothing, so the tuner cannot reward itself for staying quiet and no history can tune a service into "surface everything" or "never speak"
 TTS engine and a legally clean voice source with documented consent
 Avatar — whether it serves presence or distracts from it. Decide after voice proves itself.
 Event retention and compaction policy

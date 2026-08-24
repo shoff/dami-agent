@@ -25,6 +25,7 @@ public sealed class InterestScoutTests
     private readonly IEgressClient egressClient = Substitute.For<IEgressClient>();
     private readonly IEmbeddingClient embeddingClient = Substitute.For<IEmbeddingClient>();
     private readonly ISurfacingQueue surfacingQueue = Substitute.For<ISurfacingQueue>();
+    private readonly ISurfacingThresholdTuner thresholdTuner = Substitute.For<ISurfacingThresholdTuner>();
 
     [Fact]
     public async Task RunPassAsync_Should_Be_Quiet_With_No_Feeds_Configured()
@@ -65,6 +66,23 @@ public sealed class InterestScoutTests
         var result = await scout.RunPassAsync(Context(), CancellationToken.None);
 
         Assert.Single(result.Surfacings);
+    }
+
+    [Fact]
+    public async Task RunPassAsync_Should_Apply_The_Tuned_Threshold_Not_The_Static_One()
+    {
+        this.ArrangeFeed(FEED);
+        this.embeddingClient.EmbedAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Vectors([1f, 0f], [0.9f, 0.1f], [0f, 1f]));
+        var scout = this.CreateScout();
+        // after CreateScout so this override wins (later NSubstitute setup wins)
+        this.thresholdTuner
+            .EffectiveThresholdAsync(Arg.Any<string>(), Arg.Any<double>(), Arg.Any<CancellationToken>())
+            .Returns(2.0);
+
+        var result = await scout.RunPassAsync(Context(), CancellationToken.None);
+
+        Assert.Empty(result.Surfacings);
     }
 
     [Fact]
@@ -234,8 +252,12 @@ public sealed class InterestScoutTests
         this.surfacingQueue.ReactionsAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(AsAsync(this.reactions));
 
+        this.thresholdTuner
+            .EffectiveThresholdAsync(Arg.Any<string>(), Arg.Any<double>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(callInfo.ArgAt<double>(1)));
+
         return new InterestScout(
-            this.egressClient, this.embeddingClient, this.surfacingQueue, Options.Create(options),
-            new FakeTimeProvider(now), NullLogger<InterestScout>.Instance);
+            this.egressClient, this.embeddingClient, this.surfacingQueue, this.thresholdTuner,
+            Options.Create(options), new FakeTimeProvider(now), NullLogger<InterestScout>.Instance);
     }
 }
