@@ -4487,3 +4487,15 @@ without diagnostics. Two targeted ownership commands repeated the `Dami/` prefix
 already inside that directory and failed harmlessly before their chained builds could
 start; both were corrected with explicit relative paths, and the new files are owned by
 Steve. G6c/G6c3/G6c3c are now `[x]`; G6d remains the claimed epic's next slice.
+
+## 2026-08-23 — Codex — G6d live bounded tool wiring and demonstration started
+
+G6d is claimed from the authoritative board after G6c3c reached remote parity. The
+slice will first trace the current Host turn composition and native registry seams,
+then add the minimum configuration-driven wiring needed for semantically selected,
+bounded read/process/propose-patch capabilities to execute inside a real turn. The live
+demonstration must show truthful tool events, bounded terminal/file behavior, approval
+before mutation, and observed post-approval bytes. Production behavior will proceed
+one red test at a time; configuration/deployment and every live command will be logged
+separately. No migration is currently expected, but live schema status will be checked
+before the demonstration.
