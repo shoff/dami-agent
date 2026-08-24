@@ -5167,3 +5167,51 @@ redirect revalidation, bounded responses, and durable events. F3c3b carries rout
 privacy plus trace provenance into each MCP operation and gives the SDK only the gated
 HTTP path. The convenience factory remains loopback-only throughout; F3d remains solely
 the Host composition and fake-server demonstration. F3c3a is claimed first.
+
+## 2026-08-24 — Codex — F3c3a scoped MCP HTTP egress gate complete
+
+ADR-0015 records a third narrowly shaped D-012 door rather than widening bodyless
+`IEgressClient`: remote MCP uses a scoped `HttpMessageHandler` that can carry JSON-RPC
+bodies but requires immutable Egressable privacy and trace provenance on every async
+operation. The scope mutation/read sides are separate contracts, the ambient adapter is
+only SDK plumbing, and a missing scope fails before network I/O.
+
+The first exact-POST/event test compiled red for the absent context and handler types.
+The minimum gate sent the exact JSON body and durably wrote requested/completed events;
+its first assertion then failed despite visually equal tuples because the test compared
+array references. Converting the event sequence to one scalar corrected that fixture
+without changing production behavior. The event pair now shares one child span parented
+to the caller span, with the exact trace/origin, and neither body nor arbitrary headers
+enters labels.
+
+The percent-encoded forbidden-URI test failed behaviorally because the first gate only
+checked HTTPS and host. URI decoding plus the shared configured fragment tripwire made
+it green. The request-bound test compiled red because `MaxRequestBytes` did not exist;
+known and streaming request bodies are now buffered at most once under the configured
+limit before I/O, and oversized bodies emit `EgressRefused`. The declared response-size
+test then failed because the response was returned unbounded. Declared oversize now
+fails before reading, while unknown/chunked content remains streamed through a counting
+read-only wrapper that reads at most the remaining allowance plus one byte.
+
+The cross-origin redirect test failed because a 307 was returned as completed. All MCP
+redirects are now refused and automatic redirect support is rejected on the standard
+inner handlers, preventing credentials or session headers from moving below the policy
+layer. The network-failure test then observed only `EgressRequested`; HTTP/I/O and
+declared-response failures now append a body-free `EgressFailed` label before rethrowing.
+
+Adversarial scope disposal found a real state leak: an out-of-order disposal threw only
+after clearing its owner, so the restored outer scope could never later be removed. Its
+behavioral red left `Current` non-null; disposal now validates nesting before the atomic
+ownership exchange and recovers cleanly. A multiline-purpose test first hit DAMI0003 in
+an expanded earlier fixture; after extracting shared setup, its clean behavioral red
+showed event labels accepted embedded body-like lines. Purposes are now nonblank,
+single-line, and capped at 160 characters using span inspection.
+
+Post-green coverage proves LocalOnly and missing-scope refusal before network I/O,
+chunked response enforcement, nested recovery, and concurrent async-flow isolation.
+Configuration lists and byte ceilings are immutable snapshots (hard ceiling 16 MiB),
+and the hot handler path uses explicit loops rather than LINQ. The focused privacy suite
+passed 34/34. The mandatory solution gate built all 31 projects with 0 warnings and 0
+errors, all fifteen suites passed 610/610, and format/analyzer verification exited 0.
+No schema, migration, Host, deployment, or live-service change was required. F3c3a is
+`[x]`; F3c3b provenance and authorized SDK construction are claimed next.

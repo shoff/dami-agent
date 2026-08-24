@@ -27,6 +27,9 @@ public sealed class EgressOptions
     /// </remarks>
     public IList<string> ForbiddenFragments { get; } = [];
 
+    /// <summary>Largest request body permitted through a body-capable egress door.</summary>
+    public int MaxRequestBytes { get; set; } = 2 * 1024 * 1024;
+
     /// <summary>Largest response body accepted into memory.</summary>
     public int MaxResponseBytes { get; set; } = 2 * 1024 * 1024;
 }

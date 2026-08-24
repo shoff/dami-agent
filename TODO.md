@@ -95,8 +95,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] F3c1 Thread privacy classification through capability resolution; exclude untrusted MCP before LocalOnly reranking and related-capability expansion
     - [x] F3c2 Source-neutral MCP invocation registry/dispatcher with cancellation and result/error translation
     - [~ Codex 2026-08-24] F3c3 D-012 remote Streamable HTTP boundary: ADR plus request-body-capable, event-metered egress transport; default remains loopback-only
-      - [~ Codex 2026-08-24] F3c3a ADR + fail-closed request-body HTTP gate: Egressable context, allowlist, budget, redirects, bounded responses, durable events
-      - [ ] F3c3b Thread privacy/trace provenance into MCP execution and construct the SDK transport only from the authorized HTTP gate
+      - [x] F3c3a ADR + fail-closed request-body HTTP gate: Egressable context, allowlist, budget, redirects, bounded responses, durable events
+      - [~ Codex 2026-08-24] F3c3b Thread privacy/trace provenance into MCP execution and construct the SDK transport only from the authorized HTTP gate
   - [ ] F3d Host composition and local fake-server integration demonstration
 - [ ] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
