@@ -117,6 +117,25 @@ public sealed class PostgresApprovalServiceTests
     }
 
     [Fact]
+    public async Task RequestAsync_Should_Converge_An_Exact_Retry_After_Resolution()
+    {
+        await this.fixture.ResetAsync();
+        var service = this.CreateService();
+        ApprovalRequest request = Request();
+        await service.RequestAsync(request, CancellationToken.None);
+        await service.ResolveAsync(
+            request.ApprovalId, ApprovalStatus.Approved, "approved",
+            at.AddMinutes(1), CancellationToken.None);
+
+        await service.RequestAsync(request, CancellationToken.None);
+
+        Assert.Equal(
+            ApprovalStatus.Approved,
+            (await service.FindAsync(request.ApprovalId, CancellationToken.None))!.Status);
+        Assert.Equal(2, (await this.ReplayAsync(request.TraceId)).Count);
+    }
+
+    [Fact]
     public async Task ResolveAsync_Should_Remove_The_Request_From_Pending()
     {
         await this.fixture.ResetAsync();

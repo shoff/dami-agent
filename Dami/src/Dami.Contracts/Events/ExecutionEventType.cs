@@ -109,4 +109,7 @@ public enum ExecutionEventType
 
     /// <summary>An inert self-authored tool artifact entered the staging registry.</summary>
     ToolProposed = 33,
+
+    /// <summary>An exact staged tool version is blocked on human promotion approval.</summary>
+    ToolPromotionRequested = 34,
 }

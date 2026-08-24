@@ -89,5 +89,6 @@ public static class ServiceCollectionExtensions
     {
         services.TryAddSingleton<IFilePatchProposalStore, PostgresFilePatchProposalStore>();
         services.TryAddSingleton<IToolProposalStore, PostgresToolProposalStore>();
+        services.TryAddSingleton<IToolPromotionStore, PostgresToolPromotionStore>();
     }
 }

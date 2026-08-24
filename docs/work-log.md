@@ -5890,3 +5890,56 @@ project/test envelope and bounded bubblewrap execution with no network or persis
 writable mount. F5c3 owns failure-atomic publication across handler/schema/metadata,
 startup recovery, and the live human approval/invocation proof. ADR-0019 records the
 decision and reversal path. Approval alone will never load proposal bytes in-process.
+
+## 2026-08-24 — Codex — F5c1 exact-version promotion ledger complete; F5c2 claimed
+
+Work resumed on the already claimed F5c1 slice with the shared tree synchronized and
+only Codex's uncommitted promotion files present. The first focused command used a
+stale method-name filter and reported that no tests matched; it was not counted as a
+pass. The corrected persistence happy-path filter passed. Earlier red-first contract
+slices had compiled red on the absent promotion type, then demonstrated rejection
+gaps for mismatched artifact resources, resolved approvals, empty promotion/proposal
+identities, and noncanonical versions. Their minimum implementations were followed by
+a green refactor that moved duplicated lowercase SHA-256 validation into one internal
+contract helper.
+
+This continuation found and drove three more defects red-first. First, a promotion
+accepted approvals with empty approval/trace identities, arbitrary requester/scope,
+or no parent span; the contract now requires complete promotion provenance and exact
+reserved requester/scope values. Second, composition-root resolution returned null
+for `IToolPromotionStore`; persistence now registers the implementation. Third, a
+direct database insertion could bind a staged artifact to an unrelated approval. The
+023 migration now validates pending/unresolved status, exact requester, scope,
+resource, trace, parent span, origin, proposal, and artifact version before insertion.
+The redundant promotion timestamp was removed; the immutable approval request remains
+the single source of request time.
+
+An exact retry after human resolution then failed red in two places: approval replay
+incorrectly compared mutable resolution columns, and PostgreSQL runs a BEFORE INSERT
+trigger before `ON CONFLICT`. A separate approval-service regression test reproduced
+the shared replay defect. Exact request replay now compares only immutable request-time
+fields. The validation trigger permits an already-stored exact promotion tuple while
+continuing to reject any new or conflicting tuple after resolution. Both the generic
+approval service and promotion store converge after resolution without reopening the
+decision or duplicating events.
+
+Post-green adversarial coverage demonstrates transactional rollback when the promotion
+event append fails, rollback of a newly inserted approval when a retry-stable promotion
+ID conflicts, append-only enforcement, select/insert-only runtime privileges, and
+exact lookup. The focused promotion class passed 7/7 and the two after-resolution
+replay tests passed 2/2. The first complete gate built all 33 projects with 0 warnings
+and 0 errors, passed 741/741 tests across sixteen assemblies, and format verification
+exited 0. After adding the shared approval regression, the final gate is recorded
+here: all 33 projects built with 0 warnings and 0 errors, all sixteen assemblies passed
+742/742 tests, and format verification exited 0 without diagnostics.
+
+The DDL runner harness passed. An initial migration status command omitted the TCP host
+and therefore silently showed every migration pending because `apply.sh` suppresses
+the bootstrap query error; no database state changed. Re-running as Steve with
+`PGHOST=127.0.0.1` and `PGUSER=dami_ddl` showed only 023 pending. Migration 023 then
+applied transactionally. Direct live inspection observed its schema-migration row,
+zero promotion rows, the validation and append-only triggers, and a true least-
+privilege probe for `dami_app` SELECT/INSERT with UPDATE/DELETE/TRUNCATE/REFERENCES/
+TRIGGER denied. F5c3 owns creation and approval of a real live promotion, so no
+production approval was fabricated for this ledger-only slice. F5c1 is complete and
+F5c2 is claimed before sandbox-envelope implementation begins.
