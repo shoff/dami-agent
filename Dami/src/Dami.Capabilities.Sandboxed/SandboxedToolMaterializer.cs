@@ -14,12 +14,12 @@ public sealed class SandboxedToolMaterializer : ISandboxedToolMaterializer
         encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     private readonly string rootDirectory;
-    private readonly ToolArtifactVerifier verifier;
+    private readonly IToolArtifactVerifier verifier;
 
     /// <summary>Creates an immutable runtime materializer rooted at one private directory.</summary>
     public SandboxedToolMaterializer(
         string rootDirectory,
-        ToolArtifactVerifier verifier)
+        IToolArtifactVerifier verifier)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
         ArgumentNullException.ThrowIfNull(verifier);

@@ -1,6 +1,8 @@
 using Dami.Capabilities;
 using Dami.Capabilities.Sandboxed;
+using Dami.Contracts.Approvals;
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.ToolStaging;
 
 namespace Dami.Host;
 
@@ -17,6 +19,7 @@ public static class SandboxedToolServiceCollectionExtensions
         SandboxedToolHostOptions options = Bind(configuration);
         if (string.IsNullOrWhiteSpace(options.RootDirectory))
         {
+            services.AddSingleton<IToolPromotionWorkflow, UnavailableToolPromotionWorkflow>();
             return services;
         }
 
@@ -44,6 +47,8 @@ public static class SandboxedToolServiceCollectionExtensions
         services.AddSingleton<ToolEnvelopeWriter>();
         services.AddSingleton(provider => new ToolArtifactVerifier(
             provider.GetRequiredService<ToolEnvelopeWriter>(), CreateRunner(verification)));
+        services.AddSingleton<IToolArtifactVerifier>(provider =>
+            provider.GetRequiredService<ToolArtifactVerifier>());
         services.AddSingleton<ISandboxProcessRunner>(CreateRunner(runtime));
     }
 
@@ -59,9 +64,21 @@ public static class SandboxedToolServiceCollectionExtensions
         services.AddSingleton<SandboxedCapabilityPublisher>();
         services.AddSingleton<ISandboxedToolMaterializer>(provider =>
             new SandboxedToolMaterializer(
-                options.RootDirectory!, provider.GetRequiredService<ToolArtifactVerifier>()));
+                options.RootDirectory!, provider.GetRequiredService<IToolArtifactVerifier>()));
+        services.AddSingleton<IToolPromotionWorkflow>(provider =>
+            new SandboxedToolPromotionWorkflow(
+                options.RootDirectory!,
+                provider.GetRequiredService<Dami.Contracts.ToolStaging.IToolProposalStore>(),
+                provider.GetRequiredService<Dami.Contracts.ToolStaging.IToolVerificationStore>(),
+                provider.GetRequiredService<Dami.Contracts.ToolStaging.IToolPromotionStore>(),
+                provider.GetRequiredService<IToolArtifactVerifier>(),
+                provider.GetRequiredService<TimeProvider>()));
         services.AddSingleton<ISandboxedToolActivator, SandboxedToolActivator>();
+        services.AddSingleton<IToolActivationCoordinator, SandboxedToolActivationCoordinator>();
         services.AddSingleton<SandboxedToolRecoveryProcessor>();
+        services.AddSingleton<ToolPromotionApprovalHandler>();
+        services.AddSingleton<IApprovalExecutionHandler>(provider =>
+            provider.GetRequiredService<ToolPromotionApprovalHandler>());
         services.AddSingleton<SandboxedCapabilityExecutor>();
         services.AddSingleton<ICapabilityExecutionSource>(provider =>
             provider.GetRequiredService<SandboxedCapabilityExecutor>());
@@ -76,7 +93,7 @@ public static class SandboxedToolServiceCollectionExtensions
     {
         return new SandboxProcessOptions
         {
-            MaxOutputBytes = 1_048_576,
+            MaxOutputBytes = ToolVerificationRecord.MAX_EVIDENCE_BYTES,
             MemoryMaxBytes = 2_147_483_648,
             ProcessMax = 128,
             RuntimeMax = TimeSpan.FromSeconds(60),
@@ -133,5 +150,25 @@ public static class SandboxedToolServiceCollectionExtensions
         }
 
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class UnavailableToolPromotionWorkflow : IToolPromotionWorkflow
+    {
+        public Task<ToolVerificationRecord> VerifyAsync(
+            Guid proposalId,
+            string artifactVersion,
+            CancellationToken cancellationToken) =>
+            Task.FromException<ToolVerificationRecord>(Unavailable());
+
+        public Task<ToolPromotionRequest> RequestPromotionAsync(
+            Guid proposalId,
+            string artifactVersion,
+            CancellationToken cancellationToken) =>
+            Task.FromException<ToolPromotionRequest>(Unavailable());
+
+        private static InvalidOperationException Unavailable()
+        {
+            return new InvalidOperationException("Sandboxed tool promotion is not configured.");
+        }
     }
 }

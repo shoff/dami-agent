@@ -3,7 +3,7 @@ using Dami.Contracts.ToolStaging;
 namespace Dami.Capabilities.Sandboxed;
 
 /// <summary>Restores, builds, and tests a staged artifact only in the fixed envelope.</summary>
-public sealed class ToolArtifactVerifier
+public sealed class ToolArtifactVerifier : IToolArtifactVerifier
 {
     private static readonly string[] restoreCommand =
     [

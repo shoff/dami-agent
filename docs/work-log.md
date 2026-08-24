@@ -6739,3 +6739,40 @@ it. Three tests, including the one that matters: reject, then replay exactly wha
 next collector pass would do, and confirm it stays gone.
 
 `dami health-log` now prints short ids so there is something to act on, and says so.
+
+## 2026-08-24 — Codex — F5c3c in progress; exact promotion surface red/green
+
+The first Host tests compiled red on the absent `IToolPromotionWorkflow`. The minimum
+contract and `/tool-proposals/{id}/verify|promote` routes then passed verification but
+the promotion test failed because its default client deserializer rejected the Host's
+intentional string enum. The invalid oracle was corrected to inspect public JSON; both
+routes passed 2/2. The workflow test compiled red on the absent verifier abstraction.
+`ToolArtifactVerifier` now implements that narrow seam, and the production workflow
+reuses existing evidence, verifies in unique caller-owned scratch space with
+unconditional cleanup, derives retry-stable verification/approval/promotion IDs, and
+refuses promotion until exact verification exists. Sequential retry records one
+promotion request.
+
+The approved-execution test compiled red on the absent one-item activation coordinator.
+The existing activation/publication/outcome sequence was extracted from the batch
+recovery processor into `SandboxedToolActivationCoordinator`; startup recovery and the
+new `ToolPromotionApprovalHandler` now share it. The handler reloads the authoritative
+approval and requires `Approved`, reloads the promotion, validates its exact resource,
+loads the exact proposal and verification, detects prior durable success, then
+activates idempotently. The full sandbox suite passed 23/23 after the refactor.
+
+Two HTTP tests then failed red with 500 instead of 404 for an unknown proposal and 409
+for promotion before exact verification. One shared mapper made all four route tests
+green. The first complete Host-suite run exposed a wider composition defect: 31/44
+failed because the disabled sandbox configuration registered no workflow, causing
+Minimal API to infer that service as request body and poison unrelated routes. An
+explicit unavailable workflow now preserves DI inference while failing only promotion
+calls; the complete Host suite passed 44/44.
+
+The first mandatory solution build was not green: a concurrent Claude CLI edit had
+grown `CommandRouter.DispatchAsync` to 33 lines and tripped `DAMI0003`. Codex did not
+touch that lane; after its owner extracted the dispatch branch, the CLI project and
+the rerun solution gate passed. Final pre-deployment evidence as Steve: all 35 projects
+built with 0 warnings and 0 errors, scoped format verification exited 0, and all
+seventeen suites passed 817/817 tests with 0 failed and 0 skipped. F5c3c remains
+claimed until the committed build completes the live human-promotion proof.

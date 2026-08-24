@@ -5,27 +5,19 @@ namespace Dami.Capabilities.Sandboxed;
 /// <summary>Converges durable approved tools into runtime state and journals first activation.</summary>
 public sealed class SandboxedToolRecoveryProcessor
 {
-    private readonly IToolActivationStore activationStore;
-    private readonly ISandboxedToolActivator activator;
-    private readonly TimeProvider clock;
+    private readonly IToolActivationCoordinator coordinator;
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly IToolActivationRecoverySource source;
 
     /// <summary>Creates the serialized durable recovery processor.</summary>
     public SandboxedToolRecoveryProcessor(
         IToolActivationRecoverySource source,
-        ISandboxedToolActivator activator,
-        IToolActivationStore activationStore,
-        TimeProvider clock)
+        IToolActivationCoordinator coordinator)
     {
         ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(activator);
-        ArgumentNullException.ThrowIfNull(activationStore);
-        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(coordinator);
         this.source = source;
-        this.activator = activator;
-        this.activationStore = activationStore;
-        this.clock = clock;
+        this.coordinator = coordinator;
     }
 
     /// <summary>Processes one bounded deterministic startup batch.</summary>
@@ -73,12 +65,7 @@ public sealed class SandboxedToolRecoveryProcessor
     {
         try
         {
-            await this.ActivateWithFailureAsync(item, cancellationToken).ConfigureAwait(false);
-            if (!item.IsActivated)
-            {
-                await this.RecordSuccessAsync(item, cancellationToken).ConfigureAwait(false);
-            }
-
+            await this.coordinator.ActivateAsync(item, cancellationToken).ConfigureAwait(false);
             return true;
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
@@ -87,43 +74,4 @@ public sealed class SandboxedToolRecoveryProcessor
         }
     }
 
-    private async Task ActivateWithFailureAsync(
-        ToolActivationRecoveryItem item,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await this.activator.ActivateAsync(item, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            if (!item.IsActivated)
-            {
-                await this.RecordFailureAsync(item, exception).ConfigureAwait(false);
-            }
-
-            throw;
-        }
-    }
-
-    private async Task RecordFailureAsync(
-        ToolActivationRecoveryItem item,
-        Exception exception)
-    {
-        var outcome = new ToolActivationOutcome(
-            Guid.NewGuid(), item.PromotionId, item.Verification.VerificationId,
-            ToolActivationStatus.Failed, exception.GetType().Name, this.clock.GetUtcNow());
-        await this.activationStore.RecordAsync(outcome, CancellationToken.None)
-            .ConfigureAwait(false);
-    }
-
-    private async Task RecordSuccessAsync(
-        ToolActivationRecoveryItem item,
-        CancellationToken cancellationToken)
-    {
-        var outcome = new ToolActivationOutcome(
-            Guid.NewGuid(), item.PromotionId, item.Verification.VerificationId,
-            ToolActivationStatus.Activated, null, this.clock.GetUtcNow());
-        await this.activationStore.RecordAsync(outcome, cancellationToken).ConfigureAwait(false);
-    }
 }

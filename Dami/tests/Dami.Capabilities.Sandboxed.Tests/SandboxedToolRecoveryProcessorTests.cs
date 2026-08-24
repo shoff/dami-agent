@@ -13,8 +13,7 @@ public sealed class SandboxedToolRecoveryProcessorTests
         ToolActivationRecoveryItem item = CreateItem(isActivated: false);
         var calls = new List<string>();
         var processor = new SandboxedToolRecoveryProcessor(
-            new RecoverySource(item), new Activator(calls), new ActivationStore(calls),
-            new StubTimeProvider(DateTimeOffset.UnixEpoch));
+            new RecoverySource(item), Coordinator(calls));
 
         ToolActivationRecoverySummary summary = await processor.RecoverAsync(
             10, CancellationToken.None);
@@ -29,8 +28,7 @@ public sealed class SandboxedToolRecoveryProcessorTests
         ToolActivationRecoveryItem item = CreateItem(isActivated: false);
         var calls = new List<string>();
         var processor = new SandboxedToolRecoveryProcessor(
-            new RecoverySource(item), new FailingActivator(calls), new ActivationStore(calls),
-            new StubTimeProvider(DateTimeOffset.UnixEpoch));
+            new RecoverySource(item), Coordinator(calls, failing: true));
 
         ToolActivationRecoverySummary summary = await processor.RecoverAsync(
             10, CancellationToken.None);
@@ -45,14 +43,25 @@ public sealed class SandboxedToolRecoveryProcessorTests
         var source = new ConcurrentRecoverySource();
         var calls = new List<string>();
         var processor = new SandboxedToolRecoveryProcessor(
-            source, new Activator(calls), new ActivationStore(calls),
-            new StubTimeProvider(DateTimeOffset.UnixEpoch));
+            source, Coordinator(calls));
 
         await Task.WhenAll(
             processor.RecoverAsync(10, CancellationToken.None),
             processor.RecoverAsync(10, CancellationToken.None));
 
         Assert.Equal(1, source.MaxConcurrent);
+    }
+
+    private static IToolActivationCoordinator Coordinator(
+        ICollection<string> calls,
+        bool failing = false)
+    {
+        ISandboxedToolActivator activator = failing
+            ? new FailingActivator(calls)
+            : new Activator(calls);
+        return new SandboxedToolActivationCoordinator(
+            activator, new ActivationStore(calls),
+            new StubTimeProvider(DateTimeOffset.UnixEpoch));
     }
 
     private static ToolActivationRecoveryItem CreateItem(bool isActivated)
