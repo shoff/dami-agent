@@ -4907,3 +4907,22 @@ The CLI usage, Bash completion source, and man-page source document every sessio
 surface; `bash -n` passes. The mandatory solution gate built with 0 warnings and 0
 errors, all fourteen suites passed 566/566, and format/analyzer verification exited 0.
 G4c2 is `[x]`; G4c3 is claimed for publishing and live acceptance evidence.
+
+## 2026-08-24 — Codex — G4c3 live interruption audit reopened implementation
+
+Release Host/CLI artifacts were published to fresh Steve-owned staging directories,
+installed under `/opt/dami`, and the service reached both `active` and live health
+`{"status":"ok"}`. Migration status remains applied through 019 with none pending.
+Live session `01a032a6…` stored `TUNDRA-8246` in its first turn; a second request that
+did not contain the code answered exactly `TUNDRA-8246`, proving recent conversation
+entered model context. Two reconnect reads and an exact POST retry returned the same
+trace `d0671ad4…` and answer; the POST reported `wasReplay:true`, and PostgreSQL showed
+exactly one row. Interrupt/list/resume/list showed the expected durable parent state.
+
+The adversarial running-turn exercise found a real inconsistency. Session interruption
+made request `01a032a9…` durably Interrupted with no assistant response, but trace
+`2d94ccda…` continued model work for about ten seconds and recorded TraceCompleted with
+a 392-character answer. Durable state correctly rejected the late completion, but the
+model was not cancelled and the trace/corpus side effects disagree with the turn.
+G4c3a is therefore claimed before further code: propagate session interruption into
+the active execution token, then repeat this live exercise. G4/G4c remain open.
