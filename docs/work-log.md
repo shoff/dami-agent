@@ -4098,3 +4098,53 @@ violation. G6c3 is split without widening its intended write/patch handoff: G6c3
 trace-aware execution provenance, G6c3b adds the durable hash-pinned root-confined
 proposal (which cannot mutate the target), and G6c3c adds the approved executor behind
 an extensible runtime dispatch seam. G6c3a is claimed before contract changes begin.
+
+## 2026-08-23 — Codex — G6c3a: trace provenance reaches native handlers
+
+`CapabilityExecutionRequest` now binds a nonempty trace id, nonempty tool span id, and
+the immutable `CapabilityInvocation`. `ICapabilityExecutor` accepts that request;
+`ToolLoopRunner` creates it from the exact trace/span already used for requested,
+started, and terminal events; `NativeCapabilityExecutor` carries the same object through
+its cooperative/hard timeout boundary; and `INativeCapabilityHandler` receives it
+unchanged. Existing read/process handlers consume `request.Invocation.Arguments` with no
+policy special case. This is the minimum honest provenance needed for G6c3b to file a
+G7 request attached to the originating trace.
+
+True TDD chronology: the orchestration test first produced two CS0246 errors for the
+missing request plus DAMI0003 after the new assertion made the test too long. Extracting
+event/provenance assertions removed the scaffold failure; the clean red was exactly the
+two missing-type errors. Adding the contract and tool-loop request made the focused loop
+pass 6/6. The native project then compiled red with CS0535 because
+`NativeCapabilityExecutor` did not implement the new interface. Propagating the request
+through the native handler boundary, adapting read/process tests through one DRY request
+factory, and asserting handler reference identity made the native suite pass 9/9.
+Two contract cases pin rejection of empty trace/span ids; Core passes 62/62. Two initial
+`chown` commands accidentally repeated the `Dami/` prefix from inside that directory;
+both failed harmlessly and were immediately rerun against the correct paths before any
+commit, leaving all created files owned by Steve.
+
+Definitive verification used `/tmp/dami-g6c3a-gate.02Ndet/repo` at committed HEAD
+`d5d991d` with only the thirteen G6c3a paths overlaid, isolating Claude's concurrent
+scout edits. `dotnet build Dami.sln --nologo` completed with 0 warnings and 0 errors;
+all twelve suites passed 439/439; and `dotnet format Dami.sln --verify-no-changes
+--no-restore --verbosity minimal` exited 0. No migration is involved. G6c3a is flipped
+to `[x]`; G6c3b is claimed before proposal or persistence changes begin.
+
+## 2026-08-24 — Claude — H6: the scout has real interests now, and a rate-limit fix
+
+"Blocked on Steve" was wrong here too — Steve's interests are in his own corpus.
+Mined it (local-LLM/ollama 208 mentions, .NET 72, vector-search/weaviate/pgvector
+59, python 51) and cross-checked the Kokoro entities; the scout now carries six
+interest statements matching his actual profile plus his hobbies, and two feeds: the
+HN frontpage and one combined topic query (pgvector OR ollama OR embeddings OR
+dotnet OR PostgreSQL OR "vector database"). Config is in the systemd drop-in, out of
+the repo per the no-secrets rule; Steve can adjust with `systemctl edit`.
+
+Fixing it surfaced a real bug: hnrss returns 429 to rapid back-to-back requests, so
+a multi-feed pass tripped the limit on the second feed every night. Added
+`FeedDelaySeconds` (default 0 — tests and single-feed setups need none; production
+set to 4) with a courtesy gap between fetches, via `Task.Delay(_, TimeProvider)` so
+it stays testable — the new test drives a FakeTimeProvider by hand and proves both
+feeds fetch only as time advances. Live: the scout now pulls real items on Steve's
+topics (they suppressed under today's D-021 cap, which is correct). 12 suites, 440
+tests, 0 warnings.

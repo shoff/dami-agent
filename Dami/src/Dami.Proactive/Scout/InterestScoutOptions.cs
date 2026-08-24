@@ -33,4 +33,12 @@ public sealed class InterestScoutOptions
 
     /// <summary>How many recent reactions the taste model considers.</summary>
     public int MaxReactions { get; set; } = 50;
+
+    /// <summary>
+    /// Seconds to wait between feed fetches within a pass. Zero by default (tests and
+    /// single-feed setups need none); set to a few seconds in production so several
+    /// feeds on one rate-limited host — hnrss returns 429 to rapid back-to-back
+    /// requests — do not trip the limit on the nightly pass.
+    /// </summary>
+    public double FeedDelaySeconds { get; set; }
 }

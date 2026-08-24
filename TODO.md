@@ -110,8 +110,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
       - [x] G6c2a Typed source-neutral advertised-tool schema + stable-ID mapping
       - [x] G6c2b Ollama `/api/chat` request/history/parser adapter; send only the supplied selected set
     - [~ Codex 2026-08-23] G6c3 Approval-gated write/patch handoff through the G7 contract
-      - [~ Codex 2026-08-23] G6c3a Trace-aware capability execution request for approval provenance
-      - [ ] G6c3b Durable hash-pinned root-confined file-patch proposal + native capability
+      - [x] G6c3a Trace-aware capability execution request for approval provenance
+      - [~ Codex 2026-08-23] G6c3b Durable hash-pinned root-confined file-patch proposal + native capability
       - [ ] G6c3c Approved patch executor + open/closed runtime approval dispatch
   - [ ] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
@@ -126,7 +126,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] H3 Reflection (weekly): corpus → at most one provenance-bearing belief via local LLM; belief-aware (no restatements); RAG across months
 - [x] H4 Pushback audit (quarterly, D-011) · media librarian (propose-only, vision-enriched, holds no move/delete code) · embedder (nightly indexing)
 - [x] H5 Capped surfacing queue (suppressions stored, not dropped) + feedback capture
-- [ ] H6 Scout: feed list & interests are starter guesses — curate `[STEVE: systemctl edit dami-proactive]`
+- [x] H6 Scout: interests + feeds derived from the corpus (local-LLM/.NET/vector-search); FeedDelaySeconds fixes hnrss 429 on multi-feed passes
 - [STEVE] H7 Surfacing channel decision — ADR-0014 proposed (queue canonical + once-daily presence line on adjacent opening; push rejected as default); needs Steve's accept/reject
 - [x] H8 Confidence threshold self-tuning from recorded reactions, without gaming itself (register open item)
 - [ ] H9 Domain collectors (health, civic, network, estate) — needs K1 first
@@ -191,7 +191,7 @@ Decisions with a written proposal attached — read, then accept/reject:
 Inputs only you have:
 5. **B6** review `tools/eval/REVIEW.md` → D-010 closes on a table
 6. **B7** Kokoro classes: import or leave preserved (whose memories are they?)
-7. **H6** real interests + feeds for the scout (`systemctl edit dami-proactive`)
+7. ~~**H6** scout feeds/interests~~ — done 2026-08-24: derived from your corpus (6 interests, 2 HN feeds); adjust with `systemctl edit dami-proactive`
 8. **G10** the Dami identity charter file is on the Mac and this host has no key —
    `ssh-copy-id steve@192.168.4.23` or copy it into `docs/identity/`, and the port unblocks
 9. **J2** GUI framework preference · **L4** voice source · **K1** domain inventory

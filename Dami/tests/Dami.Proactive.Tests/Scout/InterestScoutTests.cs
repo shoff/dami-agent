@@ -69,6 +69,46 @@ public sealed class InterestScoutTests
     }
 
     [Fact]
+    public async Task FetchAllAsync_Should_Delay_Between_Feeds_And_Still_Fetch_Them_All()
+    {
+        this.ArrangeFeed(FEED);
+        this.ArrangeSimilar();
+        var time = new FakeTimeProvider(now);
+        var scout = this.CreateScout(
+            feeds: ["https://a.example.com/rss", "https://b.example.com/rss"],
+            interests: ["databases"],
+            feedDelaySeconds: 3,
+            clock: time);
+
+        var pass = scout.RunPassAsync(Context(), CancellationToken.None);
+        // The second feed is gated behind the delay: nothing more fetches until time moves.
+        while (!pass.IsCompleted)
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            await Task.Yield();
+        }
+
+        await pass;
+        await this.egressClient.Received(2).SendAsync(
+            Arg.Any<EgressRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task FetchAllAsync_Should_Not_Delay_Before_The_Only_Feed()
+    {
+        this.ArrangeFeed(FEED);
+        this.ArrangeSimilar();
+        // No auto-advance: a single feed must complete without any timer firing.
+        var scout = this.CreateScout(
+            feeds: ["https://only.example.com/rss"], interests: ["databases"], feedDelaySeconds: 30);
+
+        await scout.RunPassAsync(Context(), CancellationToken.None);
+
+        await this.egressClient.Received(1).SendAsync(
+            Arg.Any<EgressRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RunPassAsync_Should_Apply_The_Tuned_Threshold_Not_The_Static_One()
     {
         this.ArrangeFeed(FEED);
@@ -236,9 +276,16 @@ public sealed class InterestScoutTests
         IList<string>? feeds = null,
         IList<string>? interests = null,
         int maxItems = 3,
-        double threshold = 0.55)
+        double threshold = 0.55,
+        double feedDelaySeconds = 0,
+        TimeProvider? clock = null)
     {
-        var options = new InterestScoutOptions { MaxItemsPerPass = maxItems, SurfaceThreshold = threshold };
+        var options = new InterestScoutOptions
+        {
+            MaxItemsPerPass = maxItems,
+            SurfaceThreshold = threshold,
+            FeedDelaySeconds = feedDelaySeconds,
+        };
         foreach (var feed in feeds ?? ["https://feeds.example.com/rss"])
         {
             options.Feeds.Add(feed);
@@ -258,6 +305,7 @@ public sealed class InterestScoutTests
 
         return new InterestScout(
             this.egressClient, this.embeddingClient, this.surfacingQueue, this.thresholdTuner,
-            Options.Create(options), new FakeTimeProvider(now), NullLogger<InterestScout>.Instance);
+            Options.Create(options), clock ?? new FakeTimeProvider(now),
+            NullLogger<InterestScout>.Instance);
     }
 }

@@ -96,26 +96,43 @@ public sealed class InterestScout : IProactiveService
         CancellationToken cancellationToken)
     {
         var items = new List<FeedItem>();
+        var delay = TimeSpan.FromSeconds(this.scoutOptions.FeedDelaySeconds);
 
-        foreach (var feed in this.scoutOptions.Feeds)
+        for (var index = 0; index < this.scoutOptions.Feeds.Count; index++)
         {
-            try
+            if (index > 0 && delay > TimeSpan.Zero)
             {
-                var request = new EgressRequest(
-                    new Uri(feed), "interest scout feed scan", context.TraceId,
-                    ExecutionOrigin.ScheduledService);
-                var response = await this.egressClient
-                    .SendAsync(request, cancellationToken).ConfigureAwait(false);
-                items.AddRange(FeedParser.Parse(response.Body));
+                // A courtesy gap so several feeds on one rate-limited host survive the pass.
+                await Task.Delay(delay, this.clock, cancellationToken).ConfigureAwait(false);
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                // One dead feed must not silence the rest of the pass.
-                this.logger.LogWarning(exception, "Feed {Feed} failed; continuing", feed);
-            }
+
+            await this.FetchOneAsync(this.scoutOptions.Feeds[index], context, items, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         return items;
+    }
+
+    private async Task FetchOneAsync(
+        string feed,
+        ProactiveContext context,
+        List<FeedItem> items,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var request = new EgressRequest(
+                new Uri(feed), "interest scout feed scan", context.TraceId,
+                ExecutionOrigin.ScheduledService);
+            var response = await this.egressClient
+                .SendAsync(request, cancellationToken).ConfigureAwait(false);
+            items.AddRange(FeedParser.Parse(response.Body));
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // One dead feed must not silence the rest of the pass.
+            this.logger.LogWarning(exception, "Feed {Feed} failed; continuing", feed);
+        }
     }
 
     private static List<FeedItem> KeepFresh(List<FeedItem> items, DateTimeOffset? lastRanAt)
