@@ -6510,6 +6510,40 @@ together as `29be598`. The commit is authored by Steve, contains the exact gated
 F5c3b2 files and evidence plus Claude's explicitly separate retrieval-eval paths, and
 left no uncommitted state. Public history was not rewritten.
 
+## 2026-08-24 — Codex — F5c3b3 in progress; Host composition red/green
+
+The first Host test configured a private sandbox runtime root and completed an empty
+durable recovery batch, then failed behaviorally because the composed execution-source
+set contained only native and MCP sources. The minimum composition adds the existing
+sandbox registry, publisher, separate fixed verification/runtime process envelopes,
+materializer, activator, recovery processor, executor, and a hosted recovery service.
+It exposes the existing capability/schema registries through their narrow reversible
+registration seams and blocks Host startup until the bounded recovery result succeeds.
+
+The first implementation compile stopped at `CS8604` because the optional root had not
+been proven non-null before path validation. Tightening that guard made the original
+composition test green. A second red test then showed a configured nonexistent runtime
+root still allowed `/health` to become ready. Configuration now fails closed unless the
+root is a pre-provisioned ordinary directory; the two focused tests passed 2/2.
+
+The restart demonstration uses an exact preinstalled `Tool.dll`, matching durable
+verification, and an already-activated recovery projection. Its first two commands
+compiled red on missing test imports for `CapabilityEntry` and `PrivacyClass`; after
+correcting only those imports, two independent `WebApplicationFactory` Host instances
+each rebuilt fresh in-memory handler/schema/search registries from the same durable
+item and invoked it through the shared executor dispatcher. The exact restart test
+passed 1/1, the complete Host suite passed 40/40, and scoped format verification exited
+0. One intermediate build was stopped by a concurrent gateway edit while
+`AddDamiPersistence` temporarily exceeded the 30-line analyzer limit; its owner had
+already extracted the registrations when inspected, and the unchanged rerun passed.
+
+Pre-deployment integrated gate, run as Steve: `dotnet build Dami.sln` built all 35
+projects with 0 warnings and 0 errors; `dotnet test Dami.sln --no-build` passed all
+seventeen suites, 802/802 tests, with 0 failed and 0 skipped. The concurrent gateway,
+persistence-test, and DDL files were exercised by that gate but remain unstaged by
+Codex. F5c3b3 remains claimed until the production root is provisioned and a bounded
+systemd Host restart is observed.
+
 ## 2026-08-24 — Claude — D-010 finally has numbers (ADR-0015)
 
 D-010 has said since the beginning that the embedding model must be chosen by

@@ -145,8 +145,10 @@ public static class NativeToolServiceCollectionExtensions
         services.AddSingleton<ICapabilityRegistrar>(capabilities);
         services.AddSingleton<ICapabilityBatchRegistrar>(capabilities);
         services.AddSingleton<ICapabilitySourceSnapshotRegistrar>(capabilities);
+        services.AddSingleton<IRevertibleRegistrar<CapabilityEntry>>(capabilities);
         services.AddSingleton<ICapabilityToolSchemaCatalog>(schemas);
         services.AddSingleton<ICapabilityToolSchemaRegistrar>(schemas);
+        services.AddSingleton<IRevertibleRegistrar<CapabilityToolSchema>>(schemas);
         services.AddSingleton<IReadOnlyList<NativeCapabilityRegistration>>(active);
     }
 
