@@ -6092,3 +6092,15 @@ owned by `dami_ddl`, zero verification/outcome rows, validation plus append-only
 triggers, promotion validation referencing `tool_verifications`, and `dami_app` holding
 SELECT/INSERT but no UPDATE/DELETE/TRUNCATE on either ledger. F5c3b failure-atomic
 handler/schema/metadata publication and startup convergence is claimed next.
+
+## 2026-08-24 — Codex — F5c3b split; F5c3b1 claimed
+
+Pulled the clean synchronized tree after pushing F5c3a and inspected the common
+capability, schema, native, and MCP registries plus execution-source dispatch. A
+self-authored sandbox process is not an in-process native plugin; the existing
+`ICapabilityExecutionSource` fan-out is the correct abstraction seam. F5c3b is split
+before production code: F5c3b1 owns a dynamic sandboxed execution registry and
+failure-atomic handler/schema/metadata publication with exact-instance rollback;
+F5c3b2 owns immutable verified-byte materialization and durable convergence logic;
+F5c3b3 owns Host startup composition and recovery proof. F5c3b1 is claimed, and its
+first registry/publication behavior will be driven by an observed focused failure.
