@@ -25,6 +25,7 @@ public static class TestDdl
         "021_skill_change_recovery.sql",
         "022_tool_proposals.sql",
         "023_tool_promotions.sql",
+        "024_tool_activation_state.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
     ];
@@ -56,9 +57,7 @@ public static class TestDdl
     {
         ArgumentNullException.ThrowIfNull(schema);
 
-        return $"""
-            drop table if exists {schema}.tool_promotions cascade;
-            drop table if exists {schema}.tool_proposals cascade;
+        return DropToolStaging(schema) + $"""
             drop table if exists {schema}.skill_changes cascade;
             drop table if exists {schema}.conversation_turns cascade;
             drop table if exists {schema}.conversation_sessions cascade;
@@ -80,8 +79,20 @@ public static class TestDdl
             drop table if exists {schema}.pushbacks cascade;
             drop table if exists {schema}.observations cascade;
             drop table if exists {schema}.execution_events cascade;
+            drop function if exists {schema}.validate_tool_activation_outcome() cascade;
             drop function if exists {schema}.validate_tool_promotion() cascade;
             drop function if exists {schema}.reject_mutation() cascade;
+            """;
+    }
+
+    private static string DropToolStaging(string schema)
+    {
+        return $"""
+            drop table if exists {schema}.tool_activation_outcomes cascade;
+            drop table if exists {schema}.tool_verifications cascade;
+            drop table if exists {schema}.tool_promotions cascade;
+            drop table if exists {schema}.tool_proposals cascade;
+
             """;
     }
 
@@ -98,11 +109,11 @@ public static class TestDdl
 
         // Order matters: children before parents, and the append-only tables need their
         // guard dropped deliberately; that friction is the guarantee working.
-        return TruncateSessions(schema) + TruncateToolPromotions(schema)
-            + TruncateToolProposals(schema) + TruncateSkillChanges(schema) + $"""
-            alter table {schema}.file_patch_proposals disable trigger file_patch_proposals_append_only;
-            delete from {schema}.file_patch_proposals;
-            alter table {schema}.file_patch_proposals enable trigger file_patch_proposals_append_only;
+        return TruncateSessions(schema) + TruncateToolActivationOutcomes(schema)
+            + TruncateToolVerifications(schema)
+            + TruncateToolPromotions(schema)
+            + TruncateToolProposals(schema) + TruncateSkillChanges(schema)
+            + TruncateFilePatchProposals(schema) + $"""
             delete from {schema}.health_examined;
             delete from {schema}.health_events;
             delete from {schema}.egress_briefs;
@@ -123,6 +134,16 @@ public static class TestDdl
             alter table {schema}.execution_events disable trigger execution_events_append_only;
             delete from {schema}.execution_events;
             alter table {schema}.execution_events enable trigger execution_events_append_only;
+            """;
+    }
+
+    private static string TruncateFilePatchProposals(string schema)
+    {
+        return $"""
+            alter table {schema}.file_patch_proposals disable trigger file_patch_proposals_append_only;
+            delete from {schema}.file_patch_proposals;
+            alter table {schema}.file_patch_proposals enable trigger file_patch_proposals_append_only;
+
             """;
     }
 
@@ -152,6 +173,26 @@ public static class TestDdl
             alter table {schema}.tool_promotions disable trigger tool_promotions_append_only;
             delete from {schema}.tool_promotions;
             alter table {schema}.tool_promotions enable trigger tool_promotions_append_only;
+
+            """;
+    }
+
+    private static string TruncateToolVerifications(string schema)
+    {
+        return $"""
+            alter table {schema}.tool_verifications disable trigger tool_verifications_append_only;
+            delete from {schema}.tool_verifications;
+            alter table {schema}.tool_verifications enable trigger tool_verifications_append_only;
+
+            """;
+    }
+
+    private static string TruncateToolActivationOutcomes(string schema)
+    {
+        return $"""
+            alter table {schema}.tool_activation_outcomes disable trigger tool_activation_outcomes_append_only;
+            delete from {schema}.tool_activation_outcomes;
+            alter table {schema}.tool_activation_outcomes enable trigger tool_activation_outcomes_append_only;
 
             """;
     }

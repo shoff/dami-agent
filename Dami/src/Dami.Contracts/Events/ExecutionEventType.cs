@@ -112,4 +112,13 @@ public enum ExecutionEventType
 
     /// <summary>An exact staged tool version is blocked on human promotion approval.</summary>
     ToolPromotionRequested = 34,
+
+    /// <summary>An exact staged tool produced bytes that passed sandboxed verification.</summary>
+    ToolVerified = 35,
+
+    /// <summary>An approved exact tool was published in the live registry.</summary>
+    ToolActivated = 36,
+
+    /// <summary>An approved exact tool failed publication without partial registration.</summary>
+    ToolActivationFailed = 37,
 }

@@ -6032,3 +6032,63 @@ handler, schema, and metadata publication plus startup convergence; F5c3c owns t
 localhost human-promotion surfaces and live conforming end-to-end proof. F5c3a is
 claimed. Its first behavior change will begin with a focused failing test; no production
 implementation has changed in this slice yet.
+
+The first F5c3a integration test specifies an atomic verification row plus
+`ToolVerified` event with proposal-span provenance. Its initial 30-second command did
+not complete and is explicitly not evidence. The identical rerun completed red at
+compile time because `PostgresToolVerificationStore` does not exist; the verification
+contract, interface, event value, and store are also intentionally absent. Production
+implementation begins only after that observed failure.
+
+The minimum verification store then compiled red on `DAMI0003` because the test DDL
+cleanup method grew to 31 lines; an existing file-patch cleanup block was extracted
+without changing behavior. The focused verification transaction passed 1/1. A second
+red-first test proved the pre-F5c3a database accepted a promotion before verification
+(`Assert.Throws` observed no exception). Migration 024 now replaces the promotion
+validation trigger only after creating the verification ledger, and the focused test
+plus affected promotion/verification classes pass 9/9. The first activation-outcome
+test has now compiled red on the absent `PostgresToolActivationStore`; no activation
+implementation existed when that failure was observed.
+
+## 2026-08-24 — Codex — F5c3a durable verification and activation state complete; F5c3b claimed
+
+F5c3a is complete. The fixed verifier now hashes the exact `Tool.dll` bytes it tested
+while holding a non-writable shared file handle and returns the lowercase SHA-256 with
+the source/test version, path, and test evidence. The digest assertion compiled red on
+the absent property and passed 1/1 after the minimum verifier change.
+
+Migration 024 and focused persistence contracts add two append-only ledgers.
+`tool_verifications` permits one retry-stable successful verification for an exact
+proposal/version and atomically appends `ToolVerified` with proposal-span provenance.
+The migration replaces promotion validation so a pending human approval cannot even be
+created until that exact version has durable verification evidence.
+`tool_activation_outcomes` records retry-stable `Activated` or `Failed` attempts and
+atomically appends the matching terminal event. Its database trigger requires an
+Approved promotion joined to the same verification. Failed attempts may precede a
+later success, while the first success is terminal. The latter invariant was found in
+adversarial review: a focused test first demonstrated that a later failure was
+accepted, then passed after the trigger acquired a per-promotion row lock and rejected
+all non-exact outcomes after success. The row lock closes the concurrent success/fail
+race that the partial unique-success index cannot cover. Failure-event and event-write
+rollback tests were added after the generalized outcome store existed and are recorded
+honestly as coverage, not red-first TDD.
+
+The first full-solution formatting attempt was mistakenly run in write mode against
+stale generated references. It reported missing analyzer references and rewrote many
+otherwise clean files. The pre-command status identified the exact affected set; only
+those formatter-created changes were reverted, while every F5c3a path was preserved.
+A Steve-owned `dotnet restore Dami.sln` repaired generated paths. A subsequent ordinary
+build completed with 0 warnings and 0 errors, and
+`dotnet format Dami.sln --verify-no-changes --no-restore` exited 0.
+
+Focused persistence tests pass 13/13 across proposal promotion, verification, and
+activation; the sandbox verifier class passes 2/2. The full solution test run passed
+757/757 across all seventeen test assemblies. The first live migration command omitted
+the documented TCP DDL identity, attempted the nonexistent local PostgreSQL role
+`steve`, and stopped on migration 001 without changing the database. The corrected
+`PGHOST=127.0.0.1 PGUSER=dami_ddl` run showed only 024 pending and applied it in one
+transaction. Live catalog inspection records checksum `c76960cb3a97…`, both new tables
+owned by `dami_ddl`, zero verification/outcome rows, validation plus append-only
+triggers, promotion validation referencing `tool_verifications`, and `dami_app` holding
+SELECT/INSERT but no UPDATE/DELETE/TRUNCATE on either ledger. F5c3b failure-atomic
+handler/schema/metadata publication and startup convergence is claimed next.

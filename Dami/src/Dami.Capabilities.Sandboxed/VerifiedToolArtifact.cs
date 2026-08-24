@@ -4,4 +4,5 @@ namespace Dami.Capabilities.Sandboxed;
 public sealed record VerifiedToolArtifact(
     string ArtifactVersion,
     string AssemblyPath,
+    string AssemblySha256,
     string TestEvidence);

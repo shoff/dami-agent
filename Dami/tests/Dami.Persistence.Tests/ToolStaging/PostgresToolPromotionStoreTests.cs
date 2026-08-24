@@ -28,11 +28,28 @@ public sealed class PostgresToolPromotionStoreTests
     }
 
     [Fact]
-    public async Task RequestAsync_Should_Atomically_Persist_Promotion_Approval_And_Events()
+    public async Task RequestAsync_Should_Reject_An_Unverified_Artifact()
     {
         await this.fixture.ResetAsync();
         StagedToolProposal proposal = CreateProposal();
         await this.CreateProposalStore().StageAsync(proposal, CancellationToken.None);
+        ToolPromotionRequest promotion = CreatePromotion(proposal);
+
+        await Assert.ThrowsAsync<PostgresException>(() => this.CreatePromotionStore()
+            .RequestAsync(promotion, CancellationToken.None));
+
+        Assert.Null(await this.CreatePromotionStore().FindByApprovalAsync(
+            promotion.Approval.ApprovalId, CancellationToken.None));
+        Assert.Null(await this.CreateApprovalStore().FindAsync(
+            promotion.Approval.ApprovalId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RequestAsync_Should_Atomically_Persist_Promotion_Approval_And_Events()
+    {
+        await this.fixture.ResetAsync();
+        StagedToolProposal proposal = CreateProposal();
+        await this.StageAndVerifyAsync(proposal);
         ToolPromotionRequest promotion = CreatePromotion(proposal);
         IToolPromotionStore store = this.CreatePromotionStore();
 
@@ -56,7 +73,7 @@ public sealed class PostgresToolPromotionStoreTests
     {
         await this.fixture.ResetAsync();
         StagedToolProposal proposal = CreateProposal();
-        await this.CreateProposalStore().StageAsync(proposal, CancellationToken.None);
+        await this.StageAndVerifyAsync(proposal);
         var approval = new ApprovalRequest(
             Guid.NewGuid(), proposal.Request.TraceId, "another-component", "Promote tool.",
             "another-scope", ToolPromotionRequest.Resource(
@@ -82,7 +99,7 @@ public sealed class PostgresToolPromotionStoreTests
     {
         await this.fixture.ResetAsync();
         StagedToolProposal proposal = CreateProposal();
-        await this.CreateProposalStore().StageAsync(proposal, CancellationToken.None);
+        await this.StageAndVerifyAsync(proposal);
         ToolPromotionRequest promotion = CreatePromotion(proposal);
         IToolPromotionStore store = this.CreatePromotionStore();
         await store.RequestAsync(promotion, CancellationToken.None);
@@ -94,7 +111,7 @@ public sealed class PostgresToolPromotionStoreTests
             promotion, CancellationToken.None);
 
         Assert.Equal(promotion, accepted);
-        Assert.Equal(4, (await this.ReplayAsync(proposal.Request.TraceId)).Count);
+        Assert.Equal(5, (await this.ReplayAsync(proposal.Request.TraceId)).Count);
     }
 
     [Fact]
@@ -102,7 +119,7 @@ public sealed class PostgresToolPromotionStoreTests
     {
         await this.fixture.ResetAsync();
         StagedToolProposal proposal = CreateProposal();
-        await this.CreateProposalStore().StageAsync(proposal, CancellationToken.None);
+        await this.StageAndVerifyAsync(proposal);
         ToolPromotionRequest promotion = CreatePromotion(proposal);
         await using var rejection = await RejectingExecutionEventTrigger.CreateAsync(
             this.fixture.DataSource, DatabaseFixture.SCHEMA,
@@ -115,7 +132,7 @@ public sealed class PostgresToolPromotionStoreTests
             promotion.Approval.ApprovalId, CancellationToken.None));
         Assert.Null(await this.CreateApprovalStore().FindAsync(
             promotion.Approval.ApprovalId, CancellationToken.None));
-        Assert.Single(await this.ReplayAsync(proposal.Request.TraceId));
+        Assert.Equal(2, (await this.ReplayAsync(proposal.Request.TraceId)).Count);
     }
 
     [Fact]
@@ -124,9 +141,8 @@ public sealed class PostgresToolPromotionStoreTests
         await this.fixture.ResetAsync();
         StagedToolProposal firstProposal = CreateProposal();
         StagedToolProposal secondProposal = CreateProposal();
-        IToolProposalStore proposals = this.CreateProposalStore();
-        await proposals.StageAsync(firstProposal, CancellationToken.None);
-        await proposals.StageAsync(secondProposal, CancellationToken.None);
+        await this.StageAndVerifyAsync(firstProposal);
+        await this.StageAndVerifyAsync(secondProposal);
         ToolPromotionRequest first = CreatePromotion(firstProposal);
         ToolPromotionRequest conflicting = CreatePromotion(secondProposal, first.PromotionId);
         IToolPromotionStore promotions = this.CreatePromotionStore();
@@ -146,7 +162,7 @@ public sealed class PostgresToolPromotionStoreTests
     {
         await this.fixture.ResetAsync();
         StagedToolProposal proposal = CreateProposal();
-        await this.CreateProposalStore().StageAsync(proposal, CancellationToken.None);
+        await this.StageAndVerifyAsync(proposal);
         ToolPromotionRequest promotion = CreatePromotion(proposal);
         await this.CreatePromotionStore().RequestAsync(promotion, CancellationToken.None);
         await using NpgsqlCommand command = this.fixture.DataSource.CreateCommand(
@@ -193,6 +209,22 @@ public sealed class PostgresToolPromotionStoreTests
         return new PostgresToolProposalStore(
             this.fixture.DataSource,
             Options.Create(new PostgresOptions { SchemaName = DatabaseFixture.SCHEMA }));
+    }
+
+    private PostgresToolVerificationStore CreateVerificationStore()
+    {
+        return new PostgresToolVerificationStore(
+            this.fixture.DataSource,
+            Options.Create(new PostgresOptions { SchemaName = DatabaseFixture.SCHEMA }));
+    }
+
+    private async Task StageAndVerifyAsync(StagedToolProposal proposal)
+    {
+        await this.CreateProposalStore().StageAsync(proposal, CancellationToken.None);
+        var verification = new ToolVerificationRecord(
+            Guid.NewGuid(), proposal.Request.ProposalId, proposal.ArtifactVersion,
+            new string('a', 64), "1 proposal test passed", at);
+        await this.CreateVerificationStore().RecordAsync(verification, CancellationToken.None);
     }
 
     private PostgresApprovalService CreateApprovalStore()

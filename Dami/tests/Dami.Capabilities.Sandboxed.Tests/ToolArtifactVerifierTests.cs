@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Dami.Contracts.Capabilities;
 using Dami.Contracts.ToolStaging;
@@ -29,6 +31,9 @@ public sealed class ToolArtifactVerifierTests : IDisposable
 
         Assert.Equal(artifact.Version, verified.ArtifactVersion);
         Assert.Equal(Path.Combine(this.scratch, "output", "Tool.dll"), verified.AssemblyPath);
+        Assert.Equal(
+            Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes("assembly"))),
+            verified.AssemblySha256);
         Assert.Equal(
             [SandboxMountAccess.WritableScratch, SandboxMountAccess.WritableScratch,
                 SandboxMountAccess.ReadOnly],
