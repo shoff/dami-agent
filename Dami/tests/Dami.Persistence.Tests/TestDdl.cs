@@ -13,6 +13,7 @@ public static class TestDdl
         "009_approvals.sql",
         "010_conclusion_embeddings.sql",
         "011_capability_embeddings.sql",
+        "012_observation_date_repairs.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
     ];
@@ -45,6 +46,7 @@ public static class TestDdl
         ArgumentNullException.ThrowIfNull(schema);
 
         return $"""
+            drop table if exists {schema}.observation_date_repairs cascade;
             drop table if exists {schema}.capability_embeddings cascade;
             drop table if exists {schema}.conclusion_embeddings cascade;
             drop function if exists {schema}.drop_conclusion_embedding() cascade;
@@ -77,6 +79,7 @@ public static class TestDdl
         // guard dropped deliberately. That the fixture has to do this is the guarantee
         // working, not a workaround for it.
         return $"""
+            delete from {schema}.observation_date_repairs;
             delete from {schema}.capability_embeddings;
             delete from {schema}.conclusion_embeddings;
             delete from {schema}.approvals;

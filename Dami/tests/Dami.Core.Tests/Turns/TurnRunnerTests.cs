@@ -61,6 +61,24 @@ public sealed class TurnRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_Should_Say_Undated_For_An_EpochZero_Memory()
+    {
+        var epochZero = new RetrievedItem(
+            "observation", Guid.NewGuid(), "a migrated memory", DateTimeOffset.UnixEpoch);
+        this.contextBuilder.BuildAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new AssembledContext([epochZero], [], 120));
+        this.modelRouter.Route(Arg.Any<string>(), Arg.Any<PrivacyClass>())
+            .Returns(new ModelRoute(ModelTier.Local, PrivacyClass.LocalOnly, "test"));
+        string? prompt = null;
+        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+            .Returns("an answer");
+
+        await this.CreateRunner().RunAsync("a question", CancellationToken.None);
+
+        Assert.Contains("[memory undated]", prompt);
+    }
+
+    [Fact]
     public async Task RunAsync_Should_Anchor_The_Prompt_To_Today()
     {
         this.Arrange();

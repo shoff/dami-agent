@@ -136,9 +136,17 @@ public sealed class PostgresObservationCorpus : IObservationCorpus
 
     private static string SelectList(string table)
     {
+        // B10: occurred_at reads through the repair sidecar. The observations table is
+        // append-only, so recovered dates live in observation_date_repairs and every
+        // read — including the range filters layered on top — sees the repaired value.
+        var schema = table[..table.IndexOf('.', StringComparison.Ordinal)];
         return $"""
             select observation_id, occurred_at, recorded_at, source, body, metadata
-            from {table}
+            from (select o.observation_id,
+                         coalesce(r.repaired_occurred_at, o.occurred_at) as occurred_at,
+                         o.recorded_at, o.source, o.body, o.metadata
+                    from {table} o
+                    left join {schema}.observation_date_repairs r using (observation_id)) repaired
             """;
     }
 

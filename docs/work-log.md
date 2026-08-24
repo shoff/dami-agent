@@ -3575,3 +3575,24 @@ Live: bound forced to 1 → `refused: Egress budget exhausted: 4 attempt(s) in t
 last hour (bound 1)`, `EgressRefused` in the event stream, `Egress budget tripped`
 Pending in the surfacing queue; at normal bounds the frontier answers as before.
 Full gate: 12 suites, 366 tests, 0 warnings.
+
+## 2026-08-23 — Claude — B10: 278 epoch-zero timestamps, repaired without an UPDATE
+
+The observations table is append-only by trigger, so the repair is a sidecar:
+migration 012 `observation_date_repairs`, one row per examined observation carrying
+the recovered date or an explicit `unrecoverable` (a check constraint keeps method
+and nullness honest). `tools/repair_epoch_dates.py` (idempotent, insert-only) scanned
+the bodies: 74 dates recovered — 68 from ISO dates, 6 from prose like "Jan 30, 2026"
+— and 204 flagged unrecoverable. Originals untouched; the script can rerun as new
+epoch-zero rows appear.
+
+Reads coalesce through the sidecar: the corpus SELECT builders wrap observations in
+a repaired subquery so every read *and every range filter* sees the recovered date
+(pinned by test — an epoch-zero row with an August repair is found by an August
+window), and the similarity path joins the same table. Where no date was recoverable
+the prompt and CLI now say `undated` instead of asserting 1970-01-01 to the model —
+the same temporal-grounding discipline as the date anchor, pointed at the other end.
+
+Live: the "stubborn continuity" insight that rode into context as 1970-01-01 now
+reads `undated`; the heart-diagnosis observations recovered 2026-01-30 from their
+own text. Full gate: 12 suites, 373 tests, 0 warnings.

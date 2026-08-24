@@ -31,10 +31,15 @@ public sealed class ContextCommands
 
         foreach (var memory in context.Memories)
         {
-            Console.WriteLine($"memory  {memory.AsOf:yyyy-MM-dd}  {Shorten(memory.Content)}");
+            Console.WriteLine($"memory  {FormatAsOf(memory.AsOf)}  {Shorten(memory.Content)}");
         }
 
         return 0;
+    }
+
+    private static string FormatAsOf(DateTimeOffset asOf)
+    {
+        return asOf.Year < 1971 ? "undated   " : asOf.ToString("yyyy-MM-dd");
     }
 
     private static string Shorten(string content)

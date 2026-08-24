@@ -52,7 +52,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [ ] B7 Kokoro classes (772 memories / 3,811 concepts / 718 entities): import into corpus or leave preserved? `[STEVE: whose memories are they]`
 - [x] B8 Belief embedding: only-active-conclusions embedded for retrieval (D-009 second half; currently beliefs enter context by subject, not similarity)
 - [ ] B9 Observation retention/compaction policy for `chat`-source growth (register open item)
-- [~ Claude 2026-08-23] B10 Repair/flag the 267 epoch-zero timestamps (dates sometimes recoverable from body text)
+- [x] B10 Repair/flag the 267 epoch-zero timestamps (278 by repair day; 74 recovered, 204 flagged) 
 
 ## C · Privacy & egress (D-012)
 
@@ -160,7 +160,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 - [x] N1 `.editorconfig` + `Directory.Build.props` + banned APIs + `Dami.Analyzers` (6 rules) + architecture tests (layering/leaky-surfaces/async) — all build errors, all verified firing
 - [x] N2 12 test suites, ~250 tests, integration against real DDL; build/test gate in `CLAUDE.md`
-- [ ] N3 Enable `CA2254` (structured logging) and decide on `CS1591` (XML docs) — deliberate not-yets in standards §12
+- [~ Claude 2026-08-23] N3 Enable `CA2254` (structured logging) and decide on `CS1591` (XML docs) — deliberate not-yets in standards §12
 - [ ] N4 Scheduler concurrency test flake (Codex's b27f638) — deflake or redesign `[~ Codex implied]`
 - [ ] N5 Mutation/property tests for the frame codec and stores (stretch)
 

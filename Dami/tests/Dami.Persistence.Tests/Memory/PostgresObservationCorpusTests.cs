@@ -118,6 +118,34 @@ public sealed class PostgresObservationCorpusTests
     }
 
     [Fact]
+    public async Task BetweenAsync_Should_See_An_EpochZero_Observation_Through_Its_Date_Repair()
+    {
+        await this.fixture.ResetAsync();
+        var corpus = this.CreateCorpus();
+        var epochZero = new Observation(
+            Guid.NewGuid(), DateTimeOffset.UnixEpoch, "hermes-migration", "written on 2026-08-15");
+        await corpus.RecordAsync(epochZero, CancellationToken.None);
+        await this.RepairAsync(epochZero.ObservationId, inWindow);
+
+        var found = await this.BetweenAsync(corpus);
+
+        Assert.Equal(inWindow, found.Single().OccurredAt);
+    }
+
+    private async Task RepairAsync(Guid observationId, DateTimeOffset repairedTo)
+    {
+        await using var command = this.fixture.DataSource.CreateCommand(
+            $"""
+            insert into {DatabaseFixture.SCHEMA}.observation_date_repairs
+                (observation_id, repaired_occurred_at, method)
+            values (@id, @at, 'body-iso');
+            """);
+        command.Parameters.AddWithValue("id", observationId);
+        command.Parameters.AddWithValue("at", repairedTo);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    [Fact]
     public async Task BetweenAsync_Should_Return_Observations_Oldest_First()
     {
         await this.fixture.ResetAsync();

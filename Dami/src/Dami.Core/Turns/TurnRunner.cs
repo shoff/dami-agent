@@ -237,10 +237,16 @@ public sealed class TurnRunner : ITurnRunner
 
         foreach (var memory in context.Memories)
         {
-            prompt.Append("[memory ").Append(memory.AsOf.ToString("yyyy-MM-dd")).Append("] ")
+            prompt.Append("[memory ").Append(FormatAsOf(memory.AsOf)).Append("] ")
                 .AppendLine(memory.Content);
         }
     }
+    /// <summary>Epoch-zero survivors (B10) say so instead of asserting 1970.</summary>
+    private static string FormatAsOf(DateTimeOffset asOf)
+    {
+        return asOf.Year < 1971 ? "undated" : asOf.ToString("yyyy-MM-dd");
+    }
+
 
     private Task RecordInteractionAsync(
         Guid traceId,

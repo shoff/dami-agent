@@ -101,10 +101,14 @@ public sealed class PostgresObservationEmbeddingStore : IObservationEmbeddingSto
 
         var command = this.dataSource.CreateCommand(
             $"""
-            select o.observation_id, o.occurred_at, o.recorded_at, o.source, o.body, o.metadata,
+            select o.observation_id,
+                   coalesce(r.repaired_occurred_at, o.occurred_at) as occurred_at,
+                   o.recorded_at, o.source, o.body, o.metadata,
                    e.embedding <=> @query::vector as distance
               from {this.Schema}.observation_embeddings e
               join {this.Schema}.observations o on o.observation_id = e.observation_id
+              left join {this.Schema}.observation_date_repairs r
+                on r.observation_id = o.observation_id
              where e.embedding_model = @model
              order by e.embedding <=> @query::vector
              limit @limit;
