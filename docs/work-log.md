@@ -4729,3 +4729,18 @@ Live local turn `a2d560a7-d547-4a9f-a4a3-fcdda5f0fe18` proposed creating
 runtime API added sequence 220, `ApprovalResolved/Cancelled`, on the same span and
 parent. Filesystem observation reported `target_absent=true`; the denial executed
 nothing. The service remained active and healthy. G7, G7a, and G7a2 are `[x]`.
+
+## 2026-08-24 — Codex — G4 sessions claimed and split
+
+After G7a2 commit `de49f3f`, `git pull --rebase` reported already up to date and the
+worktree was clean. TODO review found G4 the next unblocked natural-lane task. The
+architecture requires session lifecycle/cancellation/streaming, while the charter adds
+a bounded recent conversation window and acceptance proof for start, resume, interrupt,
+and reconnect without duplication; neither document supplies a settled storage shape.
+
+G4 is therefore split before production work: G4a owns durable session/turn contracts
+and PostgreSQL request-id idempotency; G4b owns the session-aware runtime and bounded
+recent window; G4c owns Host/CLI lifecycle surfaces and the live acceptance exercise.
+Compact session summaries are not silently included—the board asks for a recent window,
+and summary work can be separately scoped if measurements later justify it. G4/G4a are
+claimed; the first behavior will be driven from a failing contract/store test.
