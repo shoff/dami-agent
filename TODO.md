@@ -111,10 +111,10 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
       - [x] G6c2b Ollama `/api/chat` request/history/parser adapter; send only the supplied selected set
     - [~ Codex 2026-08-23] G6c3 Approval-gated write/patch handoff through the G7 contract
       - [x] G6c3a Trace-aware capability execution request for approval provenance
-      - [~ Codex 2026-08-23] G6c3b Durable hash-pinned root-confined file-patch proposal + native capability
+      - [x] G6c3b Durable hash-pinned root-confined file-patch proposal + native capability
         - [x] G6c3b1 Immutable file-patch proposal contract + PostgreSQL persistence
-        - [~ Codex 2026-08-23] G6c3b2 Root-confined propose-only native capability + G7 request
-      - [ ] G6c3c Approved patch executor + open/closed runtime approval dispatch
+        - [x] G6c3b2 Root-confined propose-only native capability + G7 request
+      - [~ Codex 2026-08-23] G6c3c Approved patch executor + open/closed runtime approval dispatch
   - [ ] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
 - [x] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6 (WorkerRunner; vision caption is the first live worker)

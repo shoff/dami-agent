@@ -4226,6 +4226,69 @@ After `e797497` advanced the released tree once more, the mandatory gate ran dir
 on the exact combined working tree with no competing test process observed: build 0
 warnings/0 errors, all twelve suites 464/464, and format verification exit 0.
 
+## 2026-08-23 — Codex — G6c3b2 propose-only native patch capability started
+
+The already-pushed G6c3b2 claim is now active. The native handler will accept only a
+root-relative target and bounded UTF-8 replacement text, derive the current target's
+raw-byte SHA-256 itself (null only for an absent create target), and atomically file the
+pending G7 request plus proposal through `IFilePatchProposalStore`. It will return
+proposal evidence and never open the target for writing. Existing, missing, traversal,
+absolute, directory, and escaping-symlink cases are separate behaviors; the first
+red test covers an existing file, exact provenance/preimage, and byte-for-byte proof
+that execution did not mutate it. No G6c3b2 production file exists before that test.
+
+## 2026-08-23 — Codex — G6c3b2: root-confined propose-only native capability
+
+`ProposeFilePatchCapabilityHandler` now accepts a root-relative path and bounded UTF-8
+replacement, resolves the canonical target through the existing symlink-aware rooted
+resolver, derives an existing target's raw-byte SHA-256 or marks an absent target as
+create-only, and atomically files the pending G7 request plus immutable proposal through
+`IFilePatchProposalStore`. It never opens a target for writing. Approval action text
+truthfully distinguishes create from replace, and the result exposes proposal/approval
+ids, canonical path, both hashes, and `target_mutated=false` evidence.
+
+The byte cap applies to replacement UTF-8 bytes and to the current file while it is
+being read. Current-file hashing uses a cleared pooled buffer capped at 64 KiB,
+incremental SHA-256, and a stack hash; it checks every read so concurrent file growth
+cannot evade an initial length check. Retry identities are deterministic SHA-256 values
+derived from stack-only namespace + trace + span bytes. An identical execution retry
+therefore reaches G6c3b1's exact replay path, while different data under that durable
+identity is rejected as a conflict rather than creating a second approval.
+
+True red-green chronology:
+
+- The first existing-file test compiled red with CS0246 for the absent handler. The
+  minimum handler/options made it pass 1/1 with exact trace/span, preimage/replacement
+  hashes, pending G7 data, and unchanged target bytes.
+- The absent-target test failed red with `FileNotFoundException`; allowing only a
+  missing final non-symlink segment made create-only pass without creating anything.
+  Canonical path storage then failed red (`unused/../notes.txt` versus `notes.txt`) and
+  passed after the resolver exposed its contained canonical relative path.
+- An existing directory was incorrectly treated as absent; the red test reported no
+  exception, and the explicit directory rejection made it green.
+- Stable retry identity failed red because two runs produced different approval ids.
+  The first implementation attempt used an unavailable `Guid.CreateVersion5` API and
+  compiled red; it was replaced with allocation-free stack SHA-256 derivation. A second
+  red test showed the same span id aliased across distinct traces; including both trace
+  and span made that case green.
+- Create-only action text failed red because it said `Replace`; selecting truthful
+  create/replace text from the preimage state made it green.
+
+Traversal escape, escaping file symlink, multi-byte UTF-8 replacement bounds,
+current-file bounds, complete G7 requester/scope fields, and native discovery metadata
+were added after the relevant implementation was green as adversarial coverage, not
+misreported as TDD. Their first combined run hit only xUnit analyzer `xUnit2031` in the
+test scaffold; using `Assert.Single`'s predicate overload corrected it without a
+production change. The initial chown command again repeated `Dami/` from inside that
+directory and failed harmlessly; the corrected path made the test file Steve-owned.
+
+Verification: the focused handler passed 11/11 and all native capability tests passed
+20/20. The exact combined tree then passed the mandatory gate: `dotnet build Dami.sln`
+0 warnings/0 errors; all twelve suites 475/475; `dotnet format Dami.sln
+--verify-no-changes --no-restore --verbosity minimal` exit 0 with no diagnostics. No
+database migration is needed. G6c3b/G6c3b2 are flipped to `[x]`, and G6c3c is claimed
+before approved-execution production code begins.
+
 ## 2026-08-24 — Claude — H6: the scout has real interests now, and a rate-limit fix
 
 "Blocked on Steve" was wrong here too — Steve's interests are in his own corpus.

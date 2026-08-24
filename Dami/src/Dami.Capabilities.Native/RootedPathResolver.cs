@@ -22,6 +22,23 @@ internal sealed class RootedPathResolver
 
     public string ResolveFile(string relativePath)
     {
+        return this.ResolveFile(relativePath, allowMissing: false);
+    }
+
+    public string ResolveFileOrMissing(string relativePath)
+    {
+        return this.ResolveFile(relativePath, allowMissing: true);
+    }
+
+    public string ToRelativePath(string fullPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
+        this.EnsureContained(fullPath);
+        return Path.GetRelativePath(this.rootDirectory, fullPath);
+    }
+
+    private string ResolveFile(string relativePath, bool allowMissing)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
         if (Path.IsPathRooted(relativePath))
         {
@@ -34,16 +51,25 @@ internal sealed class RootedPathResolver
         var segments = normalized.Split(
             [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
             StringSplitOptions.RemoveEmptyEntries);
-        return this.ResolveSegments(segments);
+        return this.ResolveSegments(segments, allowMissing);
     }
 
-    private string ResolveSegments(IReadOnlyList<string> segments)
+    private string ResolveSegments(IReadOnlyList<string> segments, bool allowMissing)
     {
         var current = this.rootDirectory;
         for (var index = 0; index < segments.Count; index++)
         {
             var candidate = Path.Combine(current, segments[index]);
             var entry = CreateEntry(candidate, isFile: index == segments.Count - 1);
+            if (allowMissing
+                && index == segments.Count - 1
+                && !entry.Exists
+                && entry.LinkTarget is null)
+            {
+                this.EnsureContained(candidate);
+                return candidate;
+            }
+
             current = entry.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? entry.FullName;
             this.EnsureContained(current);
         }
