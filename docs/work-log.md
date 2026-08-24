@@ -5461,3 +5461,21 @@ The focused capability, Skills, Core, and Host suites passed 36/36, 10/10, 96/96
 all sixteen suites passed 634/634, and format/analyzer verification exited 0. No schema,
 migration, deployment, or live-service change was required. F4b/F4b2 are `[x]`; F4c
 atomic author/revise/retire lifecycle is claimed next.
+
+## 2026-08-24 — Codex — F4c split at the cross-resource atomicity boundary
+
+F4c spans three resources that cannot truthfully share one transaction: the in-memory
+capability snapshot, a multi-file skill directory, and PostgreSQL's canonical execution
+stream. Recording only after a rename leaves a crash window where a change has no
+event; recording only before it can claim a change that never materialized. Replacing
+several files in place also is not an atomic revision, even when each individual rename
+is atomic.
+
+F4c is therefore split before implementation. F4c1 owns immutable version-pinned
+author/revise/retire commands and atomic replacement of the Skill source's registry
+snapshot. F4c2 owns a bounded diff ledger written transactionally with its execution
+event, so every attempted material change has durable write-ahead evidence and retry
+identity. F4c3 owns same-filesystem staged materialization, recovery/convergence after
+the database commit, source reload, and a composed Host/native demonstration. F4c1 is
+claimed first; the exact ordering and reversal path will be recorded in an ADR before
+cross-resource writes are implemented.
