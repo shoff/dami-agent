@@ -4030,3 +4030,17 @@ loudly logged, never a failed turn). The §9.1 block now leads every local promp
 and a persona-only voice line — tested to contain no one's name but Dami's — rides
 frontier prompts. Acceptance item 9 demonstrated live: "who are you" answers as
 Dami on qwen3 and on codex, from one file. 12 suites, 430+ tests, 0 warnings.
+
+## 2026-08-24 — Claude — J3 (first cut): the live execution graph, zero-install
+
+`dami-host` now serves a single-file web view at http://127.0.0.1:5810/ — four
+panes rendered entirely from the same endpoints every client uses: a conversation
+that consumes the SSE turn stream (route/ctx-tokens/trace from the response
+headers), the **live execution graph** polling `/events?after=seq` with child
+spans indented per trace, the surfacing inbox with good/meh/bad buttons wired to
+the feedback endpoint, and the active belief ledger. No frameworks, no CDNs,
+localhost-only like the API beneath it. This is deliberately not the J2 rich
+client — it is the recorded-events evidence J2's comparative spike needs, and a
+usable client today. Note: full-suite run currently carries one red from Codex's
+in-flight OllamaToolCallingChatClient work (their lane, not in this commit);
+my suites and the build are clean — 437 passed, 0 warnings.

@@ -55,5 +55,11 @@ builder.Services.Configure<EgressBudgetOptions>(
 builder.Services.AddSingleton<Dami.Contracts.Privacy.IEgressBudget, EventCountEgressBudget>();
 
 var app = builder.Build();
+
+// J3 first cut: a zero-install conversation + live-graph view, rendered entirely
+// from the same endpoints every other client uses. Localhost-only like the API.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapDamiRuntime();
 app.Run();
