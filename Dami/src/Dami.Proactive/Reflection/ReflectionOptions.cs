@@ -18,4 +18,8 @@ public sealed class ReflectionOptions
     /// <summary>How many semantically related older observations join the prompt.</summary>
     /// <remarks>Zero disables retrieval augmentation.</remarks>
     public int RelatedObservations { get; set; } = 5;
+
+    /// <summary>Health-timeline rows joined into the reflection prompt (K3, D-007).</summary>
+    public int HealthTimelineRows { get; set; } = 20;
 }
+

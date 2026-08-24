@@ -152,7 +152,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 - [ ] K1 Domain inventory with Steve: which sources exist for health / civic / network / estate / workshop, and where `[STEVE]`
 - [x] K2 Health domain end to end — schema (014/015) + HealthCollectorService + IHealthEventStore + /health-log + `dami health-log` + privacy review (LocalOnly, no egress path)
-- [ ] K3 Reflection consumes domain rows (the cross-domain join that justifies D-007)
+- [x] K3 Reflection consumes domain rows — health timeline joins the reflection prompt (D-007 cross-domain correlation); adding a domain now makes reflection strictly better
 - [ ] K4 Remaining domains, one at a time
 
 ## L · Voice & presence (Phase 9 — after runtime streaming)

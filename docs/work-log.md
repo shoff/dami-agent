@@ -4198,3 +4198,15 @@ Extraction quality is mixed at v1 (the local model sometimes tags facts about
 other people as Steve's health) — a correctness risk, not privacy, and exactly
 what the provenance link and K3's reflection cross-check are for. 12 suites, 462
 tests, 0 warnings.
+
+## 2026-08-24 — Claude — K3: the cross-domain join D-007 exists for
+
+The reflection pass now reads the health timeline alongside the observation window
+and puts both in the same prompt, inviting correlation "where it is genuinely
+relevant". This is the join D-007 was written to enable — "correlate embeddings
+against health rows against commit timestamps in one query" — realized at the point
+where conclusions are formed. `IHealthEventStore` injected into `ReflectionService`;
+`HealthTimelineRows` (default 20) bounds it; dates render `undated` not 1970.
+Pinned by test: an aortic-stenosis health row reaches the prompt text. With K2
+feeding the timeline and K3 consuming it, adding a domain now makes reflection
+strictly better — the property D-007 promised. 12 suites, 464 tests, 0 warnings.

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Dami.Contracts.Domains;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Models;
 using Dami.Contracts.Proactive;
@@ -24,6 +25,7 @@ public sealed class ReflectionService : IProactiveService
 {
     private readonly IObservationCorpus observationCorpus;
     private readonly IConclusionLedger conclusionLedger;
+    private readonly IHealthEventStore healthStore;
     private readonly IObservationEmbeddingStore embeddingStore;
     private readonly IEmbeddingClient embeddingClient;
     private readonly IChatClient chatClient;
@@ -35,6 +37,7 @@ public sealed class ReflectionService : IProactiveService
     public ReflectionService(
         IObservationCorpus observationCorpus,
         IConclusionLedger conclusionLedger,
+        IHealthEventStore healthStore,
         IObservationEmbeddingStore embeddingStore,
         IEmbeddingClient embeddingClient,
         IChatClient chatClient,
@@ -44,6 +47,7 @@ public sealed class ReflectionService : IProactiveService
     {
         ArgumentNullException.ThrowIfNull(observationCorpus);
         ArgumentNullException.ThrowIfNull(conclusionLedger);
+        ArgumentNullException.ThrowIfNull(healthStore);
         ArgumentNullException.ThrowIfNull(embeddingStore);
         ArgumentNullException.ThrowIfNull(embeddingClient);
         ArgumentNullException.ThrowIfNull(chatClient);
@@ -53,6 +57,7 @@ public sealed class ReflectionService : IProactiveService
 
         this.observationCorpus = observationCorpus;
         this.conclusionLedger = conclusionLedger;
+        this.healthStore = healthStore;
         this.embeddingStore = embeddingStore;
         this.embeddingClient = embeddingClient;
         this.chatClient = chatClient;
@@ -121,8 +126,10 @@ public sealed class ReflectionService : IProactiveService
         CancellationToken cancellationToken)
     {
         var believed = await this.CollectBelievedAsync(cancellationToken).ConfigureAwait(false);
+        var health = await this.CollectHealthAsync(cancellationToken).ConfigureAwait(false);
         var reply = await this.chatClient
-            .CompleteAsync(BuildPrompt(observations, believed), cancellationToken).ConfigureAwait(false);
+            .CompleteAsync(BuildPrompt(observations, believed, health), cancellationToken)
+            .ConfigureAwait(false);
 
         var conclusion = this.ParseProposal(reply, observations, now);
 
@@ -225,7 +232,26 @@ public sealed class ReflectionService : IProactiveService
         return false;
     }
 
-    private static string BuildPrompt(List<Observation> observations, List<string> believed)
+    /// <summary>The structured health timeline — D-007's cross-domain row set, joined into
+    /// the same prompt as the observation window so a pattern can span the two.</summary>
+    private async Task<List<string>> CollectHealthAsync(CancellationToken cancellationToken)
+    {
+        var timeline = new List<string>();
+        await foreach (var health in this.healthStore
+            .TimelineAsync(this.reflectionOptions.HealthTimelineRows, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            var date = health.EventDate.Year < 1971 ? "undated" : health.EventDate.ToString("yyyy-MM-dd");
+            timeline.Add($"{date} [{health.Category}] {health.Description}");
+        }
+
+        return timeline;
+    }
+
+    private static string BuildPrompt(
+        List<Observation> observations,
+        List<string> believed,
+        List<string> health)
     {
         var prompt = new StringBuilder();
         prompt.AppendLine(
@@ -244,6 +270,7 @@ public sealed class ReflectionService : IProactiveService
         prompt.AppendLine();
 
         AppendBelieved(prompt, believed);
+        AppendHealth(prompt, health);
 
         for (var index = 0; index < observations.Count; index++)
         {
@@ -265,6 +292,25 @@ public sealed class ReflectionService : IProactiveService
         foreach (var existing in believed)
         {
             prompt.Append("- ").AppendLine(existing);
+        }
+
+        prompt.AppendLine();
+    }
+
+    private static void AppendHealth(StringBuilder prompt, List<string> health)
+    {
+        if (health.Count == 0)
+        {
+            return;
+        }
+
+        // D-007: the join in the prompt. A pattern may connect a health event to the
+        // week's observations — that correlation is the whole point of domain rows.
+        prompt.AppendLine(
+            "Health timeline (correlate with the observations where it is genuinely relevant):");
+        foreach (var event_ in health)
+        {
+            prompt.Append("- ").AppendLine(event_);
         }
 
         prompt.AppendLine();

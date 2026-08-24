@@ -1,3 +1,4 @@
+using Dami.Contracts.Domains;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Models;
 using Dami.Contracts.Proactive;
@@ -17,6 +18,8 @@ public sealed class ReflectionServiceTests
 
     private readonly IObservationCorpus observationCorpus = Substitute.For<IObservationCorpus>();
     private readonly IConclusionLedger conclusionLedger = Substitute.For<IConclusionLedger>();
+    private readonly IHealthEventStore healthStore = Substitute.For<IHealthEventStore>();
+    private readonly List<HealthEvent> healthTimeline = [];
     private readonly IObservationEmbeddingStore embeddingStore = Substitute.For<IObservationEmbeddingStore>();
     private readonly IEmbeddingClient embeddingClient = Substitute.For<IEmbeddingClient>();
     private readonly IChatClient chatClient = Substitute.For<IChatClient>();
@@ -41,6 +44,22 @@ public sealed class ReflectionServiceTests
         await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
 
         await this.chatClient.DidNotReceive().CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunPassAsync_Should_Put_The_Health_Timeline_In_The_Prompt()
+    {
+        this.ObserveThree();
+        this.healthTimeline.Add(new HealthEvent(
+            Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 30),
+            HealthCategory.Diagnosis, "severe aortic stenosis"));
+        string? prompt = null;
+        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+            .Returns("nothing");
+
+        await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        Assert.Contains("severe aortic stenosis", prompt);
     }
 
     [Fact]
@@ -245,11 +264,23 @@ public sealed class ReflectionServiceTests
         this.embeddingStore.NearestAsync(
             Arg.Any<float[]>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(AsNearestAsync(this.related));
+        this.healthStore.TimelineAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(AsHealthAsync(this.healthTimeline));
 
         return new ReflectionService(
-            this.observationCorpus, this.conclusionLedger, this.embeddingStore, this.embeddingClient,
-            this.chatClient, Options.Create(new ReflectionOptions()),
+            this.observationCorpus, this.conclusionLedger, this.healthStore, this.embeddingStore,
+            this.embeddingClient, this.chatClient, Options.Create(new ReflectionOptions()),
             new FakeTimeProvider(now), NullLogger<ReflectionService>.Instance);
+    }
+
+    private static async IAsyncEnumerable<HealthEvent> AsHealthAsync(List<HealthEvent> events)
+    {
+        foreach (var item in events)
+        {
+            yield return item;
+        }
+
+        await Task.CompletedTask;
     }
 
     private static async IAsyncEnumerable<Conclusion> AsConclusionsAsync(List<Conclusion> conclusions)
