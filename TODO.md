@@ -79,7 +79,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] E1 Frame codec (versioned, split-buffer property tests) · `ITransport` · `LoopbackTransport` (ADR-0004/0005)
 - [x] E2 `PipeTransport`, `TcpDuplexPipe`, heartbeat (ADR-0006), reconnect/lifetime (ADR-0007), backpressure/failed-flush (ADR-0008)
 - [ ] E3 UDP path for voice/avatar frames `[BLOCKED: L-phase]`
-- [ ] E4 Payload serialization decision inside frames (MemoryPack vs span-writer — register open item)
+- [STEVE] E4 Payload serialization — **ADR-0017 proposed** (Claude 2026-08-24): deferred *with a measured trigger* rather than left open. Measured: JSON 413 B/event vs ~102 B compact (4.1x), but the observed rate is **1.22 events/minute** — the 4x saves 8 bytes/sec. Revisit only when audio frames (E3) or >1,000 events/sec appear. Accept/reject
 - [ ] E5 TLS (`SslStream`) if traffic ever leaves localhost `[BLOCKED: remote-access decision]`
 
 ## F · Capability system (D-014/D-015/D-016) — Codex's lane (in progress)
