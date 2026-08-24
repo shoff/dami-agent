@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-23 21:00 CDT (`2026-08-24T02:00Z`)
+- **Last updated:** 2026-08-24 07:37 CDT (`2026-08-24T12:37Z`)
 - **Updated from:** direct workstation inspection and solution test evidence
 - **Current phases:** 0, 1, and 3 in progress
 
@@ -107,7 +107,7 @@ rather than assuming — but nothing else blocks the phase.
 | TCP connection, one connection | done | outbound and accepted loopback sockets verified; accepted-socket seam owns the socket, enables `NoDelay`, and has exception-safe idempotent disposal |
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
-| Capability registry | in progress | Native, MCP, and filesystem skills share one catalog. F3 and F4a/F4b are complete. F4c1 adds trace-owned version-pinned lifecycle documents plus atomic replacement/reload/retirement of the entire Skill source snapshot; F4c2's transactional diff/event write-ahead is claimed. |
+| Capability registry | in progress | Native, MCP, and filesystem skills share one catalog. F3 and F4a/F4b are complete. F4c1 adds trace-owned version-pinned lifecycle documents plus atomic replacement/reload/retirement of the entire Skill source snapshot; F4c2 adds the immutable transactional diff/event write-ahead ledger. F4c3 materialization is claimed. |
 | Model routing, sessions, events, CLI | partial | Routed/streaming/tool-enabled turns and the G6 live demonstration exist. G4 sessions are complete: durable idempotent turns, bounded recent context, localhost and thin-CLI lifecycle/reconnect surfaces, active model cancellation, resume, and retry convergence are demonstrated live. Streaming remains tool-less. |
 
 Verification on 2026-08-23 for G6c3a in an isolated concurrent-work gate:
@@ -220,6 +220,17 @@ solution build completed across 33 projects with 0 warnings and 0 errors, all si
 suites passed 639/639, and format/analyzer verification exited 0. No schema, migration,
 deployment, or live-service change was required. F4c1 is complete; F4c2's transactional
 diff ledger and execution-event write-ahead are claimed.
+
+Verification on 2026-08-24 for F4c2: strict diff/version contracts passed 18/18
+Skills tests; atomic diff/requested-event persistence, exact and concurrent retry
+convergence, conflicting event-ID refusal, forced event-failure rollback,
+sub-microsecond timestamp convergence, immutable DDL, origin constraints, document
+round-trip, and least privilege passed in the 179/179 PostgreSQL integration suite.
+The solution build completed across 33 projects with 0 warnings and 0 errors, all
+sixteen suites passed 657/657, format/analyzer verification exited 0, and the migration
+runner harness passed. Migration 020 is applied live with none pending; the deployed
+append-only trigger is enabled and `dami_app` has SELECT/INSERT only. F4c2 is complete;
+F4c3 crash-recoverable filesystem materialization is claimed.
 
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 

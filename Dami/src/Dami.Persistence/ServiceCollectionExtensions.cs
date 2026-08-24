@@ -16,6 +16,7 @@ using Dami.Persistence.FilePatches;
 using Dami.Persistence.Memory;
 using Dami.Persistence.Proactive;
 using Dami.Persistence.Sessions;
+using Dami.Persistence.Skills;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -61,6 +62,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IEgressMeter, PostgresEgressMeter>();
         services.TryAddSingleton<IEgressBriefStore, PostgresEgressBriefStore>();
         services.TryAddSingleton<IFilePatchProposalStore, PostgresFilePatchProposalStore>();
+        services.TryAddSingleton<ISkillChangeStore, PostgresSkillChangeStore>();
         services.TryAddSingleton<IHealthEventStore, PostgresHealthEventStore>();
         services.TryAddSingleton<ICapabilityEmbeddingStore, PostgresCapabilityEmbeddingStore>();
         services.TryAddSingleton<PostgresSessionStore>();

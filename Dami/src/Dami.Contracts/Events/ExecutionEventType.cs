@@ -97,4 +97,13 @@ public enum ExecutionEventType
 
     /// <summary>The worker failed or overran its bound; the parent decides what that means.</summary>
     WorkerFailed = 29,
+
+    /// <summary>A version-pinned skill diff was durably accepted for materialization.</summary>
+    SkillChangeRequested = 30,
+
+    /// <summary>A durable skill change converged to the filesystem and registry.</summary>
+    SkillChanged = 31,
+
+    /// <summary>A durable skill change failed materialization and remains auditable.</summary>
+    SkillChangeFailed = 32,
 }

@@ -5510,3 +5510,59 @@ solution gate built all 33 projects with 0 warnings and 0 errors, all sixteen su
 passed 639/639, and format/analyzer verification exited 0. No schema, migration,
 deployment, or live-service change was required. F4c1 is `[x]`; F4c2's transactional
 diff ledger and execution-event write-ahead are claimed next.
+
+## 2026-08-24 — Codex — F4c2 transactional write-ahead started
+
+ADR-0017 records why PostgreSQL must accept an immutable, bounded skill diff and its
+`SkillChangeRequested` execution event in one transaction before a later filesystem
+materialization attempt. The first PostgreSQL integration test failed at compilation
+with CS0234/CS0246 because the skill-change store and durable record contracts did not
+exist. The minimum implementation is in progress alongside migration 020; behavioral,
+least-privilege, rollback, migration, and full solution gates have not yet run and no
+live migration has yet been applied.
+
+## 2026-08-24 — Codex — F4c2 transactional write-ahead complete; F4c3 claimed
+
+The initial happy-path test became executable only after one fixture-only analyzer
+failure: adding the new table reset pushed `TruncateEventStore` to 32 body lines. The
+skill reset was extracted without changing behavior, after which the test observed one
+immutable diff row and one `SkillChangeRequested` event committed together.
+
+Subsequent red-first boundary tests demonstrated five defects before their fixes. A
+524,289-character non-ASCII diff passed the character bound despite exceeding 1 MiB in
+UTF-8; the contract now uses strict allocation-free UTF-8 byte counting. Noncanonical
+replacement and preimage versions reached persistence; one shared span-based lowercase
+SHA-256 validator now rejects them at the domain edge. A pre-existing unrelated event
+with the change ID allowed the ledger row to commit without its required event;
+transactional append now verifies the complete immutable event before commit and rolls
+back on a collision. Empty lookup IDs performed database I/O instead of failing fast.
+Finally, an exact retry one tick beyond PostgreSQL's microsecond resolution falsely
+conflicted; equality now compares the UTC instant at the database's real precision.
+
+An invalid-Unicode diff test then observed replacement encoding instead of refusal;
+strict UTF-8 validation now preserves the meaning of “exact diff.” The direct-database
+origin test first had a raw-interpolated-string fixture syntax error, then failed
+behaviorally because migration 020 accepted `Unknown`; the deployed DDL now constrains
+the same four origins as the execution stream. Exact retry, concurrent retry,
+conflicting replay, forced event-trigger rollback, document round-trip, append-only
+mutation refusal, least privilege, and constructor tests were added after their
+implementation and are recorded as coverage rather than TDD. Retry document comparison
+was refactored from two complete JSON serializations to structural ordinal comparison,
+and event labels no longer allocate a transient lowercase string.
+
+The focused Skills suite passed 18/18, the final skill persistence slice passed 14/14,
+and the complete PostgreSQL suite passed 179/179. One combined verification command
+was invoked from the repository root with a `Dami/`-relative project path and failed
+with MSB1009 before executing tests; rerunning from `Dami/` produced the recorded green
+result. The mandatory solution gate built all 33 projects with 0 warnings and 0 errors,
+all sixteen suites passed 657/657, and format/analyzer verification exited 0. The DDL
+runner harness passed.
+
+The first two live `apply.sh --status` attempts omitted the TCP host, so PostgreSQL
+role resolution failed and the runner's intentionally swallowed discovery error
+misleadingly showed every migration pending; nothing was applied from that state.
+With explicit `PGUSER=dami_ddl`, `PGHOST=127.0.0.1`, and Steve's passfile, status showed
+only migration 020 pending. It applied transactionally, a second status showed none
+pending, and direct inspection observed `dami.skill_changes`, its enabled append-only
+trigger, zero synthetic rows, and exactly SELECT/INSERT for `dami_app`. F4c2 is `[x]`;
+F4c3 crash-recoverable materialization and Host/native demonstration are claimed.

@@ -33,6 +33,15 @@ public sealed class SkillChangeRequestTests
     }
 
     [Fact]
+    public void Revise_Should_Reject_A_Noncanonical_Preimage_Version()
+    {
+        SkillDocument document = CreateDocument();
+
+        Assert.Throws<ArgumentException>(() => CreateRequest(
+            SkillChangeKind.Revise, document.SkillId, "version", document));
+    }
+
+    [Fact]
     public void Author_And_Retire_Should_Enforce_Their_Document_Shapes()
     {
         SkillDocument document = CreateDocument();
@@ -40,14 +49,14 @@ public sealed class SkillChangeRequestTests
         SkillChangeRequest author = CreateRequest(
             SkillChangeKind.Author, document.SkillId, expectedVersion: null, document);
         SkillChangeRequest retire = CreateRequest(
-            SkillChangeKind.Retire, document.SkillId, "version-1", replacement: null);
+            SkillChangeKind.Retire, document.SkillId, new string('a', 64), replacement: null);
 
         Assert.Same(document, author.Replacement);
         Assert.Null(retire.Replacement);
         Assert.Throws<ArgumentException>(() => CreateRequest(
             SkillChangeKind.Author, document.SkillId, "unexpected", document));
         Assert.Throws<ArgumentException>(() => CreateRequest(
-            SkillChangeKind.Retire, document.SkillId, "version-1", document));
+            SkillChangeKind.Retire, document.SkillId, new string('a', 64), document));
     }
 
     private static SkillDocument CreateDocument()

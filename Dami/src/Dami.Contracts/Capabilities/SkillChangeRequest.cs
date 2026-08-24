@@ -104,6 +104,13 @@ public sealed record SkillChangeRequest
             throw new ArgumentException("Revise and retire require a preimage version.", nameof(expectedVersion));
         }
 
+        if (expectedVersion is not null && !SkillVersion.IsCanonical(expectedVersion))
+        {
+            throw new ArgumentException(
+                "A preimage version must be a lowercase SHA-256 value.",
+                nameof(expectedVersion));
+        }
+
         bool requiresReplacement = kind is SkillChangeKind.Author or SkillChangeKind.Revise;
         if (requiresReplacement != (replacement is not null)
             || (replacement is not null && replacement.SkillId != skillId))

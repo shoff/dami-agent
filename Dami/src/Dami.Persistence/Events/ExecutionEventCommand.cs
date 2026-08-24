@@ -8,6 +8,28 @@ namespace Dami.Persistence.Events;
 /// <summary>Shared PostgreSQL append command for standalone and transactional event writes.</summary>
 internal static class ExecutionEventCommand
 {
+    public static async Task<long> AppendExactAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string table,
+        ExecutionEvent executionEvent,
+        CancellationToken cancellationToken)
+    {
+        long sequence = await AppendAsync(
+            connection, transaction, table, executionEvent, cancellationToken)
+            .ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(ExactMatchSql(table), connection, transaction);
+        AddParameters(command, executionEvent);
+        object? scalar = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        if (scalar is not true)
+        {
+            throw new InvalidOperationException(
+                $"Event '{executionEvent.EventId}' already exists with different data.");
+        }
+
+        return sequence;
+    }
+
     public static async Task<long> AppendAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -68,5 +90,25 @@ internal static class ExecutionEventCommand
             ? (object)DBNull.Value
             : JsonSerializer.Serialize(source.Metadata);
         command.Parameters.Add(new NpgsqlParameter("metadata", NpgsqlDbType.Jsonb) { Value = metadata });
+    }
+
+    private static string ExactMatchSql(string table)
+    {
+        return $"""
+            select exists (
+                select 1 from {table}
+                 where event_id = @event_id
+                   and trace_id = @trace_id
+                   and span_id = @span_id
+                   and parent_span_id is not distinct from @parent_span_id
+                   and origin = @origin
+                   and actor_id = @actor_id
+                   and type = @type
+                   and status = @status
+                   and occurred_at = @occurred_at
+                   and label = @label
+                   and payload_reference is not distinct from @payload_reference
+                   and metadata is not distinct from @metadata);
+            """;
     }
 }
