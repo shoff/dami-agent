@@ -5566,3 +5566,13 @@ only migration 020 pending. It applied transactionally, a second status showed n
 pending, and direct inspection observed `dami.skill_changes`, its enabled append-only
 trigger, zero synthetic rows, and exactly SELECT/INSERT for `dami_app`. F4c2 is `[x]`;
 F4c3 crash-recoverable materialization and Host/native demonstration are claimed.
+
+## 2026-08-24 — Codex — F4c3 split; F4c3a claimed
+
+Inspection of architecture §7.6, the F4a filesystem loader, Host composition, and the
+native capability boundary showed two separate proofs hidden in F4c3. F4c3a owns
+version-consistent same-filesystem staging, idempotent author/revise/retire convergence,
+terminal execution events, and recovery of requested changes left incomplete by a
+process crash. F4c3b owns the model-invokable native lifecycle contract, Host
+composition, and live author/revise/retire demonstration. The split is recorded before
+production changes; F4c3a is claimed first.
