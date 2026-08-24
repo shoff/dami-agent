@@ -6190,3 +6190,31 @@ invisible unless you go looking for it.
 Gap noted honestly: this composition lives in the Host endpoint, which has no test
 project — it was caught by a human clicking a button, not by the suite. A Host
 integration-test project is the missing coverage.
+
+## 2026-08-24 — Claude — The subscription frontier: research, and why it was invisible
+
+Steve reported the major requirement missing: use his OpenAI MAX subscription, no API
+keys, "Hermes manages to do this."
+
+**Research finding — Hermes never did this.** Zero observations in the 7,057-row
+corpus mention codex. Hermes had exactly two providers: `"azure"` (Azure OpenAI, API
+credentials, reached over the work VPN — `src/Dami.Agents/Llm/AzureOpenAiProvider.cs`,
+plus a documented "Missing OPENAI_API_KEY" failure) and `"ollama"`. When the VPN
+dropped it silently fell back to the local model, which is the "chat responses were
+inconsistent" incident of 2026-04-15. Dami Core's ADR-0011 path — the codex CLI on his
+ChatGPT account, `auth_mode: chatgpt`, no API key anywhere in the system — is
+capability Hermes did not have.
+
+**Why he could not see it: two defects.**
+
+1. A deploy had reverted `/opt/dami/host/appsettings.json` to the published default,
+   silently switching `Codex:Enabled` off. Production config living in a file that a
+   deploy can overwrite is a trap; it now lives in the `dami-host` systemd drop-in
+   alongside the connection string, matching the proactive tier's pattern.
+2. `EgressRefusedException` escaped as an unhandled **500**, and the CLI reported
+   "dami-host unreachable" — sending the reader to the network when the runtime had
+   correctly said no. Refusals now return **403** with the reason, and the CLI prints
+   `refused: …` rather than blaming transport.
+
+Verified after the fix: `dami frontier` answers in 10s on the subscription, traced,
+no billing.

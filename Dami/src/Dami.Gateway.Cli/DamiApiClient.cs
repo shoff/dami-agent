@@ -52,6 +52,21 @@ public sealed class DamiApiClient
             .ConfigureAwait(false);
     }
 
+    private static string ReasonFrom(string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return document.RootElement.TryGetProperty("refused", out var refused)
+                ? refused.GetString() ?? body
+                : body;
+        }
+        catch (JsonException)
+        {
+            return body;
+        }
+    }
+
     private static async Task<JsonDocument?> ReadAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
@@ -59,6 +74,15 @@ public sealed class DamiApiClient
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             return null;
+        }
+
+        // The runtime refusing on privacy grounds is a real answer; reporting it as a
+        // transport failure sends the reader to the wrong problem entirely.
+        if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            var refusal = await response.Content.ReadAsStringAsync(cancellationToken)
+                .ConfigureAwait(false);
+            throw new Dami.Contracts.Privacy.EgressRefusedException(ReasonFrom(refusal));
         }
 
         response.EnsureSuccessStatusCode();

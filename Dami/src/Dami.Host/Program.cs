@@ -82,6 +82,23 @@ builder.Services.AddSingleton<Dami.Contracts.Privacy.IEgressBudget, EventCountEg
 
 var app = builder.Build();
 
+// A boundary refusal is an answer, not a server fault. Without this it escapes as an
+// unhandled 500 and every client reports the host as unreachable — which sent us
+// looking at the network when the runtime had simply, correctly, said no.
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next(context).ConfigureAwait(false);
+    }
+    catch (Dami.Contracts.Privacy.EgressRefusedException refusal)
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await context.Response.WriteAsJsonAsync(new { refused = refusal.Message })
+            .ConfigureAwait(false);
+    }
+});
+
 // J3 first cut: a zero-install conversation + live-graph view, rendered entirely
 // from the same endpoints every other client uses. Localhost-only like the API.
 app.UseDefaultFiles();
