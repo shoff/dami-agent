@@ -4,7 +4,7 @@
 evening if nobody told you.** Written for an agent or a human arriving at this host
 without the history.
 
-- **Last updated:** 2026-08-24 09:13 CDT
+- **Last updated:** 2026-08-24 18:08 CDT
 - **Host:** Linux Mint 22.3 (Ubuntu 24.04 `noble` base), RTX 4080 16 GiB, 125 GiB RAM
 - **Companion docs:** `status.md` for what is done, `onboarding.md` for orientation,
   `decisions/` for why
@@ -227,6 +227,15 @@ retirement markers are intentionally ignored by discovery. At startup the Host f
 publishes the visible filesystem snapshot, then converges any durable changes lacking
 a successful terminal event before Kestrel becomes ready. Verify the journal line
 `Skill recovery completed with 0 change(s)` and `/health` after a deployment.
+
+Approved sandboxed-tool recovery is enabled by
+`/etc/systemd/system/dami-host.service.d/sandboxed-tools.conf`. Immutable runtime
+artifacts live under `/home/steve/.local/share/dami/tools/runtime`, owned by `steve`
+with mode 0700. The Host refuses startup if that configured root is missing or is a
+symbolic link. Before Kestrel becomes ready, a bounded recovery batch republishes
+approved exact artifacts into the in-memory handler, schema, and search registries;
+any recovery failure prevents readiness. Verify the journal line `Sandboxed tool
+recovery completed: <succeeded>/<found>` before `/health`.
 
 ### Restoring the database: roles first, then the dump
 

@@ -119,10 +119,10 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] F5c2 Fixed package-free build/test envelope + bounded bubblewrap execution
     - [~ Codex 2026-08-24] F5c3 Failure-atomic activation/recovery + Host/live human-promotion demonstration
       - [x] F5c3a Durable exact-artifact verification/activation state and terminal events
-      - [~ Codex 2026-08-24] F5c3b Failure-atomic registry publication + startup recovery
+      - [x] F5c3b Failure-atomic registry publication + startup recovery
         - [x] F5c3b1 Sandboxed execution registry + exact-rollback publication
         - [x] F5c3b2 Immutable artifact materialization + durable recovery processor
-        - [~ Codex 2026-08-24] F5c3b3 Host startup composition + recovery demonstration
+        - [x] F5c3b3 Host startup composition + recovery demonstration
       - [ ] F5c3c Host promotion surfaces + live conforming proposal demonstration
 
 ## G · Interactive runtime

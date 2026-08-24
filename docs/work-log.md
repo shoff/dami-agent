@@ -6620,3 +6620,21 @@ shutdown and would have locked out every subsequent instance until a restart. Re
 explicitly now; process death still covers the ungraceful case.
 
 Remaining for M1 is the Discord client binding itself, which needs a bot token.
+
+## 2026-08-24 — Codex — F5c3b3 complete; production recovery precedes readiness
+
+Committed and pushed the gated Host composition as `8e225b3`, without staging the
+concurrent gateway/persistence/DDL lane. Provisioned
+`/home/steve/.local/share/dami/tools/runtime` as `steve:steve` mode 0700 and added the
+root, 1000-item bounded batch, and `/run/user/1000` systemd runtime location in the
+root-owned `dami-host.service.d/sandboxed-tools.conf` drop-in.
+
+A Steve-owned Release publish of the committed Host completed. The bounded deployment
+stopped `dami-host`, synchronized the isolated publish output into `/opt/dami/host`,
+restored Steve ownership, and restarted the service. The Production journal observed
+`Sandboxed tool recovery completed: 0/0` before `Now listening on:
+http://127.0.0.1:5810`; systemd reported active and `/health` returned
+`{"status":"ok"}`. The runtime root remained empty, matching the absence of a live
+human-promoted tool. The two-Host automated proof supplies the nonempty recovery case;
+F5c3c retains creation, human resolution, activation, and live invocation of the first
+conforming proposal. F5c3b and F5c3b3 are complete.
