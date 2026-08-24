@@ -195,6 +195,32 @@ public sealed class SessionEndpointsTests
         await this.turnRunner.DidNotReceiveWithAnyArgs().RunAsync(default!, default);
     }
 
+    [Fact]
+    public async Task PostSessionTurn_Should_Return_Durable_Interruption_When_The_Session_Cancels_It()
+    {
+        var sessionId = Guid.NewGuid();
+        var requestId = Guid.NewGuid();
+        var request = new ConversationTurnRequest(sessionId, requestId, "question", at);
+        var interrupted = new ConversationTurn(
+            1, request, Guid.NewGuid(), ConversationTurnState.Interrupted, completedAt: at);
+        this.turnRunner.RunAsync(
+                Arg.Any<ConversationTurnRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Task<SessionTurnOutcome>>(_ => throw new OperationCanceledException());
+        this.turnStore.FindTurnAsync(sessionId, requestId, CancellationToken.None)
+            .Returns(interrupted);
+        await using var factory = this.CreateFactory();
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            $"/sessions/{sessionId:D}/turns",
+            new { requestId, message = "question" }, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = await response.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.Equal("Interrupted", body!.RootElement.GetProperty("turn")
+            .GetProperty("state").GetString());
+    }
+
     private static async IAsyncEnumerable<ConversationSession> SessionsAsync(
         params ConversationSession[] sessions)
     {

@@ -43,6 +43,7 @@ builder.Services.AddSingleton<ITracedTurnRunner>(services =>
     services.GetRequiredService<TurnRunner>());
 builder.Services.Configure<SessionContextOptions>(
     builder.Configuration.GetSection(SessionContextOptions.SECTION_NAME));
+builder.Services.AddSingleton<ISessionCancellationRegistry, SessionCancellationRegistry>();
 builder.Services.AddSingleton<IConversationWindowBuilder, ConversationWindowBuilder>();
 builder.Services.AddSingleton<ISessionTurnRunner, SessionTurnRunner>();
 builder.Services.AddSingleton<IConversationSessionManager, ConversationSessionManager>();

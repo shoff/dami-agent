@@ -97,14 +97,14 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] G1 `TurnRunner`: context → route → local model → traced `UserTurn` answer; `dami chat` live (**the charter's Phase 2 exit, demonstrated**)
 - [x] G2 Context assembly (`ContextBuilder`): hard token budget (~2.5k vs Hermes's 90–126k), recency-reserved slots, grounding gate (distance ceiling + explicit emptiness), beliefs-beat-memories under pressure; turns feed the corpus (F-05)
 - [x] G3 Streaming turns end to end — `BeginStreamingAsync`/`TurnStream`, trace completes and corpus records when drained, one coalesced ResponseStreaming event, `dami chat` streams live — acceptance item 2 (CLI half)
-- [~ Codex 2026-08-24] G4 **Sessions**: multi-turn conversation with a recent window in context; start/resume/interrupt/reconnect without duplication — acceptance item 1
+- [x] G4 **Sessions**: multi-turn conversation with a recent window in context; start/resume/interrupt/reconnect without duplication — acceptance item 1
   - [x] G4a Durable session/turn contracts + PostgreSQL store with request-id idempotency
   - [x] G4b Session-aware turn runner + bounded recent conversation window in model context
-  - [~ Codex 2026-08-24] G4c Host/CLI start/list/resume/interrupt/reconnect surfaces + live acceptance demonstration
+  - [x] G4c Host/CLI start/list/resume/interrupt/reconnect surfaces + live acceptance demonstration
     - [x] G4c1 Session application boundary + Host lifecycle/turn/reconnect API
     - [x] G4c2 Thin CLI session start/list/resume/interrupt/turn/reconnect commands
-    - [~ Codex 2026-08-24] G4c3 Deploy and demonstrate multi-turn context, interruption, resume, and retry convergence live
-      - [~ Codex 2026-08-24] G4c3a Propagate durable session interruption into active turn/model cancellation
+    - [x] G4c3 Deploy and demonstrate multi-turn context, interruption, resume, and retry convergence live
+      - [x] G4c3a Propagate durable session interruption into active turn/model cancellation
 - [x] G5 Runtime API on localhost (D-005): `dami-host` service on 127.0.0.1:5810 — turns/SSE, surfacings, beliefs, approvals, traces, `/events`; CLI rework stays I2
 - [x] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4
   - [x] G6a Source-neutral invocation/result contract + native implementation registry and timeout boundary

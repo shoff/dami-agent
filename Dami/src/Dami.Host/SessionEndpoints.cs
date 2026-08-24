@@ -93,6 +93,7 @@ public static class SessionEndpoints
         Guid sessionId,
         RunSessionTurnRequest request,
         ISessionTurnRunner runner,
+        IConversationTurnStore turnStore,
         TimeProvider clock,
         CancellationToken cancellationToken)
     {
@@ -105,8 +106,24 @@ public static class SessionEndpoints
 
         var turnRequest = new ConversationTurnRequest(
             sessionId, request.RequestId, request.Message, clock.GetUtcNow());
-        var outcome = await runner
-            .RunAsync(turnRequest, cancellationToken).ConfigureAwait(false);
+        SessionTurnOutcome outcome;
+        try
+        {
+            outcome = await runner
+                .RunAsync(turnRequest, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            var interrupted = await turnStore.FindTurnAsync(
+                sessionId, request.RequestId, CancellationToken.None).ConfigureAwait(false);
+            if (interrupted?.State != ConversationTurnState.Interrupted)
+            {
+                throw;
+            }
+
+            outcome = new SessionTurnOutcome(interrupted, wasReplay: false);
+        }
+
         return Results.Ok(outcome);
     }
 

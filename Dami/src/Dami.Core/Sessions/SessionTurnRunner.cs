@@ -7,6 +7,7 @@ namespace Dami.Core.Sessions;
 public sealed class SessionTurnRunner : ISessionTurnRunner
 {
     private readonly TimeProvider clock;
+    private readonly ISessionCancellationRegistry cancellationRegistry;
     private readonly ITracedTurnRunner tracedTurnRunner;
     private readonly IConversationTurnStore turnStore;
     private readonly IConversationWindowBuilder windowBuilder;
@@ -16,15 +17,18 @@ public sealed class SessionTurnRunner : ISessionTurnRunner
         IConversationTurnStore turnStore,
         IConversationWindowBuilder windowBuilder,
         ITracedTurnRunner tracedTurnRunner,
+        ISessionCancellationRegistry cancellationRegistry,
         TimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(turnStore);
         ArgumentNullException.ThrowIfNull(windowBuilder);
         ArgumentNullException.ThrowIfNull(tracedTurnRunner);
+        ArgumentNullException.ThrowIfNull(cancellationRegistry);
         ArgumentNullException.ThrowIfNull(clock);
         this.turnStore = turnStore;
         this.windowBuilder = windowBuilder;
         this.tracedTurnRunner = tracedTurnRunner;
+        this.cancellationRegistry = cancellationRegistry;
         this.clock = clock;
     }
 
@@ -34,6 +38,15 @@ public sealed class SessionTurnRunner : ISessionTurnRunner
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        using var executionCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, this.cancellationRegistry.TokenFor(request.SessionId));
+        return await this.RunCoreAsync(request, executionCancellation.Token).ConfigureAwait(false);
+    }
+
+    private async Task<SessionTurnOutcome> RunCoreAsync(
+        ConversationTurnRequest request,
+        CancellationToken cancellationToken)
+    {
         var reservation = await this.turnStore
             .ReserveTurnAsync(request, cancellationToken).ConfigureAwait(false);
         if (!reservation.IsNew)

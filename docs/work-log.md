@@ -4926,3 +4926,46 @@ a 392-character answer. Durable state correctly rejected the late completion, bu
 model was not cancelled and the trace/corpus side effects disagree with the turn.
 G4c3a is therefore claimed before further code: propagate session interruption into
 the active execution token, then repeat this live exercise. G4/G4c remain open.
+
+## 2026-08-24 — Codex — G4c3/G4c3a sessions demonstrated complete
+
+The cancellation registry test was written first. Its initial command timed out before
+producing a test result; the completed rerun was red at CS0246 because the registry did
+not exist. `SessionCancellationRegistry` then made current-generation cancellation and
+fresh-on-resume behavior pass. The runner cancellation test compiled red because its
+new dependency was absent; its first fixture also violated the test analyzer's async
+rule and was corrected before counting production green. A session interruption now
+links into the active turn token, reaches the traced model runner, durably marks the
+turn Interrupted on cancellation, and never mistakes cancellation for failure.
+
+Manager interrupt and resume tests drove their missing coordination separately:
+interrupt first compiled red on the new constructor boundary, while resume reached a
+behavioral red because no fresh generation was started. The lifecycle manager now
+cancels only after the durable parent/child interruption transaction reports
+Interrupted and renews only after durable Active. A production-composition test then
+failed red with the DI aggregate showing the cancellation service was absent and passed
+after singleton registration. Finally, the real Host endpoint test observed HTTP 500
+red when server-side session cancellation escaped the still-connected request. The
+endpoint now distinguishes that case from client disconnection, reloads the durable
+Interrupted turn without a cancelled token, and returns it as the truthful outcome.
+
+Focused Core and Host suites passed 91/91 and 12/12. The mandatory solution gate built
+with 0 warnings and 0 errors, all fourteen suites passed 572/572, and format/analyzer
+verification exited 0. Release publish initially failed under Steve with NETSDK1064
+because a root-run restore had regenerated assets against root's NuGet cache; a fresh
+Steve-owned restore/publish succeeded. The Host was installed, reached `active`, and
+returned `{"status":"ok"}`. Explicit loopback `dami_ddl` migration status reports
+001–019 applied and none pending; the earlier bare-Steve status was discarded because
+it lacked the database role and misleadingly listed every migration as pending.
+
+The live rerun used session `01a032a6…`. While request `01a032be…` was connected and
+executing a deliberately long answer, interrupt returned the parent as Interrupted;
+the waiting CLI immediately rendered `Interrupted` with trace `13c211e8…`. Trace replay
+ends in `TraceCancelled` three seconds after start, and PostgreSQL reads
+`Interrupted|null|13c211e8…`, proving no assistant response survived. Resume then
+created a fresh generation and request `01a032bf…` completed with exact response
+`RESUMED-OK` on trace `1d166128…`. CLI reconnect and an exact POST retry returned the
+same answer/trace, the POST reported `wasReplay:true`, and PostgreSQL counted exactly
+one matching Completed row. The service remained active and healthy. Together with the
+earlier live `TUNDRA-8246` multi-turn-context proof, this demonstrates acceptance item
+1; G4c3a, G4c3, G4c, and G4 are `[x]`.

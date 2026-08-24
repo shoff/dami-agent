@@ -6,16 +6,20 @@ namespace Dami.Core.Sessions;
 public sealed class ConversationSessionManager : IConversationSessionManager
 {
     private readonly TimeProvider clock;
+    private readonly ISessionCancellationRegistry cancellationRegistry;
     private readonly IConversationSessionStore sessionStore;
 
     /// <summary>Creates the manager.</summary>
     public ConversationSessionManager(
         IConversationSessionStore sessionStore,
+        ISessionCancellationRegistry cancellationRegistry,
         TimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(sessionStore);
+        ArgumentNullException.ThrowIfNull(cancellationRegistry);
         ArgumentNullException.ThrowIfNull(clock);
         this.sessionStore = sessionStore;
+        this.cancellationRegistry = cancellationRegistry;
         this.clock = clock;
     }
 
@@ -43,23 +47,35 @@ public sealed class ConversationSessionManager : IConversationSessionManager
     }
 
     /// <summary>Resumes an interrupted session, or returns its current/unknown state.</summary>
-    public Task<ConversationSession?> ResumeAsync(
+    public async Task<ConversationSession?> ResumeAsync(
         Guid sessionId,
         CancellationToken cancellationToken)
     {
-        return this.TransitionAsync(
+        var session = await this.TransitionAsync(
             sessionId, ConversationSessionState.Interrupted,
-            ConversationSessionState.Active, cancellationToken);
+            ConversationSessionState.Active, cancellationToken).ConfigureAwait(false);
+        if (session?.State == ConversationSessionState.Active)
+        {
+            this.cancellationRegistry.Resume(sessionId);
+        }
+
+        return session;
     }
 
     /// <summary>Interrupts an active session and its running turns.</summary>
-    public Task<ConversationSession?> InterruptAsync(
+    public async Task<ConversationSession?> InterruptAsync(
         Guid sessionId,
         CancellationToken cancellationToken)
     {
-        return this.TransitionAsync(
+        var session = await this.TransitionAsync(
             sessionId, ConversationSessionState.Active,
-            ConversationSessionState.Interrupted, cancellationToken);
+            ConversationSessionState.Interrupted, cancellationToken).ConfigureAwait(false);
+        if (session?.State == ConversationSessionState.Interrupted)
+        {
+            await this.cancellationRegistry.InterruptAsync(sessionId).ConfigureAwait(false);
+        }
+
+        return session;
     }
 
     /// <inheritdoc />

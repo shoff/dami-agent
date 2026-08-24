@@ -17,6 +17,7 @@ public sealed class SessionTurnRunnerTests
     private readonly IConversationWindowBuilder windowBuilder =
         Substitute.For<IConversationWindowBuilder>();
     private readonly ITracedTurnRunner tracedTurnRunner = Substitute.For<ITracedTurnRunner>();
+    private readonly SessionCancellationRegistry cancellationRegistry = new();
 
     [Fact]
     public async Task RunAsync_Should_Reserve_Execute_And_Complete_One_Turn()
@@ -167,6 +168,35 @@ public sealed class SessionTurnRunnerTests
         Assert.Null(outcome.Turn.Response);
     }
 
+    [Fact]
+    public async Task RunAsync_Should_Cancel_Active_Execution_When_The_Session_Is_Interrupted()
+    {
+        var request = Request();
+        var running = Turn(request, ConversationTurnState.Running);
+        var executionStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        this.turnStore.ReserveTurnAsync(request, Arg.Any<CancellationToken>())
+            .Returns(new ConversationTurnReservation(running, true));
+        this.windowBuilder.BuildAsync(request.SessionId, Arg.Any<CancellationToken>())
+            .Returns(ConversationWindow.Empty);
+        this.tracedTurnRunner.RunTracedAsync(
+                running.TraceId, request.Message, ConversationWindow.Empty, Arg.Any<CancellationToken>())
+            .Returns(call => WaitForSessionCancellationAsync(
+                call.ArgAt<CancellationToken>(3), executionStarted));
+
+        var interruption = Task.Run(async () =>
+        {
+            await executionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await this.cancellationRegistry.InterruptAsync(request.SessionId).ConfigureAwait(false);
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => this.CreateRunner().RunAsync(request, CancellationToken.None));
+        await interruption;
+        await this.turnStore.Received(1).InterruptTurnAsync(
+            request.SessionId, request.RequestId, at, CancellationToken.None);
+    }
+
     private static async Task<TurnResult> CancelAsync(CancellationTokenSource cancellation)
     {
         await cancellation.CancelAsync();
@@ -179,6 +209,15 @@ public sealed class SessionTurnRunnerTests
     {
         await cancellation.CancelAsync();
         return Result(traceId, "answer");
+    }
+
+    private static async Task<TurnResult> WaitForSessionCancellationAsync(
+        CancellationToken cancellationToken,
+        TaskCompletionSource executionStarted)
+    {
+        executionStarted.SetResult();
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        throw new InvalidOperationException("An infinite delay cannot complete.");
     }
 
     private static ConversationTurnRequest Request()
@@ -206,6 +245,7 @@ public sealed class SessionTurnRunnerTests
     private SessionTurnRunner CreateRunner()
     {
         return new SessionTurnRunner(
-            this.turnStore, this.windowBuilder, this.tracedTurnRunner, new FakeTimeProvider(at));
+            this.turnStore, this.windowBuilder, this.tracedTurnRunner,
+            this.cancellationRegistry, new FakeTimeProvider(at));
     }
 }

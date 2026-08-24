@@ -12,6 +12,8 @@ public sealed class ConversationSessionManagerTests
 
     private readonly IConversationSessionStore sessionStore =
         Substitute.For<IConversationSessionStore>();
+    private readonly ISessionCancellationRegistry cancellationRegistry =
+        Substitute.For<ISessionCancellationRegistry>();
 
     [Fact]
     public async Task StartAsync_Should_Create_An_Active_Session_With_The_Stable_Client_Id()
@@ -84,9 +86,36 @@ public sealed class ConversationSessionManagerTests
         Assert.Equal(interrupted, session);
     }
 
+    [Fact]
+    public async Task InterruptAsync_Should_Cancel_The_Active_Execution_Generation()
+    {
+        var sessionId = Guid.NewGuid();
+        var interrupted = new ConversationSession(
+            sessionId, ConversationSessionState.Interrupted, at.AddMinutes(-1), at);
+        this.sessionStore.FindAsync(sessionId, Arg.Any<CancellationToken>())
+            .Returns(interrupted);
+
+        await this.CreateManager().InterruptAsync(sessionId, CancellationToken.None);
+
+        await this.cancellationRegistry.Received(1).InterruptAsync(sessionId);
+    }
+
+    [Fact]
+    public async Task ResumeAsync_Should_Start_A_Fresh_Execution_Generation()
+    {
+        var sessionId = Guid.NewGuid();
+        var active = new ConversationSession(
+            sessionId, ConversationSessionState.Active, at.AddMinutes(-1), at);
+        this.sessionStore.FindAsync(sessionId, Arg.Any<CancellationToken>()).Returns(active);
+
+        await this.CreateManager().ResumeAsync(sessionId, CancellationToken.None);
+
+        this.cancellationRegistry.Received(1).Resume(sessionId);
+    }
+
     private ConversationSessionManager CreateManager()
     {
         return new ConversationSessionManager(
-            this.sessionStore, new FakeTimeProvider(at));
+            this.sessionStore, this.cancellationRegistry, new FakeTimeProvider(at));
     }
 }
