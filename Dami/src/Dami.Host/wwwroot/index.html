@@ -9,8 +9,9 @@
           --run:#d9a441; --fail:#e0604f; --accent:#5aa9e6; }
   * { box-sizing:border-box; margin:0; }
   body { background:var(--bg); color:var(--ink); font:14px/1.45 system-ui, sans-serif;
-         display:grid; grid-template-columns: 1fr 1fr; grid-template-rows:auto 1fr;
-         height:100vh; gap:10px; padding:10px; }
+         display:grid; grid-template-columns: 1fr 1fr;
+         grid-auto-rows: minmax(180px, auto); gap:10px; padding:10px; min-height:100vh; }
+  section { max-height: 46vh; }
   header { grid-column:1/3; display:flex; align-items:baseline; gap:14px; }
   header h1 { font-size:18px; font-weight:600; }
   header .sub { color:var(--dim); font-size:12px; }
@@ -41,6 +42,15 @@
   .surf .acts { margin-top:4px; display:flex; gap:6px; }
   .belief { padding:4px 0; border-bottom:1px solid #232c36; }
   .belief .conf { color:var(--dim); font-size:11px; }
+  .belief .acts { margin-top:3px; display:none; gap:6px; }
+  .belief:hover .acts { display:flex; }
+  .belief .acts button { font-size:11px; padding:2px 8px; }
+  .diffbar { display:flex; gap:6px; margin-bottom:8px; }
+  .diffbar input { background:#0d1116; color:var(--ink); border:1px solid #2a333d;
+                   border-radius:6px; padding:4px 6px; font:inherit; }
+  .diff-add { color:var(--ok); } .diff-rm { color:var(--fail); }
+  .hev { padding:3px 0; border-bottom:1px solid #232c36; font:12px/1.4 ui-monospace, monospace; }
+  .hev .cat { color:var(--accent); } .hev .d { color:var(--dim); }
   .quiet { color:var(--dim); font-style:italic; }
 </style>
 </head>
@@ -71,8 +81,18 @@
 </section>
 
 <section>
-  <h2>Beliefs <span class="sub">(the active ledger)</span></h2>
+  <h2>Beliefs <span class="sub">(the ledger — click to correct or retract)</span></h2>
+  <div class="diffbar">
+    <input id="diffsince" type="date" title="show what changed since this date">
+    <button id="diffbtn">diff since</button>
+    <button id="diffclear" title="back to the live ledger">live</button>
+  </div>
   <div id="beliefs"></div>
+</section>
+
+<section>
+  <h2>Health timeline <span class="sub">(K2 — local only)</span></h2>
+  <div id="healthlog"></div>
 </section>
 
 <script>
@@ -149,13 +169,66 @@ async function loadBeliefs() {
   const box = $("beliefs"); box.innerHTML = "";
   if (!items.length) { box.innerHTML = '<div class="quiet">the ledger holds no active conclusions</div>'; return; }
   for (const b of items) {
+    const id8 = b.conclusionId.replaceAll("-","").slice(0,8);
     const div = document.createElement("div");
     div.className = "belief";
     div.innerHTML = `<div>${escapeHtml(b.statement)}</div>`
-      + `<div class="conf">${b.confidence.toFixed(2)} · ${b.source} · `
-      + `${(b.supportingObservations||[]).length} obs</div>`;
+      + `<div class="conf">${id8} · ${b.confidence.toFixed(2)} · ${b.source} · `
+      + `${(b.supportingObservations||[]).length} obs</div>`
+      + `<div class="acts"><button data-a="correct">correct</button>`
+      + `<button data-a="retract">retract</button></div>`;
+    div.querySelector('[data-a="correct"]').onclick = async () => {
+      const next = prompt("Corrected statement (supersedes, confidence 1.00):", b.statement);
+      if (next && next.trim()) {
+        await fetch(`/beliefs/${id8}/correct`, {method:"POST",
+          headers:{"content-type":"application/json"}, body: JSON.stringify({statement: next.trim()})});
+        loadBeliefs();
+      }
+    };
+    div.querySelector('[data-a="retract"]').onclick = async () => {
+      const reason = prompt("Reason for retraction (kept in the ledger):", "");
+      if (reason !== null) {
+        await fetch(`/beliefs/${id8}/retract`, {method:"POST",
+          headers:{"content-type":"application/json"}, body: JSON.stringify({reason: reason || "retracted"})});
+        loadBeliefs();
+      }
+    };
     box.appendChild(div);
   }
+}
+
+async function loadDiff(since) {
+  const r = await fetch(`/beliefs/diff?from=${encodeURIComponent(since)}`);
+  const d = await r.json();
+  const box = $("beliefs"); box.innerHTML = "";
+  const added = d.added || [], removed = d.removed || [];
+  if (!added.length && !removed.length) {
+    box.innerHTML = '<div class="quiet">no drift since ' + escapeHtml(since) + '</div>'; return;
+  }
+  for (const b of added) {
+    const div = document.createElement("div"); div.className = "belief diff-add";
+    div.textContent = "+ " + b.statement; box.appendChild(div);
+  }
+  for (const b of removed) {
+    const div = document.createElement("div"); div.className = "belief diff-rm";
+    div.textContent = "− " + b.statement + "  [" + (b.retractionReason || "superseded") + "]";
+    box.appendChild(div);
+  }
+}
+
+async function loadHealth() {
+  const box = $("healthlog");
+  try {
+    const r = await fetch("/health-log"); const items = await r.json();
+    box.innerHTML = "";
+    if (!items.length) { box.innerHTML = '<div class="quiet">no health events extracted yet</div>'; return; }
+    for (const h of items) {
+      const date = (h.eventDate||"").startsWith("1970") ? "undated" : h.eventDate;
+      const div = document.createElement("div"); div.className = "hev";
+      div.innerHTML = `<span class="d">${date}</span> <span class="cat">[${h.category}]</span> ${escapeHtml(h.description)}`;
+      box.appendChild(div);
+    }
+  } catch { box.innerHTML = '<div class="quiet">unavailable</div>'; }
 }
 
 $("chatform").onsubmit = async (e) => {
@@ -199,6 +272,9 @@ function addMsg(who, text) {
 pollEvents();
 loadInbox(); setInterval(loadInbox, 15000);
 loadBeliefs(); setInterval(loadBeliefs, 60000);
+loadHealth(); setInterval(loadHealth, 120000);
+$("diffbtn").onclick = () => { if ($("diffsince").value) loadDiff($("diffsince").value); };
+$("diffclear").onclick = () => loadBeliefs();
 </script>
 </body>
 </html>

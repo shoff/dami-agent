@@ -4210,3 +4210,17 @@ where conclusions are formed. `IHealthEventStore` injected into `ReflectionServi
 Pinned by test: an aortic-stenosis health row reaches the prompt text. With K2
 feeding the timeline and K3 consuming it, adding a domain now makes reflection
 strictly better — the property D-007 promised. 12 suites, 464 tests, 0 warnings.
+
+## 2026-08-24 — Claude — J4: the ledger, audit, and corrections in the web view
+
+Extended the J3 view into the full ledger/audit UI (the CLI's belief verbs, visual):
+each belief now carries hover actions — **correct** (prompts for a superseding
+statement, confidence 1.00) and **retract** (prompts for a reason kept in the
+ledger) — both POSTing to the G5 mutation endpoints. A date picker runs
+`/beliefs/diff` to show drift since a chosen day (+added / −removed with retraction
+reasons), and a "live" button returns to the active set. Added a **health timeline**
+panel (K2, `/health-log`, `undated` rendered honestly). All served from
+`dami-host`, still one static file, no frameworks, localhost-only. Verified live:
+diff shows 3 added since Aug 1, health panel shows 6 events. Backs onto endpoints
+that already existed — no new server code. J2's rich-client framework choice stays
+open; this is the usable ledger UI in the meantime.

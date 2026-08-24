@@ -146,7 +146,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] J1 Recorded-events spike: `tools/gui-spike/trace-viewer.html` over a real exported trace
 - [ ] J2 Framework decision: Tauri/React vs Avalonia — comparative spike per charter §8.3, driven by recorded events `[STEVE: preference input]`
 - [x] J3 (first cut) Conversation view + live execution graph — web view at http://127.0.0.1:5810/ (SSE chat, /events graph with span nesting, inbox reactions, beliefs); J2's rich client remains open
-- [ ] J4 Ledger/audit UI: beliefs, diffs, corrections (the CLI verbs, visual)
+- [x] J4 Ledger/audit UI: belief correct/retract/diff + health timeline in the web view (the CLI verbs, visual)
 
 ## K · Domains (Phase 5/8)
 

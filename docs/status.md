@@ -124,7 +124,7 @@ the preceding `dotnet build Dami.sln` completed with 0 warnings and 0 errors, an
 | Redaction/consent egress (C4, ADR-0013) | done | `dami brief` → hash-pinned bytes behind a G7 approval → `dami approve` sends byte-exactly through the ADR-0011 door; demonstrated live with the medical history — names stripped, 2,277-char answer recorded |
 | Runtime API on localhost (G5, D-005) | done | `dami-host` service on 127.0.0.1:5810; turns + SSE streaming, surfacings/feedback, beliefs, approvals/resolve, trace replay, `/events` poll feed; CLI rework onto it is I2 |
 | CLI as thin client (I2) | done | every verb through dami-host; approval execution moved server-side; SSE chat; health + caption stay direct by design; clean unreachable-host failure mode |
-| Web view at :5810/ (J3 first cut) | done | conversation (SSE), live execution graph (/events poll, spans indented), inbox with reactions, belief ledger — single file, no frameworks, localhost-only |
+| Web view at :5810/ (J3/J4) | done | conversation (SSE), live execution graph, inbox with reactions, belief ledger with correct/retract/diff actions, and the health timeline — single file, no frameworks, localhost-only |
 | `IProactiveService` contract, scheduling, thresholding | done | `ProactivePassRunner` + `ProactiveScheduler` over a durable run log; failures count as runs; one failing service does not stop the rest |
 | Interest scout running | done | live pass against the real HN front page: egress → parse → loopback-TEI scoring → 3 surfacings, fully replayable trace |
 | Surfacing channel (a queue Steve reads when he wants) | done | `dami inbox` / `read` / `recent`; D-021 cap observed live — a second pass's candidates all `Suppressed`, stored auditable |
