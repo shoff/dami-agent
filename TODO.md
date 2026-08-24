@@ -224,7 +224,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] N3 Enable `CA2254` (structured logging) and decide on `CS1591` (XML docs) — deliberate not-yets in standards §12
 - [ ] N4 Scheduler concurrency test flake (Codex's b27f638) — deflake or redesign `[~ Codex implied]`
 - [x] N5 (stores half) Property tests: corpus byte-exact round-trip, append idempotency, replay order, ledger as-of reconstruction — fixed seeds; codec half stays transport-lane
-- [ ] N6 Persistence integration fixture isolation: concurrent solution runs currently drop the shared `dami_test` objects and create false cascading failures
+- [x] N6 Persistence fixture isolation: concurrent runs serialize on a session advisory lock (proved with two simultaneous runs, 214/214 each)
 
 ---
 

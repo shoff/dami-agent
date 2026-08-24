@@ -6104,3 +6104,31 @@ failure-atomic handler/schema/metadata publication with exact-instance rollback;
 F5c3b2 owns immutable verified-byte materialization and durable convergence logic;
 F5c3b3 owns Host startup composition and recovery proof. F5c3b1 is claimed, and its
 first registry/publication behavior will be driven by an observed focused failure.
+
+F5c3b1 work is in progress and not yet committed. The first real-registry test compiled
+red on the absent sandboxed registration/registry/publisher, then passed after adding
+handler → schema → metadata publication with reverse-order exact-instance rollback; two
+test-style compiler failures (`IDE0007`) were corrected before that behavioral green.
+The first execution-source test compiled red on the absent executor and passed after
+the minimum fixed-command/read-only JSON handoff. An assembly-tamper test first hit the
+30-line analyzer limit, then demonstrated the actual missing behavior by observing no
+exception; it passed after extracting the verifier's digest code and checking the exact
+registered `Tool.dll` SHA-256 before process launch. The complete sandboxed suite passes
+12/12 and the affected common-registry class passes 18/18. F5c3b1 has not run the full
+solution gate and is not claimed complete.
+
+## 2026-08-24 — Claude — N6: concurrent test runs no longer sabotage each other
+
+The phantom failure I hit yesterday — 107 persistence tests failing, then passing
+untouched on the next run — was two `dotnet test` processes sharing one `dami_test`
+schema: the second run's setup dropped the first run's tables mid-flight. Cascading
+red that looks like a real defect and disappears when you look again is worse than a
+plain failure, because it teaches you to distrust the suite.
+
+Fixed with a Postgres session advisory lock held on a dedicated connection for the
+fixture's lifetime. Per-run schemas would be better isolation but `dami_ddl`
+deliberately holds no CREATE privilege on the database, and expanding that to make a
+test convenient is the wrong trade. The lock is session-scoped, so a crashed run
+releases it rather than wedging the next one. Proved by running the repro: two
+simultaneous persistence runs, 214/214 each, the second finishing 13s later — the
+serialization visible in the timing.
