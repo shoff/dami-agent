@@ -4833,3 +4833,13 @@ disconnect. Core passed 83/83. The mandatory solution gate built with 0 warnings
 errors, all twelve suites passed 543/543, and format/analyzer verification formatted 0
 of 446 files. No migration was needed. G4b is `[x]`; G4c is claimed for Host/CLI
 lifecycle surfaces and a live acceptance demonstration.
+
+## 2026-08-24 — Codex — G4c Host/CLI/live slice split
+
+G4c spans three independently demonstrable boundaries, so it is split before
+production work: G4c1 owns the Core session application boundary plus localhost Host
+routes; G4c2 owns the thin CLI commands over those routes; G4c3 owns deployment and the
+live acceptance exercise. The HTTP design uses client-stable session/request IDs and a
+turn-read reconnect route. Lifecycle operations are idempotent at the application
+boundary, and Core remains unaware of HTTP. G4c1 is claimed; its first behavior will be
+driven from a failing Core service test, followed by failing HTTP surface tests.
