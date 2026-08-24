@@ -4,7 +4,9 @@ namespace Dami.Contracts.Capabilities;
 public interface ISkillChangeStore
 {
     /// <summary>Atomically stores the change and its requested execution event.</summary>
-    Task CreateAsync(SkillChangeRecord record, CancellationToken cancellationToken);
+    Task<SkillChangeRecord> CreateAsync(
+        SkillChangeRecord record,
+        CancellationToken cancellationToken);
 
     /// <summary>Finds one change by its retry-stable identifier.</summary>
     Task<SkillChangeRecord?> FindAsync(Guid changeId, CancellationToken cancellationToken);

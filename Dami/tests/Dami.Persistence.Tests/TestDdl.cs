@@ -22,6 +22,7 @@ public static class TestDdl
         "018_approval_trace_provenance.sql",
         "019_conversation_sessions.sql",
         "020_skill_changes.sql",
+        "021_skill_change_recovery.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
     ];

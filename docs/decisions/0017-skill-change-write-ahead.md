@@ -33,7 +33,12 @@ Skill registry source. F4c2 adds migration 020 plus exact event-collision checki
 integration tests demonstrate atomic commit, forced event-write rollback, immutable
 rows, SELECT/INSERT-only runtime privileges, and exact/concurrent retry convergence.
 Migration 020 is applied live with none pending. F4c3 will add recovery and
-materialization evidence when that slice completes.
+materialization evidence when that slice completes. F4c3a now demonstrates complete
+same-filesystem staging, atomic Linux directory exchange, durable retirement
+tombstones, idempotent convergence after each namespace transition, registry
+postcondition verification, and success/failure terminal events. Migration 021 adds a
+partial payload-reference index for bounded pending-change scans and is applied live.
+F4c3b still owns the native/Host lifecycle demonstration.
 
 ## Consequences
 

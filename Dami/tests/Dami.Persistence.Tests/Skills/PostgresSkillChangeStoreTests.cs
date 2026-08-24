@@ -119,6 +119,21 @@ public sealed class PostgresSkillChangeStoreTests
     }
 
     [Fact]
+    public async Task CreateAsync_Should_Return_The_First_Accepted_Time_To_A_Later_Retry()
+    {
+        await this.fixture.ResetAsync();
+        SkillChangeRecord first = CreateRecord();
+        var retry = new SkillChangeRecord(
+            first.Request, first.Diff, first.ReplacementVersion, at.AddMinutes(1));
+        PostgresSkillChangeStore store = this.CreateStore();
+
+        SkillChangeRecord accepted = await store.CreateAsync(first, CancellationToken.None);
+        SkillChangeRecord converged = await store.CreateAsync(retry, CancellationToken.None);
+
+        Assert.Equal((at, at), (accepted.RequestedAt, converged.RequestedAt));
+    }
+
+    [Fact]
     public async Task CreateAsync_Should_Converge_Concurrent_Exact_Retries()
     {
         await this.fixture.ResetAsync();
@@ -242,6 +257,85 @@ public sealed class PostgresSkillChangeStoreTests
         Assert.Equal(PostgresErrorCodes.CheckViolation, (exception as PostgresException)?.SqlState);
     }
 
+    [Fact]
+    public async Task FindPendingAsync_Should_Exclude_A_Succeeded_Change()
+    {
+        await this.fixture.ResetAsync();
+        SkillChangeRecord record = CreateRecord();
+        PostgresSkillChangeStore store = this.CreateStore();
+        await store.CreateAsync(record, CancellationToken.None);
+
+        IReadOnlyList<SkillChangeRecord> before = await store.FindPendingAsync(
+            10, CancellationToken.None);
+        await store.RecordSucceededAsync(
+            record, at.AddMinutes(1), CancellationToken.None);
+        IReadOnlyList<SkillChangeRecord> after = await store.FindPendingAsync(
+            10, CancellationToken.None);
+        ExecutionEventType[] types = (await this.ReplayAsync(record.Request.TraceId))
+            .Select(item => item.Type).ToArray();
+
+        Assert.Equal(
+            (record.Request.ChangeId, 0,
+                ExecutionEventType.SkillChangeRequested, ExecutionEventType.SkillChanged),
+            (before.Single().Request.ChangeId, after.Count, types[0], types[1]));
+    }
+
+    [Fact]
+    public async Task Database_Should_Index_Skill_Outcome_Payload_Lookups()
+    {
+        await this.fixture.ResetAsync();
+        await using NpgsqlCommand command = this.fixture.DataSource.CreateCommand(
+            "select indexdef from pg_indexes where schemaname = @schema "
+            + "and indexname = 'execution_events_skill_outcomes';");
+        command.Parameters.AddWithValue("schema", DatabaseFixture.SCHEMA);
+
+        object? index = await command.ExecuteScalarAsync(CancellationToken.None);
+
+        Assert.Contains("payload_reference", index as string ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RecordFailedAsync_Should_Keep_The_Change_Pending()
+    {
+        await this.fixture.ResetAsync();
+        SkillChangeRecord record = CreateRecord();
+        PostgresSkillChangeStore store = this.CreateStore();
+        await store.CreateAsync(record, CancellationToken.None);
+
+        await store.RecordFailedAsync(
+            record, "IOException", at.AddMinutes(1), CancellationToken.None);
+
+        IReadOnlyList<SkillChangeRecord> pending = await store.FindPendingAsync(
+            10, CancellationToken.None);
+        ExecutionEventType[] types = (await this.ReplayAsync(record.Request.TraceId))
+            .Select(item => item.Type).ToArray();
+        Assert.Equal(
+            (record.Request.ChangeId,
+                ExecutionEventType.SkillChangeRequested, ExecutionEventType.SkillChangeFailed),
+            (pending.Single().Request.ChangeId, types[0], types[1]));
+    }
+
+    [Fact]
+    public async Task RecordFailedAsync_Should_Record_Distinct_Recovery_Attempts()
+    {
+        await this.fixture.ResetAsync();
+        SkillChangeRecord record = CreateRecord();
+        PostgresSkillChangeStore store = this.CreateStore();
+        await store.CreateAsync(record, CancellationToken.None);
+
+        await store.RecordFailedAsync(
+            record, "IOException", at.AddMinutes(1), CancellationToken.None);
+        await store.RecordFailedAsync(
+            record, "IOException", at.AddMinutes(2), CancellationToken.None);
+
+        ExecutionEventType[] types = (await this.ReplayAsync(record.Request.TraceId))
+            .Select(item => item.Type).ToArray();
+        Assert.Equal(
+            [ExecutionEventType.SkillChangeRequested,
+                ExecutionEventType.SkillChangeFailed, ExecutionEventType.SkillChangeFailed],
+            types);
+    }
+
     private static SkillChangeRecord CreateRecord()
     {
         var document = new SkillDocument(
@@ -253,7 +347,7 @@ public sealed class PostgresSkillChangeStoreTests
         return new SkillChangeRecord(request, "+ # Compare images", new string('a', 64), at);
     }
 
-    private ISkillChangeStore CreateStore()
+    private PostgresSkillChangeStore CreateStore()
     {
         return new PostgresSkillChangeStore(
             this.fixture.DataSource,

@@ -5576,3 +5576,75 @@ terminal execution events, and recovery of requested changes left incomplete by 
 process crash. F4c3b owns the model-invokable native lifecycle contract, Host
 composition, and live author/revise/retire demonstration. The split is recorded before
 production changes; F4c3a is claimed first.
+
+## 2026-08-24 — Codex — F4c3a crash-recoverable materialization complete; F4c3b claimed
+
+The first version-equivalence test compiled red because no in-memory document
+versioner existed. Its first behavioral run then failed on a fixture that serialized
+strict descriptor keys as `Name`/`Description`; correcting them to lowercase observed
+an exact match between the predicted document hash and F4a's published filesystem
+version. The loader and authoring path now share one length-framed SHA-256 component.
+Its string path was later refactored from a buffer rented in proportion to content size
+to fixed stack chunks without changing any version evidence.
+
+The first materializer test compiled red on the absent type. Minimum authoring staged a
+complete descriptor, body, declared references, and version marker under the configured
+root, flushed files, then renamed the directory into view. The retry test then failed
+because a post-move replay saw an occupied destination. Durable ownership markers and
+idempotent replay made it green. A loader test next failed by trying to load an
+interrupted `.dami-stage-*` directory; those reserved internal directories are now
+excluded without allocating a directory-name string.
+
+Revision initially failed as unsupported. The implementation stages on the same
+filesystem and uses Linux `renameat2(RENAME_EXCHANGE)` for one atomic visible namespace
+transition, after which the old directory is removed from the reserved stage path. The
+source-generated UTF-8 interop first failed compilation because `LibraryImport`
+requires unsafe compilation support; `AllowUnsafeBlocks` is enabled only for the Skills
+project, while the handwritten source contains no unsafe block. Revision passed on the
+running Linux host. Retirement then failed as unsupported; it now atomically renames
+the expected preimage out of view and writes a per-change tombstone before cleanup.
+An interrupted-retirement test reproduced a moved directory plus partial marker and
+failed on `CreateNew`; marker publication now uses a flushed temporary file and atomic
+overwrite, and recovery completed without exposing a skill directory.
+
+An existing human-named, markerless F4a skill next failed revision because the first
+implementation assumed materializer-created GUID directory names. A bounded locator
+now reuses the loader's exact inspection and hashing path, rejects duplicate identities,
+and preserves the existing directory name through exchange. A symlink-root test then
+observed a real escaped write and no exception; materialization now refuses linked roots
+before staging. A configured-capacity test observed two directories with `MaxSkills=1`;
+new authoring now checks capacity before writing.
+
+The durable recovery test compiled red on absent materializer/reloader/processor
+contracts. The processor now serializes each pending change with one semaphore,
+materializes, atomically reloads the full Skill source, verifies the registry
+postcondition, and only then records `SkillChanged`. A test showed that a failed success
+journal append was falsely followed by `SkillChangeFailed`; success persistence is now
+outside the materialization-failure catch. Already-succeeded changes next performed the
+whole sequence again; an indexed pending check under the same semaphore now skips them.
+Recovery returns an explicit attempted/succeeded/failed summary rather than silently
+swallowing failures.
+
+PostgreSQL tests drove the other half. Pending/success methods were initially absent;
+requested changes now remain pending until an exact deterministic success event. The
+first compound assertion compared nested arrays by reference despite identical values;
+scalar comparison corrected that fixture. A missing outcome index failed direct schema
+inspection, producing migration 021's partial payload-reference index. Failure events
+remain pending, but a second same-code attempt originally collided with the first event
+ID because its timestamp differed; failure IDs now include the PostgreSQL-precision
+attempt time without heap-allocating hash input. Finally, lifecycle API retries stamped
+a later request time and could not return a canonical record. The store now returns the
+first accepted row, uses it for the requested event, and treats later attempt time as
+retry metadata rather than conflicting command content.
+
+Post-green adversarial tests then found that owned author and revision markers could
+hide corrupted visible content, causing every reload/recovery attempt to fail forever.
+Pending owned changes now restage from the durable document and atomically repair the
+directory instead of trusting the marker alone. The focused Skills suite passed 34/34
+and PostgreSQL integration suite passed 184/184. The mandatory solution gate built all
+33 projects with 0 warnings and 0 errors, all sixteen suites passed 678/678, and
+format/analyzer verification exited 0. The migration runner harness passed. Live status
+showed only 021 pending; it applied transactionally, subsequent status showed none
+pending, and direct `pg_indexes` inspection observed the intended partial
+`execution_events_skill_outcomes` index. F4c3a is `[x]`; F4c3b native/Host lifecycle
+demonstration is claimed.

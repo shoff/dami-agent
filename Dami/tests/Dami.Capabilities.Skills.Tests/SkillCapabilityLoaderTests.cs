@@ -256,6 +256,22 @@ public sealed class SkillCapabilityLoaderTests : IDisposable
         Assert.Empty(registry.Snapshot());
     }
 
+    [Fact]
+    public async Task LoadAsync_Should_Ignore_Internal_Materialization_Directories()
+    {
+        var skillId = Guid.NewGuid();
+        await this.WriteSkillAsync("visible", skillId);
+        Directory.CreateDirectory(Path.Combine(this.scratch, ".dami-stage-interrupted"));
+        var registry = new CapabilityRegistry();
+        var loader = new SkillCapabilityLoader(
+            registry, new SkillLoaderOptions { RootDirectory = this.scratch });
+
+        IReadOnlyList<CapabilityEntry> loaded = await loader.LoadAsync(
+            registeredAt, CancellationToken.None);
+
+        Assert.Equal(skillId, loaded.Single().CapabilityId);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(this.scratch))

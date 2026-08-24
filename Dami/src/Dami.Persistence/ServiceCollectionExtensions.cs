@@ -62,7 +62,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IEgressMeter, PostgresEgressMeter>();
         services.TryAddSingleton<IEgressBriefStore, PostgresEgressBriefStore>();
         services.TryAddSingleton<IFilePatchProposalStore, PostgresFilePatchProposalStore>();
-        services.TryAddSingleton<ISkillChangeStore, PostgresSkillChangeStore>();
+        RegisterSkillChangeStore(services);
         services.TryAddSingleton<IHealthEventStore, PostgresHealthEventStore>();
         services.TryAddSingleton<ICapabilityEmbeddingStore, PostgresCapabilityEmbeddingStore>();
         services.TryAddSingleton<PostgresSessionStore>();
@@ -72,5 +72,14 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<PostgresSessionStore>());
 
         return services;
+    }
+
+    private static void RegisterSkillChangeStore(IServiceCollection services)
+    {
+        services.TryAddSingleton<PostgresSkillChangeStore>();
+        services.TryAddSingleton<ISkillChangeStore>(provider =>
+            provider.GetRequiredService<PostgresSkillChangeStore>());
+        services.TryAddSingleton<ISkillChangeRecoveryStore>(provider =>
+            provider.GetRequiredService<PostgresSkillChangeStore>());
     }
 }

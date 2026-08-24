@@ -1,5 +1,3 @@
-using System.Buffers;
-using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -8,7 +6,7 @@ using Dami.Contracts.Capabilities;
 namespace Dami.Capabilities.Skills;
 
 /// <summary>Loads bounded local skill folders into the unified capability registry.</summary>
-public sealed class SkillCapabilityLoader : ISkillContentReader
+public sealed class SkillCapabilityLoader : ISkillContentReader, ISkillSourceReloader
 {
     private const int MAX_FILE_BYTES = 16 * 1024 * 1024;
     private const int MAX_SKILLS = 4096;
@@ -74,6 +72,14 @@ public sealed class SkillCapabilityLoader : ISkillContentReader
     }
 
     /// <inheritdoc />
+    public async Task ReloadAsync(
+        DateTimeOffset registeredAt,
+        CancellationToken cancellationToken)
+    {
+        await this.LoadAsync(registeredAt, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<string> ReadBodyAsync(
         Guid skillId,
         string expectedVersion,
@@ -110,6 +116,16 @@ public sealed class SkillCapabilityLoader : ISkillContentReader
         ValidateUtf8(bytes);
         ValidateFingerprint(skillId, expectedFingerprint, bytes);
         return strictUtf8.GetString(bytes);
+    }
+
+    internal async Task<SkillDirectoryIdentity> InspectAsync(
+        string directory,
+        CancellationToken cancellationToken)
+    {
+        LoadedSkill loaded = await this.LoadOneAsync(
+            directory, DateTimeOffset.UnixEpoch, cancellationToken).ConfigureAwait(false);
+        return new SkillDirectoryIdentity(
+            directory, loaded.Entry.CapabilityId, loaded.Entry.Version);
     }
 
     private async Task<LoadedSkill> LoadOneAsync(
@@ -163,9 +179,9 @@ public sealed class SkillCapabilityLoader : ISkillContentReader
         byte[] bodyBytes,
         CancellationToken cancellationToken)
     {
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        AppendDescriptor(hash, descriptor);
-        Append(hash, bodyBytes);
+        using var hash = new SkillVersionHash();
+        hash.AppendDescriptor(descriptor);
+        hash.AppendContent(bodyBytes);
         var totalReferenceBytes = 0;
         var referenceFingerprints = new Dictionary<string, byte[]>(
             descriptor.References!.Length, StringComparer.Ordinal);
@@ -176,76 +192,14 @@ public sealed class SkillCapabilityLoader : ISkillContentReader
             byte[] bytes = await ReadBoundedAsync(path, remaining, cancellationToken)
                 .ConfigureAwait(false);
             totalReferenceBytes += bytes.Length;
-            Append(hash, bytes);
+            hash.AppendContent(bytes);
             referenceFingerprints.Add(reference, SHA256.HashData(bytes));
         }
 
         return new VersionedContent(
-            Convert.ToHexStringLower(hash.GetHashAndReset()),
+            hash.Complete(),
             SHA256.HashData(bodyBytes),
             referenceFingerprints);
-    }
-
-    private static void AppendDescriptor(IncrementalHash hash, SkillDescriptor descriptor)
-    {
-        Span<byte> id = stackalloc byte[16];
-        descriptor.Id.TryWriteBytes(id);
-        Append(hash, id);
-        AppendString(hash, descriptor.Name!);
-        AppendString(hash, descriptor.Description!);
-        AppendStrings(hash, descriptor.Tags!);
-        AppendGuids(hash, descriptor.RelatedCapabilities!);
-        AppendStrings(hash, descriptor.References!);
-    }
-
-    private static void AppendStrings(IncrementalHash hash, IReadOnlyList<string> values)
-    {
-        AppendCount(hash, values.Count);
-        for (var index = 0; index < values.Count; index++)
-        {
-            AppendString(hash, values[index]);
-        }
-    }
-
-    private static void AppendGuids(IncrementalHash hash, IReadOnlyList<Guid> values)
-    {
-        AppendCount(hash, values.Count);
-        Span<byte> bytes = stackalloc byte[16];
-        for (var index = 0; index < values.Count; index++)
-        {
-            values[index].TryWriteBytes(bytes);
-            Append(hash, bytes);
-        }
-    }
-
-    private static void AppendString(IncrementalHash hash, string value)
-    {
-        int byteCount = strictUtf8.GetByteCount(value);
-        if (byteCount <= 512)
-        {
-            Span<byte> bytes = stackalloc byte[byteCount];
-            strictUtf8.GetBytes(value, bytes);
-            Append(hash, bytes);
-            return;
-        }
-
-        byte[] rented = ArrayPool<byte>.Shared.Rent(byteCount);
-        try
-        {
-            int written = strictUtf8.GetBytes(value, rented);
-            Append(hash, rented.AsSpan(0, written));
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(rented);
-        }
-    }
-
-    private static void AppendCount(IncrementalHash hash, int count)
-    {
-        Span<byte> bytes = stackalloc byte[sizeof(int)];
-        BinaryPrimitives.WriteInt32LittleEndian(bytes, count);
-        hash.AppendData(bytes);
     }
 
     private string[] FindDirectories()
@@ -260,6 +214,12 @@ public sealed class SkillCapabilityLoader : ISkillContentReader
         var directories = new List<string>();
         foreach (string directory in Directory.EnumerateDirectories(this.rootDirectory))
         {
+            if (Path.GetFileName(directory.AsSpan()).StartsWith(
+                ".dami-", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             if (directories.Count == this.maxSkills)
             {
                 throw new InvalidDataException(
@@ -373,14 +333,6 @@ public sealed class SkillCapabilityLoader : ISkillContentReader
         {
             throw new InvalidDataException($"Skill file '{Path.GetFileName(path)}' is not an ordinary file.");
         }
-    }
-
-    private static void Append(IncrementalHash hash, ReadOnlySpan<byte> bytes)
-    {
-        Span<byte> length = stackalloc byte[sizeof(int)];
-        BinaryPrimitives.WriteInt32LittleEndian(length, bytes.Length);
-        hash.AppendData(length);
-        hash.AppendData(bytes);
     }
 
     private static void ValidateUtf8(ReadOnlySpan<byte> bytes)

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Events;
 using Dami.Persistence.Events;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -8,7 +9,7 @@ using NpgsqlTypes;
 namespace Dami.Persistence.Skills;
 
 /// <summary>PostgreSQL write-ahead ledger for immutable skill changes.</summary>
-public sealed class PostgresSkillChangeStore : ISkillChangeStore
+public sealed class PostgresSkillChangeStore : ISkillChangeStore, ISkillChangeRecoveryStore
 {
     private readonly NpgsqlDataSource dataSource;
     private readonly string eventsTable;
@@ -28,7 +29,7 @@ public sealed class PostgresSkillChangeStore : ISkillChangeStore
     }
 
     /// <inheritdoc />
-    public async Task CreateAsync(
+    public async Task<SkillChangeRecord> CreateAsync(
         SkillChangeRecord record,
         CancellationToken cancellationToken)
     {
@@ -37,15 +38,17 @@ public sealed class PostgresSkillChangeStore : ISkillChangeStore
             .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using NpgsqlTransaction transaction = await connection
             .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        await this.InsertAsync(connection, transaction, record, cancellationToken)
+        SkillChangeRecord accepted = await this.InsertAsync(
+            connection, transaction, record, cancellationToken)
             .ConfigureAwait(false);
         await ExecutionEventCommand.AppendExactAsync(
             connection,
             transaction,
             this.eventsTable,
-            SkillChangeEventFactory.Requested(record),
+            SkillChangeEventFactory.Requested(accepted),
             cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return accepted;
     }
 
     /// <inheritdoc />
@@ -64,7 +67,97 @@ public sealed class PostgresSkillChangeStore : ISkillChangeStore
             .ConfigureAwait(false);
     }
 
-    private async Task InsertAsync(
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SkillChangeRecord>> FindPendingAsync(
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        if (limit <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit));
+        }
+
+        await using NpgsqlConnection connection = await this.dataSource
+            .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(this.PendingSql(), connection);
+        command.Parameters.AddWithValue("limit", limit);
+        await using NpgsqlDataReader reader = await command
+            .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var records = new List<SkillChangeRecord>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            records.Add(Read(reader));
+        }
+
+        return records.AsReadOnly();
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> IsPendingAsync(
+        Guid changeId,
+        CancellationToken cancellationToken)
+    {
+        if (changeId == Guid.Empty)
+        {
+            throw new ArgumentException("A change identifier is required.", nameof(changeId));
+        }
+
+        await using NpgsqlConnection connection = await this.dataSource
+            .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(
+            $"""
+            select exists (
+                select 1 from {this.table} c
+                 where c.change_id = @change
+                   and not exists (
+                       select 1 from {this.eventsTable} e
+                        where e.type = 'SkillChanged'
+                          and e.payload_reference = 'skill-change://' || c.change_id::text));
+            """,
+            connection);
+        command.Parameters.AddWithValue("change", changeId);
+        object? scalar = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return scalar is true;
+    }
+
+    /// <inheritdoc />
+    public Task RecordSucceededAsync(
+        SkillChangeRecord record,
+        DateTimeOffset occurredAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        return this.RecordOutcomeAsync(
+            SkillChangeEventFactory.Succeeded(record, occurredAt), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task RecordFailedAsync(
+        SkillChangeRecord record,
+        string failureCode,
+        DateTimeOffset occurredAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        return this.RecordOutcomeAsync(
+            SkillChangeEventFactory.Failed(record, failureCode, occurredAt), cancellationToken);
+    }
+
+    private async Task RecordOutcomeAsync(
+        ExecutionEvent outcome,
+        CancellationToken cancellationToken)
+    {
+        await using NpgsqlConnection connection = await this.dataSource
+            .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using NpgsqlTransaction transaction = await connection
+            .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await ExecutionEventCommand.AppendExactAsync(
+            connection, transaction, this.eventsTable, outcome, cancellationToken)
+            .ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<SkillChangeRecord> InsertAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         SkillChangeRecord record,
@@ -84,14 +177,16 @@ public sealed class PostgresSkillChangeStore : ISkillChangeStore
             transaction);
         AddParameters(command, record);
         int inserted = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        if (inserted == 0)
+        if (inserted != 0)
         {
-            await this.EnsureExactReplayAsync(
-                connection, transaction, record, cancellationToken).ConfigureAwait(false);
+            return record;
         }
+
+        return await this.EnsureExactReplayAsync(
+            connection, transaction, record, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task EnsureExactReplayAsync(
+    private async Task<SkillChangeRecord> EnsureExactReplayAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         SkillChangeRecord record,
@@ -105,6 +200,8 @@ public sealed class PostgresSkillChangeStore : ISkillChangeStore
             throw new InvalidOperationException(
                 $"Skill change '{record.Request.ChangeId}' already exists with different data.");
         }
+
+        return stored;
     }
 
     private async Task<SkillChangeRecord?> FindAsync(
@@ -153,6 +250,22 @@ public sealed class PostgresSkillChangeStore : ISkillChangeStore
             reader.GetFieldValue<DateTimeOffset>(11));
     }
 
+    private string PendingSql()
+    {
+        return $"""
+            select c.change_id, c.trace_id, c.span_id, c.parent_span_id, c.origin,
+                   c.kind, c.skill_id, c.expected_version, c.replacement_version,
+                   c.replacement_document, c.diff, c.requested_at
+              from {this.table} c
+             where not exists (
+                   select 1 from {this.eventsTable} e
+                    where e.type = 'SkillChanged'
+                      and e.payload_reference = 'skill-change://' || c.change_id::text)
+             order by c.requested_at, c.change_id
+             limit @limit;
+            """;
+    }
+
     private static void AddParameters(NpgsqlCommand command, SkillChangeRecord record)
     {
         SkillChangeRequest request = record.Request;
@@ -188,14 +301,7 @@ public sealed class PostgresSkillChangeStore : ISkillChangeStore
             && string.Equals(first.ExpectedVersion, second.ExpectedVersion, StringComparison.Ordinal)
             && string.Equals(left.ReplacementVersion, right.ReplacementVersion, StringComparison.Ordinal)
             && string.Equals(left.Diff, right.Diff, StringComparison.Ordinal)
-            && SamePostgresTimestamp(left.RequestedAt, right.RequestedAt)
             && DocumentsEqual(first.Replacement, second.Replacement);
-    }
-
-    private static bool SamePostgresTimestamp(DateTimeOffset left, DateTimeOffset right)
-    {
-        return left.UtcDateTime.Ticks / TimeSpan.TicksPerMicrosecond
-            == right.UtcDateTime.Ticks / TimeSpan.TicksPerMicrosecond;
     }
 
     private static bool DocumentsEqual(SkillDocument? left, SkillDocument? right)

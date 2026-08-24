@@ -109,8 +109,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] F4c1 Version-pinned lifecycle contract + atomic skill-source snapshot replacement
     - [x] F4c2 Transactional durable diff ledger + execution event write-ahead (migration and least privilege)
     - [~ Codex 2026-08-24] F4c3 Crash-recoverable filesystem materialization + Host/native lifecycle demonstration
-      - [~ Codex 2026-08-24] F4c3a Version-consistent staged filesystem materialization + terminal-event recovery
-      - [ ] F4c3b Native author/revise/retire capability + Host/live lifecycle demonstration
+      - [x] F4c3a Version-consistent staged filesystem materialization + terminal-event recovery
+      - [~ Codex 2026-08-24] F4c3b Native author/revise/retire capability + Host/live lifecycle demonstration
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
 
 ## G · Interactive runtime
