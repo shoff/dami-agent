@@ -5080,3 +5080,28 @@ and blocks untrusted MCP before reranking and related expansion; F3c2 owns sourc
 invocation dispatch and result/error translation; F3c3 records and implements the new
 remote transport door under D-012 in an ADR. This split is recorded before production
 work rather than silently widening `IEgressClient`. Only F3c1 is claimed now.
+
+## 2026-08-24 — Codex — F3c1 privacy-aware capability selection complete
+
+The first selection test initially had a missing `PrivacyClass` import in its fixture;
+after correcting that test-only setup, its clean red was CS1501 because semantic
+resolution had no privacy-aware overload. The implementation filtered untrusted MCP
+entries before their summaries reached the reranker. A second behavioral test then
+failed red because a trusted selected skill could still pull an untrusted MCP tool into
+a LocalOnly bundle through related-capability expansion. One shared privacy policy now
+guards both retrieval and recursive expansion, avoiding divergent security rules.
+
+A Core contract test compiled red at CS1501 when it required the routed privacy class
+at the tool resolver. The privacy-blind resolver contracts and overload were removed;
+`TurnRunner` now carries `ModelRoute.Privacy` through schema selection into semantic
+resolution. An adversarial unknown-enum test then failed because an empty candidate set
+silently accepted value 99. Both resolver and expander now validate privacy at their
+boundaries before work begins, so new or corrupted values fail closed. The positive
+Egressable case was added after green as coverage and confirms that the LocalOnly rule
+does not disable explicitly egressable untrusted MCP tools.
+
+Observed focused results were 31/31 capability tests and 91/91 Core tests. The mandatory
+solution gate built all 31 projects with 0 warnings and 0 errors, all fifteen suites
+passed 589/589, and format/analyzer verification exited 0. No schema, migration, Host,
+or deployment change was required. F3c1 is `[x]`; F3c2 source-neutral MCP invocation is
+claimed next.

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
 
 namespace Dami.Capabilities.Tests;
 
@@ -23,7 +24,8 @@ public sealed class SemanticCapabilityToolResolverTests
         var resolver = new SemanticCapabilityToolResolver(
             new StubResolver(selected), schemas);
 
-        var result = await resolver.ResolveAsync("use tools", CancellationToken.None);
+        var result = await resolver.ResolveAsync(
+            "use tools", PrivacyClass.LocalOnly, CancellationToken.None);
 
         Assert.Equal([firstSchema, secondSchema], result);
     }
@@ -47,6 +49,7 @@ public sealed class SemanticCapabilityToolResolverTests
     {
         public Task<CapabilityBundle> ResolveAsync(
             string intent,
+            PrivacyClass privacy,
             CancellationToken cancellationToken) => Task.FromResult(bundle);
     }
 }

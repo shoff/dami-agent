@@ -1,3 +1,5 @@
+using Dami.Contracts.Context;
+
 namespace Dami.Capabilities;
 
 /// <summary>Resolves related capabilities through a source-neutral catalog.</summary>
@@ -14,12 +16,14 @@ public sealed class CapabilityBundleExpander : ICapabilityBundleExpander
     }
 
     /// <inheritdoc />
-    public CapabilityBundle Expand(string name, IReadOnlyList<Guid> selectedCapabilityIds)
+    public CapabilityBundle Expand(
+        string name,
+        IReadOnlyList<Guid> selectedCapabilityIds,
+        PrivacyClass privacy)
     {
-        ArgumentNullException.ThrowIfNull(selectedCapabilityIds);
         var capabilities = new List<CapabilityEntry>();
         var includedCapabilityIds = new HashSet<Guid>();
-        var pendingCapabilityIds = CreatePending(selectedCapabilityIds);
+        var pendingCapabilityIds = CreatePending(selectedCapabilityIds, privacy);
 
         while (pendingCapabilityIds.TryPop(out var pendingCapability))
         {
@@ -28,7 +32,11 @@ public sealed class CapabilityBundleExpander : ICapabilityBundleExpander
                 continue;
             }
 
-            var capability = this.Resolve(pendingCapability);
+            if (this.ResolveEligible(pendingCapability, privacy) is not { } capability)
+            {
+                continue;
+            }
+
             if (capability.Kind != CapabilityKind.Bundle)
             {
                 capabilities.Add(capability);
@@ -43,6 +51,14 @@ public sealed class CapabilityBundleExpander : ICapabilityBundleExpander
         }
 
         return new CapabilityBundle(name, capabilities);
+    }
+
+    private CapabilityEntry? ResolveEligible(
+        PendingCapability pendingCapability,
+        PrivacyClass privacy)
+    {
+        var capability = this.Resolve(pendingCapability);
+        return CapabilityPrivacyPolicy.Allows(capability, privacy) ? capability : null;
     }
 
     private CapabilityEntry Resolve(PendingCapability pendingCapability)
@@ -60,8 +76,12 @@ public sealed class CapabilityBundleExpander : ICapabilityBundleExpander
             $"Capability '{pendingCapability.CapabilityId}'{referrer} is not registered.");
     }
 
-    private static Stack<PendingCapability> CreatePending(IReadOnlyList<Guid> capabilityIds)
+    private static Stack<PendingCapability> CreatePending(
+        IReadOnlyList<Guid> capabilityIds,
+        PrivacyClass privacy)
     {
+        ArgumentNullException.ThrowIfNull(capabilityIds);
+        CapabilityPrivacyPolicy.EnsureDefined(privacy);
         var pendingCapabilityIds = new Stack<PendingCapability>();
         for (var index = capabilityIds.Count - 1; index >= 0; index--)
         {

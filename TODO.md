@@ -92,8 +92,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [x] F3a `Dami.Capabilities.Mcp` client boundary: explicit server registration/trust, owned connection lifecycle, tool discovery, and schema cache
   - [x] F3b Secure registry ingestion: stable normalized tools; trusted descriptions admitted verbatim; untrusted descriptions locally summarized with raw text unable to enter retrieval context
   - [~ Codex 2026-08-24] F3c Privacy-aware selection and execution: untrusted MCP excluded before LocalOnly reranking/expansion; source-neutral MCP invocation dispatch
-    - [~ Codex 2026-08-24] F3c1 Thread privacy classification through capability resolution; exclude untrusted MCP before LocalOnly reranking and related-capability expansion
-    - [ ] F3c2 Source-neutral MCP invocation registry/dispatcher with cancellation and result/error translation
+    - [x] F3c1 Thread privacy classification through capability resolution; exclude untrusted MCP before LocalOnly reranking and related-capability expansion
+    - [~ Codex 2026-08-24] F3c2 Source-neutral MCP invocation registry/dispatcher with cancellation and result/error translation
     - [ ] F3c3 D-012 remote Streamable HTTP boundary: ADR plus request-body-capable, event-metered egress transport; default remains loopback-only
   - [ ] F3d Host composition and local fake-server integration demonstration
 - [ ] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event

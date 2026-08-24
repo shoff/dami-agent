@@ -48,7 +48,7 @@ public sealed class TurnRunnerTests
         this.Arrange();
         var schema = CreateToolSchema();
         var toolResolver = Substitute.For<ICapabilityToolResolver>();
-        toolResolver.ResolveAsync("read notes", Arg.Any<CancellationToken>())
+        toolResolver.ResolveAsync("read notes", PrivacyClass.LocalOnly, Arg.Any<CancellationToken>())
             .Returns([schema]);
         var toolLoop = Substitute.For<IToolLoopRunner>();
         toolLoop.RunAsync(
@@ -64,7 +64,8 @@ public sealed class TurnRunnerTests
         var result = await runner.RunAsync("read notes", CancellationToken.None);
 
         Assert.Equal("tool-backed answer", result.Answer);
-        await toolResolver.Received(1).ResolveAsync("read notes", Arg.Any<CancellationToken>());
+        await toolResolver.Received(1).ResolveAsync(
+            "read notes", PrivacyClass.LocalOnly, Arg.Any<CancellationToken>());
         await toolLoop.Received(1).RunAsync(
             result.TraceId,
             Arg.Is<Guid>(spanId => spanId != Guid.Empty),
@@ -359,7 +360,8 @@ public sealed class TurnRunnerTests
             .Returns(new ModelRoute(ModelTier.Local, PrivacyClass.LocalOnly, "test"));
         this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("an answer");
-        this.toolResolver.ResolveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        this.toolResolver.ResolveAsync(
+                Arg.Any<string>(), Arg.Any<PrivacyClass>(), Arg.Any<CancellationToken>())
             .Returns(Array.Empty<CapabilityToolSchema>());
         this.toolLoop.RunAsync(
                 Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(),

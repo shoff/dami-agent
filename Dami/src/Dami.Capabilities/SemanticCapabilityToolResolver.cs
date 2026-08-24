@@ -1,4 +1,5 @@
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
 
 namespace Dami.Capabilities;
 
@@ -22,9 +23,10 @@ public sealed class SemanticCapabilityToolResolver : ICapabilityToolResolver
     /// <inheritdoc />
     public async Task<IReadOnlyList<CapabilityToolSchema>> ResolveAsync(
         string intent,
+        PrivacyClass privacy,
         CancellationToken cancellationToken)
     {
-        var bundle = await this.capabilityResolver.ResolveAsync(intent, cancellationToken)
+        var bundle = await this.capabilityResolver.ResolveAsync(intent, privacy, cancellationToken)
             .ConfigureAwait(false);
         var schemas = new List<CapabilityToolSchema>(bundle.Capabilities.Count);
         foreach (var capability in bundle.Capabilities)

@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
 using Dami.Contracts.Models;
 
 namespace Dami.Capabilities.Tests;
@@ -32,7 +33,7 @@ public sealed class SemanticCapabilityResolverTests
             new CapabilityRetrievalOptions { CandidateLimit = 2, ResultLimit = 1 });
 
         CapabilityBundle bundle = await resolver.ResolveAsync(
-            "compare two images", CancellationToken.None);
+            "compare two images", PrivacyClass.LocalOnly, CancellationToken.None);
 
         AssertResolved(calls, embeddingClient, reranker, irrelevantTool, selectedSkill, relatedTool, bundle);
     }
@@ -45,7 +46,8 @@ public sealed class SemanticCapabilityResolverTests
         var reranker = new RecordingRerankClient(calls, []);
         var resolver = CreateResolver(calls, registry, reranker, []);
 
-        CapabilityBundle bundle = await resolver.ResolveAsync("unknown intent", CancellationToken.None);
+        CapabilityBundle bundle = await resolver.ResolveAsync(
+            "unknown intent", PrivacyClass.LocalOnly, CancellationToken.None);
 
         Assert.Empty(bundle.Capabilities);
         Assert.Equal(0, reranker.CallCount);
@@ -62,9 +64,93 @@ public sealed class SemanticCapabilityResolverTests
         var resolver = CreateResolver(calls, registry, reranker, [tool.CapabilityId]);
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
-            () => resolver.ResolveAsync("compare images", CancellationToken.None));
+            () => resolver.ResolveAsync(
+                "compare images", PrivacyClass.LocalOnly, CancellationToken.None));
 
         Assert.Contains("index 1", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_Should_Reject_An_Unknown_Privacy_Class()
+    {
+        var calls = new List<string>();
+        var registry = new CapabilityRegistry();
+        var resolver = CreateResolver(calls, registry, new RecordingRerankClient(calls, []), []);
+
+        var exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => resolver.ResolveAsync(
+                "unknown intent", (PrivacyClass)99, CancellationToken.None));
+
+        Assert.Equal("privacy", exception.ParamName);
+        Assert.Empty(calls);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_Should_Exclude_Untrusted_Mcp_Before_LocalOnly_Reranking()
+    {
+        var calls = new List<string>();
+        var trusted = CreateTool("00000000-0000-0000-0000-000000000001", "read-text");
+        var untrusted = new CapabilityEntry(
+            Guid.Parse("00000000-0000-0000-0000-000000000002"),
+            "remote-tool", "Untrusted remote description.", CapabilityKind.Tool,
+            CapabilitySource.Mcp, TrustLevel.Untrusted, [], "mcp://remote/schema",
+            null, [], "1", DateTimeOffset.UnixEpoch);
+        var registry = new CapabilityRegistry();
+        registry.Register(trusted);
+        registry.Register(untrusted);
+        var reranker = new RecordingRerankClient(calls, [0]);
+        var resolver = CreateResolver(
+            calls, registry, reranker, [untrusted.CapabilityId, trusted.CapabilityId]);
+
+        CapabilityBundle bundle = await resolver.ResolveAsync(
+            "read text", PrivacyClass.LocalOnly, CancellationToken.None);
+
+        Assert.Equal([trusted.Description], reranker.Candidates);
+        Assert.Equal([trusted], bundle.Capabilities);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_Should_Allow_Untrusted_Mcp_For_Egressable_Intent()
+    {
+        var calls = new List<string>();
+        var untrusted = new CapabilityEntry(
+            Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            "remote-tool", "Safe summary.", CapabilityKind.Tool,
+            CapabilitySource.Mcp, TrustLevel.Untrusted, [], "mcp://remote/schema",
+            null, [], "1", DateTimeOffset.UnixEpoch);
+        var registry = new CapabilityRegistry();
+        registry.Register(untrusted);
+        var reranker = new RecordingRerankClient(calls, [0]);
+        var resolver = CreateResolver(calls, registry, reranker, [untrusted.CapabilityId]);
+
+        CapabilityBundle bundle = await resolver.ResolveAsync(
+            "remote task", PrivacyClass.Egressable, CancellationToken.None);
+
+        Assert.Equal([untrusted.Description], reranker.Candidates);
+        Assert.Equal([untrusted], bundle.Capabilities);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_Should_Exclude_Untrusted_Mcp_During_LocalOnly_Expansion()
+    {
+        var calls = new List<string>();
+        var untrusted = new CapabilityEntry(
+            Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            "remote-tool", "Safe summary.", CapabilityKind.Tool,
+            CapabilitySource.Mcp, TrustLevel.Untrusted, [], "mcp://remote/schema",
+            null, [], "1", DateTimeOffset.UnixEpoch);
+        var skill = CreateSkill(
+            "00000000-0000-0000-0000-000000000002", "workflow", untrusted.CapabilityId);
+        var registry = new CapabilityRegistry();
+        registry.Register(untrusted);
+        registry.Register(skill);
+        var resolver = CreateResolver(
+            calls, registry, new RecordingRerankClient(calls, [0]), [skill.CapabilityId]);
+
+        CapabilityBundle bundle = await resolver.ResolveAsync(
+            "use workflow", PrivacyClass.LocalOnly, CancellationToken.None);
+
+        Assert.Equal([skill], bundle.Capabilities);
     }
 
     private static SemanticCapabilityResolver CreateResolver(

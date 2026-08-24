@@ -1,3 +1,5 @@
+using Dami.Contracts.Context;
+
 namespace Dami.Capabilities.Tests;
 
 public sealed class CapabilityBundleExpanderTests
@@ -12,7 +14,8 @@ public sealed class CapabilityBundleExpanderTests
         registry.Register(skill);
         ICapabilityBundleExpander expander = new CapabilityBundleExpander(registry);
 
-        var bundle = expander.Expand("image-comparison", [skill.CapabilityId]);
+        var bundle = expander.Expand(
+            "image-comparison", [skill.CapabilityId], PrivacyClass.LocalOnly);
 
         Assert.Equal("image-comparison", bundle.Name);
         Assert.Equal([skill, tool], bundle.Capabilities);
@@ -32,7 +35,8 @@ public sealed class CapabilityBundleExpanderTests
 
         var bundle = expander.Expand(
             "shared-tool",
-            [firstSkill.CapabilityId, secondSkill.CapabilityId]);
+            [firstSkill.CapabilityId, secondSkill.CapabilityId],
+            PrivacyClass.LocalOnly);
 
         Assert.Equal([firstSkill, tool, secondSkill], bundle.Capabilities);
     }
@@ -50,7 +54,8 @@ public sealed class CapabilityBundleExpanderTests
         registry.Register(bundleEntry);
         var expander = new CapabilityBundleExpander(registry);
 
-        var bundle = expander.Expand("cyclic-bundle", [bundleEntry.CapabilityId]);
+        var bundle = expander.Expand(
+            "cyclic-bundle", [bundleEntry.CapabilityId], PrivacyClass.LocalOnly);
 
         Assert.Equal([skill, tool], bundle.Capabilities);
     }
@@ -65,7 +70,8 @@ public sealed class CapabilityBundleExpanderTests
         var expander = new CapabilityBundleExpander(registry);
 
         var exception = Assert.Throws<KeyNotFoundException>(
-            () => expander.Expand("missing-reference", [skill.CapabilityId]));
+            () => expander.Expand(
+                "missing-reference", [skill.CapabilityId], PrivacyClass.LocalOnly));
 
         Assert.Contains(missingCapabilityId.ToString(), exception.Message, StringComparison.Ordinal);
         Assert.Contains(skill.CapabilityId.ToString(), exception.Message, StringComparison.Ordinal);

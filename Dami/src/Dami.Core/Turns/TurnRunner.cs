@@ -229,7 +229,8 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
             traceId, request, conversation, cancellationToken)
             .ConfigureAwait(false);
 
-        var toolSchemas = await this.toolResolver.ResolveAsync(request, cancellationToken)
+        var toolSchemas = await this.toolResolver.ResolveAsync(
+                request, route.Privacy, cancellationToken)
             .ConfigureAwait(false);
         var capabilitySpanId = Guid.NewGuid();
         await this.EmitCapabilitySelectedAsync(

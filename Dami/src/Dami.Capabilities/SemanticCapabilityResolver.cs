@@ -1,4 +1,5 @@
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
 using Dami.Contracts.Models;
 
 namespace Dami.Capabilities;
@@ -46,18 +47,21 @@ public sealed class SemanticCapabilityResolver : ICapabilityResolver
     }
 
     /// <inheritdoc />
+    /// <summary>Resolves capabilities eligible for the caller's privacy class.</summary>
     public async Task<CapabilityBundle> ResolveAsync(
         string intent,
+        PrivacyClass privacy,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(intent);
+        CapabilityPrivacyPolicy.EnsureDefined(privacy);
         await this.synchronizer.SynchronizeAsync(cancellationToken).ConfigureAwait(false);
         float[] queryVector = await this.EmbedIntentAsync(intent, cancellationToken).ConfigureAwait(false);
         IReadOnlyList<CapabilityEntry> candidates = await this
-            .FindCandidatesAsync(queryVector, cancellationToken).ConfigureAwait(false);
+            .FindCandidatesAsync(queryVector, privacy, cancellationToken).ConfigureAwait(false);
         IReadOnlyList<Guid> selectedIds = await this
             .RerankAsync(intent, candidates, cancellationToken).ConfigureAwait(false);
-        return this.bundleExpander.Expand(intent, selectedIds);
+        return this.bundleExpander.Expand(intent, selectedIds, privacy);
     }
 
     private async Task<float[]> EmbedIntentAsync(
@@ -77,6 +81,7 @@ public sealed class SemanticCapabilityResolver : ICapabilityResolver
 
     private async Task<IReadOnlyList<CapabilityEntry>> FindCandidatesAsync(
         float[] queryVector,
+        PrivacyClass privacy,
         CancellationToken cancellationToken)
     {
         var candidates = new List<CapabilityEntry>();
@@ -88,7 +93,8 @@ public sealed class SemanticCapabilityResolver : ICapabilityResolver
                 cancellationToken)
             .ConfigureAwait(false))
         {
-            if (this.catalog.Find(capabilityId) is { } capability)
+            if (this.catalog.Find(capabilityId) is { } capability
+                && CapabilityPrivacyPolicy.Allows(capability, privacy))
             {
                 candidates.Add(capability);
             }
