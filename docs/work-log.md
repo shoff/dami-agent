@@ -4499,3 +4499,12 @@ before mutation, and observed post-approval bytes. Production behavior will proc
 one red test at a time; configuration/deployment and every live command will be logged
 separately. No migration is currently expected, but live schema status will be checked
 before the demonstration.
+
+Inspection found four distinct missing seams beneath G6d: native metadata has schema
+references but no runtime schema catalog, discovered handlers are not activated in the
+Host, semantic capability retrieval is not composed there, and `TurnRunner.RunAsync`
+still invokes plain `IChatClient` rather than the already-tested `ToolLoopRunner`.
+Streaming remains a separate constraint because its current contract transports model
+tokens and cannot interleave tool calls. The board now splits G6d into G6d1 (these
+composition/runtime seams for whole turns) and G6d2 (deployment plus live evidence)
+instead of quietly widening one implementation step.
