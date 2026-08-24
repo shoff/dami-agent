@@ -6671,3 +6671,23 @@ being wrong. A4 needs an off-host destination (Steve's choice) and encryption �
 there is no GPG key on this host at all, so encrypting to Steve's key is something
 only he can start. Both are now named separately on the board rather than hidden
 inside one unfinished item.
+
+## 2026-08-24 — Claude — Acceptance item 13, and the identity that was not backed up
+
+Item 13 asks that the runtime and databases can be backed up and restored. Both halves
+now have evidence rather than intent: the database restore was rehearsed today into a
+PostgreSQL 17 cluster (0 errors, exact row counts, pgvector working, append-only guards
+still refusing mutation), and backups are mirrored to a second physical device. The
+runtime half is reproducible by construction — `/opt/dami` is `dotnet publish` output
+and its configuration lives in systemd drop-ins.
+
+Except it wasn't, quite. Checking rather than assuming turned up
+`/opt/dami/identity-prompt.md` — the §9.1 block that tells Dami who it is — existing
+**only** at that path, in no repository. A lost `/opt/dami` would have been rebuilt
+into an assistant running on the built-in fallback identity, and the failure would have
+been quiet: it still answers, just as someone slightly different. It is version
+controlled now, the identity charter points at it, and the runbook's rebuild procedure
+copies it.
+
+Host-level restore stays unrehearsed by Steve's own 2026-08-22 decision, recorded as
+such rather than counted as done.

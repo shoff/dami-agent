@@ -237,6 +237,26 @@ approved exact artifacts into the in-memory handler, schema, and search registri
 any recovery failure prevents readiness. Verify the journal line `Sandboxed tool
 recovery completed: <succeeded>/<found>` before `/health`.
 
+### Rebuilding /opt/dami from nothing
+
+Everything under `/opt/dami` is reproducible; none of it is a source of truth.
+
+```bash
+cd ~/dev/dami-agent/Dami
+dotnet publish src/Dami.Host          -c Release -o ~/.cache/dami-pub/host
+dotnet publish src/Dami.Host.Proactive -c Release -o ~/.cache/dami-pub/proactive
+dotnet publish src/Dami.Gateway.Cli   -c Release -o ~/.cache/dami-pub/cli
+sudo rsync -a ~/.cache/dami-pub/host/      /opt/dami/host/
+sudo rsync -a ~/.cache/dami-pub/proactive/ /opt/dami/proactive/
+sudo rsync -a ~/.cache/dami-pub/cli/       /opt/dami/cli/
+sudo cp ~/dev/dami-agent/docs/identity/identity-prompt.md /opt/dami/identity-prompt.md
+sudo systemctl restart dami-host dami-proactive && dami health
+```
+
+Runtime configuration lives in the systemd drop-ins (`systemctl cat dami-host`), not
+in `/opt`, so a rebuild cannot silently revert it — that lesson cost an afternoon when
+a deploy reverted `appsettings.json` and switched the subscription frontier off.
+
 ### Restoring the database: roles first, then the dump
 
 `pg_dump` does not carry roles. Restoring a `dami-data` dump onto a fresh cluster
