@@ -15,6 +15,16 @@ public interface IHealthEventStore
     /// collector does not re-read it every pass.</summary>
     Task MarkExaminedAsync(Guid observationId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Rejects one extracted fact permanently. The rejection outlives the row: a later
+    /// pass reading the same observation must not resurrect it.
+    /// </summary>
+    Task RejectAsync(
+        Guid observationId,
+        string description,
+        string reason,
+        CancellationToken cancellationToken);
+
     /// <summary>The health timeline in date order — the shape D-007's cross-domain join reads.</summary>
     IAsyncEnumerable<HealthEvent> TimelineAsync(int limit, CancellationToken cancellationToken);
 }

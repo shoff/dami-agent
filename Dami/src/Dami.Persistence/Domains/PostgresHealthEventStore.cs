@@ -41,7 +41,10 @@ public sealed class PostgresHealthEventStore : IHealthEventStore
             $"""
             insert into {this.Schema}.health_events
                 (health_event_id, observation_id, event_date, category, description)
-            values (@id, @observation_id, @event_date, @category, @description)
+            select @id, @observation_id, @event_date, @category, @description
+             where not exists (
+                 select 1 from {this.Schema}.health_event_rejections
+                  where observation_id = @observation_id and description = @description)
             on conflict (observation_id, description) do nothing;
             """);
         command.Parameters.AddWithValue("id", healthEvent.HealthEventId);
@@ -97,6 +100,31 @@ public sealed class PostgresHealthEventStore : IHealthEventStore
     }
 
     /// <inheritdoc />
+    public async Task RejectAsync(
+        Guid observationId,
+        string description,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(description);
+        ArgumentNullException.ThrowIfNull(reason);
+
+        await using var command = this.dataSource.CreateCommand(
+            $"""
+            insert into {this.Schema}.health_event_rejections (observation_id, description, reason)
+            values (@observation_id, @description, @reason)
+            on conflict (observation_id, description) do nothing;
+
+            delete from {this.Schema}.health_events
+             where observation_id = @observation_id and description = @description;
+            """);
+        command.Parameters.AddWithValue("observation_id", observationId);
+        command.Parameters.AddWithValue("description", description);
+        command.Parameters.AddWithValue("reason", reason);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public IAsyncEnumerable<HealthEvent> TimelineAsync(int limit, CancellationToken cancellationToken)
     {
         if (limit <= 0)
@@ -112,15 +140,18 @@ public sealed class PostgresHealthEventStore : IHealthEventStore
             -- at read time and keep the EARLIEST occurrence, which is when the fact
             -- entered the record — the timeline should say when something became true,
             -- not when it was last mentioned.
-            select distinct on (lower(btrim(description)))
-                   health_event_id, observation_id, event_date, category, description
-              from {this.Schema}.health_events
+            select distinct on (lower(btrim(h.description)))
+                   h.health_event_id, h.observation_id, h.event_date, h.category, h.description
+              from {this.Schema}.health_events h
+             where not exists (
+                 select 1 from {this.Schema}.health_event_rejections r
+                  where r.observation_id = h.observation_id and r.description = h.description)
              -- A dated occurrence always beats an undated one: epoch-zero means
              -- "unknown", not "earliest", and letting it win the tie-break stamps
              -- 1970 on facts whose real date is recorded elsewhere.
-             order by lower(btrim(description)),
-                      (event_date < date '1971-01-01'),
-                      event_date
+             order by lower(btrim(h.description)),
+                      (h.event_date < date '1971-01-01'),
+                      h.event_date
              limit @limit;
             """);
         command.Parameters.AddWithValue("limit", limit);

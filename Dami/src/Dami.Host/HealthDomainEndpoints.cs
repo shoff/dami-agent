@@ -16,5 +16,27 @@ public static class HealthDomainEndpoints
                 .ConfigureAwait(false);
             return Results.Ok(timeline.OrderByDescending(item => item.EventDate));
         });
+
+        app.MapPost("/health-log/{prefix}/reject", async (
+            string prefix, RejectHealthFactRequest request, IHealthEventStore store,
+            CancellationToken token) =>
+        {
+            var timeline = await Collect.ListAsync(store.TimelineAsync(200, token), token)
+                .ConfigureAwait(false);
+            var target = timeline.FirstOrDefault(
+                item => Collect.Matches(item.HealthEventId, prefix));
+            if (target is null)
+            {
+                return Results.NotFound();
+            }
+
+            await store.RejectAsync(
+                target.ObservationId, target.Description,
+                request.Reason ?? "rejected by Steve", token).ConfigureAwait(false);
+            return Results.Ok(new { rejected = target.Description });
+        });
     }
 }
+
+/// <summary>Why a health fact was wrong. Kept, so the correction has a record.</summary>
+public sealed record RejectHealthFactRequest(string? Reason);

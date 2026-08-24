@@ -207,6 +207,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 ## K · Domains (Phase 5/8)
 
 - [ ] K1 Domain inventory with Steve: which sources exist for health / civic / network / estate / workshop, and where `[STEVE]`
+- [x] K2a Health domain **correctable** (Claude 2026-08-24) — `dami health-reject <id8> <reason>`; migration 018 makes the rejection durable so the next collector pass cannot resurrect the fact. Health facts are model-derived, so this is not optional
 - [x] K2 Health domain end to end — schema (014/015) + HealthCollectorService + IHealthEventStore + /health-log + `dami health-log` + privacy review (LocalOnly, no egress path)
 - [x] K3 Reflection consumes domain rows — health timeline joins the reflection prompt (D-007 cross-domain correlation); adding a domain now makes reflection strictly better
 - [ ] K4 Remaining domains, one at a time

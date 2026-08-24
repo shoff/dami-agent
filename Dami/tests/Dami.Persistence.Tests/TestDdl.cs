@@ -29,6 +29,7 @@ public static class TestDdl
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",
+        "018_health_event_rejections.sql",
     ];
 
     /// <summary>The event-store and memory DDL, rewritten to build in <paramref name="schema"/>.</summary>
@@ -63,6 +64,7 @@ public static class TestDdl
             drop table if exists {schema}.conversation_turns cascade;
             drop table if exists {schema}.conversation_sessions cascade;
             drop table if exists {schema}.file_patch_proposals cascade;
+            drop table if exists {schema}.health_event_rejections cascade;
             drop table if exists {schema}.gateway_authority cascade;
             drop table if exists {schema}.health_examined cascade;
             drop table if exists {schema}.health_events cascade;
@@ -116,7 +118,7 @@ public static class TestDdl
             + TruncateToolPromotions(schema)
             + TruncateToolProposals(schema) + TruncateSkillChanges(schema)
             + TruncateFilePatchProposals(schema) + $"""
-            delete from {schema}.gateway_authority;  delete from {schema}.health_examined;
+            delete from {schema}.health_event_rejections;  delete from {schema}.gateway_authority;  delete from {schema}.health_examined;
             delete from {schema}.health_events;
             delete from {schema}.egress_briefs;
             delete from {schema}.observation_date_repairs;

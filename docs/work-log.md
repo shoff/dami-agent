@@ -6721,3 +6721,21 @@ hold. Terse is not empty. The guard is now a short list of known non-answers.
 Worth saying plainly: this table holds genuinely sensitive material — the backfill
 surfaced facts about Steve's health well beyond the cardiac history. Its LocalOnly
 posture and the absence of any egress path are not theoretical niceties.
+
+## 2026-08-24 — Claude — The health domain becomes correctable
+
+The belief ledger has been readable and correctable since F-09/F-10: Steve can see
+what Dami concluded, why, and correct it. The health domain had no such thing, which
+is worse rather than better — health facts are model-derived, and the first backfill
+filed another person's diagnosis under Steve's name.
+
+`dami health-reject <id8> "<reason>"` removes a wrong fact, and the removal **sticks**.
+Deleting the row alone would have been theatre: the next nightly pass reads the same
+observation and re-extracts the same fact straight back. Migration 018 records
+rejections keyed on `(observation_id, description)` — the same pair the extraction
+treats as unique — so a rejection blocks exactly the fact that was wrong and nothing
+adjacent. `RecordAsync` refuses to insert a rejected fact, and the timeline excludes
+it. Three tests, including the one that matters: reject, then replay exactly what the
+next collector pass would do, and confirm it stays gone.
+
+`dami health-log` now prints short ids so there is something to act on, and says so.

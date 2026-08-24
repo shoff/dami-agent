@@ -166,6 +166,52 @@ public sealed class PostgresHealthEventStoreTests
         Assert.Equal(new DateOnly(2026, 1, 30), timeline[0].EventDate);
     }
 
+    [Fact]
+    public async Task RejectAsync_Should_Remove_The_Fact_From_The_Timeline()
+    {
+        await this.fixture.ResetAsync();
+        var (corpus, store) = this.CreateStores();
+        var source = await SeedObservationAsync(corpus, "a note about someone else");
+        await store.RecordAsync(
+            new HealthEvent(Guid.NewGuid(), source, new DateOnly(2026, 2, 1),
+                HealthCategory.Diagnosis, "Riza is diagnosed BPD"), CancellationToken.None);
+
+        await store.RejectAsync(source, "Riza is diagnosed BPD", "not my health", CancellationToken.None);
+
+        Assert.Empty(await this.TimelineAsync(store));
+    }
+
+    [Fact]
+    public async Task RejectAsync_Should_Stop_A_Later_Pass_Resurrecting_The_Fact()
+    {
+        await this.fixture.ResetAsync();
+        var (corpus, store) = this.CreateStores();
+        var source = await SeedObservationAsync(corpus, "a note about someone else");
+        await store.RejectAsync(source, "Riza is diagnosed BPD", "not my health", CancellationToken.None);
+
+        // Exactly what the next collector pass would do, reading the same observation.
+        await store.RecordAsync(
+            new HealthEvent(Guid.NewGuid(), source, new DateOnly(2026, 2, 1),
+                HealthCategory.Diagnosis, "Riza is diagnosed BPD"), CancellationToken.None);
+
+        Assert.Empty(await this.TimelineAsync(store));
+    }
+
+    [Fact]
+    public async Task RejectAsync_Should_Not_Touch_A_Different_Fact()
+    {
+        await this.fixture.ResetAsync();
+        var (corpus, store) = this.CreateStores();
+        var source = await SeedObservationAsync(corpus, "a note");
+        await store.RecordAsync(
+            new HealthEvent(Guid.NewGuid(), source, new DateOnly(2026, 2, 1),
+                HealthCategory.Diagnosis, "Severe aortic stenosis"), CancellationToken.None);
+
+        await store.RejectAsync(source, "something else entirely", "wrong", CancellationToken.None);
+
+        Assert.Single(await this.TimelineAsync(store));
+    }
+
     private static async Task<Guid> SeedObservationAsync(IObservationCorpus corpus, string body)
     {
         var observation = new Observation(Guid.NewGuid(), at, "hermes-memory", body);
