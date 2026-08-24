@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
+using Dami.Contracts.Events;
 
 namespace Dami.Capabilities.Tests;
 
@@ -51,7 +53,8 @@ public sealed class CapabilityExecutorDispatcherTests
     {
         using var document = JsonDocument.Parse("{}");
         return new CapabilityExecutionRequest(
-            Guid.NewGuid(), Guid.NewGuid(), new CapabilityInvocation(capabilityId, document.RootElement));
+            Guid.NewGuid(), Guid.NewGuid(), PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn,
+            new CapabilityInvocation(capabilityId, document.RootElement));
     }
 
     private sealed class StubSource(Guid ownedId, string output) : ICapabilityExecutionSource

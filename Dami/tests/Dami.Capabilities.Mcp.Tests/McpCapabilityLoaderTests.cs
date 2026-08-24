@@ -1,4 +1,7 @@
 using System.Text.Json;
+using Dami.Contracts.Context;
+using Dami.Contracts.Events;
+using Dami.Contracts.Privacy;
 using Xunit;
 
 namespace Dami.Capabilities.Mcp.Tests;
@@ -22,7 +25,7 @@ public sealed class McpCapabilityLoaderTests
         var loader = new McpCapabilityLoader(normalizer, registry, schemas, invocations);
 
         var loaded = await loader.LoadAsync(
-            server, source, DateTimeOffset.UnixEpoch, CancellationToken.None);
+            server, source, DateTimeOffset.UnixEpoch, CreateContext(), CancellationToken.None);
 
         var entry = Assert.Single(loaded);
         Assert.Equal("Creates a calendar event.", Assert.Single(registry.Snapshot()).Description);
@@ -48,6 +51,7 @@ public sealed class McpCapabilityLoaderTests
         }
 
         public Task<IReadOnlyList<McpToolDescriptor>> DiscoverToolsAsync(
+            EgressOperationContext context,
             CancellationToken cancellationToken)
         {
             return Task.FromResult<IReadOnlyList<McpToolDescriptor>>([this.tool]);
@@ -61,6 +65,7 @@ public sealed class McpCapabilityLoaderTests
         public Task<McpToolInvocationResult> InvokeAsync(
             string toolName,
             JsonElement arguments,
+            EgressOperationContext context,
             CancellationToken cancellationToken)
         {
             return Task.FromResult(new McpToolInvocationResult("unused", isError: false));
@@ -70,6 +75,13 @@ public sealed class McpCapabilityLoaderTests
         {
             this.schema.Dispose();
         }
+    }
+
+    private static EgressOperationContext CreateContext()
+    {
+        return new EgressOperationContext(
+            "discover MCP tools", PrivacyClass.Egressable,
+            Guid.NewGuid(), Guid.NewGuid(), ExecutionOrigin.UserTurn);
     }
 
     private sealed class StubSummarizer(string summary) : IMcpDescriptionSummarizer

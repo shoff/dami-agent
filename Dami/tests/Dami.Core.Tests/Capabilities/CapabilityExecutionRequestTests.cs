@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
+using Dami.Contracts.Events;
 using Xunit;
 
 namespace Dami.Core.Tests.Capabilities;
@@ -20,6 +22,8 @@ public sealed class CapabilityExecutionRequestTests
         var exception = Assert.Throws<ArgumentException>(() => new CapabilityExecutionRequest(
             emptyTrace ? Guid.Empty : Guid.NewGuid(),
             emptySpan ? Guid.Empty : Guid.NewGuid(),
+            PrivacyClass.LocalOnly,
+            ExecutionOrigin.UserTurn,
             invocation));
 
         Assert.Equal(parameterName, exception.ParamName);

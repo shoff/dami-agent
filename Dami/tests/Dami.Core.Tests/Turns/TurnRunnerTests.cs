@@ -53,7 +53,8 @@ public sealed class TurnRunnerTests
         var toolLoop = Substitute.For<IToolLoopRunner>();
         toolLoop.RunAsync(
                 Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(),
-                Arg.Any<IReadOnlyList<CapabilityToolSchema>>(), Arg.Any<CancellationToken>())
+                Arg.Any<IReadOnlyList<CapabilityToolSchema>>(), Arg.Any<PrivacyClass>(),
+                Arg.Any<ExecutionOrigin>(), Arg.Any<CancellationToken>())
             .Returns("tool-backed answer");
         this.identityProvider.Preamble.Returns("You are Dami, Steve's assistant.");
         var runner = new TurnRunner(
@@ -66,15 +67,24 @@ public sealed class TurnRunnerTests
         Assert.Equal("tool-backed answer", result.Answer);
         await toolResolver.Received(1).ResolveAsync(
             "read notes", PrivacyClass.LocalOnly, Arg.Any<CancellationToken>());
+        await AssertToolLoopRequestAsync(toolLoop, result.TraceId, schema);
+        await this.chatClient.DidNotReceive().CompleteAsync(
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    private static async Task AssertToolLoopRequestAsync(
+        IToolLoopRunner toolLoop,
+        Guid traceId,
+        CapabilityToolSchema schema)
+    {
         await toolLoop.Received(1).RunAsync(
-            result.TraceId,
+            traceId,
             Arg.Is<Guid>(spanId => spanId != Guid.Empty),
             Arg.Is<string>(prompt => prompt.Contains("read notes", StringComparison.Ordinal)),
             Arg.Is<IReadOnlyList<CapabilityToolSchema>>(items =>
                 items.Count == 1 && ReferenceEquals(items[0], schema)),
+            PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn,
             Arg.Any<CancellationToken>());
-        await this.chatClient.DidNotReceive().CompleteAsync(
-            Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -93,7 +103,8 @@ public sealed class TurnRunnerTests
         Assert.NotNull(selection);
         await this.toolLoop.Received(1).RunAsync(
             result.TraceId, selection.SpanId, Arg.Any<string>(),
-            Arg.Any<IReadOnlyList<CapabilityToolSchema>>(), Arg.Any<CancellationToken>());
+            Arg.Any<IReadOnlyList<CapabilityToolSchema>>(),
+            PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn, Arg.Any<CancellationToken>());
     }
 
     private static CapabilityToolSchema CreateToolSchema()
@@ -107,14 +118,16 @@ public sealed class TurnRunnerTests
     {
         return this.toolLoop.RunAsync(
             Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Do<string>(capture),
-            Arg.Any<IReadOnlyList<CapabilityToolSchema>>(), Arg.Any<CancellationToken>());
+            Arg.Any<IReadOnlyList<CapabilityToolSchema>>(),
+            Arg.Any<PrivacyClass>(), Arg.Any<ExecutionOrigin>(), Arg.Any<CancellationToken>());
     }
 
     private Task<string> AnyToolLoopCallAsync()
     {
         return this.toolLoop.RunAsync(
             Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(),
-            Arg.Any<IReadOnlyList<CapabilityToolSchema>>(), Arg.Any<CancellationToken>());
+            Arg.Any<IReadOnlyList<CapabilityToolSchema>>(),
+            Arg.Any<PrivacyClass>(), Arg.Any<ExecutionOrigin>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -365,7 +378,8 @@ public sealed class TurnRunnerTests
             .Returns(Array.Empty<CapabilityToolSchema>());
         this.toolLoop.RunAsync(
                 Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(),
-                Arg.Any<IReadOnlyList<CapabilityToolSchema>>(), Arg.Any<CancellationToken>())
+                Arg.Any<IReadOnlyList<CapabilityToolSchema>>(),
+                Arg.Any<PrivacyClass>(), Arg.Any<ExecutionOrigin>(), Arg.Any<CancellationToken>())
             .Returns("an answer");
     }
 

@@ -1,4 +1,6 @@
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
+using Dami.Contracts.Events;
 
 namespace Dami.Core.Turns;
 
@@ -11,5 +13,7 @@ public interface IToolLoopRunner
         Guid parentSpanId,
         string prompt,
         IReadOnlyList<CapabilityToolSchema> toolSchemas,
+        PrivacyClass privacy,
+        ExecutionOrigin origin,
         CancellationToken cancellationToken);
 }

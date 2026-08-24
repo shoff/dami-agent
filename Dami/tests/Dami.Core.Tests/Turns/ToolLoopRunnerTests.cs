@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
 using Dami.Contracts.Events;
 using Dami.Contracts.Models;
 using Dami.Core.Turns;
@@ -45,7 +46,8 @@ public sealed class ToolLoopRunnerTests
         var parentSpanId = Guid.NewGuid();
 
         var answer = await runner.RunAsync(
-            traceId, parentSpanId, "read my notes", [schema], CancellationToken.None);
+            traceId, parentSpanId, "read my notes", [schema],
+            PrivacyClass.Egressable, ExecutionOrigin.SelfAudit, CancellationToken.None);
 
         Assert.Equal("final answer", answer);
         this.AssertSuccessfulEvents(traceId, parentSpanId);
@@ -53,7 +55,26 @@ public sealed class ToolLoopRunnerTests
         Assert.Single(model.ExchangesOnCalls[1]);
         Assert.Same(result, model.ExchangesOnCalls[1][0].Result);
         Assert.Same(schema, Assert.Single(model.SchemasOnCalls[0]));
-        await this.AssertExecutionProvenanceAsync(executor, traceId, invocation);
+        await this.AssertExecutionProvenanceAsync(
+            executor, traceId, invocation, PrivacyClass.Egressable, ExecutionOrigin.SelfAudit);
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Reject_Unknown_Privacy_Before_Calling_The_Model()
+    {
+        var model = new RecordingToolCallingClient([ToolModelTurn.ForAnswer("unused")]);
+        var runner = new ToolLoopRunner(
+            model,
+            Substitute.For<ICapabilityExecutor>(),
+            this.eventStore,
+            new FakeTimeProvider(now),
+            new ToolLoopOptions { MaxToolCalls = 1 });
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => runner.RunAsync(
+            Guid.NewGuid(), Guid.NewGuid(), "question", [],
+            (PrivacyClass)99, ExecutionOrigin.UserTurn, CancellationToken.None));
+
+        Assert.Empty(model.ExchangesOnCalls);
     }
 
     private void AssertSuccessfulEvents(Guid traceId, Guid parentSpanId)
@@ -70,12 +91,16 @@ public sealed class ToolLoopRunnerTests
     private async Task AssertExecutionProvenanceAsync(
         ICapabilityExecutor executor,
         Guid traceId,
-        CapabilityInvocation invocation)
+        CapabilityInvocation invocation,
+        PrivacyClass privacy,
+        ExecutionOrigin origin)
     {
         await executor.Received(1).ExecuteAsync(
             Arg.Is<CapabilityExecutionRequest>(request =>
                 request.TraceId == traceId
                 && request.SpanId == this.events[0].SpanId
+                && request.Privacy == privacy
+                && request.Origin == origin
                 && ReferenceEquals(request.Invocation, invocation)),
             Arg.Any<CancellationToken>());
     }
@@ -97,7 +122,8 @@ public sealed class ToolLoopRunnerTests
 
         await Assert.ThrowsAsync<IOException>(() => runner.RunAsync(
             Guid.NewGuid(), Guid.NewGuid(), "read my notes",
-            [CreateSchema(invocation.CapabilityId)], CancellationToken.None));
+            [CreateSchema(invocation.CapabilityId)],
+            PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn, CancellationToken.None));
 
         Assert.Equal(
             [ExecutionEventType.ToolRequested, ExecutionEventType.ToolStarted, ExecutionEventType.ToolFailed],
@@ -122,7 +148,8 @@ public sealed class ToolLoopRunnerTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runner.RunAsync(
             Guid.NewGuid(), Guid.NewGuid(), "read my notes",
-            [CreateSchema(invocation.CapabilityId)], cancellation.Token));
+            [CreateSchema(invocation.CapabilityId)],
+            PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn, cancellation.Token));
 
         var terminalEvent = Assert.Single(
             this.events, item => item.Type == ExecutionEventType.ToolFailed);
@@ -149,7 +176,8 @@ public sealed class ToolLoopRunnerTests
 
         await runner.RunAsync(
             Guid.NewGuid(), Guid.NewGuid(), "read my notes",
-            [CreateSchema(invocation.CapabilityId)], CancellationToken.None);
+            [CreateSchema(invocation.CapabilityId)],
+            PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn, CancellationToken.None);
 
         Assert.Empty(model.FirstCallExchanges);
     }
@@ -174,7 +202,8 @@ public sealed class ToolLoopRunnerTests
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => runner.RunAsync(
             Guid.NewGuid(), Guid.NewGuid(), "read my notes",
-            [CreateSchema(invocation.CapabilityId)], CancellationToken.None));
+            [CreateSchema(invocation.CapabilityId)],
+            PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn, CancellationToken.None));
 
         Assert.Contains("bound of 1", exception.Message, StringComparison.Ordinal);
         await executor.Received(1).ExecuteAsync(
@@ -205,7 +234,8 @@ public sealed class ToolLoopRunnerTests
 
         await Assert.ThrowsAsync<IOException>(() => runner.RunAsync(
             Guid.NewGuid(), Guid.NewGuid(), "read my notes",
-            [CreateSchema(invocation.CapabilityId)], CancellationToken.None));
+            [CreateSchema(invocation.CapabilityId)],
+            PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn, CancellationToken.None));
 
         Assert.DoesNotContain(this.events, item => item.Type == ExecutionEventType.ToolFailed);
     }

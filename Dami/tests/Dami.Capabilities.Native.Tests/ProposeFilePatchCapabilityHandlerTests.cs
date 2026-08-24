@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Dami.Contracts.Approvals;
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
+using Dami.Contracts.Events;
 using Dami.Contracts.FilePatches;
 
 namespace Dami.Capabilities.Native.Tests;
@@ -175,10 +177,14 @@ public sealed class ProposeFilePatchCapabilityHandlerTests : IDisposable
         var handler = this.CreateHandler(store);
 
         await handler.ExecuteAsync(
-            new CapabilityExecutionRequest(Guid.NewGuid(), spanId, invocation), CancellationToken.None);
+            new CapabilityExecutionRequest(
+                Guid.NewGuid(), spanId, PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn, invocation),
+            CancellationToken.None);
         var firstApprovalId = store.Approval!.ApprovalId;
         await handler.ExecuteAsync(
-            new CapabilityExecutionRequest(Guid.NewGuid(), spanId, invocation), CancellationToken.None);
+            new CapabilityExecutionRequest(
+                Guid.NewGuid(), spanId, PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn, invocation),
+            CancellationToken.None);
 
         Assert.NotEqual(firstApprovalId, store.Approval!.ApprovalId);
     }

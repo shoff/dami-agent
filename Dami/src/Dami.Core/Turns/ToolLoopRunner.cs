@@ -1,4 +1,5 @@
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
 using Dami.Contracts.Events;
 using Dami.Contracts.Models;
 
@@ -42,10 +43,13 @@ public sealed class ToolLoopRunner : IToolLoopRunner
         Guid parentSpanId,
         string prompt,
         IReadOnlyList<CapabilityToolSchema> toolSchemas,
+        PrivacyClass privacy,
+        ExecutionOrigin origin,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
         ArgumentNullException.ThrowIfNull(toolSchemas);
+        ValidateProvenance(privacy, origin);
         var schemaSnapshot = Snapshot(toolSchemas);
         var exchanges = new List<ToolExecutionExchange>();
         while (true)
@@ -64,7 +68,21 @@ public sealed class ToolLoopRunner : IToolLoopRunner
             }
 
             exchanges.Add(await this.ExecuteAsync(
-                traceId, parentSpanId, turn, cancellationToken).ConfigureAwait(false));
+                traceId, parentSpanId, privacy, origin, turn, cancellationToken)
+                .ConfigureAwait(false));
+        }
+    }
+
+    private static void ValidateProvenance(PrivacyClass privacy, ExecutionOrigin origin)
+    {
+        if (!Enum.IsDefined(privacy))
+        {
+            throw new ArgumentOutOfRangeException(nameof(privacy));
+        }
+
+        if (!Enum.IsDefined(origin))
+        {
+            throw new ArgumentOutOfRangeException(nameof(origin));
         }
     }
 
@@ -78,6 +96,8 @@ public sealed class ToolLoopRunner : IToolLoopRunner
     private async Task<ToolExecutionExchange> ExecuteAsync(
         Guid traceId,
         Guid parentSpanId,
+        PrivacyClass privacy,
+        ExecutionOrigin origin,
         ToolModelTurn turn,
         CancellationToken cancellationToken)
     {
@@ -87,46 +107,50 @@ public sealed class ToolLoopRunner : IToolLoopRunner
             ?? throw new InvalidDataException("Tool model turn is missing its call identifier.");
         var spanId = Guid.NewGuid();
         await this.EmitAsync(
-            traceId, spanId, parentSpanId, invocation, callId,
+            traceId, spanId, parentSpanId, origin, invocation, callId,
             ExecutionEventType.ToolRequested, ExecutionStatus.Queued, cancellationToken).ConfigureAwait(false);
         return await this.ExecuteStartedAsync(
-            traceId, spanId, parentSpanId, invocation, callId, cancellationToken).ConfigureAwait(false);
+            traceId, spanId, parentSpanId, privacy, origin,
+            invocation, callId, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<ToolExecutionExchange> ExecuteStartedAsync(
         Guid traceId,
         Guid spanId,
         Guid parentSpanId,
+        PrivacyClass privacy,
+        ExecutionOrigin origin,
         CapabilityInvocation invocation,
         string callId,
         CancellationToken cancellationToken)
     {
         await this.EmitAsync(
-            traceId, spanId, parentSpanId, invocation, callId,
+            traceId, spanId, parentSpanId, origin, invocation, callId,
             ExecutionEventType.ToolStarted, ExecutionStatus.Running, cancellationToken).ConfigureAwait(false);
         CapabilityExecutionResult result;
         try
         {
-            var request = new CapabilityExecutionRequest(traceId, spanId, invocation);
+            var request = new CapabilityExecutionRequest(
+                traceId, spanId, privacy, origin, invocation);
             result = await this.executor.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             await this.EmitAsync(
-                traceId, spanId, parentSpanId, invocation, callId,
+                traceId, spanId, parentSpanId, origin, invocation, callId,
                 ExecutionEventType.ToolFailed, ExecutionStatus.Cancelled, CancellationToken.None).ConfigureAwait(false);
             throw;
         }
         catch (Exception)
         {
             await this.EmitAsync(
-                traceId, spanId, parentSpanId, invocation, callId,
+                traceId, spanId, parentSpanId, origin, invocation, callId,
                 ExecutionEventType.ToolFailed, ExecutionStatus.Failed, CancellationToken.None).ConfigureAwait(false);
             throw;
         }
 
         await this.EmitAsync(
-            traceId, spanId, parentSpanId, invocation, callId,
+            traceId, spanId, parentSpanId, origin, invocation, callId,
             ExecutionEventType.ToolCompleted, ExecutionStatus.Succeeded, cancellationToken).ConfigureAwait(false);
         return new ToolExecutionExchange(callId, invocation, result);
     }
@@ -135,6 +159,7 @@ public sealed class ToolLoopRunner : IToolLoopRunner
         Guid traceId,
         Guid spanId,
         Guid parentSpanId,
+        ExecutionOrigin origin,
         CapabilityInvocation invocation,
         string callId,
         ExecutionEventType type,
@@ -148,7 +173,7 @@ public sealed class ToolLoopRunner : IToolLoopRunner
         };
         var executionEvent = new ExecutionEvent(
             Guid.NewGuid(), traceId, spanId, parentSpanId,
-            ExecutionOrigin.UserTurn, ACTOR, type, status,
+            origin, ACTOR, type, status,
             this.clock.GetUtcNow(), $"tool {invocation.CapabilityId}: {type}", metadata: metadata);
         return this.eventStore.AppendAsync(executionEvent, cancellationToken);
     }

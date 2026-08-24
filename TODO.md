@@ -91,13 +91,13 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [~ Codex 2026-08-24] F3 MCP client + explicit trust levels; untrusted descriptions summarized-not-followed; untrusted excluded from LocalOnly turns
   - [x] F3a `Dami.Capabilities.Mcp` client boundary: explicit server registration/trust, owned connection lifecycle, tool discovery, and schema cache
   - [x] F3b Secure registry ingestion: stable normalized tools; trusted descriptions admitted verbatim; untrusted descriptions locally summarized with raw text unable to enter retrieval context
-  - [~ Codex 2026-08-24] F3c Privacy-aware selection and execution: untrusted MCP excluded before LocalOnly reranking/expansion; source-neutral MCP invocation dispatch
+  - [x] F3c Privacy-aware selection and execution: untrusted MCP excluded before LocalOnly reranking/expansion; source-neutral MCP invocation dispatch
     - [x] F3c1 Thread privacy classification through capability resolution; exclude untrusted MCP before LocalOnly reranking and related-capability expansion
     - [x] F3c2 Source-neutral MCP invocation registry/dispatcher with cancellation and result/error translation
-    - [~ Codex 2026-08-24] F3c3 D-012 remote Streamable HTTP boundary: ADR plus request-body-capable, event-metered egress transport; default remains loopback-only
+    - [x] F3c3 D-012 remote Streamable HTTP boundary: ADR plus request-body-capable, event-metered egress transport; default remains loopback-only
       - [x] F3c3a ADR + fail-closed request-body HTTP gate: Egressable context, allowlist, budget, redirects, bounded responses, durable events
-      - [~ Codex 2026-08-24] F3c3b Thread privacy/trace provenance into MCP execution and construct the SDK transport only from the authorized HTTP gate
-  - [ ] F3d Host composition and local fake-server integration demonstration
+      - [x] F3c3b Thread privacy/trace provenance into MCP execution and construct the SDK transport only from the authorized HTTP gate
+  - [~ Codex 2026-08-24] F3d Host composition and local fake-server integration demonstration
 - [ ] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
 

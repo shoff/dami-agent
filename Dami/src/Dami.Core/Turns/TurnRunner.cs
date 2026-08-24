@@ -236,7 +236,8 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
         await this.EmitCapabilitySelectedAsync(
             traceId, capabilitySpanId, route, toolSchemas.Count, cancellationToken).ConfigureAwait(false);
         var answer = await this.toolLoop.RunAsync(
-            traceId, capabilitySpanId, prompt, toolSchemas, cancellationToken).ConfigureAwait(false);
+            traceId, capabilitySpanId, prompt, toolSchemas,
+            route.Privacy, ExecutionOrigin.UserTurn, cancellationToken).ConfigureAwait(false);
 
         return new TurnResult(traceId, answer.Trim(), context, route);
     }

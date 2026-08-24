@@ -1,5 +1,8 @@
 using System.Text.Json;
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
+using Dami.Contracts.Events;
+using Dami.Contracts.Privacy;
 using Xunit;
 
 namespace Dami.Capabilities.Mcp.Tests;
@@ -26,6 +29,11 @@ public sealed class McpCapabilityExecutorTests
         Assert.Equal(capabilityId.ToString("D"), result.Evidence["capability_id"]);
         Assert.Equal("weather", invoker.ToolName);
         Assert.Equal("Austin", invoker.Arguments.GetProperty("city").GetString());
+        Assert.NotNull(invoker.Context);
+        Assert.Equal(request.TraceId, invoker.Context.TraceId);
+        Assert.Equal(request.SpanId, invoker.Context.ParentSpanId);
+        Assert.Equal(PrivacyClass.Egressable, invoker.Context.Privacy);
+        Assert.Equal(ExecutionOrigin.SelfAudit, invoker.Context.Origin);
     }
 
     [Fact]
@@ -88,7 +96,8 @@ public sealed class McpCapabilityExecutorTests
     {
         using var document = JsonDocument.Parse($$"""{"city":"{{city}}"}""");
         return new CapabilityExecutionRequest(
-            Guid.NewGuid(), Guid.NewGuid(), new CapabilityInvocation(capabilityId, document.RootElement));
+            Guid.NewGuid(), Guid.NewGuid(), PrivacyClass.Egressable, ExecutionOrigin.SelfAudit,
+            new CapabilityInvocation(capabilityId, document.RootElement));
     }
 
     private static McpCapabilityExecutor CreateExecutor(IMcpCapabilityCatalog catalog)
@@ -102,13 +111,17 @@ public sealed class McpCapabilityExecutorTests
 
         public JsonElement Arguments { get; private set; }
 
+        public EgressOperationContext? Context { get; private set; }
+
         public Task<McpToolInvocationResult> InvokeAsync(
             string toolName,
             JsonElement arguments,
+            EgressOperationContext context,
             CancellationToken cancellationToken)
         {
             this.ToolName = toolName;
             this.Arguments = arguments.Clone();
+            this.Context = context;
             return Task.FromResult(result);
         }
     }
@@ -120,6 +133,7 @@ public sealed class McpCapabilityExecutorTests
         public async Task<McpToolInvocationResult> InvokeAsync(
             string toolName,
             JsonElement arguments,
+            EgressOperationContext context,
             CancellationToken cancellationToken)
         {
             this.ObservedToken = cancellationToken;

@@ -5215,3 +5215,43 @@ passed 34/34. The mandatory solution gate built all 31 projects with 0 warnings 
 errors, all fifteen suites passed 610/610, and format/analyzer verification exited 0.
 No schema, migration, Host, deployment, or live-service change was required. F3c3a is
 `[x]`; F3c3b provenance and authorized SDK construction are claimed next.
+
+## 2026-08-24 — Codex — F3c3b MCP execution provenance and authorized SDK transport complete
+
+The first Core propagation test compiled red at CS1501 because the tool loop had no
+privacy/origin parameters. `TurnRunner` now carries the selected route privacy and
+`UserTurn` origin through the tool loop into an immutable `CapabilityExecutionRequest`;
+tool events use that same origin instead of reconstructing it. An adversarial boundary
+test then failed behaviorally because privacy value 99 reached the model. The loop and
+request contracts now reject unknown privacy/origin values before execution.
+
+The MCP executor provenance test compiled red at CS0535 after its invoker required an
+`EgressOperationContext`. The source-neutral request's privacy, trace, tool span, and
+origin now form the exact immutable invocation context; remote tool names, arguments,
+and results do not enter its safe purpose label. Caller cancellation still reaches the
+SDK invocation unchanged.
+
+The SDK lifecycle-scope test compiled red because connect had no scope-aware overload
+and discovery had no operation context. Connect, discovery, invocation, and session
+shutdown now each open and dispose an explicit `IEgressOperationScopeFactory` scope.
+The observed context order was connect → discovery → invocation → shutdown, with zero
+active scopes afterward; real in-memory SDK discovery and invocation returned the
+expected weather tool and `sunny in Austin`. Local transports use a private no-op scope
+adapter, while the public convenience factory remains structurally loopback-only.
+
+The remote factory test compiled red because `CreateRemote` did not exist. A dedicated
+`IMcpEgressHttpHandler` capability in Contracts is implemented by the sealed privacy
+gate, and the internal SDK factory's generic constraint accepts only an
+`HttpMessageHandler` carrying that capability. It creates and owns the SDK's
+Streamable-HTTP `HttpClient` while leaving the shared policy handler lifetime with the
+composition root. A separate public remote-connect test compiled red for its absent
+entry point; the resulting API requires that marked handler, the scope factory, and an
+explicit connect context. A pre-cancelled connect opened and closed exactly one scope
+and performed no request. This preserves dependency direction: the MCP implementation
+depends only on Contracts, never on the concrete Privacy project.
+
+The focused Core suite passed 92/92 and the focused MCP suite passed 23/23. The
+mandatory solution gate built all 31 projects with 0 warnings and 0 errors, all fifteen
+suites passed 615/615, and format/analyzer verification exited 0. No schema, migration,
+deployment, or live-service change was required. F3c/F3c3/F3c3b are `[x]`; F3d Host
+composition and the local fake-server integration demonstration are claimed next.

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Dami.Privacy;
 
 /// <summary>Enforces and meters the dedicated request-body egress door used by MCP.</summary>
-public sealed class McpEgressHttpMessageHandler : DelegatingHandler
+public sealed class McpEgressHttpMessageHandler : DelegatingHandler, IMcpEgressHttpHandler
 {
     private const string ACTOR = "egress-mcp";
     private const int MAX_BODY_BYTES = 16 * 1024 * 1024;

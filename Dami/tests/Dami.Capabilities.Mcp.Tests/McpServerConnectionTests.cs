@@ -1,6 +1,9 @@
 using System.IO.Pipelines;
 using System.Text.Json;
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Context;
+using Dami.Contracts.Events;
+using Dami.Contracts.Privacy;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Xunit;
@@ -9,6 +12,31 @@ namespace Dami.Capabilities.Mcp.Tests;
 
 public sealed class McpServerConnectionTests
 {
+    [Fact]
+    public async Task Operations_Should_Open_Explicit_Provenance_Scopes()
+    {
+        var (server, transport, cancellation, serverRun) = StartServer();
+        await using var ownedServer = server;
+        using var ownedCancellation = cancellation;
+        var registration = CreateRegistration("scoped");
+        var scopes = new RecordingScopeFactory();
+        EgressOperationContext connect = CreateContext("connect MCP server");
+        EgressOperationContext discovery = CreateContext("discover MCP tools");
+        EgressOperationContext invocation = CreateContext("invoke MCP capability");
+        await using var connection = await McpServerConnection.ConnectAsync(
+            registration, transport, scopes, connect, CancellationToken.None);
+
+        await connection.DiscoverToolsAsync(discovery, CancellationToken.None);
+        using var arguments = JsonDocument.Parse("""{"city":"Austin"}""");
+        await connection.InvokeAsync(
+            "weather", arguments.RootElement, invocation, CancellationToken.None);
+        await connection.DisposeAsync();
+
+        Assert.Equal([connect, discovery, invocation, connect], scopes.Contexts);
+        Assert.Equal(0, scopes.ActiveCount);
+        await StopServerAsync(cancellation, serverRun);
+    }
+
     [Fact]
     public async Task ConnectAsync_Should_Honor_Cancellation_Before_Opening_The_Endpoint()
     {
@@ -23,18 +51,34 @@ public sealed class McpServerConnectionTests
     }
 
     [Fact]
+    public async Task ConnectRemoteAsync_Should_Require_The_Authorized_Gate_And_Scope_Initialization()
+    {
+        var registration = CreateRegistration("remote");
+        using var handler = new StubAuthorizedHandler();
+        var scopes = new RecordingScopeFactory();
+        EgressOperationContext context = CreateContext("connect remote MCP server");
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            McpServerConnection.ConnectRemoteAsync(
+                registration, handler, scopes, context, cancellation.Token));
+
+        Assert.Same(context, Assert.Single(scopes.Contexts));
+        Assert.Equal(0, scopes.ActiveCount);
+    }
+
+    [Fact]
     public async Task DiscoverToolsAsync_Should_Cache_Schemas_Behind_Local_References()
     {
         var (server, transport, serverCancellation, serverRun) = StartServer();
         await using var ownedServer = server;
         using var ownedServerCancellation = serverCancellation;
-        var registration = new McpServerRegistration(
-            Guid.NewGuid(), "weather", new Uri("https://weather.example/mcp"),
-            McpTransportKind.StreamableHttp, TrustLevel.Trusted);
+        var registration = CreateRegistration("weather");
         await using var connection = await McpServerConnection.ConnectAsync(
             registration, transport, CancellationToken.None);
 
-        var tools = await connection.DiscoverToolsAsync(CancellationToken.None);
+        var tools = await connection.DiscoverToolsAsync(CreateContext(), CancellationToken.None);
 
         var tool = Assert.Single(tools);
         Assert.Equal("weather", tool.Name);
@@ -47,12 +91,12 @@ public sealed class McpServerConnectionTests
         Assert.Equal("object", schema.Value.GetProperty("type").GetString());
         using var arguments = JsonDocument.Parse("""{"city":"Austin"}""");
         McpToolInvocationResult result = await connection.InvokeAsync(
-            "weather", arguments.RootElement, CancellationToken.None);
+            "weather", arguments.RootElement, CreateContext(), CancellationToken.None);
         Assert.False(result.IsError);
         Assert.Equal("sunny in Austin", result.Output);
         await connection.DisposeAsync();
         await Assert.ThrowsAsync<ObjectDisposedException>(
-            () => connection.DiscoverToolsAsync(CancellationToken.None));
+            () => connection.DiscoverToolsAsync(CreateContext(), CancellationToken.None));
         await StopServerAsync(serverCancellation, serverRun);
     }
 
@@ -62,9 +106,7 @@ public sealed class McpServerConnectionTests
         var (server, transport, serverCancellation, serverRun) = StartServer();
         await using var ownedServer = server;
         using var ownedServerCancellation = serverCancellation;
-        var registration = new McpServerRegistration(
-            Guid.NewGuid(), "weather", new Uri("https://weather.example/mcp"),
-            McpTransportKind.StreamableHttp, TrustLevel.Trusted);
+        var registration = CreateRegistration("weather");
         await using var connection = await McpServerConnection.ConnectAsync(
             registration, transport, CancellationToken.None);
         var capabilities = new CapabilityRegistry();
@@ -74,7 +116,8 @@ public sealed class McpServerConnectionTests
             new McpCapabilityNormalizer(new UnexpectedSummarizer()),
             capabilities, schemas, invocations);
         var loaded = await loader.LoadAsync(
-            registration, connection, DateTimeOffset.UnixEpoch, CancellationToken.None);
+            registration, connection, DateTimeOffset.UnixEpoch,
+            CreateContext("discover MCP tools"), CancellationToken.None);
         var dispatcher = new CapabilityExecutorDispatcher(
             [new McpCapabilityExecutor(invocations, new McpCapabilityExecutorOptions())]);
 
@@ -104,7 +147,8 @@ public sealed class McpServerConnectionTests
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => connection.InvokeAsync("wait", arguments.RootElement, cancellation.Token));
+            () => connection.InvokeAsync(
+                "wait", arguments.RootElement, CreateContext(), cancellation.Token));
 
         await StopServerAsync(serverCancellation, serverRun);
     }
@@ -169,8 +213,62 @@ public sealed class McpServerConnectionTests
     {
         using var arguments = JsonDocument.Parse("""{"city":"Austin"}""");
         return new CapabilityExecutionRequest(
-            Guid.NewGuid(), Guid.NewGuid(),
+            Guid.NewGuid(), Guid.NewGuid(), PrivacyClass.Egressable, ExecutionOrigin.UserTurn,
             new CapabilityInvocation(capabilityId, arguments.RootElement));
+    }
+
+    private static McpServerRegistration CreateRegistration(string name)
+    {
+        return new McpServerRegistration(
+            Guid.NewGuid(), name, new Uri("https://weather.example/mcp"),
+            McpTransportKind.StreamableHttp, TrustLevel.Trusted);
+    }
+
+    private static EgressOperationContext CreateContext(string purpose = "test MCP operation")
+    {
+        return new EgressOperationContext(
+            purpose, PrivacyClass.Egressable,
+            Guid.NewGuid(), Guid.NewGuid(), ExecutionOrigin.UserTurn);
+    }
+
+    private sealed class RecordingScopeFactory : IEgressOperationScopeFactory
+    {
+        private int activeCount;
+
+        public List<EgressOperationContext> Contexts { get; } = [];
+
+        public int ActiveCount => Volatile.Read(ref this.activeCount);
+
+        public IDisposable Begin(EgressOperationContext context)
+        {
+            this.Contexts.Add(context);
+            Interlocked.Increment(ref this.activeCount);
+            return new Scope(this);
+        }
+
+        private sealed class Scope(RecordingScopeFactory owner) : IDisposable
+        {
+            private RecordingScopeFactory? owner = owner;
+
+            public void Dispose()
+            {
+                RecordingScopeFactory? active = Interlocked.Exchange(ref this.owner, null);
+                if (active is not null)
+                {
+                    Interlocked.Decrement(ref active.activeCount);
+                }
+            }
+        }
+    }
+
+    private sealed class StubAuthorizedHandler : HttpMessageHandler, IMcpEgressHttpHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException("A pre-cancelled connect must not reach the network.");
+        }
     }
 
     private sealed class UnexpectedSummarizer : IMcpDescriptionSummarizer

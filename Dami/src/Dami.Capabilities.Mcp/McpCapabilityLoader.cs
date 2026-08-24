@@ -1,4 +1,5 @@
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Privacy;
 
 namespace Dami.Capabilities.Mcp;
 
@@ -32,12 +33,14 @@ public sealed class McpCapabilityLoader
         McpServerRegistration server,
         IMcpToolSource source,
         DateTimeOffset registeredAt,
+        EgressOperationContext discoveryContext,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(server);
         ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(discoveryContext);
         IReadOnlyList<McpToolDescriptor> tools = await source
-            .DiscoverToolsAsync(cancellationToken).ConfigureAwait(false);
+            .DiscoverToolsAsync(discoveryContext, cancellationToken).ConfigureAwait(false);
         IReadOnlyList<PreparedCapability> prepared = await this.PrepareAsync(
             server, source, tools, registeredAt, cancellationToken).ConfigureAwait(false);
         this.Publish(prepared);

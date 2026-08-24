@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dami.Contracts.Privacy;
 
 namespace Dami.Capabilities.Mcp;
 
@@ -9,5 +10,6 @@ public interface IMcpToolInvoker
     Task<McpToolInvocationResult> InvokeAsync(
         string toolName,
         JsonElement arguments,
+        EgressOperationContext context,
         CancellationToken cancellationToken);
 }

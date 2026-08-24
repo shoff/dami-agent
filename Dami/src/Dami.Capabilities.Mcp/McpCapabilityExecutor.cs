@@ -1,4 +1,5 @@
 using Dami.Contracts.Capabilities;
+using Dami.Contracts.Privacy;
 
 namespace Dami.Capabilities.Mcp;
 
@@ -41,8 +42,9 @@ public sealed class McpCapabilityExecutor : ICapabilityExecutionSource
         McpCapabilityRegistration registration = this.catalog.Find(invocation.CapabilityId)
             ?? throw new KeyNotFoundException(
                 $"MCP capability '{invocation.CapabilityId}' is not registered.");
+        EgressOperationContext context = CreateContext(request);
         McpToolInvocationResult result = await registration.Invoker.InvokeAsync(
-            registration.ToolName, invocation.Arguments, cancellationToken).ConfigureAwait(false);
+            registration.ToolName, invocation.Arguments, context, cancellationToken).ConfigureAwait(false);
         if (result.Output.Length > this.maxOutputCharacters)
         {
             throw new InvalidDataException(
@@ -61,5 +63,15 @@ public sealed class McpCapabilityExecutor : ICapabilityExecutionSource
                 ["source"] = "mcp",
                 ["capability_id"] = invocation.CapabilityId.ToString("D"),
             });
+    }
+
+    private static EgressOperationContext CreateContext(CapabilityExecutionRequest request)
+    {
+        return new EgressOperationContext(
+            "invoke MCP capability",
+            request.Privacy,
+            request.TraceId,
+            request.SpanId,
+            request.Origin);
     }
 }
