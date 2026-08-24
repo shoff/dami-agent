@@ -3513,6 +3513,41 @@ F2c1 paths overlaid, isolating Claude's then-active C5 files. `dotnet build Dami
 No schema change is involved; migration 011 remains checksummed and applied. F2c1 is
 flipped to `[x]`, and F2c2 is claimed before its first test.
 
+F2c2 began with one end-to-end orchestration test and no production resolver. It
+required synchronization to precede query work, one local intent embedding, ANN lookup
+under the embedding client's model ID and configured candidate limit, reranking over
+candidate descriptions in ANN order, selection under a top-N limit, and delegation to
+the existing bundle expander so a selected skill pulled in its referenced tool. The
+first test process outlived its tool-output window; after it exited, rerunning the same
+unchanged test captured the clean red: CS0246 for absent `SemanticCapabilityResolver`
+and `CapabilityRetrievalOptions`.
+
+The minimum resolver depends only on `ICapabilityIndexSynchronizer`, local model/store
+contracts, `ICapabilityCatalog`, and `ICapabilityBundleExpander`. It snapshots validated
+50-candidate/8-result defaults at construction, skips stale derived IDs that are no
+longer registered, validates the single intent vector and reranker indices, and leaves
+storage, inference transport, registry ownership, and graph expansion in their existing
+layers. The original behavioral test then passed 1/1, observing call order
+sync→embed→ANN→rerank, the exact candidate descriptions, reranked selection, related
+tool expansion, and intent-derived bundle name.
+
+Two defensive cases were added after green and are recorded as coverage, not additional
+red-first features: an empty ANN result returns an empty bundle without spending a
+reranker call, and an out-of-range reranker index is rejected. Their first run exposed
+a hard-coded query assertion in the reranker fake; recording the query moved that
+assertion to the primary test. That extra assertion then pushed the primary test to 31
+body lines and DAMI0003 correctly rejected it; extracting the outcome assertions made
+all resolver cases pass 3/3. The full capabilities suite passed 26/26.
+
+F2c2 and F2 are demonstrated. Definitive verification ran in
+`/tmp/dami-f2c2-gate.U4mo1z/repo` at released HEAD `eb3623f` with only the three resolver
+production files and their test overlaid, isolating Claude's then-active B10 work.
+`dotnet build Dami.sln --nologo` produced 0 warnings and 0 errors; all twelve suites
+passed 371/371; and `dotnet format Dami.sln --verify-no-changes --no-restore --verbosity
+minimal` exited 0. No schema or data migration is involved. F2c2, F2c, and F2 are
+flipped to `[x]`. Their completion clears G6's explicit F1-F2 blocker, so G6 is claimed
+as the next acceptance-critical slice before any tool-execution code is written.
+
 ## 2026-08-23 — Claude — G7: the approval contract, demonstrated live (acceptance item 5)
 
 Migration 009 + `IApprovalService`/`PostgresApprovalService`: durable, trace-anchored,

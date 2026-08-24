@@ -82,12 +82,12 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 ## F · Capability system (D-014/D-015/D-016) — Codex's lane (in progress)
 
 - [x] F1 Unified registry: entries, native plugin discovery, bundle expansion (recent commits: discovery, safe expansion, hardening)
-- [~ Codex 2026-08-23] F2 Semantic capability retrieval over the registry (embed descriptions into the existing pgvector store; reuse B4's pipeline)
+- [x] F2 Semantic capability retrieval over the registry (embed descriptions into the existing pgvector store; reuse B4's pipeline)
   - [x] F2a Deterministic registry inventory snapshot for embedding synchronization
   - [x] F2b Derived capability-vector persistence in pgvector, separate from personal observations
-  - [~ Codex 2026-08-23] F2c Intent embed → ANN candidates → rerank → bundle expansion
+  - [x] F2c Intent embed → ANN candidates → rerank → bundle expansion
     - [x] F2c1 Registry snapshot → version-aware capability-vector synchronization
-    - [~ Codex 2026-08-23] F2c2 Intent embed → ANN candidates → rerank → bundle expansion
+    - [x] F2c2 Intent embed → ANN candidates → rerank → bundle expansion
 - [ ] F3 MCP client + explicit trust levels; untrusted descriptions summarized-not-followed; untrusted excluded from LocalOnly turns
 - [ ] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
@@ -99,7 +99,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] G3 Streaming turns end to end — `BeginStreamingAsync`/`TurnStream`, trace completes and corpus records when drained, one coalesced ResponseStreaming event, `dami chat` streams live — acceptance item 2 (CLI half)
 - [ ] G4 **Sessions**: multi-turn conversation with a recent window in context; start/resume/interrupt/reconnect without duplication — acceptance item 1 (natural Codex continuation from transport; unclaimed)
 - [ ] G5 Runtime API on localhost (D-005) so CLI/GUI/voice become thin clients; retire the CLI's direct-store deviation
-- [ ] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4 `[BLOCKED: F1-F2]`
+- [~ Codex 2026-08-23] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
 - [ ] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6
 - [ ] G9 Frontier-informed turns once C4 exists (redacted context → Egressable)
