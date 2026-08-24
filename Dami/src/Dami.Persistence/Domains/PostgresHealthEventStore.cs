@@ -115,7 +115,12 @@ public sealed class PostgresHealthEventStore : IHealthEventStore
             select distinct on (lower(btrim(description)))
                    health_event_id, observation_id, event_date, category, description
               from {this.Schema}.health_events
-             order by lower(btrim(description)), event_date
+             -- A dated occurrence always beats an undated one: epoch-zero means
+             -- "unknown", not "earliest", and letting it win the tie-break stamps
+             -- 1970 on facts whose real date is recorded elsewhere.
+             order by lower(btrim(description)),
+                      (event_date < date '1971-01-01'),
+                      event_date
              limit @limit;
             """);
         command.Parameters.AddWithValue("limit", limit);

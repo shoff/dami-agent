@@ -127,6 +127,26 @@ public sealed class PostgresHealthEventStoreTests
     }
 
     [Fact]
+    public async Task TimelineAsync_Should_Prefer_A_Dated_Occurrence_Over_An_Undated_One()
+    {
+        await this.fixture.ResetAsync();
+        var (corpus, store) = this.CreateStores();
+        var undatedSource = await SeedObservationAsync(corpus, "an undated note");
+        var datedSource = await SeedObservationAsync(corpus, "a dated note");
+        // Epoch zero means "unknown", not "earliest" — it must not win the tie-break.
+        await store.RecordAsync(
+            new HealthEvent(Guid.NewGuid(), undatedSource, new DateOnly(1970, 1, 1),
+                HealthCategory.Procedure, "Mechanical AVR surgery"), CancellationToken.None);
+        await store.RecordAsync(
+            new HealthEvent(Guid.NewGuid(), datedSource, new DateOnly(2026, 3, 11),
+                HealthCategory.Procedure, "Mechanical AVR surgery"), CancellationToken.None);
+
+        var timeline = await this.TimelineAsync(store);
+
+        Assert.Equal(new DateOnly(2026, 3, 11), Assert.Single(timeline).EventDate);
+    }
+
+    [Fact]
     public async Task TimelineAsync_Should_Keep_The_Earliest_Occurrence_Of_A_Fact()
     {
         await this.fixture.ResetAsync();
