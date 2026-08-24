@@ -3844,3 +3844,18 @@ every command prints, so the loop closes: caption → trace `07c509d0` → Trace
 nested WorkerStarted/Completed (26s, 191 chars), TraceCompleted. Scoreboard: item 6
 demonstrated, items 3 and 5 updated to what is now true. 12 suites, 405 tests,
 0 warnings.
+
+## 2026-08-24 — Claude — H10: the repo now audits itself, and may only speak
+
+`CodebaseAuditService` (weekly): reads the last week's patch via a read-only
+`IGitLog` (real git subprocess, log flags only), asks the loopback model for the
+single most consequential defect, and surfaces at most one finding with a suggested
+fix. `NONE` → quiet; empty week → quiet without even consulting the model; huge
+patches truncated before review (all pinned by test). It writes nothing, stages
+nothing, commits nothing — a proposal in the surfacing queue is its entire
+authority (D-016), and the diff goes only to the loopback sidecar, never egress.
+
+First live pass reviewed this week's commits and said no finding — quiet, as the
+default should be. Note: full-solution tests currently carry Codex's in-flight
+ToolLoopRunner work in Core.Tests; my suites (proactive 86, and the full build of
+src/) are green and none of their files are in this commit.

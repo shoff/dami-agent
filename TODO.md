@@ -112,7 +112,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
 - [x] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6 (WorkerRunner; vision caption is the first live worker)
 - [ ] G9 Frontier-informed turns (C4 now exists: build on `dami brief`/BriefExecutor)
-- [ ] G10 Identity/prompt: port the Dami identity charter into the stable prompt (§9.1); verify identity across local + frontier — acceptance item 9
+- [BLOCKED: identity charter file lives on the Mac; no key auth from this host — Steve: `ssh-copy-id` or copy it into docs/identity/] G10 Identity/prompt: port the Dami identity charter into the stable prompt (§9.1); verify identity across local + frontier — acceptance item 9
 
 ## H · Proactive tier (D-001/D-019/D-020/D-021) — running unattended
 
@@ -125,7 +125,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [ ] H7 Surfacing channel decision: queue vs notification vs held-until-adjacent-opening (register: "shapes the muse more than model choice")
 - [x] H8 Confidence threshold self-tuning from recorded reactions, without gaming itself (register open item)
 - [ ] H9 Domain collectors (health, civic, network, estate) — needs K1 first
-- [ ] H10 Codebase-audit proactive service (reads repo, proposes patches, commits nothing — D-016)
+- [x] H10 Codebase-audit proactive service (reads repo, proposes patches, commits nothing — D-016)
 
 ## I · CLI (18 verbs, on PATH)
 

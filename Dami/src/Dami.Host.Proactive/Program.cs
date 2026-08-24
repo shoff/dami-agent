@@ -6,6 +6,7 @@ using Dami.Persistence;
 using Dami.Privacy;
 using Dami.Proactive;
 using Dami.Proactive.Audit;
+using Dami.Proactive.CodeAudit;
 using Dami.Proactive.Embedder;
 using Dami.Proactive.Librarian;
 using Dami.Proactive.Reflection;
@@ -59,6 +60,12 @@ builder.Services.AddSingleton<IProactiveService, InterestScout>();
 
 // D-011's quarterly decay detector. Local-only: no egress dependency, by design.
 builder.Services.AddSingleton<IProactiveService, PushbackAuditService>();
+
+// D-016: the codebase audit reads the repo and proposes; it commits nothing.
+builder.Services.Configure<CodebaseAuditOptions>(
+    builder.Configuration.GetSection(CodebaseAuditOptions.SECTION_NAME));
+builder.Services.AddSingleton<IGitLog, GitProcessLog>();
+builder.Services.AddSingleton<IProactiveService, CodebaseAuditService>();
 
 // The weekly reflection pass: observations -> at most one belief, via the loopback
 // sidecar. The most personal pass in the system, and deliberately egress-free.

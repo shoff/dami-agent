@@ -126,6 +126,7 @@ Verification on 2026-08-23: `Dami.Transport.Tests` executed 57 tests with 0 fail
 | Surfacing channel (a queue Steve reads when he wants) | done | `dami inbox` / `read` / `recent`; D-021 cap observed live — a second pass's candidates all `Suppressed`, stored auditable |
 | Feedback capture on every surfacing | done | `dami good\|bad\|meh`; **the taste model learns** — an item rated `good` scored 0.520 before feedback, 0.670 after, observed live; bad-penalty > good-boost deliberately |
 | Threshold self-tuning without self-gaming (H8) | done | stateless bounded function of recorded reactions; silence moves nothing; minimum-evidence gated; clamp edges pinned by test; register open item closed |
+| Codebase audit service (H10, D-016) | done | weekly read-only review of the week's patch via loopback model; ≤1 surfacing with suggested fix; quiet default demonstrated live; commits nothing |
 | Pushback audit (D-011) | done | quarterly counter registered in the host; first `SelfAudit` conclusion recorded; quiet without a baseline |
 | Ledger readable and correctable (F-09/F-10) | done | `dami beliefs [date]` / `beliefs diff` (as-of reconstruction) / `retract <id> <reason>` / `note`; retraction demonstrated live |
 | Beliefs retrieved by similarity (D-009 second half) | done | migration 010 + trigger: retraction deletes the vector atomically; gate calibrated on live bge-m3 distances (relevant 0.40–0.43 vs irrelevant 0.63–0.72 → 0.60); demonstrated: unrelated query carries 0 beliefs, on-topic query exactly the 2 relevant |
