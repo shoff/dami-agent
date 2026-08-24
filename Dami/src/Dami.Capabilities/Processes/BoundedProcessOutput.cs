@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Text;
 
-namespace Dami.Capabilities.Native;
+namespace Dami.Capabilities.Processes;
 
 internal sealed class BoundedProcessOutput : IDisposable
 {

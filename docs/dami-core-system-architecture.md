@@ -418,6 +418,8 @@ Dami.sln
 │   │                             in-process tool execution.
 │   ├─ Dami.Capabilities.Mcp      MCP client, server registration,
 │   │                             trust levels, schema caching.
+│   ├─ Dami.Capabilities.Sandboxed Fixed package-free verification and
+│   │                              OS-confined self-authored execution.
 │   └─ Dami.Capabilities.Skills   Skill loading, progressive disclosure,
 │                                 authoring and revision.
 │

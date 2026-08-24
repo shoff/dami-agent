@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Dami.Capabilities.Processes;
 using Dami.Contracts.Capabilities;
 
 namespace Dami.Capabilities.Native;

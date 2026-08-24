@@ -5943,3 +5943,79 @@ privilege probe for `dami_app` SELECT/INSERT with UPDATE/DELETE/TRUNCATE/REFEREN
 TRIGGER denied. F5c3 owns creation and approval of a real live promotion, so no
 production approval was fabricated for this ledger-only slice. F5c1 is complete and
 F5c2 is claimed before sandbox-envelope implementation begins.
+
+## 2026-08-24 — Codex — F5c2 fixed build/test and OS sandbox complete; F5c3 claimed
+
+F5c2 began from the pushed, clean F5c1 tree and the TODO claim already visible on
+`main`. ADR-0019, D-016, architecture §7.6.5, the existing no-shell process handler,
+and this host's bubblewrap/systemd facilities were re-read before code. A bare
+`systemd-run --user` probe failed with “No medium found”; supplying the known Steve
+user bus at `/run/user/1000/bus` succeeded. The sandbox therefore launches as a
+transient per-user service outside bubblewrap, giving each invocation `MemoryMax`,
+`TasksMax`, `RuntimeMaxSec`, and whole-control-group kill semantics. Bubblewrap then
+clears the environment, drops capabilities, unshares user/PID/network/IPC/cgroup/UTS
+namespaces, disables nested user namespaces, exposes runtime libraries and the one
+tool mount only, and supplies an ephemeral `/tmp`.
+
+Two new projects, `Dami.Capabilities.Sandboxed` and its test project, were created and
+added with `dotnet sln add`. The first envelope test compiled red on the missing writer.
+The minimum writer creates only trusted contracts, entry point, project, and
+package-source-clearing `NuGet.Config`, plus the already-validated proposal `.cs`
+files. Its generated project has no proposal-controlled project, packages, analyzers,
+generators, build scripts, environment, or arguments. The first production build hit
+constant-naming analyzers before the behavior ran; correcting the fixed-source constant
+names made the original test green.
+
+The command-factory contract then compiled red on absent sandbox types. Its minimum
+implementation uses argument lists rather than a shell and pins every systemd and
+bubblewrap switch. The first real composed smoke failed closed because this bubblewrap
+requires explicit `--unshare-user` before `--disable-userns`; a red command-contract
+change captured that host requirement before the factory was corrected. The same
+Steve-owned systemd+cgroup+bubblewrap command then executed `/usr/bin/true` with exit
+0. A separate red test showed an undefined mount-access enum silently granted a write
+bind; undefined values now fail closed.
+
+Bounded stdin/stdout/stderr, timeout, cancellation containment, and result handling
+were introduced behind `ISandboxProcessRunner`. Rather than duplicate the native
+process handler's pooled byte capture and atomic shared-output budget, that component
+moved unchanged into the common capability layer with friend access for the two
+implementation assemblies. Red-first input coverage showed no pre-start UTF-8 byte
+ceiling; options now bound both input and combined output to at most 4 MiB. Post-green
+coverage kills direct test processes that exceed output or time. The sandbox runner
+uses a unique transient unit and explicitly asks the Steve user manager to stop its
+whole cgroup on caller cancellation, timeout, or output overflow; systemd independently
+enforces the same runtime ceiling.
+
+The verifier orchestration test compiled red on absent verifier/runner contracts. It
+now writes a caller-owned scratch envelope, restores with the cleared package config,
+builds Release output with no restore/build servers/shared compiler, runs proposal
+tests with the completed artifact mount changed to read-only, requires an actual
+`Tool.dll`, and returns exact source-version and bounded test evidence. Restore/build
+failures include both bounded stdout and stderr rather than discarding MSBuild's
+diagnostics.
+
+The opt-in live integration was run explicitly as Steve with
+`DAMI_SANDBOX_INTEGRATION=1`. Its first attempt did not reach the sandbox because root-
+generated NuGet asset paths triggered the known NETSDK1064 ownership trap; a Steve-
+owned solution restore repaired generated state without source changes. Subsequent
+runs drove four environment defects to evidence: `/usr/bin/dotnet` did not exist, so
+the verifier now pins `/usr/share/dotnet/dotnet`; omitting `/etc/passwd` caused a
+`getpwuid` retry loop observed with live unit status and a bounded `strace`, so only
+non-secret passwd/group/NSS/loader files are mounted read-only; fresh-home SDK workload
+integrity probing failed closed, so optional workloads/first-run/update notification
+are disabled; and Roslyn's apparent OOM persisted at 2 GiB until `TasksMax` rose from
+64 to 128, proving it was thread creation rather than heap pressure. Verification and
+runtime limits are intentionally separate: the measured compiler envelope is 2 GiB,
+128 tasks, and 60 seconds, while invocation uses 256 MiB, 16 tasks, and 15 seconds.
+
+The final enabled live test passed in 21 seconds. It restored and built the fixed
+package-free project, ran one conforming proposal test, then invoked the verified echo
+assembly with exact JSON round-trip output under the tighter runtime cgroup. Code
+executing inside the sandbox observed `/home/steve` and `/etc/shadow` absent, a write
+to `/tool/escape-marker` denied, an outbound socket connection denied by the private
+network namespace, and no marker on the host afterward. The ordinary focused suite
+passed 9/9 with the opt-in host exercise disabled; the explicitly enabled exercise
+passed 1/1. F5c2 is complete with those observations, and F5c3 activation/recovery is
+claimed before implementation. The final mandatory solution gate built all 35 projects
+with 0 warnings and 0 errors, all seventeen test assemblies passed 751/751, and format
+verification exited 0 without diagnostics.

@@ -116,8 +116,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [x] F5b Native propose/list/inspect boundary + Host staged-proposal demonstration
   - [~ Codex 2026-08-24] F5c Human single-resolution promotion gate + live-registry activation and live demonstration
     - [x] F5c1 Version-pinned promotion/approval state machine + transactional ledger/events
-    - [~ Codex 2026-08-24] F5c2 Fixed package-free build/test envelope + bounded bubblewrap execution
-    - [ ] F5c3 Failure-atomic activation/recovery + Host/live human-promotion demonstration
+    - [x] F5c2 Fixed package-free build/test envelope + bounded bubblewrap execution
+    - [~ Codex 2026-08-24] F5c3 Failure-atomic activation/recovery + Host/live human-promotion demonstration
 
 ## G · Interactive runtime
 
