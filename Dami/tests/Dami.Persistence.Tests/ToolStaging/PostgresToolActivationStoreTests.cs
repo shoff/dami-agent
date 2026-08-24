@@ -149,6 +149,27 @@ public sealed class PostgresToolActivationStoreTests
     }
 
     [Fact]
+    public async Task RecordAsync_Should_Activate_With_Runtime_Role_Privileges_Async()
+    {
+        await this.fixture.ResetAsync();
+        (StagedToolProposal proposal, ToolVerificationRecord verification) =
+            await this.StageAndVerifyAsync();
+        ToolPromotionRequest promotion = await this.PromoteAndApproveAsync(proposal);
+        var activation = new ToolActivationOutcome(
+            Guid.NewGuid(), promotion.PromotionId, verification.VerificationId,
+            ToolActivationStatus.Activated, null, at.AddMinutes(3));
+        await using NpgsqlDataSource runtime = DatabaseFixture.CreateRuntimeDataSource();
+        var store = new PostgresToolActivationStore(
+            runtime,
+            Options.Create(new PostgresOptions { SchemaName = DatabaseFixture.SCHEMA }));
+
+        ToolActivationOutcome accepted = await store.RecordAsync(
+            activation, CancellationToken.None);
+
+        Assert.Equal(activation, accepted);
+    }
+
+    [Fact]
     public async Task FindAsync_Should_Return_Approved_Exact_Pending_Activation_Async()
     {
         await this.fixture.ResetAsync();

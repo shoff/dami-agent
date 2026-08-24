@@ -26,6 +26,7 @@ public static class TestDdl
         "022_tool_proposals.sql",
         "023_tool_promotions.sql",
         "024_tool_activation_state.sql",
+        "025_tool_activation_advisory_lock.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",

@@ -24,6 +24,9 @@ public sealed class DatabaseFixture : IAsyncLifetime
     private const string CONNECTION =
         "Host=127.0.0.1;Port=5432;Database=dami-data;Username=dami_ddl;Passfile=/home/steve/.pgpass";
 
+    private const string RUNTIME_CONNECTION =
+        "Host=127.0.0.1;Port=5432;Database=dami-data;Username=dami_app;Passfile=/home/steve/.pgpass";
+
     /// <summary>Advisory-lock key for the shared test schema. Arbitrary but stable.</summary>
     private const long SCHEMA_LOCK = 0x44414D49_54455354;
 
@@ -31,6 +34,12 @@ public sealed class DatabaseFixture : IAsyncLifetime
 
     /// <summary>Data source for the tests. Valid only between initialise and dispose.</summary>
     public NpgsqlDataSource DataSource { get; private set; } = null!;
+
+    /// <summary>Creates a runtime-role source for least-privilege integration tests.</summary>
+    public static NpgsqlDataSource CreateRuntimeDataSource()
+    {
+        return NpgsqlDataSource.Create(RUNTIME_CONNECTION);
+    }
 
     /// <inheritdoc />
     public async Task InitializeAsync()

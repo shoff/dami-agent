@@ -6835,6 +6835,11 @@ rights on the append-only promotion table.
 The runtime-role regression passed 1/1 after migration 025, and the complete
 PostgreSQL persistence suite passed 232/232 with 0 failed and 0 skipped.
 
+The mandatory pre-migration commit gate built the now 36-project solution, including
+Claude's concurrent uncommitted GUI lane, with 0 warnings and 0 errors. All seventeen
+test suites passed 821/821 with 0 failed and 0 skipped; Codex did not stage the GUI,
+solution, board, or decision files belonging to that concurrent lane.
+
 ## 2026-08-24 — Claude — The desktop client exists (J2/J6, ADR-0018)
 
 Steve asked where the centerpiece GUI was. It had never been built, and the reason was
