@@ -1,8 +1,11 @@
 using Dami.Contracts.Models;
 using Dami.Core.Context;
+using Dami.Core.Frontier;
 using Dami.Core.Turns;
 using Dami.Host;
 using Dami.Persistence;
+using Dami.Privacy;
+using Dami.Proactive.Librarian;
 using Dami.Providers;
 
 // D-005: the interactive runtime is an API on localhost; CLI, GUI, and voice are
@@ -21,6 +24,8 @@ var connectionString =
 
 builder.Services.AddDamiPersistence(connectionString);
 builder.Services.AddSingleton(TimeProvider.System);
+
+// Turns: the same runner the CLI proved out.
 builder.Services.AddSingleton<ITurnRunner, TurnRunner>();
 builder.Services.AddSingleton<Dami.Contracts.Context.IContextBuilder, ContextBuilder>();
 builder.Services.Configure<ContextOptions>(builder.Configuration.GetSection(ContextOptions.SECTION_NAME));
@@ -32,6 +37,19 @@ builder.Services.AddHttpClient<IChatClient, OllamaChatClient>(client =>
     client.Timeout = TimeSpan.FromMinutes(10));
 builder.Services.AddHttpClient<IEmbeddingClient, TeiEmbeddingClient>();
 builder.Services.AddHttpClient<IRerankClient, TeiRerankClient>();
+
+// Approvals execute in the runtime (D-005): librarian manifests and egress briefs.
+builder.Services.AddSingleton<ManifestExecutor>();
+builder.Services.AddSingleton<BriefExecutor>();
+builder.Services.AddSingleton<Dami.Contracts.Privacy.IPromptRedactor, PromptRedactor>();
+
+// Frontier: subscription door (ADR-0011) behind the C5 egress budget.
+builder.Services.Configure<CodexOptions>(builder.Configuration.GetSection(CodexOptions.SECTION_NAME));
+builder.Services.AddSingleton<ICodexProcess, CodexProcess>();
+builder.Services.AddSingleton<IFrontierChat, CodexChatClient>();
+builder.Services.Configure<EgressBudgetOptions>(
+    builder.Configuration.GetSection(EgressBudgetOptions.SECTION_NAME));
+builder.Services.AddSingleton<Dami.Contracts.Privacy.IEgressBudget, EventCountEgressBudget>();
 
 var app = builder.Build();
 app.MapDamiRuntime();

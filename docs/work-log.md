@@ -3950,3 +3950,26 @@ must transmit exactly the selected schemas supplied to it.
 The installed sidecar reports Ollama 0.32.15, and `qwen3:8b` reports `completion`,
 `tools`, and `thinking` capabilities. Official Ollama API documentation confirms the
 native chat/tool-call shape. G6c2a is claimed before changing contracts.
+
+## 2026-08-24 — Claude — I2: the CLI is now the thin client D-005 promised
+
+The direct-store deviation recorded in the CLI's own header comment since Phase 2 is
+retired. Every verb family now goes through `dami-host`: surfacings (read marks
+delivered server-side; a reaction writes the corpus observation server-side too),
+beliefs (as-of, diff, retract, correct, note), approvals — **execution moved into
+the runtime**: "approve" is now a client saying yes, and what yes *does* (moving
+librarian files, egressing a consent brief) happens in `dami-host` behind the same
+single-resolution guarantee — traces (short-id resolution server-side), stats,
+recall, context, ask, frontier, and briefs. `dami chat` consumes the SSE stream,
+with route/context accounting in response headers.
+
+The Host grew the full surface to carry this: corpus search + cited ask, the C4
+brief flow, the frontier door (with C5 budget wired), stats sections, belief
+mutations. Two deliberate exceptions stay direct and are documented in Program.cs:
+`dami health` (must diagnose the host when the API is down — and now also checks
+the API: `ok runtime-api`) and `dami caption` (local file + vision worker).
+
+Demonstrated live: every converted verb against the running service; a streamed
+chat with `[Local · ~764 ctx tokens]` from headers; and the one failure mode a thin
+client has — host stopped → `dami-host unreachable … check: systemctl status
+dami-host`, host started → everything back. 12 suites, 422 tests, 0 warnings.

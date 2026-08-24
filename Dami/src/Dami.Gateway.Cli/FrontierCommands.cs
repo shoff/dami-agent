@@ -1,44 +1,33 @@
-using Dami.Contracts.Context;
-using Dami.Contracts.Events;
-using Dami.Contracts.Models;
-
 namespace Dami.Gateway.Cli;
 
-/// <summary>A frontier question through the subscription (ADR-0011).</summary>
-/// <remarks>
-/// Deliberately context-free: per ADR-0010 §5, memory-derived content is LocalOnly and
-/// no redaction step exists yet, so what crosses the boundary is the bare question and
-/// nothing else. `dami ask`/`dami chat` remain the memory-aware, fully local paths.
-/// </remarks>
+/// <summary>A bare question to the frontier (ADR-0011), via the runtime API.</summary>
 public sealed class FrontierCommands
 {
-    private readonly IFrontierChat frontierChat;
+    private readonly DamiApiClient api;
 
     /// <summary>Creates the commands.</summary>
-    public FrontierCommands(IFrontierChat frontierChat)
+    public FrontierCommands(DamiApiClient api)
     {
-        ArgumentNullException.ThrowIfNull(frontierChat);
-        this.frontierChat = frontierChat;
+        ArgumentNullException.ThrowIfNull(api);
+        this.api = api;
     }
 
-    /// <summary>Sends one bare question to the frontier and prints the answer.</summary>
-    public async Task<int> AskAsync(string question, CancellationToken cancellationToken)
+    /// <summary>Sends one bare question and prints the answer.</summary>
+    public Task<int> AskAsync(string question, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(question);
-
-        var traceId = Guid.NewGuid();
-        Console.WriteLine("asking the frontier (subscription, no API billing)...");
-
-        var prompt = new FrontierPrompt(
-            question, "dami frontier question", PrivacyClass.Egressable,
-            traceId, ExecutionOrigin.UserTurn);
-
-        var answer = await this.frontierChat.CompleteAsync(prompt, cancellationToken).ConfigureAwait(false);
-
-        Console.WriteLine();
-        Console.WriteLine(answer);
-        Console.WriteLine();
-        Console.WriteLine($"[frontier via codex subscription · no memories sent · trace {traceId.ToString("N")[..8]}]");
-        return 0;
+        return ApiCall.RunAsync(async () =>
+        {
+            Console.WriteLine("asking the frontier (subscription, no API billing)...");
+            using var reply = await this.api.PostAsync("/frontier", new { question }, cancellationToken)
+                .ConfigureAwait(false);
+            var root = reply!.RootElement;
+            Console.WriteLine();
+            Console.WriteLine(root.GetProperty("answer").GetString());
+            Console.WriteLine();
+            var trace = root.GetProperty("traceId").GetGuid().ToString("N")[..8];
+            Console.WriteLine($"[frontier via codex subscription · no memories sent · trace {trace}]");
+            return 0;
+        });
     }
 }

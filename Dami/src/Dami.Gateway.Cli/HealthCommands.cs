@@ -40,9 +40,30 @@ public sealed class HealthCommands
         healthy &= await CheckSidecarAsync(httpClient, "embeddings", teiInfo, cancellationToken).ConfigureAwait(false);
         healthy &= await CheckSidecarAsync(httpClient, "reranker", rerankInfo, cancellationToken).ConfigureAwait(false);
         healthy &= await CheckOllamaAsync(httpClient, cancellationToken).ConfigureAwait(false);
+        healthy &= await CheckRuntimeApiAsync(httpClient, cancellationToken).ConfigureAwait(false);
         await this.PrintTierAsync(cancellationToken).ConfigureAwait(false);
 
         return healthy ? 0 : 1;
+    }
+
+    private static async Task<bool> CheckRuntimeApiAsync(
+        HttpClient httpClient,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await httpClient
+                .GetAsync(new Uri(DamiApiClient.BASE_URL + "/health"), cancellationToken)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            Console.WriteLine("ok    runtime-api   dami-host on 127.0.0.1:5810");
+            return true;
+        }
+        catch (HttpRequestException exception)
+        {
+            Console.WriteLine($"FAIL  runtime-api   {exception.Message} - systemctl status dami-host");
+            return false;
+        }
     }
 
     private async Task<bool> CheckDatabaseAsync(CancellationToken cancellationToken)

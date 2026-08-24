@@ -123,6 +123,7 @@ the preceding `dotnet build Dami.sln` completed with 0 warnings and 0 errors, an
 | Egress budget/rate alarm (C5) | done | event stream is the meter (refused attempts count); both doors gated; edge-transition surfacing demonstrated live — `refused:` at bound 1, `Egress budget tripped` in the queue, normal traffic unaffected |
 | Redaction/consent egress (C4, ADR-0013) | done | `dami brief` → hash-pinned bytes behind a G7 approval → `dami approve` sends byte-exactly through the ADR-0011 door; demonstrated live with the medical history — names stripped, 2,277-char answer recorded |
 | Runtime API on localhost (G5, D-005) | done | `dami-host` service on 127.0.0.1:5810; turns + SSE streaming, surfacings/feedback, beliefs, approvals/resolve, trace replay, `/events` poll feed; CLI rework onto it is I2 |
+| CLI as thin client (I2) | done | every verb through dami-host; approval execution moved server-side; SSE chat; health + caption stay direct by design; clean unreachable-host failure mode |
 | `IProactiveService` contract, scheduling, thresholding | done | `ProactivePassRunner` + `ProactiveScheduler` over a durable run log; failures count as runs; one failing service does not stop the rest |
 | Interest scout running | done | live pass against the real HN front page: egress → parse → loopback-TEI scoring → 3 surfacings, fully replayable trace |
 | Surfacing channel (a queue Steve reads when he wants) | done | `dami inbox` / `read` / `recent`; D-021 cap observed live — a second pass's candidates all `Suppressed`, stored auditable |
@@ -133,7 +134,7 @@ the preceding `dotnet build Dami.sln` completed with 0 warnings and 0 errors, an
 | Ledger readable and correctable (F-09/F-10) | done | `dami beliefs [date]` / `beliefs diff` (as-of reconstruction) / `retract <id> <reason>` / `note`; retraction demonstrated live |
 | Beliefs retrieved by similarity (D-009 second half) | done | migration 010 + trigger: retraction deletes the vector atomically; gate calibrated on live bge-m3 distances (relevant 0.40–0.43 vs irrelevant 0.63–0.72 → 0.60); demonstrated: unrelated query carries 0 beliefs, on-topic query exactly the 2 relevant |
 | Epoch-zero timestamp repair (B10) | done | append-only-safe sidecar (migration 012) + idempotent scanner: 74/278 dates recovered from body text, 204 flagged; reads and range filters coalesce through repairs; still-undated rows say `undated`, never 1970 |
-| D-005 deviation | recorded | the CLI talks to stores until a runtime API exists; noted in `Program.cs` |
+| D-005 deviation | retired (I2) | the CLI is a thin client of dami-host; health and caption stay direct, documented in `Program.cs` |
 
 **Phase 4 exit** ("Dami surfaces something unprompted that Steve is glad to have
 received, and the reaction is recorded"): the machinery is proven — surfacing, reading,

@@ -132,7 +132,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 ## I · CLI (18 verbs, on PATH)
 
 - [x] I1 inbox/read/good-bad-meh · beliefs/diff/correct/retract/note · recall/ask/chat/context · frontier · trace/stats/health · caption
-- [~ Claude 2026-08-24] I2 Rework onto the runtime API (G5 landed; verbs survive, transport changes; health stays direct as the outage diagnostic)
+- [x] I2 Rework onto the runtime API — every verb through dami-host; approval execution server-side; health/caption stay direct by design
 - [x] I3 Trace tree rendering with span nesting (charter §8.1; `dami trace` also resolves 8-char short ids now)
 - [x] I4 Shell completion + man page (installed: /etc/bash_completion.d/dami, man 1 dami; sources in tools/cli/)
 
