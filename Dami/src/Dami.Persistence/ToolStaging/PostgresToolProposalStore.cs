@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Dami.Contracts.Events;
 using Dami.Contracts.ToolStaging;
 using Dami.Persistence.Events;
@@ -11,6 +12,8 @@ namespace Dami.Persistence.ToolStaging;
 /// <summary>Immutable inert tool proposals in PostgreSQL.</summary>
 public sealed class PostgresToolProposalStore : IToolProposalStore
 {
+    private static readonly JsonSerializerOptions serializerOptions = CreateSerializerOptions();
+
     private readonly NpgsqlDataSource dataSource;
     private readonly string eventsTable;
     private readonly string table;
@@ -61,6 +64,42 @@ public sealed class PostgresToolProposalStore : IToolProposalStore
             .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         return await this.FindCoreAsync(
             connection, null, proposalId, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<ToolProposalSummary>> ListAsync(
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        if (limit is <= 0 or > ToolProposalReviewLimits.MAX_LIST_LIMIT)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(limit), limit,
+                $"Proposal list limits must be 1–{ToolProposalReviewLimits.MAX_LIST_LIMIT}.");
+        }
+
+        await using var command = this.dataSource.CreateCommand($"""
+            select proposal_id, capability_id, artifact -> 'Schema' ->> 'Name',
+                   artifact_version, artifact ->> 'ExecutionProfile', origin, proposed_at
+              from {this.table}
+             order by proposed_at desc, proposal_id desc
+             limit @limit;
+            """);
+        command.Parameters.AddWithValue("limit", limit);
+        var proposals = new List<ToolProposalSummary>();
+        await using var reader = await command
+            .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            proposals.Add(new ToolProposalSummary(
+                reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3),
+                Enum.Parse<ToolExecutionProfile>(reader.GetString(4)),
+                Enum.Parse<ExecutionOrigin>(reader.GetString(5)),
+                await reader.GetFieldValueAsync<DateTimeOffset>(6, cancellationToken)
+                    .ConfigureAwait(false)));
+        }
+
+        return proposals;
     }
 
     private async Task InsertAsync(
@@ -124,7 +163,8 @@ public sealed class PostgresToolProposalStore : IToolProposalStore
     {
         bool parentNull = await reader.IsDBNullAsync(3, cancellationToken).ConfigureAwait(false);
         string json = reader.GetString(6);
-        ToolProposalArtifact artifact = JsonSerializer.Deserialize<ToolProposalArtifact>(json)
+        ToolProposalArtifact artifact = JsonSerializer.Deserialize<ToolProposalArtifact>(
+            json, serializerOptions)
             ?? throw new InvalidDataException("Stored tool proposal artifact is null.");
         var request = new ToolProposalRequest(
             reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2),
@@ -147,7 +187,7 @@ public sealed class PostgresToolProposalStore : IToolProposalStore
         command.Parameters.AddWithValue("version", proposal.ArtifactVersion);
         command.Parameters.Add(new NpgsqlParameter("artifact", NpgsqlDbType.Jsonb)
         {
-            Value = JsonSerializer.Serialize(request.Artifact),
+            Value = JsonSerializer.Serialize(request.Artifact, serializerOptions),
         });
         command.Parameters.AddWithValue("at", proposal.ProposedAt);
     }
@@ -215,5 +255,12 @@ public sealed class PostgresToolProposalStore : IToolProposalStore
         {
             throw new ArgumentException("A proposal identifier cannot be empty.", nameof(proposalId));
         }
+    }
+
+    private static JsonSerializerOptions CreateSerializerOptions()
+    {
+        var options = new JsonSerializerOptions();
+        options.Converters.Add(new JsonStringEnumConverter());
+        return options;
     }
 }

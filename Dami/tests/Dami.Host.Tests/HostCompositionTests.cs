@@ -108,6 +108,24 @@ public sealed class HostCompositionTests
         }
     }
 
+    [Fact]
+    public async Task Host_Should_Compose_The_Inert_Tool_Proposal_Handler()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using HttpClient client = factory.CreateClient();
+        using HttpResponseMessage health = await client.GetAsync(
+            "/health", CancellationToken.None);
+        CapabilityEntry tool = Assert.Single(
+            factory.Services.GetRequiredService<ICapabilityInventory>().Snapshot(),
+            item => item.Name == "propose-tool");
+
+        Assert.Equal(
+            (HttpStatusCode.OK, CapabilitySource.Native, true),
+            (health.StatusCode, tool.Source,
+                factory.Services.GetRequiredService<INativeCapabilityCatalog>()
+                    .Find(tool.CapabilityId) is ProposeToolCapabilityHandler));
+    }
+
     private static WebApplicationFactory<Program> CreateSkillFactory(string root)
     {
         var recoveryStore = Substitute.For<ISkillChangeRecoveryStore>();

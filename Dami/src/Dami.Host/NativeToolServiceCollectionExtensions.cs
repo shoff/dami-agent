@@ -38,7 +38,16 @@ public static class NativeToolServiceCollectionExtensions
         RegisterRunProcess(services, configuration, activeTypes);
         RegisterFilePatch(services, configuration, activeTypes);
         RegisterSkillLifecycle(services, configuration, activeTypes);
+        RegisterToolProposal(services, activeTypes);
         return activeTypes;
+    }
+
+    private static void RegisterToolProposal(
+        IServiceCollection services,
+        ISet<Type> activeTypes)
+    {
+        services.AddSingleton<ProposeToolCapabilityHandler>();
+        activeTypes.Add(typeof(ProposeToolCapabilityHandler));
     }
 
     private static void RegisterSkillLifecycle(

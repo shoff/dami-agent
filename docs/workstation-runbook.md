@@ -204,7 +204,8 @@ against a bad update, not against drive failure.
 `http://127.0.0.1:5810` — localhost-only is a privacy boundary, not a deployment
 detail. Endpoints: `/health`, `POST /turns`, `POST /turns/stream` (SSE, trace id
 in `X-Dami-Trace`), `/surfacings` (+`/{id}/feedback`), `/beliefs`, `/approvals`
-(+`/{id}/resolve`), `/traces/{id}`, `/events?after={seq}` (the GUI's poll feed).
+(+`/{id}/resolve`), `/tool-proposals?limit=20` (+`/{id}` exact inert artifact),
+`/traces/{id}`, `/events?after={seq}` (the GUI's poll feed).
 Verify: `curl -s 127.0.0.1:5810/health`. Redeploy: publish to
 `~/.cache/dami-pub/host`, stop, rsync to `/opt/dami/host`, start.
 

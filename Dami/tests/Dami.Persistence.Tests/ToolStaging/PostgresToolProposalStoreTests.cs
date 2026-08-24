@@ -48,6 +48,24 @@ public sealed class PostgresToolProposalStoreTests
     }
 
     [Fact]
+    public async Task StageAsync_Should_Store_The_Execution_Profile_By_Stable_Name()
+    {
+        await this.fixture.ResetAsync();
+        StagedToolProposal proposal = CreateProposal();
+        await this.CreateStore().StageAsync(proposal, CancellationToken.None);
+        await using var command = this.fixture.DataSource.CreateCommand($"""
+            select artifact ->> 'ExecutionProfile'
+              from {DatabaseFixture.SCHEMA}.tool_proposals
+             where proposal_id = @proposal;
+            """);
+        command.Parameters.AddWithValue("proposal", proposal.Request.ProposalId);
+
+        Assert.Equal(
+            "ReadOnly",
+            await command.ExecuteScalarAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task StageAsync_Should_Reject_Conflicting_Trace_Provenance()
     {
         await this.fixture.ResetAsync();
@@ -132,6 +150,37 @@ public sealed class PostgresToolProposalStoreTests
             .StageAsync(proposal, CancellationToken.None);
 
         Assert.Equal(proposal.ArtifactVersion, accepted.ArtifactVersion);
+    }
+
+    [Fact]
+    public async Task ListAsync_Should_Return_Bounded_Newest_First_Metadata_Without_Artifacts()
+    {
+        await this.fixture.ResetAsync();
+        IToolProposalStore store = this.CreateStore();
+        StagedToolProposal older = CreateProposal(at, "older-tool");
+        StagedToolProposal newer = CreateProposal(at.AddMinutes(1), "newer-tool");
+        await store.StageAsync(older, CancellationToken.None);
+        await store.StageAsync(newer, CancellationToken.None);
+
+        ToolProposalSummary summary = Assert.Single(
+            await store.ListAsync(1, CancellationToken.None));
+
+        Assert.Equal(
+            (newer.Request.ProposalId, newer.Request.Artifact.Schema.CapabilityId,
+                "newer-tool", newer.ArtifactVersion, ToolExecutionProfile.ReadOnly,
+                newer.Request.Origin, newer.ProposedAt),
+            (summary.ProposalId, summary.CapabilityId, summary.Name,
+                summary.ArtifactVersion, summary.ExecutionProfile,
+                summary.Origin, summary.ProposedAt));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(101)]
+    public async Task ListAsync_Should_Enforce_Review_Page_Bounds(int limit)
+    {
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => this.CreateStore().ListAsync(limit, CancellationToken.None));
     }
 
     [Fact]
@@ -255,23 +304,26 @@ public sealed class PostgresToolProposalStoreTests
         return events;
     }
 
-    private static StagedToolProposal CreateProposal()
+    private static StagedToolProposal CreateProposal(
+        DateTimeOffset? proposedAt = null,
+        string name = "review-tool")
     {
-        var artifact = CreateArtifact(Guid.NewGuid(), "source");
+        var artifact = CreateArtifact(Guid.NewGuid(), "source", name: name);
         var request = new ToolProposalRequest(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
             ExecutionOrigin.SelfAudit, artifact);
-        return new StagedToolProposal(request, artifact.Version, at);
+        return new StagedToolProposal(request, artifact.Version, proposedAt ?? at);
     }
 
     private static ToolProposalArtifact CreateArtifact(
         Guid capabilityId,
         string source,
-        string tests = "tests")
+        string tests = "tests",
+        string name = "review-tool")
     {
         using var parameters = JsonDocument.Parse("""{"type":"object"}""");
         var schema = new CapabilityToolSchema(
-            capabilityId, "review-tool", "Review a bounded artifact.", parameters.RootElement);
+            capabilityId, name, "Review a bounded artifact.", parameters.RootElement);
         return new ToolProposalArtifact(
             schema, ["review"],
             new Dictionary<string, string> { ["ReviewTool.cs"] = source },

@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Dami.Contracts.Approvals;
@@ -93,23 +92,12 @@ public sealed class ProposeFilePatchCapabilityHandler : INativeCapabilityHandler
         DateTimeOffset createdAt)
     {
         return new FilePatchProposal(
-            DeriveId(proposalIdNamespace, request.TraceId, request.SpanId),
-            DeriveId(approvalIdNamespace, request.TraceId, request.SpanId),
+            NativeInvocationIdentity.Derive(proposalIdNamespace, request.TraceId, request.SpanId),
+            NativeInvocationIdentity.Derive(approvalIdNamespace, request.TraceId, request.SpanId),
             request.TraceId,
             request.SpanId,
             relativePath,
             content, FilePatchProposal.HashOf(content), expectedHash, createdAt);
-    }
-
-    private static Guid DeriveId(Guid namespaceId, Guid traceId, Guid spanId)
-    {
-        Span<byte> input = stackalloc byte[48];
-        namespaceId.TryWriteBytes(input[..16]);
-        traceId.TryWriteBytes(input[16..32]);
-        spanId.TryWriteBytes(input[32..]);
-        Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
-        SHA256.HashData(input, hash);
-        return new Guid(hash[..16]);
     }
 
     private static ApprovalRequest CreateApproval(FilePatchProposal proposal)

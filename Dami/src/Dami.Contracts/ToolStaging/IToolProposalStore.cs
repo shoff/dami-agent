@@ -12,4 +12,9 @@ public interface IToolProposalStore
     Task<StagedToolProposal?> FindAsync(
         Guid proposalId,
         CancellationToken cancellationToken);
+
+    /// <summary>Lists compact proposal metadata newest first.</summary>
+    Task<IReadOnlyList<ToolProposalSummary>> ListAsync(
+        int limit,
+        CancellationToken cancellationToken);
 }

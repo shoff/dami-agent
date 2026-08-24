@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using Dami.Contracts.Capabilities;
 
@@ -39,9 +38,9 @@ public sealed class ManageSkillCapabilityHandler : INativeCapabilityHandler
         ArgumentNullException.ThrowIfNull(request);
         var arguments = SkillCommandArguments.Parse(request.Invocation.Arguments);
         var change = new SkillChangeRequest(
-            DeriveId(changeIdNamespace, request.TraceId, request.SpanId),
+            NativeInvocationIdentity.Derive(changeIdNamespace, request.TraceId, request.SpanId),
             request.TraceId,
-            DeriveId(spanIdNamespace, request.TraceId, request.SpanId),
+            NativeInvocationIdentity.Derive(spanIdNamespace, request.TraceId, request.SpanId),
             request.SpanId,
             request.Origin,
             arguments.Kind,
@@ -51,17 +50,6 @@ public sealed class ManageSkillCapabilityHandler : INativeCapabilityHandler
         SkillChangeRecord accepted = await this.lifecycle
             .ApplyAsync(change, arguments.Diff, cancellationToken).ConfigureAwait(false);
         return CreateResult(accepted);
-    }
-
-    private static Guid DeriveId(Guid namespaceId, Guid traceId, Guid spanId)
-    {
-        Span<byte> input = stackalloc byte[48];
-        namespaceId.TryWriteBytes(input[..16]);
-        traceId.TryWriteBytes(input[16..32]);
-        spanId.TryWriteBytes(input[32..]);
-        Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
-        SHA256.HashData(input, hash);
-        return new Guid(hash[..16]);
     }
 
     private static CapabilityExecutionResult CreateResult(SkillChangeRecord accepted)

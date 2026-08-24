@@ -113,8 +113,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
       - [x] F4c3b Native author/revise/retire capability + Host/live lifecycle demonstration
 - [~ Codex 2026-08-24] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
   - [x] F5a Version-pinned bounded proposal contract + transactional staging ledger/events
-  - [~ Codex 2026-08-24] F5b Native propose/list/inspect boundary + Host staged-proposal demonstration
-  - [ ] F5c Human single-resolution promotion gate + live-registry activation and live demonstration
+  - [x] F5b Native propose/list/inspect boundary + Host staged-proposal demonstration
+  - [~ Codex 2026-08-24] F5c Human single-resolution promotion gate + live-registry activation and live demonstration
 
 ## G · Interactive runtime
 

@@ -5785,3 +5785,92 @@ version, and size integrity constraints, and `dami_app` privileges of SELECT/INS
 with UPDATE/DELETE false. No source was written, compiled, loaded, registered, or
 executed. F5a is complete with that evidence; F5b native propose/list/inspect and Host
 demonstration is claimed before code.
+
+## 2026-08-24 — Codex — F5b native proposal/review boundary started
+
+Pulled the clean tree after F5a, re-read TODO F5, D-016/architecture §7.6.5, the
+native capability handlers, Host composition, and current proposal-store abstraction.
+The first red slice will add a propose-only native handler that derives retry-stable
+proposal/span identity from the owning trace and invocation span, constructs the
+bounded F5a artifact, and returns evidence that registration/execution did not occur.
+List/inspect will be a separate bounded read abstraction: list returns metadata only,
+while exact source/tests remain available to the localhost human inspection endpoint
+without injecting a potentially multi-megabyte artifact into a model turn. The Host
+composition and live model/tool-loop demonstration follow those unit/integration
+slices. No F5b production behavior has changed yet.
+
+## 2026-08-24 — Codex — F5b native proposal and localhost review complete; F5c claimed
+
+The first native-handler test compiled red because `ProposeToolCapabilityHandler` did
+not exist, but it also tripped the 30-line method analyzer. The test was refactored
+before production work and rerun until the missing handler was its only failure. The
+minimum handler then parsed the complete bounded F5a artifact, derived proposal and
+child-span IDs from the owning trace/tool span, preserved origin and parent provenance,
+used the injected clock, staged through `IToolProposalStore`, and returned explicit
+`registered=false` and `executed=false` evidence. Retry-stable IDs, discovery metadata,
+and constructor null rejection were added after that behavior and are post-green
+coverage. With the suite green, the identical SHA-256 trace/span identity logic in
+skill management, file-patch proposal, and tool proposal handlers was refactored into
+one allocation-free `NativeInvocationIdentity` component.
+
+The metadata-list integration test compiled red on the absent summary/list contract.
+The store now selects only proposal/capability IDs, name, version, profile, origin, and
+timestamp newest-first; it does not deserialize source/tests for list calls. Its first
+production build exposed a raw-interpolated-string brace error before a behavioral
+run; using PostgreSQL `->`/`->>` operators fixed compilation, and the focused behavior
+then passed. A subsequent red theory showed both 0 and 101 were accepted; the shared
+contract now bounds pages to 1–100. Host list and exact-inspect tests each observed 404
+before their individual routes were added. A no-limit request then observed 400 before
+the 20-item default, and an oversized request observed 200/store access before HTTP
+rejected it with 400. Exact source/tests are available only from the localhost detail
+route, while bulk list results remain compact.
+
+The Host composition test observed no `propose-tool` registry entry before unconditional
+native registration made it green. A full pre-deployment gate built 33 projects with
+0 warnings and 0 errors, passed 725/725 tests across sixteen suites, and format
+verification exited 0. The first Steve-owned Release publish failed before deployment
+with the known NETSDK1064 root-NuGet-assets trap. A Steve-owned solution restore repaired
+only generated state; publish to an isolated directory then succeeded. The documented
+stop/rsync/chown/start sequence deployed the Host, which reported active, zero pending
+skill recovery, Production loopback readiness, and healthy status.
+
+After warming `qwen3:8b` at 100% GPU, a real localhost turn selected `propose-tool` and
+staged `echo-review`: proposal `699fd676-fcde-be83-9168-a55eec01ee32`, capability
+`3c115b25-9497-4651-a8e4-420035080ca9`, artifact version
+`4d8c47abeb0ec4df7249f2f9c16a995296c8dea91a6659248bda2736265a8d61`. The model's
+final prose incorrectly claimed no IDs were returned; durable evidence supersedes that
+claim. PostgreSQL and the review API observed the exact source, xUnit test source,
+rationale, motivating observation, pure-computation profile, trace/parent span, and one
+successful `ToolProposed` event. The trace has the normal ToolRequested/Started/Completed
+spans, while the proposed capability has zero capability-index rows: it was neither
+registered nor invokable.
+
+Live artifact inspection exposed the execution profile stored as ordinal `0`. A narrow
+regression test then failed with actual `1` instead of `ReadOnly`; proposal JSON now
+writes enum names and its reader still accepts historic integer values. The final
+representation gate built all 33 projects with 0 warnings and 0 errors, all sixteen
+suites passed 726/726, and format verification exited 0. A fresh Release publish and
+second bounded Host restart succeeded. The deployed reader returned healthy and
+reopened the original ordinal-backed proposal as `PureComputation`, proving backward
+compatibility.
+
+Adversarial review then connected the model's false "no IDs" prose to a leaky result
+boundary: proposal identity existed only in structured evidence, while the model saw
+the generic output string. A focused test failed because that output did not contain
+the canonical ID. The minimum fix returns ID, version, and the inert-state statement in
+one allocation-aware `string.Create` result. The final mandatory gate built all 33
+projects with 0 warnings and 0 errors, all sixteen suites passed 727/727, and format
+verification exited 0. Release publish and a third bounded Host restart succeeded with
+zero recovery work and healthy loopback readiness.
+
+A second real turn then staged `trim-review` as proposal
+`42942314-7194-e382-5d33-8a530cabd890`, version
+`c61c86719844e3297bbef1d0e5dc254f7bc12fc2981cb07b56437dce50d7ab15`; the model
+reported both exact values and correctly said it was not registered or executed.
+Exact inspection and the compact two-item list returned both old and new proposals.
+Direct storage evidence observed `PureComputation` by name, one successful proposal
+event, and zero capability-index rows. The first direct SQL evidence command had an
+operator-precedence error around `||` and `->>` and changed nothing; the parenthesized
+rerun produced those results. Migration 022 remains current with no new DDL. F5b is
+complete; F5c's human single-resolution verification/activation gate is claimed before
+code.
