@@ -5255,3 +5255,13 @@ mandatory solution gate built all 31 projects with 0 warnings and 0 errors, all 
 suites passed 615/615, and format/analyzer verification exited 0. No schema, migration,
 deployment, or live-service change was required. F3c/F3c3/F3c3b are `[x]`; F3d Host
 composition and the local fake-server integration demonstration are claimed next.
+
+## 2026-08-24 — Codex — F3d split; F3d1 claimed
+
+Host inspection showed two separately falsifiable boundaries under F3d. F3d1 owns the
+production composition: native and MCP capabilities must publish into the same catalogs,
+dispatch through exact source ownership, construct the scoped MCP egress gate in the
+composition root, and close all SDK connections with the Host. F3d2 owns the wire proof:
+the composed Host must discover and invoke a tool through an actual local Streamable
+HTTP fake server. They are split before implementation so a DI-only test cannot be
+reported as the end-to-end demonstration. F3d1 is claimed first.
