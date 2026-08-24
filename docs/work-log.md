@@ -3877,3 +3877,45 @@ queue with the ADR attached.
 as a map of the system: surfacings, memory/beliefs, turns, frontier (including the
 ADR-0013 brief flow), approvals, operations. Verified: `dami re<tab>` → recent read
 recall retract.
+
+## 2026-08-23 — Codex — G6c1: bounded provider-neutral model/tool state machine
+
+G6c1 is implemented as three narrow contracts in `Dami.Contracts` and one orchestration
+class in `Dami.Core`. `IToolCallingChatClient` owns no provider wire format: each model
+step is either a final answer or one stable-ID `CapabilityInvocation`, and completed
+tool exchanges carry the provider call id plus the evidence-backed execution result.
+`ToolLoopRunner` snapshots the configured maximum, supplied schemas, and the exchange
+history; permits a final answer after the last allowed call; and refuses to execute a
+call beyond the bound. It dispatches only through `ICapabilityExecutor` and therefore
+does not know whether the selected implementation is native or later MCP-backed.
+
+The durable trace uses one child span per tool call and records `ToolRequested` queued,
+`ToolStarted` running, then exactly one `ToolCompleted` succeeded or `ToolFailed` failed/
+cancelled state. Events contain only the stable capability id and provider call id; no
+arguments, output, evidence content, or exception text enters labels or metadata. A
+cancelled caller token is deliberately not reused for the terminal append, matching the
+existing turn-end durability rule. The executor exception is rethrown unchanged. The
+execution exception boundary excludes `ToolCompleted` persistence so an event-store
+failure after successful execution cannot be falsely reported as a tool failure.
+
+True TDD chronology: the first compile failed because the provider-neutral model-turn,
+exchange, client, options, and runner types did not exist; the minimum success loop then
+passed 1/1. A second test failed with requested/started but no failed event before the
+execution exception; the minimum failure transition made it green. The cancellation
+test first hit VSTHRD103 in its synchronous test setup; after correcting that scaffold
+to `CancelAsync`, it failed behaviorally (`Expected: Cancelled; Actual: Failed`) and the
+cancelled terminal path made it green. A retained-history test then failed because the
+first provider call observed the runner's later list mutation; immutable point-in-time
+snapshots fixed the abstraction leak. Finally, a completion-persistence failure test
+failed because the runner appended a misleading `ToolFailed`; narrowing the catch to
+execution alone corrected it. Bound, trace/span correlation, metadata privacy, and
+result feedback are pinned alongside those red/green cases. The focused class passes
+6/6 and all `Dami.Core.Tests` pass 51/51.
+
+Definitive verification used `/tmp/dami-g6c1-gate.Be9IzM/repo` at committed HEAD
+`d8e7402` with only the six G6c1 files overlaid, isolating Claude's staged G5 host work.
+`dotnet build Dami.sln --nologo` completed with 0 warnings and 0 errors; all twelve test
+suites passed 417/417; and `dotnet format Dami.sln --verify-no-changes --no-restore
+--verbosity minimal` exited 0. No database schema or migration is involved. G6c1 is
+flipped to `[x]`; acceptance item 4 remains partial until the Ollama adapter and live G6d
+demonstration exist. G6c2 is claimed before provider code changes begin.
