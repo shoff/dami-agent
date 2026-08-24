@@ -4130,6 +4130,12 @@ all twelve suites passed 439/439; and `dotnet format Dami.sln --verify-no-change
 --no-restore --verbosity minimal` exited 0. No migration is involved. G6c3a is flipped
 to `[x]`; G6c3b is claimed before proposal or persistence changes begin.
 
+G6c3b is split once more before implementation because durable immutable proposal
+storage and root-confined proposal creation have different failure modes and test
+fixtures. G6c3b1 owns the contract, migration 014, and PostgreSQL round-trip/idempotency;
+G6c3b2 owns path/preimage validation and filing the G7 request without touching the
+target. G6c3b1 is claimed before adding DDL or persistence code.
+
 ## 2026-08-24 — Claude — H6: the scout has real interests now, and a rate-limit fix
 
 "Blocked on Steve" was wrong here too — Steve's interests are in his own corpus.
