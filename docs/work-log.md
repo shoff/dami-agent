@@ -5332,3 +5332,47 @@ unified registry. F4b owns progressive disclosure into the bounded turn prompt a
 on-demand bundled-file reads. F4c owns atomic author/revise/retire operations with each
 diff represented in the durable execution stream. The split is recorded before code;
 F4a is claimed first.
+
+## 2026-08-24 — Codex — F4a bounded skill loading complete; F4b claimed
+
+The first loader test compiled red because `Dami.Capabilities.Skills`, its loader, and
+its options did not exist. The minimum implementation introduced the architecture's
+separate Skills project, a strict `skill.json` descriptor beside `SKILL.md`, an opaque
+body reference, stable SHA-256 content versions, and publication into the existing
+source-neutral registry. Skill bodies remain outside retrieval descriptions.
+
+The invalid-UTF-8 body test then failed behaviorally because arbitrary bytes were
+accepted; validation now uses the strict span-based UTF-8 decoder without allocating a
+body string. A nested-reference-link test failed because lexical containment alone
+followed a linked directory outside the skill. Every reference parent and final file is
+now checked, as are each skill directory and the configured root. The final root-link
+test cleanly demonstrated the remaining escape by publishing an external skill before
+the root check made it green.
+
+Duplicate skill IDs next failed after the first entry had already reached the registry.
+An `ICapabilityBatchRegistrar` boundary now prepares and validates the entire source
+set before publication. Adversarial review then found that this was failure-atomic but
+not visibility-atomic: a deterministic reader observed one of two entries during a
+successful batch. That test failed with an observed count of 1. The registry now
+snapshots arbitrary batch input, clones the current concurrent lookup once, and
+publishes the prepared view with one volatile swap. Reads stay lock-free, ordinary
+single registration stays O(1), and batch readers see the old or new view, never a
+partial view.
+
+A multiline-description test failed because retrieval metadata could carry injected
+instructions; names, descriptions, tags, and reference paths are now bounded single
+lines, with duplicate and empty identifiers refused. A version-stability test then
+failed because raw descriptor bytes made JSON indentation part of identity. Versions
+now frame and hash normalized descriptor values, body bytes, reference paths, and
+reference bytes. Short strings encode on the stack and larger strings rent pooled
+buffers, avoiding concatenation, `StringBuilder`, and transient encoded arrays on the
+versioning path. File counts and descriptor/body/combined-reference bytes are all
+snapshotted, validated against hard ceilings, and read asynchronously under caller
+cancellation.
+
+ADR-0016 records the descriptor/content/link decision and leaves body/reference
+resolution to F4b's progressive-disclosure boundary. The focused Skills suite passed
+7/7 and the shared capability suite passed 35/35. The mandatory solution gate built
+all 33 projects with 0 warnings and 0 errors, all sixteen suites passed 625/625, and
+format/analyzer verification exited 0. No schema, migration, deployment, or live-service
+change was required. F4a is `[x]`; F4b is claimed next.

@@ -101,8 +101,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] F3d1 Compose shared native/MCP catalogs, execution dispatch, scoped egress, and owned startup/shutdown lifecycle
     - [x] F3d2 Exercise discovery and invocation end to end against a local Streamable HTTP fake server
 - [~ Codex 2026-08-24] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
-  - [~ Codex 2026-08-24] F4a `Dami.Capabilities.Skills` bounded filesystem loading, stable versioning, references, and unified-registry publication
-  - [ ] F4b Progressive disclosure: selected skill bodies in the bounded turn prompt; bundled files loaded only on demand
+  - [x] F4a `Dami.Capabilities.Skills` bounded filesystem loading, stable versioning, references, and unified-registry publication
+  - [~ Codex 2026-08-24] F4b Progressive disclosure: selected skill bodies in the bounded turn prompt; bundled files loaded only on demand
   - [ ] F4c Atomic author/revise/retire lifecycle with every diff recorded in the durable execution stream
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
 

@@ -60,6 +60,24 @@ public sealed class CapabilityRegistryTests
     }
 
     [Fact]
+    public void RegisterBatch_Should_Publish_One_Atomic_Snapshot_To_Readers()
+    {
+        var first = CreateEntry(Guid.NewGuid());
+        var second = CreateEntry(Guid.NewGuid());
+        var registry = new CapabilityRegistry();
+        var observedCounts = new List<int>();
+        var batch = new ObservingBatch(
+            [first, second],
+            () => observedCounts.Add(registry.Snapshot().Count));
+        ICapabilityBatchRegistrar registrar = registry;
+
+        registrar.RegisterBatch(batch);
+
+        Assert.All(observedCounts, count => Assert.Equal(0, count));
+        Assert.Equal(2, registry.Snapshot().Count);
+    }
+
+    [Fact]
     public void Register_MakesCapabilityAvailableByStableId()
     {
         var capabilityId = Guid.NewGuid();
@@ -212,6 +230,32 @@ public sealed class CapabilityRegistryTests
         catch (Exception exception)
         {
             failures.Add(exception);
+        }
+    }
+
+    private sealed class ObservingBatch(
+        IReadOnlyList<CapabilityEntry> entries,
+        Action observe) : IReadOnlyList<CapabilityEntry>
+    {
+        public int Count => entries.Count;
+
+        public CapabilityEntry this[int index]
+        {
+            get
+            {
+                observe();
+                return entries[index];
+            }
+        }
+
+        public IEnumerator<CapabilityEntry> GetEnumerator()
+        {
+            return entries.GetEnumerator();
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return this.GetEnumerator();
         }
     }
 }

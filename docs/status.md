@@ -107,7 +107,7 @@ rather than assuming — but nothing else blocks the phase.
 | TCP connection, one connection | done | outbound and accepted loopback sockets verified; accepted-socket seam owns the socket, enables `NoDelay`, and has exception-safe idempotent disposal |
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
-| Capability registry | in progress | Native and MCP capabilities now share one catalog, retrieval surface, schema catalog, and exact-owner dispatcher. F3 is complete: explicit trust, fail-closed description handling, LocalOnly exclusion, scoped remote egress, and Host-owned SDK lifecycle. A real loopback Streamable HTTP server was discovered, invoked (`sunny in Austin`), and closed with one session DELETE. F4 skills are split and F4a filesystem loading is claimed. |
+| Capability registry | in progress | Native, MCP, and filesystem skills share one catalog. F3 is complete: explicit trust, fail-closed description handling, LocalOnly exclusion, scoped remote egress, and Host-owned SDK lifecycle. F4a adds bounded link-refusing skill loading, semantic content versions, explicit references, and atomic registry publication; F4b progressive disclosure is claimed. |
 | Model routing, sessions, events, CLI | partial | Routed/streaming/tool-enabled turns and the G6 live demonstration exist. G4 sessions are complete: durable idempotent turns, bounded recent context, localhost and thin-CLI lifecycle/reconnect surfaces, active model cancellation, resume, and retry convergence are demonstrated live. Streaming remains tool-less. |
 
 Verification on 2026-08-23 for G6c3a in an isolated concurrent-work gate:
@@ -195,6 +195,14 @@ TraceCancelled after three seconds with an Interrupted turn and no assistant mes
 resume then completed `RESUMED-OK` on trace `1d166128…`. Reconnect and an exact POST
 retry returned that same trace with `wasReplay:true`, and PostgreSQL contained one row.
 G4 and acceptance item 1 are complete.
+
+Verification on 2026-08-24 for F4a: bounded filesystem skill loading passed 7/7,
+including strict UTF-8, traversal/link refusal, semantic version stability, and
+duplicate-ID all-or-none behavior. Atomic batch visibility and the existing registry
+contract passed 35/35. The solution build completed across 33 projects with 0 warnings
+and 0 errors, all sixteen suites passed 625/625, and format/analyzer verification
+exited 0. No schema, migration, deployment, or live-service change was required. F4a
+is complete; F4b progressive disclosure is claimed.
 
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
