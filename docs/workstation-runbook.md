@@ -198,6 +198,16 @@ against a bad update, not against drive failure.
 ---
 
 
+### dami-host — the interactive runtime API (G5, D-005)
+
+`dami-host.service` runs `/opt/dami/host/Dami.Host` as steve, bound to
+`http://127.0.0.1:5810` — localhost-only is a privacy boundary, not a deployment
+detail. Endpoints: `/health`, `POST /turns`, `POST /turns/stream` (SSE, trace id
+in `X-Dami-Trace`), `/surfacings` (+`/{id}/feedback`), `/beliefs`, `/approvals`
+(+`/{id}/resolve`), `/traces/{id}`, `/events?after={seq}` (the GUI's poll feed).
+Verify: `curl -s 127.0.0.1:5810/health`. Redeploy: publish to
+`~/.cache/dami-pub/host`, stop, rsync to `/opt/dami/host`, start.
+
 ### 4.x NVIDIA driver stack is held (A5)
 
 All 29 `nvidia-*`/`libnvidia-*` packages are `apt-mark hold` as of 2026-08-23

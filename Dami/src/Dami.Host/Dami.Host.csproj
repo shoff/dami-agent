@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Dami.Host</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Dami.Contracts/Dami.Contracts.csproj" />
+    <ProjectReference Include="../Dami.Core/Dami.Core.csproj" />
+    <ProjectReference Include="../Dami.Persistence/Dami.Persistence.csproj" />
+    <ProjectReference Include="../Dami.Providers/Dami.Providers.csproj" />
+  </ItemGroup>
+
+</Project>

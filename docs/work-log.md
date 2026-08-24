@@ -3919,3 +3919,20 @@ suites passed 417/417; and `dotnet format Dami.sln --verify-no-changes --no-rest
 --verbosity minimal` exited 0. No database schema or migration is involved. G6c1 is
 flipped to `[x]`; acceptance item 4 remains partial until the Ollama adapter and live G6d
 demonstration exist. G6c2 is claimed before provider code changes begin.
+
+## 2026-08-24 — Claude — G5: the runtime is an API; interfaces are clients (D-005)
+
+`Dami.Host`: ASP.NET minimal API on `127.0.0.1:5810` (localhost-only as a privacy
+boundary), running as the `dami-host` systemd service. The CLI's verb families as
+routes: turns (`POST /turns`, and `POST /turns/stream` as server-sent events with
+the trace id in a header — the GUI's streaming path), surfacings with feedback,
+beliefs, approvals with resolve, trace replay, and `GET /events?after={seq}` — the
+poll feed a live execution graph (J3) renders from. Enums serialize as strings;
+every response is rendered from durable state.
+
+Demonstrated live: a full turn through the API (422 context tokens, routed Local,
+traced), SSE fragments arriving one by one, the events feed replaying from
+sequence zero. Mid-demo the sidecar had silently fallen to 100% CPU again — the
+llm-guard failure class, restarted and verified back to 100% GPU. The CLI still
+talks to stores directly; moving it onto this API is I2, deliberately separate.
+12 suites, 414 tests, 0 warnings.

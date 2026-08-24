@@ -1,0 +1,38 @@
+using Dami.Contracts.Models;
+using Dami.Core.Context;
+using Dami.Core.Turns;
+using Dami.Host;
+using Dami.Persistence;
+using Dami.Providers;
+
+// D-005: the interactive runtime is an API on localhost; CLI, GUI, and voice are
+// thin clients of the same surface. Localhost-only is a privacy boundary, not a
+// deployment detail — exposing this beyond loopback is a separate auth decision.
+var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.UseUrls("http://127.0.0.1:5810");
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(
+        new System.Text.Json.Serialization.JsonStringEnumConverter()));
+
+var connectionString =
+    builder.Configuration.GetConnectionString("Dami")
+    ?? "Host=127.0.0.1;Port=5432;Database=dami-data;Username=dami_app;Passfile="
+       + Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "/.pgpass";
+
+builder.Services.AddDamiPersistence(connectionString);
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<ITurnRunner, TurnRunner>();
+builder.Services.AddSingleton<Dami.Contracts.Context.IContextBuilder, ContextBuilder>();
+builder.Services.Configure<ContextOptions>(builder.Configuration.GetSection(ContextOptions.SECTION_NAME));
+builder.Services.AddSingleton<IModelRouter, ModelRouter>();
+builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection(OllamaOptions.SECTION_NAME));
+builder.Services.Configure<TeiOptions>(builder.Configuration.GetSection(TeiOptions.SECTION_NAME));
+builder.Services.Configure<TeiRerankOptions>(builder.Configuration.GetSection(TeiRerankOptions.SECTION_NAME));
+builder.Services.AddHttpClient<IChatClient, OllamaChatClient>(client =>
+    client.Timeout = TimeSpan.FromMinutes(10));
+builder.Services.AddHttpClient<IEmbeddingClient, TeiEmbeddingClient>();
+builder.Services.AddHttpClient<IRerankClient, TeiRerankClient>();
+
+var app = builder.Build();
+app.MapDamiRuntime();
+app.Run();

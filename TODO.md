@@ -98,7 +98,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] G2 Context assembly (`ContextBuilder`): hard token budget (~2.5k vs Hermes's 90–126k), recency-reserved slots, grounding gate (distance ceiling + explicit emptiness), beliefs-beat-memories under pressure; turns feed the corpus (F-05)
 - [x] G3 Streaming turns end to end — `BeginStreamingAsync`/`TurnStream`, trace completes and corpus records when drained, one coalesced ResponseStreaming event, `dami chat` streams live — acceptance item 2 (CLI half)
 - [ ] G4 **Sessions**: multi-turn conversation with a recent window in context; start/resume/interrupt/reconnect without duplication — acceptance item 1 (natural Codex continuation from transport; unclaimed)
-- [~ Claude 2026-08-24] G5 Runtime API on localhost (D-005): new Dami.Host project (Kestrel, 127.0.0.1); CLI rework itself stays I2
+- [x] G5 Runtime API on localhost (D-005): `dami-host` service on 127.0.0.1:5810 — turns/SSE, surfacings, beliefs, approvals, traces, `/events`; CLI rework stays I2
 - [~ Codex 2026-08-23] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4
   - [x] G6a Source-neutral invocation/result contract + native implementation registry and timeout boundary
   - [x] G6b Root-confined file operations + allowlisted no-shell process execution
@@ -138,7 +138,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 - [x] J1 Recorded-events spike: `tools/gui-spike/trace-viewer.html` over a real exported trace
 - [ ] J2 Framework decision: Tauri/React vs Avalonia — comparative spike per charter §8.3, driven by recorded events `[STEVE: preference input]`
-- [ ] J3 Conversation view + live execution graph (needs G5 + a live event feed; proactive traces alongside interactive)
+- [ ] J3 Conversation view + live execution graph (G5 now provides `/events?after=` + SSE turns)
 - [ ] J4 Ledger/audit UI: beliefs, diffs, corrections (the CLI verbs, visual)
 
 ## K · Domains (Phase 5/8)
