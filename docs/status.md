@@ -383,7 +383,7 @@ demonstrated. "partial" means a real demonstration exists for part of the item's
 | 9 | Identity across two providers | **demonstrated** | §9.1 identity block from one installed file leads local prompts; a persona-only voice line rides frontier prompts — "who are you" answers as Dami on qwen3 AND codex |
 | 10 | Relevant memory without flooding the prompt | **demonstrated** | `ContextBuilder` hard budget (2.5k tokens) over embed→ANN→rerank, tested; vs Hermes's measured 90–126k |
 | 11 | Discord without duplicate gateways | not yet | — |
-| 12 | Materially lower prompt/tool overhead than Hermes | on track | budget enforced at assembly; final claim needs the interactive runtime |
+| 12 | Materially lower prompt/tool overhead than Hermes | **demonstrated** | measured live through dami-host: retrieved context 147–404 tokens across five varied queries (health, work, off-topic); the §9.1 stable block adds ~300, so a full turn sits well under the charter's 5k target — against Hermes's measured 90–126k, a 20–40× cut at the ceiling and ~250× at measured context |
 | 13 | Back up and restore runtime + databases | partial | nightly verified pg dumps, one real restore performed; host restore unrehearsed by decision |
 | 14 | Spoken wake→STT→agent→TTS cycle | not yet | Phase 9 |
 

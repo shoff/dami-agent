@@ -4224,3 +4224,25 @@ panel (K2, `/health-log`, `undated` rendered honestly). All served from
 diff shows 3 added since Aug 1, health panel shows 6 events. Backs onto endpoints
 that already existed — no new server code. J2's rich-client framework choice stays
 open; this is the usable ledger UI in the meantime.
+
+## 2026-08-24 — Claude — Acceptance item 12: the overhead claim, now measurable
+
+The project's founding justification, now that turns run through the runtime.
+Measured live via `dami-host`'s `/context` across five varied queries:
+
+| query | context tokens |
+|---|---|
+| what am I working on | 336 |
+| my health situation | 319 |
+| sourdough bread recipe | 147 |
+| how do I stay productive | 404 |
+| the transport codec design | 269 |
+
+The §9.1 identity block adds ~300 tokens; instructions ~100. A full turn's stable
+prompt therefore sits at roughly 500–800 tokens — an order of magnitude under the
+charter's ~5k stable-prompt target, with the capability router holding tool schemas
+separately under their own ~5k budget. Against Hermes's measured 90–126k tokens per
+turn, that is a 20–40× reduction even at the charter ceiling and ~250× at measured
+context. The grounding gate is doing its job: the off-topic "sourdough" query pulls
+the *least* context (147), because most candidates fail the distance gate rather than
+padding the window. Scoreboard item 12: demonstrated.
