@@ -51,7 +51,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [ ] B6 **Close D-010**: Steve reviews `tools/eval/REVIEW.md` (37 draft pairs, 13 top-3 misses annotated) → re-run 3-model eval → record decision `[STEVE: review]`
 - [ ] B7 Kokoro classes (772 memories / 3,811 concepts / 718 entities): import into corpus or leave preserved? `[STEVE: whose memories are they]`
 - [x] B8 Belief embedding: only-active-conclusions embedded for retrieval (D-009 second half; currently beliefs enter context by subject, not similarity)
-- [~ Claude 2026-08-23] B9 Observation retention/compaction policy for `chat`-source growth (register open item)
+- [STEVE] B9 Observation retention/compaction policy — ADR-0012 proposed (keep words, reclaim vectors, exclude-never-erase); needs Steve's approval
 - [x] B10 Repair/flag the 267 epoch-zero timestamps (278 by repair day; 74 recovered, 204 flagged) 
 
 ## C · Privacy & egress (D-012)

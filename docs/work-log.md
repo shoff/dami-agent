@@ -3716,3 +3716,14 @@ through the tuner and correctly holds the base — Steve has recorded exactly on
 reaction, and inventing more to demo the tuned path would have polluted the very
 signal the tuner reads. Register updated in both docs. 12 suites, 384 tests,
 0 warnings.
+
+## 2026-08-23 — Claude — B9: retention policy proposed (ADR-0012)
+
+Measured first: observation text is 3.2 MB and effectively free; the embeddings are
+93 MB — 29× the text they index. So the policy keeps every word forever and treats
+only derived data as reclaimable: vectors can be dropped and rebuilt (~107 docs/s,
+measured in ADR-0009), and reflected-upon chat chatter can be *excluded from
+retrieval* through an append-only sidecar — the same pattern B10 shipped — never
+deleted. Thresholds (500 k rows / 10 GB) make it a tripwire with a plan attached,
+not a running process. Proposed, not accepted: excluding anything from Steve's
+memory record is Steve's decision, so the board item moves to his queue.
