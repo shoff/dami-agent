@@ -4969,3 +4969,15 @@ same answer/trace, the POST reported `wasReplay:true`, and PostgreSQL counted ex
 one matching Completed row. The service remained active and healthy. Together with the
 earlier live `TUNDRA-8246` multi-turn-context proof, this demonstrates acceptance item
 1; G4c3a, G4c3, G4c, and G4 are `[x]`.
+
+## 2026-08-24 — Codex — F3 MCP capability slice split and F3a claimed
+
+After G4 was pushed, `TODO.md` identified F3 as the next open natural-lane task.
+Architecture §7.6.2–§7.6.4 and D-015 require a distinct MCP adapter project, explicit
+per-server trust, one normalized registry surface, locally summarized untrusted
+descriptions, and exclusion of untrusted MCP before LocalOnly selection. F-19 also
+requires selected schemas to be acquired on demand rather than advertising the entire
+remote catalog. Those are four independently demonstrable boundaries, so F3 is split
+before production work: F3a owns client/connection/discovery/schema-cache mechanics;
+F3b owns secure description ingestion; F3c owns privacy-aware selection and execution;
+F3d owns Host composition plus a local fake-server proof. Only F3a is claimed now.
