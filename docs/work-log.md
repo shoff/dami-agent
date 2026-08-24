@@ -4088,3 +4088,13 @@ all twelve suites passed 437/437, including `Dami.Providers.Tests` 33/33; and `d
 format Dami.sln --verify-no-changes --no-restore --verbosity minimal` exited 0. No
 migration is involved. G6c2/G6c2b are flipped to `[x]`; G6c3 is claimed before approval
 handoff changes begin.
+
+G6c3 inspection found three architectural seams that cannot safely remain implicit.
+`ICapabilityExecutor` receives only arguments and a stable capability id, but every G7
+request requires the originating trace id; a write proposal must durably pin both the
+reviewed replacement bytes and the expected preimage; and `ApprovalEndpoints` currently
+hard-codes librarian/brief branches, so adding a third branch would deepen an OCP
+violation. G6c3 is split without widening its intended write/patch handoff: G6c3a adds
+trace-aware execution provenance, G6c3b adds the durable hash-pinned root-confined
+proposal (which cannot mutate the target), and G6c3c adds the approved executor behind
+an extensible runtime dispatch seam. G6c3a is claimed before contract changes begin.
