@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-23 20:20 CDT (`2026-08-24T01:20Z`)
+- **Last updated:** 2026-08-23 20:44 CDT (`2026-08-24T01:44Z`)
 - **Updated from:** direct workstation inspection and solution test evidence
 - **Current phases:** 0, 1, and 3 in progress
 
@@ -108,10 +108,10 @@ rather than assuming — but nothing else blocks the phase.
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
 | Capability registry | in progress | Core stable-ID lookup, immutable metadata, tool/skill invariants, and cycle-safe bundle expansion have 18 tests. `Dami.Capabilities.Native` discovers attribute-declared tools without activation (1 test). Semantic retrieval, native execution/host registration, MCP, and skill loading remain. |
-| Model routing, sessions, events, CLI | partial | Routed and streaming turns exist. G6c1 adds a provider-neutral bounded model/tool state machine with correlated requested/started/completed/failed events and cancellation; G6c2a adds typed selected tool schemas with stable-ID mapping. Ollama wire adaptation, sessions, and the live tool demonstration remain. |
+| Model routing, sessions, events, CLI | partial | Routed and streaming turns exist. G6c1 adds the bounded model/tool state machine; G6c2 adds typed selected schemas plus the Ollama `/api/chat` adapter with stable-ID/provider-call-ID mapping and accepted live history. Approval handoff, sessions, runtime wiring, and the live tool demonstration remain. |
 
-Verification on 2026-08-23 for G6c2a, isolated from concurrent host/CLI work:
-`dotnet test Dami.sln` executed 422 tests across twelve suites with 0 failures;
+Verification on 2026-08-23 for G6c2b on the shared current tree:
+`dotnet test Dami.sln` executed 437 tests across twelve suites with 0 failures;
 the preceding `dotnet build Dami.sln` completed with 0 warnings and 0 errors, and
 `dotnet format Dami.sln --verify-no-changes --no-restore` exited 0.
 
@@ -373,7 +373,7 @@ demonstrated. "partial" means a real demonstration exists for part of the item's
 | 1 | Start/resume/interrupt/reconnect without duplication | partial | append idempotent on `event_id` (tested); no interactive sessions yet |
 | 2 | Stream through CLI and GUI | **demonstrated** | `dami chat` streams over SSE from dami-host; the web view at :5810/ streams the same turns and renders the same event feed |
 | 3 | Render tools/workers/approvals truthfully | partial | `dami trace` renders only persisted events, child spans indented (§8.1 tree); approvals and workers both exist and appear in traces; no GUI yet |
-| 4 | Bounded terminal and file operations | partial | G6a/G6b execute root-confined bounded reads and allowlisted no-shell processes; G6c1 proves a bounded model/tool loop and truthful correlated terminal events in deterministic tests. Ollama integration and the G6d live run remain. |
+| 4 | Bounded terminal and file operations | partial | G6a/G6b execute root-confined bounded reads and allowlisted no-shell processes; G6c1 proves the bounded truthful loop; G6c2's selected-schema Ollama protocol was observed live through call and result history. Approval/runtime wiring and the G6d live run remain. |
 | 5 | Explicit approval honored | **demonstrated** | G7: durable approval contract, single-resolution in SQL; librarian propose→approve→execute live; C4 egress briefs gated the same way |
 | 6 | Worker with child trace and evidence | **demonstrated** | `WorkerRunner`: child span under the parent, hard time bound, failure recorded not thrown; `dami caption` runs vision as a worker — trace replayed with the child span nested |
 | 7 | Persist and replay a completed turn | **demonstrated** | proactive passes AND an interactive `UserTurn` (`dami chat` → `dami trace`) persisted and replayed |

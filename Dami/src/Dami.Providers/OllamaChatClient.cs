@@ -10,9 +10,6 @@ namespace Dami.Providers;
 /// <summary>The Ollama sidecar as an <see cref="IChatClient"/>.</summary>
 public sealed class OllamaChatClient : IChatClient
 {
-    private static readonly JsonSerializerOptions serializerOptions =
-        new(JsonSerializerDefaults.Web);
-
     private readonly HttpClient httpClient;
     private readonly Uri baseUri;
     private readonly OllamaOptions ollamaOptions;
@@ -50,7 +47,7 @@ public sealed class OllamaChatClient : IChatClient
         };
 
         using var response = await this.httpClient
-            .PostAsJsonAsync(endpoint, request, serializerOptions, cancellationToken)
+            .PostAsJsonAsync(endpoint, request, OllamaJson.SerializerOptions, cancellationToken)
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
@@ -102,7 +99,7 @@ public sealed class OllamaChatClient : IChatClient
 
         using var message = new HttpRequestMessage(HttpMethod.Post, endpoint)
         {
-            Content = JsonContent.Create(request, options: serializerOptions),
+            Content = JsonContent.Create(request, options: OllamaJson.SerializerOptions),
         };
         var response = await this.httpClient
             .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken)

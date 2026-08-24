@@ -4044,3 +4044,47 @@ client — it is the recorded-events evidence J2's comparative spike needs, and 
 usable client today. Note: full-suite run currently carries one red from Codex's
 in-flight OllamaToolCallingChatClient work (their lane, not in this commit);
 my suites and the build are clean — 437 passed, 0 warnings.
+
+The cited in-flight Codex red was the deliberately introduced provider-call-id TDD
+test; it is resolved below and was not present in the G6c2b gate.
+
+## 2026-08-23 — Codex — G6c2b: selected-schema Ollama tool protocol
+
+`OllamaToolCallingChatClient` adapts the source-neutral model/tool contract to Ollama's
+native `/api/chat` wire shape. Every request contains exactly the supplied selected
+`CapabilityToolSchema` set, the configured model/thinking/token cap, and `stream=false`.
+It reconstructs each completed exchange as an assistant `tool_calls` message followed
+by the named tool result, then maps one returned function name back to its stable
+capability id. Provider call ids are preserved and replayed; older responses without an
+id get a deterministic ordinal fallback. Duplicate selected names or stable ids fail
+before HTTP, while multiple calls, unadvertised functions, and non-object arguments are
+rejected as invalid provider data. Prompt, arguments, tool output, and thinking content
+are never logged. Both Ollama adapters now share one serializer configuration.
+
+True TDD chronology: the first test compiled red because the adapter did not exist;
+the minimum selected-schema request/parser passed 1/1. The history test first needed a
+missing test namespace import, then failed behaviorally with only the user message;
+assistant-call/tool-result reconstruction made both tests green. Duplicate function
+names then failed because no exception was thrown; pre-request validation fixed it.
+Non-object provider arguments failed with leaked `ArgumentException` instead of
+`InvalidDataException`; explicit wire validation fixed that. Duplicate stable ids then
+failed because no exception was thrown; identity validation fixed it. Tests also pin
+unadvertised/multiple-call refusal and configured request settings.
+
+Two local sidecar probes supplied no private data and invoked no capability. Ollama
+0.32.15/qwen3:8b first returned a real `read_file` call for `TODO.md` with owned object
+arguments and provider id `call_76wbvcqd`. That live result exposed the call id omitted
+from the abbreviated documentation; a new test failed (`Expected: call-provider-1;
+Actual: ollama-0`) before preservation was added. A follow-up test then failed because
+reconstructed history omitted the id; replaying it made the seven adapter tests green.
+The first history probe at `num_predict=120` ended in thinking with `done_reason:length`
+and is not counted as success. Repeating at 300 produced `done_reason:stop` and final
+content containing the tool-supplied marker `G6C2_HISTORY_OK`, demonstrating that the
+installed sidecar accepts the exact reconstructed history shape.
+
+Definitive verification ran directly on the current shared tree after concurrent work
+had committed: `dotnet build Dami.sln --nologo` completed with 0 warnings and 0 errors;
+all twelve suites passed 437/437, including `Dami.Providers.Tests` 33/33; and `dotnet
+format Dami.sln --verify-no-changes --no-restore --verbosity minimal` exited 0. No
+migration is involved. G6c2/G6c2b are flipped to `[x]`; G6c3 is claimed before approval
+handoff changes begin.
