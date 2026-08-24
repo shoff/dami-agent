@@ -15,6 +15,7 @@ public sealed class HealthCommands
 {
     private static readonly Uri teiInfo = new("http://127.0.0.1:8080/info");
     private static readonly Uri rerankInfo = new("http://127.0.0.1:8081/info");
+    private static readonly Uri sttHealth = new("http://127.0.0.1:8090/health");
     private static readonly Uri ollamaLoaded = new("http://127.0.0.1:11434/api/ps");
 
     private readonly NpgsqlDataSource dataSource;
@@ -40,10 +41,31 @@ public sealed class HealthCommands
         healthy &= await CheckSidecarAsync(httpClient, "embeddings", teiInfo, cancellationToken).ConfigureAwait(false);
         healthy &= await CheckSidecarAsync(httpClient, "reranker", rerankInfo, cancellationToken).ConfigureAwait(false);
         healthy &= await CheckOllamaAsync(httpClient, cancellationToken).ConfigureAwait(false);
+        healthy &= await CheckSpeechAsync(httpClient, cancellationToken).ConfigureAwait(false);
         healthy &= await CheckRuntimeApiAsync(httpClient, cancellationToken).ConfigureAwait(false);
         await this.PrintTierAsync(cancellationToken).ConfigureAwait(false);
 
         return healthy ? 0 : 1;
+    }
+
+    /// <summary>The speech sidecar answers /health with no body worth printing (L3).</summary>
+    private static async Task<bool> CheckSpeechAsync(
+        HttpClient httpClient,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await httpClient.GetAsync(sttHealth, cancellationToken)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            Console.WriteLine("ok    speech        faster-whisper on 127.0.0.1:8090");
+            return true;
+        }
+        catch (HttpRequestException exception)
+        {
+            Console.WriteLine($"FAIL  speech        {exception.Message} - docker start dami-stt");
+            return false;
+        }
     }
 
     private static async Task<bool> CheckRuntimeApiAsync(
