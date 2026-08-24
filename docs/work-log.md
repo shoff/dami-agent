@@ -5069,3 +5069,14 @@ The focused MCP suite passed 13/13. The mandatory solution gate built 31 project
 verification exited 0. No schema, migration, Host composition, or deployment change
 was needed. F3b is `[x]`; F3c privacy-aware selection and source-neutral MCP execution
 are claimed next.
+
+## 2026-08-24 — Codex — F3c split; F3c1 claimed
+
+The F3a adversarial review deliberately restricted the built-in SDK HTTP transport to
+loopback because Dami's only general egress contract permits bodyless fetches, while MCP
+requires arbitrary JSON-RPC POST bodies and streaming responses. F3c therefore contains
+three independently reviewable boundaries: F3c1 threads privacy into semantic selection
+and blocks untrusted MCP before reranking and related expansion; F3c2 owns source-neutral
+invocation dispatch and result/error translation; F3c3 records and implements the new
+remote transport door under D-012 in an ADR. This split is recorded before production
+work rather than silently widening `IEgressClient`. Only F3c1 is claimed now.
