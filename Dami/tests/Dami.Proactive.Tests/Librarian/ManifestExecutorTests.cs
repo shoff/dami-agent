@@ -26,6 +26,17 @@ public sealed class ManifestExecutorTests : IDisposable
         Directory.Delete(this.scratch, recursive: true);
     }
 
+    [Theory]
+    [InlineData("media-librarian", true)]
+    [InlineData("frontier-brief", false)]
+    public void CanExecute_Should_Own_Only_Librarian_Manifests(string requestedBy, bool expected)
+    {
+        var approval = new ApprovalRequest(
+            Guid.NewGuid(), Guid.NewGuid(), requestedBy, "action", "scope", "resource", at);
+
+        Assert.Equal(expected, this.CreateExecutor().CanExecute(approval));
+    }
+
     [Fact]
     public async Task ExecuteAsync_Should_Refuse_A_Pending_Approval()
     {

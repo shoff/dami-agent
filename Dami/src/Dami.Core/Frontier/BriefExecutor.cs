@@ -15,7 +15,7 @@ namespace Dami.Core.Frontier;
 /// executor recomputes the hash at send time and refuses on mismatch, so nothing can
 /// swap the reviewed bytes between approval and egress. Refusals are loud.
 /// </remarks>
-public sealed class BriefExecutor
+public sealed class BriefExecutor : IApprovalExecutionHandler
 {
     private readonly IApprovalService approvalService;
     private readonly IEgressBriefStore briefStore;
@@ -49,6 +49,22 @@ public sealed class BriefExecutor
     {
         ArgumentNullException.ThrowIfNull(brief);
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(brief)));
+    }
+
+    /// <inheritdoc />
+    public bool CanExecute(ApprovalRequest approval)
+    {
+        ArgumentNullException.ThrowIfNull(approval);
+        return approval.RequestedBy == "frontier-brief";
+    }
+
+    /// <inheritdoc />
+    public Task<string> ExecuteAsync(
+        ApprovalRequest approval,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(approval);
+        return this.ExecuteAsync(approval.ApprovalId, cancellationToken);
     }
 
     /// <summary>Sends the brief behind an Approved approval. Returns the frontier's answer.</summary>

@@ -11,7 +11,7 @@ namespace Dami.Proactive.Librarian;
 /// <see cref="ApprovalStatus.Approved"/>. Moves only — no overwrite (an existing target
 /// skips the file), no delete anywhere in this type, and every action logged.
 /// </remarks>
-public sealed class ManifestExecutor
+public sealed class ManifestExecutor : IApprovalExecutionHandler
 {
     private readonly IApprovalService approvalService;
     private readonly ILogger<ManifestExecutor> logger;
@@ -24,6 +24,24 @@ public sealed class ManifestExecutor
 
         this.approvalService = approvalService;
         this.logger = logger;
+    }
+
+    /// <inheritdoc />
+    public bool CanExecute(ApprovalRequest approval)
+    {
+        ArgumentNullException.ThrowIfNull(approval);
+        return approval.RequestedBy == "media-librarian";
+    }
+
+    /// <inheritdoc />
+    public async Task<string> ExecuteAsync(
+        ApprovalRequest approval,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(approval);
+        var (moved, skipped) = await this.ExecuteAsync(
+            approval.ApprovalId, cancellationToken).ConfigureAwait(false);
+        return $"executed: {moved} moved, {skipped} skipped";
     }
 
     /// <summary>Executes the manifest referenced by an approved approval.</summary>

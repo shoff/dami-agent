@@ -3,6 +3,9 @@ namespace Dami.Capabilities.Native;
 /// <summary>Safety bounds for approval-gated file patch proposals.</summary>
 public sealed class ProposeFilePatchCapabilityOptions
 {
+    /// <summary>Configuration section name.</summary>
+    public const string SECTION_NAME = "FilePatch";
+
     /// <summary>Gets or sets the only directory beneath which targets may exist.</summary>
     public string RootDirectory { get; set; } = string.Empty;
 

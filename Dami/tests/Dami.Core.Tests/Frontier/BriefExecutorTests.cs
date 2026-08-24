@@ -19,6 +19,17 @@ public sealed class BriefExecutorTests
     private readonly IEgressBriefStore briefStore = Substitute.For<IEgressBriefStore>();
     private readonly IFrontierChat frontierChat = Substitute.For<IFrontierChat>();
 
+    [Theory]
+    [InlineData("frontier-brief", true)]
+    [InlineData("media-librarian", false)]
+    public void CanExecute_Should_Own_Only_Frontier_Briefs(string requestedBy, bool expected)
+    {
+        var approval = new ApprovalRequest(
+            Guid.NewGuid(), Guid.NewGuid(), requestedBy, "action", "scope", "resource", now);
+
+        Assert.Equal(expected, this.CreateExecutor().CanExecute(approval));
+    }
+
     [Fact]
     public async Task ExecuteAsync_Should_Refuse_A_Pending_Approval()
     {

@@ -1,4 +1,7 @@
+using Dami.Capabilities.Native;
+using Dami.Contracts.Approvals;
 using Dami.Contracts.Models;
+using Dami.Core.Approvals;
 using Dami.Core.Context;
 using Dami.Core.Frontier;
 using Dami.Core.Turns;
@@ -44,6 +47,21 @@ builder.Services.AddHttpClient<IRerankClient, TeiRerankClient>();
 // Approvals execute in the runtime (D-005): librarian manifests and egress briefs.
 builder.Services.AddSingleton<ManifestExecutor>();
 builder.Services.AddSingleton<BriefExecutor>();
+builder.Services.AddSingleton<IApprovalExecutionHandler>(services =>
+    services.GetRequiredService<ManifestExecutor>());
+builder.Services.AddSingleton<IApprovalExecutionHandler>(services =>
+    services.GetRequiredService<BriefExecutor>());
+var filePatchOptions = new ProposeFilePatchCapabilityOptions();
+builder.Configuration.GetSection(ProposeFilePatchCapabilityOptions.SECTION_NAME).Bind(filePatchOptions);
+if (!string.IsNullOrWhiteSpace(filePatchOptions.RootDirectory))
+{
+    builder.Services.AddSingleton(filePatchOptions);
+    builder.Services.AddSingleton<FilePatchExecutor>();
+    builder.Services.AddSingleton<IApprovalExecutionHandler>(services =>
+        services.GetRequiredService<FilePatchExecutor>());
+}
+
+builder.Services.AddSingleton<ApprovalExecutionDispatcher>();
 builder.Services.AddSingleton<Dami.Contracts.Privacy.IPromptRedactor, PromptRedactor>();
 
 // Frontier: subscription door (ADR-0011) behind the C5 egress budget.

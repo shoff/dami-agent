@@ -1,6 +1,5 @@
 using Dami.Contracts.Approvals;
-using Dami.Core.Frontier;
-using Dami.Proactive.Librarian;
+using Dami.Core.Approvals;
 
 namespace Dami.Host;
 
@@ -24,7 +23,7 @@ public static class ApprovalEndpoints
     {
         app.MapPost("/approvals/{prefix}/resolve", async (
             string prefix, ResolveRequest request, IApprovalService approvals,
-            ManifestExecutor manifests, BriefExecutor briefs, TimeProvider clock,
+            ApprovalExecutionDispatcher dispatcher, TimeProvider clock,
             CancellationToken token) =>
         {
             var pending = await ResolveAsync(approvals, prefix, token).ConfigureAwait(false);
@@ -34,7 +33,7 @@ public static class ApprovalEndpoints
             }
 
             return await ResolveAndExecuteAsync(
-                pending, request, approvals, manifests, briefs, clock, token).ConfigureAwait(false);
+                pending, request, approvals, dispatcher, clock, token).ConfigureAwait(false);
         });
     }
 
@@ -42,8 +41,7 @@ public static class ApprovalEndpoints
         ApprovalRequest pending,
         ResolveRequest request,
         IApprovalService approvals,
-        ManifestExecutor manifests,
-        BriefExecutor briefs,
+        ApprovalExecutionDispatcher dispatcher,
         TimeProvider clock,
         CancellationToken token)
     {
@@ -57,7 +55,7 @@ public static class ApprovalEndpoints
         }
 
         var execution = request.Approve
-            ? await ExecuteAsync(pending, manifests, briefs, token).ConfigureAwait(false)
+            ? await dispatcher.ExecuteAsync(pending, token).ConfigureAwait(false)
             : null;
         return Results.Ok(new
         {
@@ -66,28 +64,6 @@ public static class ApprovalEndpoints
             status = status.ToString(),
             execution,
         });
-    }
-
-    private static async Task<string?> ExecuteAsync(
-        ApprovalRequest approved,
-        ManifestExecutor manifests,
-        BriefExecutor briefs,
-        CancellationToken cancellationToken)
-    {
-        if (approved.RequestedBy == "media-librarian")
-        {
-            var (moved, skipped) = await manifests
-                .ExecuteAsync(approved.ApprovalId, cancellationToken).ConfigureAwait(false);
-            return $"executed: {moved} moved, {skipped} skipped";
-        }
-
-        if (approved.RequestedBy == "frontier-brief")
-        {
-            return await briefs.ExecuteAsync(approved.ApprovalId, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        return null;
     }
 
     private static async Task<ApprovalRequest?> ResolveAsync(

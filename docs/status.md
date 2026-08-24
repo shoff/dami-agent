@@ -108,7 +108,7 @@ rather than assuming — but nothing else blocks the phase.
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
 | Capability registry | in progress | Core stable-ID lookup, immutable metadata, tool/skill invariants, and cycle-safe bundle expansion have 18 tests. `Dami.Capabilities.Native` discovers attribute-declared tools without activation (1 test). Semantic retrieval, native execution/host registration, MCP, and skill loading remain. |
-| Model routing, sessions, events, CLI | partial | Routed and streaming turns exist. G6c1 adds the bounded model/tool state machine; G6c2 adds selected-schema Ollama tool calling; G6c3a preserves trace/span provenance; G6c3b atomically persists an immutable, hash-pinned patch proposal and pending approval through a root-confined propose-only native capability. Approved execution, sessions, runtime wiring, and the live tool demonstration remain. |
+| Model routing, sessions, events, CLI | partial | Routed and streaming turns exist. G6c1 adds the bounded model/tool state machine; G6c2 adds selected-schema Ollama tool calling; G6c3 preserves trace/span provenance and sends immutable, hash-pinned patch proposals through G7 to an idempotent approved executor. Approval execution is open/closed through focused handlers. Sessions and the G6d live tool demonstration remain. |
 
 Verification on 2026-08-23 for G6c3a in an isolated concurrent-work gate:
 `dotnet test Dami.sln` executed 439 tests across twelve suites with 0 failures;
@@ -126,6 +126,12 @@ same 0-warning/0-error build, 464/464 tests, and clean format verification.
 Verification on 2026-08-23 for G6c3b2: the propose-only handler passed 11/11 and the
 complete native suite passed 20/20. The solution build completed with 0 warnings and 0
 errors, all twelve suites passed 475/475, and format verification exited 0.
+
+Verification on 2026-08-23 for G6c3c: approved create, replacement, retry convergence,
+preimage refusal, non-approved refusal, and persisted-data byte bounds passed in the
+30/30 native suite. Dispatcher and existing-executor ownership tests passed in their
+affected suites. The solution build completed with 0 warnings and 0 errors, all twelve
+suites passed 492/492, and format verification exited 0.
 
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
@@ -387,7 +393,7 @@ demonstrated. "partial" means a real demonstration exists for part of the item's
 | 1 | Start/resume/interrupt/reconnect without duplication | partial | append idempotent on `event_id` (tested); no interactive sessions yet |
 | 2 | Stream through CLI and GUI | **demonstrated** | `dami chat` streams over SSE from dami-host; the web view at :5810/ streams the same turns and renders the same event feed |
 | 3 | Render tools/workers/approvals truthfully | partial | `dami trace` renders only persisted events, child spans indented (§8.1 tree); approvals and workers both exist and appear in traces; no GUI yet |
-| 4 | Bounded terminal and file operations | partial | G6a/G6b execute root-confined bounded reads and allowlisted no-shell processes; G6c1 proves the bounded truthful loop; G6c2's selected-schema Ollama protocol was observed live through call and result history. Approval/runtime wiring and the G6d live run remain. |
+| 4 | Bounded terminal and file operations | partial | G6a/G6b execute root-confined bounded reads and allowlisted no-shell processes; G6c1 proves the bounded truthful loop; G6c2's selected-schema Ollama protocol was observed live through call and result history; G6c3 adds approval-gated, hash-pinned patch execution behind open/closed runtime dispatch. The G6d live run remains. |
 | 5 | Explicit approval honored | **demonstrated** | G7: durable approval contract, single-resolution in SQL; librarian propose→approve→execute live; C4 egress briefs gated the same way |
 | 6 | Worker with child trace and evidence | **demonstrated** | `WorkerRunner`: child span under the parent, hard time bound, failure recorded not thrown; `dami caption` runs vision as a worker — trace replayed with the child span nested |
 | 7 | Persist and replay a completed turn | **demonstrated** | proactive passes AND an interactive `UserTurn` (`dami chat` → `dami trace`) persisted and replayed |

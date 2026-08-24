@@ -4289,6 +4289,16 @@ Verification: the focused handler passed 11/11 and all native capability tests p
 database migration is needed. G6c3b/G6c3b2 are flipped to `[x]`, and G6c3c is claimed
 before approved-execution production code begins.
 
+## 2026-08-23 — Codex — G6c3c approved execution dispatch started
+
+Inspection found `ApprovalEndpoints.ExecuteAsync` closed over concrete
+`ManifestExecutor` and `BriefExecutor` dependencies with a growing `RequestedBy` if
+chain. G6c3c starts by moving that policy behind a focused approval-execution handler
+contract and a Core dispatcher that accepts exactly one matching handler, returns null
+when an approval intentionally has no immediate executor, and fails loudly on ambiguous
+matches. The first test requires one matching handler to receive the exact approval;
+no dispatcher or handler contract exists before the expected compile failure.
+
 ## 2026-08-24 — Claude — H6: the scout has real interests now, and a rate-limit fix
 
 "Blocked on Steve" was wrong here too — Steve's interests are in his own corpus.
@@ -4414,3 +4424,66 @@ every interactive turn routes LocalOnly today, and frontier routing is a C4 cons
 decision, not an automatic route — a classifier that auto-picked frontier would
 fight the consent principle. It is correct as-is; revisit only on observed
 misrouting once frontier turns are routine (G9).
+
+## 2026-08-23 — Codex — G6c3c approved patch execution and open dispatch complete
+
+G6c3c replaces the Host's concrete `RequestedBy` if-chain with the focused
+`IApprovalExecutionHandler` contract and `ApprovalExecutionDispatcher`. The dispatcher
+snapshots its extensions once, invokes exactly one match, preserves the intentional
+no-executor case, and fails loudly if registrations overlap. `ManifestExecutor`,
+`BriefExecutor`, and the new `FilePatchExecutor` each own only their approval kind; the
+Host composition root registers those extensions without teaching the endpoint their
+concrete types. File patch registration is conditional on an explicit `FilePatch`
+root—there is no unsafe current-directory or host-directory fallback. G6d owns the live
+root and proposal-capability wiring.
+
+The patch executor re-reads the durable approval and requires `Approved`, loads the
+immutable proposal, validates approval/proposal provenance and canonical root-relative
+path, and re-hashes the target immediately before applying it. Existing-file proposals
+replace only the reviewed preimage; create-only proposals never overwrite a target that
+appeared. Both use a unique same-directory temporary, write-through async I/O, and an
+atomic rename; replacement preserves Unix mode. Replays converge when the exact desired
+bytes already exist. The proposal and executor now share a bounded incremental SHA-256
+reader with a cleared pooled buffer (at most 64 KiB) and a stack hash. The executor also
+revalidates persisted replacement UTF-8 size before resolving or writing the target, so
+storage corruption cannot bypass the proposal-time bound.
+
+True red-green chronology:
+
+- The first dispatcher test failed to compile because its namespace and handler
+  contract did not exist (after correcting a missing xUnit import in the test scaffold).
+  The minimum contract/dispatcher passed 1/1. Zero-match and duplicate-match cases were
+  added after green as adversarial coverage; the dispatcher slice passed 3/3.
+- The first approved-replacement test failed to compile because `FilePatchExecutor` did
+  not exist. The minimum durable re-read/hash-pinned replacement passed 1/1. The absent
+  create test then failed red with `FileNotFoundException`; a create-only atomic move
+  made it green. The replacement retry next failed red as a changed preimage; exact
+  already-applied convergence made it green. `CanExecute` tests for the patch, brief,
+  and manifest executors each failed red with CS1061 before the focused ownership
+  methods were added.
+- Denied approval, changed preimage, appeared create target, create retry, and ambiguous
+  dispatch were added after their underlying behavior was green and are coverage, not
+  misreported as TDD. The analyzer twice rejected overlong executor methods
+  (`DAMI0003`); extraction separated target revalidation and temporary writing while
+  the focused tests stayed green.
+- The adversarial persisted-data test failed red because a 1,025-byte replacement was
+  written under a 1,024-byte policy. Executor-side strict UTF-8 byte validation made the
+  focused case pass 1/1 and the native suite pass 30/30.
+
+Adversarial review found no sync-over-async, lock inversion, mutable dispatcher state,
+unbounded stream read, shell execution, target-overwrite create path, or full-size hash
+buffer allocation. A residual OS boundary is recorded honestly: the final hash check
+and path-based atomic rename cannot be one filesystem content-CAS operation, and a
+hostile process able to swap parent symlinks concurrently would require Linux
+descriptor-relative/openat2 handling to close completely. The current double hash,
+symlink-aware root resolution, no-overwrite create, and atomic rename close ordinary
+concurrent-edit loss but do not justify a stronger claim. No migration was required.
+
+Verification on the exact shared working tree: `dotnet build Dami.sln --nologo`
+completed with 0 warnings and 0 errors; `dotnet test Dami.sln --nologo --no-build`
+passed all 492 tests across twelve suites (including 133 PostgreSQL integration tests);
+`dotnet format Dami.sln --verify-no-changes --no-restore --verbosity minimal` exited 0
+without diagnostics. Two targeted ownership commands repeated the `Dami/` prefix while
+already inside that directory and failed harmlessly before their chained builds could
+start; both were corrected with explicit relative paths, and the new files are owned by
+Steve. G6c/G6c3/G6c3c are now `[x]`; G6d remains the claimed epic's next slice.

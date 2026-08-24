@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -18,9 +17,6 @@ namespace Dami.Capabilities.Native;
     Tags = new[] { "files", "write", "approval" })]
 public sealed class ProposeFilePatchCapabilityHandler : INativeCapabilityHandler
 {
-    private const int ABSOLUTE_MAX_BYTES = 4 * 1024 * 1024;
-    private const int HASH_BUFFER_BYTES = 64 * 1024;
-
     private static readonly Guid approvalIdNamespace =
         new("d963ac9a-3e29-4ff0-bf03-79fe5028a85f");
     private static readonly Guid proposalIdNamespace =
@@ -28,6 +24,7 @@ public sealed class ProposeFilePatchCapabilityHandler : INativeCapabilityHandler
     private static readonly UTF8Encoding strictUtf8 = new(false, true);
 
     private readonly TimeProvider clock;
+    private readonly BoundedFileHasher fileHasher;
     private readonly int maxBytes;
     private readonly RootedPathResolver pathResolver;
     private readonly IFilePatchProposalStore proposalStore;
@@ -41,14 +38,9 @@ public sealed class ProposeFilePatchCapabilityHandler : INativeCapabilityHandler
         ArgumentNullException.ThrowIfNull(proposalStore);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clock);
-        if (options.MaxBytes is <= 0 or > ABSOLUTE_MAX_BYTES)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options), options.MaxBytes, $"MaxBytes must be between 1 and {ABSOLUTE_MAX_BYTES}.");
-        }
-
         this.proposalStore = proposalStore;
         this.pathResolver = new RootedPathResolver(options.RootDirectory);
+        this.fileHasher = new BoundedFileHasher(options.MaxBytes);
         this.maxBytes = options.MaxBytes;
         this.clock = clock;
     }
@@ -69,62 +61,12 @@ public sealed class ProposeFilePatchCapabilityHandler : INativeCapabilityHandler
 
         relativePath = this.pathResolver.ToRelativePath(fullPath);
         var expectedHash = File.Exists(fullPath)
-            ? await this.HashCurrentAsync(fullPath, cancellationToken).ConfigureAwait(false)
+            ? await this.fileHasher.HashAsync(fullPath, cancellationToken).ConfigureAwait(false)
             : null;
         var proposal = CreateProposal(request, relativePath, content, expectedHash, this.clock.GetUtcNow());
         var approval = CreateApproval(proposal);
         await this.proposalStore.CreateAsync(approval, proposal, cancellationToken).ConfigureAwait(false);
         return CreateResult(proposal);
-    }
-
-    private async Task<string> HashCurrentAsync(string fullPath, CancellationToken cancellationToken)
-    {
-        await using var stream = new FileStream(fullPath, new FileStreamOptions
-        {
-            Access = FileAccess.Read,
-            Mode = FileMode.Open,
-            Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
-            Share = FileShare.Read,
-        });
-        if (stream.Length > this.maxBytes)
-        {
-            throw this.CreateTooLargeException("Current file");
-        }
-
-        return await this.HashBoundedAsync(stream, cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<string> HashBoundedAsync(Stream stream, CancellationToken cancellationToken)
-    {
-        var buffer = ArrayPool<byte>.Shared.Rent(Math.Min(HASH_BUFFER_BYTES, this.maxBytes + 1));
-        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        try
-        {
-            var total = 0;
-            int read;
-            do
-            {
-                var readLength = Math.Min(buffer.Length, this.maxBytes - total + 1);
-                read = await stream.ReadAsync(
-                    buffer.AsMemory(0, readLength), cancellationToken).ConfigureAwait(false);
-                total += read;
-                if (total > this.maxBytes)
-                {
-                    throw this.CreateTooLargeException("Current file");
-                }
-
-                hasher.AppendData(buffer, 0, read);
-            }
-            while (read > 0);
-
-            Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
-            hasher.TryGetHashAndReset(hash, out _);
-            return Convert.ToHexStringLower(hash);
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
-        }
     }
 
     private void EnsureReplacementBounded(string content)
