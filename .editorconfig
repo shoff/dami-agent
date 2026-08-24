@@ -55,6 +55,11 @@ dotnet_style_readonly_field = true:warning
 # Unused usings.
 dotnet_diagnostic.IDE0005.severity = error
 
+# Structured logging only: the message template must be constant so log
+# aggregation can group by template. An interpolated string in a logger call
+# defeats the entire point of structured logging (standards §9).
+dotnet_diagnostic.CA2254.severity = error
+
 # ---------------------------------------------------------------------------
 # Naming rules. Order matters: first match wins, so most specific first.
 # ---------------------------------------------------------------------------

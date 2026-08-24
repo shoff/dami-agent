@@ -1,0 +1,11 @@
+<Project>
+  <!-- Inherit the solution-wide rules; this file only relaxes what follows. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!-- N3 decision: CS1591 is enforced in src/ where XML docs are the contract's
+         documentation. In tests the method name IS the documentation
+         (Method_Should_Behavior); a <summary> restating it would be noise. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+</Project>

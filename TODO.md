@@ -118,7 +118,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] H5 Capped surfacing queue (suppressions stored, not dropped) + feedback capture
 - [ ] H6 Scout: feed list & interests are starter guesses — curate `[STEVE: systemctl edit dami-proactive]`
 - [ ] H7 Surfacing channel decision: queue vs notification vs held-until-adjacent-opening (register: "shapes the muse more than model choice")
-- [ ] H8 Confidence threshold self-tuning from recorded reactions, without gaming itself (register open item)
+- [~ Claude 2026-08-23] H8 Confidence threshold self-tuning from recorded reactions, without gaming itself (register open item)
 - [ ] H9 Domain collectors (health, civic, network, estate) — needs K1 first
 - [ ] H10 Codebase-audit proactive service (reads repo, proposes patches, commits nothing — D-016)
 
@@ -164,7 +164,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 - [x] N1 `.editorconfig` + `Directory.Build.props` + banned APIs + `Dami.Analyzers` (6 rules) + architecture tests (layering/leaky-surfaces/async) — all build errors, all verified firing
 - [x] N2 12 test suites, ~250 tests, integration against real DDL; build/test gate in `CLAUDE.md`
-- [~ Claude 2026-08-23] N3 Enable `CA2254` (structured logging) and decide on `CS1591` (XML docs) — deliberate not-yets in standards §12
+- [x] N3 Enable `CA2254` (structured logging) and decide on `CS1591` (XML docs) — deliberate not-yets in standards §12
 - [ ] N4 Scheduler concurrency test flake (Codex's b27f638) — deflake or redesign `[~ Codex implied]`
 - [ ] N5 Mutation/property tests for the frame codec and stores (stretch)
 

@@ -3644,3 +3644,16 @@ the same temporal-grounding discipline as the date anchor, pointed at the other 
 Live: the "stubborn continuity" insight that rode into context as 1970-01-01 now
 reads `undated`; the heart-diagnosis observations recovered 2026-01-30 from their
 own text. Full gate: 12 suites, 373 tests, 0 warnings.
+
+## 2026-08-23 — Claude — N3: CA2254 on, CS1591 decided
+
+`CA2254` (constant log message templates) is now an error in `.editorconfig`. The
+enable was free — zero violations across 22 projects — and verified to have teeth by
+planting one interpolated logger call and watching it fail the build before reverting.
+
+`CS1591` was the deliberate not-yet in standards §12; the decision: enforced in
+`src/` (removed from `NoWarn` in `Directory.Build.props` — production code had zero
+violations, all 778 were in tests), waived in a new `tests/Directory.Build.props`,
+because `Method_Should_Behavior` names are the test documentation and a `<summary>`
+restating them would be noise. Standards §12 updated: both rows left the
+"not enforced" table. Full gate: 12 suites, 373 tests, 0 warnings.

@@ -320,9 +320,13 @@ Configured in `.editorconfig` (repo root), `Dami/Directory.Build.props`, and
 | SRP, OCP, ISP | §6 | Not decidable from syntax. A "one reason to change" detector would be a heuristic pretending to be a rule; review is the honest answer. |
 | LSP beyond `NotImplementedException` | §5, §6 | `DAMI0006` catches the common case. The general property is not statically checkable. |
 | No LINQ on hot paths | §8 | Needs a definition of "hot path" the compiler can see. Attribute-marking hot paths and analyzing those would work; not built. |
-| Structured-logging-only (no interpolated messages) | §9 | `CA2254` covers it. Not enabled because the full CA ruleset has not been turned on. |
 | One assertion per test; no Arrange/Act/Assert comments | §11 | review |
-| Every public member carries `/// <summary>` | §4 | `CS1591` is in `NoWarn`; enabling it is a decision, not an oversight |
+
+Two rows left this table on 2026-08-23 (N3): `CA2254` is now an error in
+`.editorconfig` — the codebase had zero violations, the discipline had held by
+hand — and `CS1591` is enforced in `src/` while `tests/Directory.Build.props`
+keeps it waived for tests, where `Method_Should_Behavior` names are the
+documentation and a `<summary>` restating them would be noise.
 
 **What closed the gap:** `Dami.Analyzers` (six rules, §12 table above) and
 `Dami.Architecture.Tests` (layering, leaky surfaces, async contracts). What remains is

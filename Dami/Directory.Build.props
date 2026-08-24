@@ -26,7 +26,7 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
 
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NoWarn>$(NoWarn)</NoWarn>
 
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
   </PropertyGroup>
