@@ -18,6 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/Dami.Capabilities.Mcp/Dami.Capabilities.Mcp.csproj" />
+    <ProjectReference Include="../../src/Dami.Capabilities.Native/Dami.Capabilities.Native.csproj" />
     <ProjectReference Include="../../src/Dami.Contracts/Dami.Contracts.csproj" />
     <ProjectReference Include="../../src/Dami.Core/Dami.Core.csproj" />
     <ProjectReference Include="../../src/Dami.Host/Dami.Host.csproj" />

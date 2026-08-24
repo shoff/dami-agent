@@ -5282,3 +5282,53 @@ F3d1 deliberately remains claimed rather than being marked done: configured star
 tool publication/invocation, and shutdown ownership still need behavioral evidence.
 F3d2 is now claimed to provide that evidence against a real local Streamable HTTP fake
 server; both child tasks will close together if that demonstration passes.
+
+## 2026-08-24 — Codex — F3d Host composition and local HTTP proof complete
+
+F3d1's composition now publishes native and MCP metadata into the same concrete
+`CapabilityRegistry` and `CapabilityToolSchemaRegistry`, while each executor remains a
+narrow `ICapabilityExecutionSource` behind one `CapabilityExecutorDispatcher`. This
+keeps the tool loop source-neutral and open to skills or later sources without a type
+switch. MCP configuration snapshots explicit stable server IDs, endpoints, transports,
+and trust levels. The composition root owns the local summarizer, loader, executor,
+ambient scope reader/factory, no-redirect socket handler, marked policy handler, and one
+hosted connection lifecycle. Disposable services have one DI ownership descriptor each.
+
+The F3d2 integration test first had three fixture defects: an incomplete event-store
+fake, ambiguous minimal-API route delegates, and a stale restore after adding the MCP
+project reference. Those were corrected without changing production behavior. Its
+next clean fixture run still showed an empty server list because its original
+`ConfigureAppConfiguration` hook ran too late for top-level service registration; the
+fixture now supplies settings through the web host before `Program` composes services.
+
+The next real wire red was HTTP 500: SDK 2.2 sent `server/discover`, because its default
+2026-07-28 revision removes sessions and never exercises owned session shutdown. The
+adapter now explicitly pins session-capable revision `2025-11-25`, recorded in
+ADR-0015, so an SDK update cannot silently erase the metered DELETE lifecycle. The real
+loopback Kestrel server then observed initialization, exact session-header preservation,
+one `tools/list`, one `tools/call`, output `sunny in Austin`, and one DELETE on Host
+disposal.
+
+An adversarial terminal-trace assertion then failed red with one root trace instead of
+two: session DELETE was using connect provenance after the startup trace had already
+completed. `McpServerConnection` now accepts explicit shutdown provenance, and the Host
+opens a separate durable shutdown root before closing connections in reverse order. It
+continues closing later connections if one close fails, rethrowing the first failure
+after cleanup, and idempotently tolerates both `StopAsync` and container disposal. The
+observed fake-server run produced one completed startup trace and one completed shutdown
+trace.
+
+The focused Host suite passed 14/14 and the MCP suite remained 23/23. The mandatory
+solution gate built all 31 projects with 0 warnings and 0 errors, all fifteen suites
+passed 617/617, and format/analyzer verification exited 0. No schema, migration,
+deployment, or live-service change was required. F3/F3d/F3d1/F3d2 are `[x]`.
+
+## 2026-08-24 — Codex — F4 split; F4a claimed
+
+Architecture §7.6 separates three independently demonstrable skill boundaries. F4a
+owns the architecture-specified `Dami.Capabilities.Skills` project, bounded filesystem
+descriptor/body/reference loading, stable content versioning, and publication into the
+unified registry. F4b owns progressive disclosure into the bounded turn prompt and
+on-demand bundled-file reads. F4c owns atomic author/revise/retire operations with each
+diff represented in the durable execution stream. The split is recorded before code;
+F4a is claimed first.

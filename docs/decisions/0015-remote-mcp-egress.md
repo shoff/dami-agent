@@ -54,6 +54,10 @@ different traces. The classification and provenance must follow each async opera
 7. The original convenience transport factory remains loopback-only. F3c3b is the only
    code path allowed to give a remote registration an SDK `HttpClientTransport`, and it
    must be constructed over this gate. F3d will make that wiring auditable in the Host.
+8. This adapter pins MCP protocol revision `2025-11-25`. SDK 2.2 otherwise prefers the
+   `2026-07-28` discovery mode, which removes the Streamable HTTP session whose owned
+   DELETE shutdown this decision meters. A protocol upgrade therefore requires an
+   explicit lifecycle/egress review rather than changing silently with an SDK default.
 
 ## Alternatives considered
 
@@ -71,7 +75,9 @@ Red-first privacy tests exercise an exact JSON POST through the gate, LocalOnly 
 missing-context refusal before network I/O, percent-encoded forbidden fragments,
 request and response ceilings, cross-origin redirect refusal, failure events, nested
 scope recovery, and concurrent async-flow isolation. The implementation gate and full
-solution totals are recorded in `docs/work-log.md` with F3c3a completion.
+solution totals are recorded in `docs/work-log.md` with F3c3a completion. F3d adds a
+real loopback Streamable HTTP proof through Host startup, discovery, invocation, and
+session DELETE, plus separate durable startup and shutdown root traces.
 
 ## Consequences
 

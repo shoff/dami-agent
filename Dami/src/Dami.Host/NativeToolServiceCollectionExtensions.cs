@@ -116,7 +116,9 @@ public static class NativeToolServiceCollectionExtensions
         services.AddSingleton(capabilities);
         services.AddSingleton<ICapabilityCatalog>(capabilities);
         services.AddSingleton<ICapabilityInventory>(capabilities);
+        services.AddSingleton<ICapabilityRegistrar>(capabilities);
         services.AddSingleton<ICapabilityToolSchemaCatalog>(schemas);
+        services.AddSingleton<ICapabilityToolSchemaRegistrar>(schemas);
         services.AddSingleton<IReadOnlyList<NativeCapabilityRegistration>>(active);
     }
 
@@ -149,8 +151,10 @@ public static class NativeToolServiceCollectionExtensions
         services.AddSingleton<NativeCapabilityRegistry>();
         services.AddSingleton<INativeCapabilityCatalog>(provider =>
             ActivateNativeCatalog(provider));
-        services.AddSingleton<ICapabilityExecutor>(provider => new NativeCapabilityExecutor(
+        services.AddSingleton<NativeCapabilityExecutor>(provider => new NativeCapabilityExecutor(
             provider.GetRequiredService<INativeCapabilityCatalog>(), executorOptions));
+        services.AddSingleton<ICapabilityExecutionSource>(provider =>
+            provider.GetRequiredService<NativeCapabilityExecutor>());
         services.AddSingleton<IToolLoopRunner>(provider => new ToolLoopRunner(
             provider.GetRequiredService<IToolCallingChatClient>(),
             provider.GetRequiredService<ICapabilityExecutor>(),

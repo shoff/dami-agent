@@ -10,6 +10,8 @@ namespace Dami.Capabilities.Mcp;
 /// <summary>Owns one MCP client connection and its discovered tool-schema cache.</summary>
 public sealed class McpServerConnection : IMcpToolSource, IAsyncDisposable
 {
+    private const string PROTOCOL_VERSION = "2025-11-25";
+
     private readonly McpToolSchemaCache schemaCache;
     private readonly IEgressOperationScopeFactory scopeFactory;
     private readonly EgressOperationContext shutdownContext;
@@ -66,7 +68,9 @@ public sealed class McpServerConnection : IMcpToolSource, IAsyncDisposable
         ArgumentNullException.ThrowIfNull(connectContext);
         using IDisposable scope = scopeFactory.Begin(connectContext);
         var client = await McpClient.CreateAsync(
-            transport, cancellationToken: cancellationToken).ConfigureAwait(false);
+            transport,
+            new McpClientOptions { ProtocolVersion = PROTOCOL_VERSION },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
         return new McpServerConnection(registration, client, scopeFactory, connectContext);
     }
 
@@ -129,12 +133,16 @@ public sealed class McpServerConnection : IMcpToolSource, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync() => this.DisposeAsync(this.shutdownContext);
+
+    /// <summary>Closes the owned SDK session under explicit shutdown provenance.</summary>
+    public async ValueTask DisposeAsync(EgressOperationContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         McpClient? owned = Interlocked.Exchange(ref this.client, null);
         if (owned is not null)
         {
-            using IDisposable scope = this.scopeFactory.Begin(this.shutdownContext);
+            using IDisposable scope = this.scopeFactory.Begin(context);
             await owned.DisposeAsync().ConfigureAwait(false);
         }
     }

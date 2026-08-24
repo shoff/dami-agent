@@ -88,7 +88,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [x] F2c Intent embed → ANN candidates → rerank → bundle expansion
     - [x] F2c1 Registry snapshot → version-aware capability-vector synchronization
     - [x] F2c2 Intent embed → ANN candidates → rerank → bundle expansion
-- [~ Codex 2026-08-24] F3 MCP client + explicit trust levels; untrusted descriptions summarized-not-followed; untrusted excluded from LocalOnly turns
+- [x] F3 MCP client + explicit trust levels; untrusted descriptions summarized-not-followed; untrusted excluded from LocalOnly turns
   - [x] F3a `Dami.Capabilities.Mcp` client boundary: explicit server registration/trust, owned connection lifecycle, tool discovery, and schema cache
   - [x] F3b Secure registry ingestion: stable normalized tools; trusted descriptions admitted verbatim; untrusted descriptions locally summarized with raw text unable to enter retrieval context
   - [x] F3c Privacy-aware selection and execution: untrusted MCP excluded before LocalOnly reranking/expansion; source-neutral MCP invocation dispatch
@@ -97,10 +97,13 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] F3c3 D-012 remote Streamable HTTP boundary: ADR plus request-body-capable, event-metered egress transport; default remains loopback-only
       - [x] F3c3a ADR + fail-closed request-body HTTP gate: Egressable context, allowlist, budget, redirects, bounded responses, durable events
       - [x] F3c3b Thread privacy/trace provenance into MCP execution and construct the SDK transport only from the authorized HTTP gate
-  - [~ Codex 2026-08-24] F3d Host composition and local fake-server integration demonstration
-    - [~ Codex 2026-08-24] F3d1 Compose shared native/MCP catalogs, execution dispatch, scoped egress, and owned startup/shutdown lifecycle
-    - [~ Codex 2026-08-24] F3d2 Exercise discovery and invocation end to end against a local Streamable HTTP fake server
-- [ ] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
+  - [x] F3d Host composition and local fake-server integration demonstration
+    - [x] F3d1 Compose shared native/MCP catalogs, execution dispatch, scoped egress, and owned startup/shutdown lifecycle
+    - [x] F3d2 Exercise discovery and invocation end to end against a local Streamable HTTP fake server
+- [~ Codex 2026-08-24] F4 Skills: loading, progressive disclosure, self-authoring (free) with every change an event
+  - [~ Codex 2026-08-24] F4a `Dami.Capabilities.Skills` bounded filesystem loading, stable versioning, references, and unified-registry publication
+  - [ ] F4b Progressive disclosure: selected skill bodies in the bounded turn prompt; bundled files loaded only on demand
+  - [ ] F4c Atomic author/revise/retire lifecycle with every diff recorded in the durable execution stream
 - [ ] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
 
 ## G · Interactive runtime
