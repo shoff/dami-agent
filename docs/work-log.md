@@ -5874,3 +5874,19 @@ operator-precedence error around `||` and `->>` and changed nothing; the parenth
 rerun produced those results. Migration 022 remains current with no new DDL. F5b is
 complete; F5c's human single-resolution verification/activation gate is claimed before
 code.
+
+## 2026-08-24 — Codex — F5c split; F5c1 claimed; sandbox decision pinned
+
+After pushing F5b, pulled the clean synchronized tree and re-read D-016, the approval
+service/dispatcher, all three live registries, and ADR-0018's explicit warning that
+managed-code review is not confinement. Host inventory found bubblewrap, `systemd-run`,
+and `unshare`; a Steve-owned bubblewrap smoke command with read-only runtime/library
+mounts, private `/proc`/`/dev`, and `--unshare-net` exited 0.
+
+F5c is split before code at its actual failure boundaries. F5c1 owns an append-only,
+version-pinned promotion state machine tied to the existing single-resolution approval
+contract and transactional events. F5c2 owns trusted generation of a package-free
+project/test envelope and bounded bubblewrap execution with no network or persistent
+writable mount. F5c3 owns failure-atomic publication across handler/schema/metadata,
+startup recovery, and the live human approval/invocation proof. ADR-0019 records the
+decision and reversal path. Approval alone will never load proposal bytes in-process.
