@@ -179,9 +179,20 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 ## Steve's queue (nothing moves these but you)
 
-1. **B6** review the eval sheet → D-010 closes on a table
-2. **H6** real interests + feeds for the scout
-3. **A7/A6/A4** host-OS ADR · Postgres major · backup destination
-4. **B7** Kokoro: import or not
-5. **J2** GUI preference input · **L4** voice source · **K1** domain inventory
-6. `dami inbox` has pending surfacings; every `good`/`bad` trains the taste model
+Decisions with a written proposal attached — read, then accept/reject:
+1. **B9** ADR-0012 observation retention (keep words, reclaim vectors, exclude-never-erase)
+2. **H7** ADR-0014 surfacing channel (queue canonical, once-daily presence line, no push)
+3. **G9** posture: should `dami chat` ever offer a redacted brief unprompted? (mechanism is live: `dami brief`)
+4. **A7** ADR-0001 host OS · **A6** Postgres major · **A4** backup destination
+
+Inputs only you have:
+5. **B6** review `tools/eval/REVIEW.md` → D-010 closes on a table
+6. **B7** Kokoro classes: import or leave preserved (whose memories are they?)
+7. **H6** real interests + feeds for the scout (`systemctl edit dami-proactive`)
+8. **G10** the Dami identity charter file is on the Mac and this host has no key —
+   `ssh-copy-id steve@192.168.4.23` or copy it into `docs/identity/`, and the port unblocks
+9. **J2** GUI framework preference · **L4** voice source · **K1** domain inventory
+
+Daily: `dami inbox` has pending surfacings — including one from the new codebase
+auditor lane when it finds something. Every `good`/`bad` trains the taste model
+AND now tunes the surfacing threshold (H8).
