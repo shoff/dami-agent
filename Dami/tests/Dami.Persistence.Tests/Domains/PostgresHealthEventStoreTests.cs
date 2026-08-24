@@ -53,6 +53,41 @@ public sealed class PostgresHealthEventStoreTests
     }
 
     [Fact]
+    public async Task UnexaminedAsync_Should_See_A_Repaired_Date_Not_Epoch_Zero()
+    {
+        await this.fixture.ResetAsync();
+        var (corpus, store) = this.CreateStores();
+        var epochZero = new Observation(
+            Guid.NewGuid(), DateTimeOffset.UnixEpoch, "hermes-memory", "diagnosed 2026-01-30");
+        await corpus.RecordAsync(epochZero, CancellationToken.None);
+        await this.RepairAsync(epochZero.ObservationId, new DateOnly(2026, 1, 30));
+
+        DateOnly? seen = null;
+        await foreach (var (id, occurredOn, _) in store.UnexaminedAsync(50, CancellationToken.None))
+        {
+            if (id == epochZero.ObservationId)
+            {
+                seen = occurredOn;
+            }
+        }
+
+        Assert.Equal(new DateOnly(2026, 1, 30), seen);
+    }
+
+    private async Task RepairAsync(Guid observationId, DateOnly repairedTo)
+    {
+        await using var command = this.fixture.DataSource.CreateCommand(
+            $"""
+            insert into {DatabaseFixture.SCHEMA}.observation_date_repairs
+                (observation_id, repaired_occurred_at, method)
+            values (@id, @at, 'body-iso');
+            """);
+        command.Parameters.AddWithValue("id", observationId);
+        command.Parameters.AddWithValue("at", repairedTo.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+        await command.ExecuteNonQueryAsync();
+    }
+
+    [Fact]
     public async Task TimelineAsync_Should_Return_Newest_First()
     {
         await this.fixture.ResetAsync();

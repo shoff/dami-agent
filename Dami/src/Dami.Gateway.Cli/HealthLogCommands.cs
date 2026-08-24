@@ -23,8 +23,9 @@ public sealed class HealthLogCommands
             foreach (var item in reply!.RootElement.EnumerateArray())
             {
                 any = true;
+                var date = item.GetProperty("eventDate").GetString();
                 Console.WriteLine(
-                    $"{item.GetProperty("eventDate").GetString()}  "
+                    $"{(date is not null && date.StartsWith("1970", StringComparison.Ordinal) ? "undated   " : date)}  "
                     + $"[{item.GetProperty("category").GetString()}]  "
                     + item.GetProperty("description").GetString());
             }

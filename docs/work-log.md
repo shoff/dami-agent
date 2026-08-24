@@ -4176,3 +4176,25 @@ Privacy review written (`docs/domains/health-privacy-review.md`): the domain has
 egress path, argued path by path — collector, store, API (loopback), and the C4
 consent door (which reads context memories, not health rows). Approved LocalOnly.
 8 new tests (3 store + 5 collector). 12 suites, 457 tests, 0 warnings.
+
+## 2026-08-24 — Claude — K2 live: 2 facts extracted, and two bugs the run exposed
+
+The health collector ran live on GPU: 2 structured facts from 12 observations,
+13 examined, 0 failures. `dami health-log` renders the timeline. Two things the
+live run caught and fixed:
+
+1. **K2 wasn't reading B10's repairs.** The collector's date fallback used the
+   observation's raw `occurred_at`, so facts from epoch-zero Hermes rows inherited
+   1970. Fixed: `UnexaminedAsync` now coalesces through `observation_date_repairs`
+   (the same sidecar B10 built), so a repaired observation hands the collector its
+   real date. Where the date is genuinely unrecoverable, the timeline shows
+   `undated` — the temporal-honesty rule, not a fake 1970. Pinned by test.
+2. **A dropped LLM call killed the whole pass.** Surfaced when I restarted the
+   sidecar mid-batch (it had silently fallen to CPU again). Hardened: per-note
+   failures are caught and the note retries next pass — the scout's dead-feed
+   discipline. Pinned by test.
+
+Extraction quality is mixed at v1 (the local model sometimes tags facts about
+other people as Steve's health) — a correctness risk, not privacy, and exactly
+what the provenance link and K3's reflection cross-check are for. 12 suites, 462
+tests, 0 warnings.

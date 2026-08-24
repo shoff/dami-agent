@@ -56,9 +56,12 @@ public sealed class PostgresHealthEventStore : IHealthEventStore
 
         var command = this.dataSource.CreateCommand(
             $"""
-            select o.observation_id, o.occurred_at, o.body
+            select o.observation_id,
+                   coalesce(r.repaired_occurred_at, o.occurred_at) as occurred_at,
+                   o.body
               from {this.Schema}.observations o
               left join {this.Schema}.health_examined e on e.observation_id = o.observation_id
+              left join {this.Schema}.observation_date_repairs r on r.observation_id = o.observation_id
              where e.observation_id is null
              order by o.occurred_at
              limit @limit;
