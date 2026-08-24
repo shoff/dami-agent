@@ -67,6 +67,33 @@ public sealed class HealthCollectorServiceTests
     }
 
     [Fact]
+    public async Task RunPassAsync_Should_Survive_A_Failed_Extraction_And_Keep_Going()
+    {
+        var good = Guid.NewGuid();
+        this.healthStore.UnexaminedAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(TwoObservationsAsync(good));
+        var calls = 0;
+        this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++calls == 1
+                ? throw new HttpRequestException("the response ended prematurely")
+                : Task.FromResult("""[{"category":"vital","description":"BP 120/80"}]"""));
+
+        var result = await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        // The second observation still produced its fact despite the first throwing.
+        await this.healthStore.Received(1).RecordAsync(
+            Arg.Is<HealthEvent>(e => e.ObservationId == good), Arg.Any<CancellationToken>());
+        Assert.Empty(result.Surfacings);
+    }
+
+    private static async IAsyncEnumerable<(Guid, DateOnly, string)> TwoObservationsAsync(Guid second)
+    {
+        yield return (Guid.NewGuid(), new DateOnly(2026, 1, 30), "first note");
+        yield return (second, new DateOnly(2026, 2, 1), "second note");
+        await Task.CompletedTask;
+    }
+
+    [Fact]
     public async Task RunPassAsync_Should_Produce_No_Surfacings()
     {
         this.Arrange(

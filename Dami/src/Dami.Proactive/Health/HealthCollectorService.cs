@@ -70,11 +70,7 @@ public sealed class HealthCollectorService : IProactiveService
             pending.Add(row);
         }
 
-        var extracted = 0;
-        foreach (var observation in pending)
-        {
-            extracted += await this.ExamineAsync(observation, cancellationToken).ConfigureAwait(false);
-        }
+        var extracted = await this.ExamineAllAsync(pending, cancellationToken).ConfigureAwait(false);
 
         if (extracted > 0)
         {
@@ -84,6 +80,30 @@ public sealed class HealthCollectorService : IProactiveService
         }
 
         return ProactiveResult.quiet;
+    }
+
+    private async Task<int> ExamineAllAsync(
+        List<(Guid ObservationId, DateOnly OccurredOn, string Body)> pending,
+        CancellationToken cancellationToken)
+    {
+        var extracted = 0;
+        foreach (var observation in pending)
+        {
+            try
+            {
+                extracted += await this.ExamineAsync(observation, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // A transient model or network hiccup on one note must not lose the whole
+                // pass's progress. The note stays unexamined and is retried next pass.
+                this.logger.LogWarning(
+                    exception, "Health extraction failed for {Observation}; will retry next pass",
+                    observation.ObservationId);
+            }
+        }
+
+        return extracted;
     }
 
     private async Task<int> ExamineAsync(
