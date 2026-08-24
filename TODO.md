@@ -113,7 +113,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [ ] G6d Live bounded terminal/file demonstration + acceptance scoreboard evidence
 - [x] G7 Approval contract — durable single-resolution approvals (denial cannot become approval, SQL-guarded), `dami approvals/approve/deny`, librarian files an approval per manifest, `ManifestExecutor` runs ONLY Approved manifests (move-only, no overwrite, no delete) — **acceptance item 5 demonstrated live**: 10 real files proposed, approved, organized
 - [x] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6 (WorkerRunner; vision caption is the first live worker)
-- [ ] G9 Frontier-informed turns (C4 now exists: build on `dami brief`/BriefExecutor)
+- [STEVE] G9 Frontier-informed turns — the mechanism shipped (C4 briefs + server-side execution); what remains is the posture ADR-0013 deferred: should `dami chat` ever offer a brief unprompted? Steve's call
 - [BLOCKED: identity charter file lives on the Mac; no key auth from this host — Steve: `ssh-copy-id` or copy it into docs/identity/] G10 Identity/prompt: port the Dami identity charter into the stable prompt (§9.1); verify identity across local + frontier — acceptance item 9
 
 ## H · Proactive tier (D-001/D-019/D-020/D-021) — running unattended
@@ -173,7 +173,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] N2 12 test suites, ~250 tests, integration against real DDL; build/test gate in `CLAUDE.md`
 - [x] N3 Enable `CA2254` (structured logging) and decide on `CS1591` (XML docs) — deliberate not-yets in standards §12
 - [ ] N4 Scheduler concurrency test flake (Codex's b27f638) — deflake or redesign `[~ Codex implied]`
-- [ ] N5 Mutation/property tests for the frame codec and stores (stretch)
+- [x] N5 (stores half) Property tests: corpus byte-exact round-trip, append idempotency, replay order, ledger as-of reconstruction — fixed seeds; codec half stays transport-lane
 
 ---
 

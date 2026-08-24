@@ -3999,3 +3999,16 @@ Demonstrated live: every converted verb against the running service; a streamed
 chat with `[Local · ~764 ctx tokens]` from headers; and the one failure mode a thin
 client has — host stopped → `dami-host unreachable … check: systemctl status
 dami-host`, host started → everything back. 12 suites, 422 tests, 0 warnings.
+
+## 2026-08-24 — Claude — N5 (stores half): properties, not examples
+
+`StorePropertyTests`, fixed seeds so failures reproduce exactly: the corpus
+round-trips ANY body byte-exactly (200-piece random strings mixing ASCII, quotes,
+backslashes, tabs, and multi-byte runes including surrogate-pair emoji); the event
+store keeps exactly one row however often the same event id is appended; replay
+returns persistence order for a random 25-event trace; and the ledger's as-of
+reconstruction matches a manual filter over a randomly generated
+conclude/retract history at a random probe time. First draft of the generator
+split a surrogate pair and the corpus rightly refused the lone half — the fix was
+in the test's generator, and the refusal was the store behaving correctly. The
+frame-codec half of N5 is transport-lane. 12 suites, 427 tests, 0 warnings.
