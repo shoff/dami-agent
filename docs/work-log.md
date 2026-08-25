@@ -7175,3 +7175,136 @@ a commit containing code that referenced `Dami.Contracts.TaskBoard` would not bu
 own tree. The reader is committed on its own because it depends on nothing in Codex's lane.
 Deterministic ids, the `TaskBoardDraft` mapping, advance-only rerun semantics, and the
 activity record carrying actor/timestamp/source revision follow once O1a lands.
+
+## 2026-08-24 — Codex — O1a/O1b retry and provenance evidence
+
+Continued O1a/O1b only in temporary-index candidates based on the latest shared
+`HEAD`; Claude advanced O1g twice during the work and its `BoardImport/` paths were
+read for compatibility but not modified or staged.
+
+The stable-board retry test first observed PostgreSQL `23505` on an exact duplicate.
+`CreateAsync` now uses `ON CONFLICT DO NOTHING`, reads the winning board inside its
+transaction, and compares the complete immutable board/task/criterion/prerequisite
+shape while ignoring mutable workflow state. Exact retries converge; reuse of the id
+for different content throws. The first green attempt was stopped by `DAMI0003`
+because the new identity method had 31 body lines against the 30-line rule; splitting
+header comparison from recursive shape comparison produced 1/1 focused and 13/13
+task-board persistence passes.
+
+Planning-service replay was independently red first: it called the planner once when
+the store already held the request. It now returns the existing board without a model
+call. A request-id collision test was made honestly red by removing an initially
+unproven collision branch; it returned without error, then passed after restoring the
+feature/actor/time comparison. An empty proposal likewise persisted before its red
+test and is now refused. A malformed task with a null `SubTasks` collection first
+leaked `NullReferenceException`; it now fails explicitly with `ArgumentNullException`
+and never calls the store.
+
+The first mapping contract silently discarded planner kind, privacy class, and
+execution origin. A compile-red Core assertion introduced
+`TaskBoardPlanningContext`; a separate compile-red persistence assertion then extended
+migration 028 and the snapshot/store so that provenance round-trips. Reusing a request
+id with different provenance initially returned the old board and now fails before a
+planner call. Current isolated evidence: Core task-board tests 10/10 and PostgreSQL
+task-board tests 14/14, both with zero failures. The mandatory whole-solution gate has
+not yet been claimed: the shared tree still contains Claude's active context/fixture
+composition edits and Codex's earlier uncommitted G5a1 authentication dependency.
+
+## 2026-08-24 — Claude — O1g importer written and demonstrated against PostgreSQL
+
+The reader committed earlier (`6b42793`) turns TODO.md into a task tree. This entry covers
+the rest of the importer: deterministic identities, the mapping onto ADR-0021's contracts,
+the rerun rules, and a demonstrated import into real PostgreSQL. None of it is committed
+yet, for the reason in the last section.
+
+### Two more grammar findings, both from running rather than reading
+
+The reader's tests passed and its counts looked right, and it was still wrong twice.
+
+- **`[STEVE: reason]` is a trailing annotation too.** The integration test asserted B7 would
+  be Blocked and got Open. B7 is not `- [STEVE] B7 …`; it is ``- [ ] B7 Kokoro classes …
+  `[STEVE: whose memories are they]` ``. There are six of these, alongside five
+  `[BLOCKED: …]`, and they mean exactly what the leading `[STEVE]` marker means. The
+  earlier count of "6 `[STEVE]`" was of leading markers only and was not the whole story.
+- **A claim cannot predate its board.** The first live run raised `23514
+  task_board_tasks_time_order`. A claim writes `updated_at`, the schema requires
+  `updated_at >= created_at`, and the file's claim dates are older than the board created to
+  hold them. The board timestamp is now clamped to the board's creation; the date the file
+  actually stated is not lost, because the mapper writes "Claimed in TODO.md by X on
+  YYYY-MM-DD" into the task description, which is where a date older than the record it
+  lives in honestly belongs.
+
+### Design
+
+`TodoState` stays separate from `TaskBoardStatus`, and `BoardTaskDraft` carries no status,
+so the importer cannot simply write the states it wants. It asks for **one legal step per
+task per pass** — claim, satisfy a criterion, complete, block — and repeats until a pass
+changes nothing. That converges without topologically sorting prerequisites against
+containment, and whatever remains unreached is exactly what the board's own guards forbid,
+which is reported rather than forced.
+
+Rerun safety is a pure function (`ImportStep.Next`) so it could be tested without a
+database. It advances only. A task the board has already finished is never pulled back to
+what a stale file believes, and where the file claims something the board contradicts the
+run reports it and changes nothing. That case is real, not theoretical: the file is edited
+by hand and the board is live.
+
+Identities come from the file's own task id (`task:dami-core-suite:G5a1`) through the
+existing `StablePlanningId`, so a reworded or moved entry keeps its identity. An entry with
+no id falls back to its section and normalized title and is reported, because an unstable
+identity that nobody is told about is how an import silently stops being idempotent.
+
+Not invented: the file states no priority, so every task is `Normal` and siblings are
+`Ordered` — file order is the only ranking it gives. No status is assigned to an epic unless
+every child is Done, which is an entailment and the same condition the store already
+requires before accepting a completion.
+
+### Demonstrated against PostgreSQL
+
+Against the deployed DDL in a throwaway schema with the real `dami_app` role:
+
+```
+board created: True
+tasks:         201        (15 epic roots + 186 checklist entries)
+mutations:     324
+conflicts:     0
+rerun mutations: 0
+```
+
+Verified: `G2` Done; `E3` Blocked from its trailing `[BLOCKED: L-phase]`; `B6` (leading
+marker) and `B7` (trailing annotation) both Blocked; `G4c3a` present four levels below its
+epic as the same task type; the `H9 → K1` prerequisite edge, which is the one prose
+dependency in the file naming a real task. Idempotency is proved by the second run applying
+zero mutations, and the newer-state rule by completing `K1` on the board — which TODO.md
+still calls open — and observing the rerun leave it Done.
+
+### Two findings for Codex, in O1a's lane
+
+1. **Migration 028's functions are never dropped.** It creates
+   `task_board_try_claim`, `task_board_try_set_criterion`, `task_board_try_complete`, and
+   `task_board_try_set_status` with plain `create function`, and `TestDdl.DropTaskBoards`
+   drops only the five tables. A second full DDL apply then fails with `42723: function
+   … already exists`. Four `drop function if exists` lines were added to `DropTaskBoards`
+   as the minimal fix. The deeper choice — `create or replace function` in
+   `028_task_boards.sql` — is inside O1a's boundary and was left alone.
+2. `Dami.Persistence.Tests.csproj` gained a `Dami.Core` project reference so the importer
+   could be exercised against the concrete store. The importer itself depends only on
+   `Dami.Contracts`; only the test needs both sides.
+
+### Gate
+
+`dotnet build Dami.sln`: 0 warnings, 0 errors. `dotnet test Dami.sln`: 940 passed, **1
+failed** — `PostgresTaskBoardStoreTests.CreateAsync_Should_Reject_More_Than_1024_Tasks`,
+which is Codex's own test, staged and modified in the working tree, red because its cap is
+not implemented yet. It is mid-TDD in O1a's lane and is not this work. The complete
+persistence suite including all five importer tests is 254/255 with that one test the only
+failure; the importer's own tests are 5/5 and the reader/mapper/step tests 54/54.
+
+### Not committed, and why
+
+Migration 028 and the task-board contracts are still staged rather than in `HEAD`. Every
+file added here references `Dami.Contracts.TaskBoard`, and the `TestDdl` fix patches a
+method that does not exist at `HEAD`, so any commit of this work would not build from its
+own tree. It is written, tested, and demonstrated, and it lands the moment O1a is committed.
+Applying the import to `dami-data` is deliberately not done either: that database has no
+task tables, and applying 028 to it is O1f.
