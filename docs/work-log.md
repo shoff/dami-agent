@@ -7442,3 +7442,9 @@ warnings and 0 errors. `dotnet test Dami.sln --no-build` remains non-green at 95
 and 3 failed: the same two owned `FrontierEndpointsTests` missing-property failures and
 Claude's uncommitted O1g importer count (201 expected, 204 current). The new dashboard
 acceptance test is included in the 62 passing Host tests.
+
+## 2026-08-24 — Codex — O1e Avalonia task-board surface claimed
+
+Claimed O1e after pushing the hosted dashboard checkpoint. The desktop implementation
+will remain a thin client of the O1c runtime API; it will not duplicate PostgreSQL,
+workflow, concurrency, or planning rules inside the GUI process.
