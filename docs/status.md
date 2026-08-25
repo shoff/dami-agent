@@ -96,6 +96,7 @@ rather than assuming — but nothing else blocks the phase.
 | Run the eval, select the embedder on evidence | **harness ready and corpus local** — only the 50-query eval set itself remains, and it is now buildable at this desk. `dami recall` already exposes the ambiguities worth testing (e.g. ML "model" vs scale model). |
 | Local reranker service | **done** — TEI cross-encoder on `127.0.0.1:8081` |
 | Retrieval pipeline verified end to end | **done** — embed → ANN top-5 → cross-encoder rerank → top-3, reordering confirmed |
+| Retrieval planning (ADR-0019) | **done** — local sidecar routes to domains, grounds searches in their rows, reranks the union against the original question; live: 0 → 8 structured health facts in context for the surgeon question, ~2.6s to assemble |
 
 ### Phase 3 — Transport and runtime port · *in progress*
 

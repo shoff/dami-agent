@@ -1,5 +1,6 @@
 using System.Data;
 using System.Runtime.CompilerServices;
+using Dami.Contracts.Context;
 using Dami.Contracts.Domains;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -7,7 +8,7 @@ using Npgsql;
 namespace Dami.Persistence.Domains;
 
 /// <summary>The health domain in Postgres. LocalOnly — nothing here reaches the network.</summary>
-public sealed class PostgresHealthEventStore : IHealthEventStore
+public sealed class PostgresHealthEventStore : IHealthEventStore, IStructuredFactSource
 {
     private readonly NpgsqlDataSource dataSource;
     private readonly PostgresOptions storeOptions;
@@ -156,6 +157,77 @@ public sealed class PostgresHealthEventStore : IHealthEventStore
             """);
         command.Parameters.AddWithValue("limit", limit);
         return StreamTimelineAsync(command, cancellationToken);
+    }
+
+    /// <summary>What extraction writes when it has no date and the column forbids null.</summary>
+    private static readonly DateOnly undated = new(1970, 1, 1);
+
+    /// <inheritdoc />
+    public string Domain => "health";
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Deliberately returns the timeline rather than matching the request's words against it.
+    /// Word overlap cannot connect "heart" to "aortic stenosis", and the caller has already
+    /// decided this domain bears on the question; the domain's job is to hand over what it
+    /// holds, compactly and newest first, not to second-guess that decision.
+    ///
+    /// Deduplication and ordering have to happen in separate passes. DISTINCT ON requires
+    /// its ORDER BY to lead with the dedupe key, so ordering and limiting in the same query
+    /// takes the alphabetically first rows: asked about a heart condition it returned
+    /// "aortic stenosis", "Autism spectrum disorder", "average heart rate", "bowel
+    /// obstruction" — an A-to-B slice of the timeline rather than the recent facts.
+    /// </remarks>
+    public IAsyncEnumerable<StructuredFact> RelevantAsync(
+        string request,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (limit <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit), limit, "Limit must be positive.");
+        }
+
+        var command = this.dataSource.CreateCommand(
+            $"""
+            select observation_id, description, event_date, category
+              from (select distinct on (lower(btrim(h.description)))
+                           h.observation_id, h.description, h.event_date, h.category
+                      from {this.Schema}.health_events h
+                     where not exists (
+                         select 1 from {this.Schema}.health_event_rejections r
+                          where r.observation_id = h.observation_id
+                            and r.description = h.description)
+                     order by lower(btrim(h.description)), h.event_date desc) distinct_facts
+             order by event_date desc
+             limit @limit;
+            """);
+        command.Parameters.AddWithValue("limit", limit);
+        return StreamFactsAsync(command, cancellationToken);
+    }
+
+    private static async IAsyncEnumerable<StructuredFact> StreamFactsAsync(
+        NpgsqlCommand command,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using (command.ConfigureAwait(false))
+        {
+            await using var reader = await command
+                .ExecuteReaderAsync(CommandBehavior.SingleResult, cancellationToken)
+                .ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var occurred = DateOnly.FromDateTime(
+                    await reader.GetFieldValueAsync<DateTime>(2, cancellationToken).ConfigureAwait(false));
+
+                yield return new StructuredFact(
+                    reader.GetGuid(0),
+                    reader.GetString(1),
+                    occurred == undated ? null : occurred,
+                    reader.GetString(3));
+            }
+        }
     }
 
     private static async IAsyncEnumerable<(Guid, DateOnly, string)> StreamUnexaminedAsync(

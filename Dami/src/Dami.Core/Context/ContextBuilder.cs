@@ -26,7 +26,9 @@ public sealed class ContextBuilder : IContextBuilder
     private readonly IEmbeddingClient embeddingClient;
     private readonly IRerankClient rerankClient;
     private readonly IConclusionLedger conclusionLedger;
+    private readonly IQueryPlanner planner;
     private readonly ContextOptions contextOptions;
+    private readonly QueryPlanOptions planOptions;
     private readonly TimeProvider clock;
     private readonly ILogger<ContextBuilder> logger;
 
@@ -37,7 +39,9 @@ public sealed class ContextBuilder : IContextBuilder
         IEmbeddingClient embeddingClient,
         IRerankClient rerankClient,
         IConclusionLedger conclusionLedger,
+        IQueryPlanner planner,
         IOptions<ContextOptions> contextOptions,
+        IOptions<QueryPlanOptions> planOptions,
         TimeProvider clock,
         ILogger<ContextBuilder> logger)
     {
@@ -46,7 +50,9 @@ public sealed class ContextBuilder : IContextBuilder
         ArgumentNullException.ThrowIfNull(embeddingClient);
         ArgumentNullException.ThrowIfNull(rerankClient);
         ArgumentNullException.ThrowIfNull(conclusionLedger);
+        ArgumentNullException.ThrowIfNull(planner);
         ArgumentNullException.ThrowIfNull(contextOptions);
+        ArgumentNullException.ThrowIfNull(planOptions);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
 
@@ -55,7 +61,9 @@ public sealed class ContextBuilder : IContextBuilder
         this.embeddingClient = embeddingClient;
         this.rerankClient = rerankClient;
         this.conclusionLedger = conclusionLedger;
+        this.planner = planner;
         this.contextOptions = contextOptions.Value;
+        this.planOptions = planOptions.Value;
         this.clock = clock;
         this.logger = logger;
     }
@@ -65,20 +73,52 @@ public sealed class ContextBuilder : IContextBuilder
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var queryVector = (await this.embeddingClient
-            .EmbedAsync([request], cancellationToken).ConfigureAwait(false))[0];
+        var plan = await this.planner.PlanAsync(request, cancellationToken).ConfigureAwait(false);
+        var vectors = await this.embeddingClient
+            .EmbedAsync(plan.Searches, cancellationToken).ConfigureAwait(false);
 
-        var beliefs = await this.CollectBeliefsAsync(queryVector, cancellationToken).ConfigureAwait(false);
-        var memories = await this.RetrieveMemoriesAsync(request, queryVector, cancellationToken)
+        // Beliefs answer to the request itself; a sub-query is a way of finding passages,
+        // not a different question to hold opinions about.
+        var beliefs = await this.CollectBeliefsAsync(vectors[0], cancellationToken).ConfigureAwait(false);
+        var memories = await this.RetrieveMemoriesAsync(request, vectors, cancellationToken)
             .ConfigureAwait(false);
+        var facts = Facts(plan);
 
-        var assembled = Trim(beliefs, memories, this.contextOptions.MaxRetrievedTokens);
+        // Facts lead the memories: a domain row is a dated clinical statement, a memory is
+        // the conversation that mentioned it. Per token the fact is worth more, and if the
+        // budget runs out it is the prose that should be missing.
+        facts.AddRange(memories);
+        var assembled = Trim(beliefs, facts, this.contextOptions.MaxRetrievedTokens);
 
         this.logger.LogDebug(
-            "Context: {Memories} memories, {Beliefs} beliefs, ~{Tokens} tokens",
-            assembled.Memories.Count, assembled.Beliefs.Count, assembled.EstimatedTokens);
+            "Context: {Memories} memories, {Beliefs} beliefs, ~{Tokens} tokens from {Searches} search(es)",
+            assembled.Memories.Count, assembled.Beliefs.Count, assembled.EstimatedTokens, plan.Searches.Count);
 
         return assembled;
+    }
+
+    /// <summary>The plan's resolved domain facts, as context items.</summary>
+    private static List<RetrievedItem> Facts(QueryPlan plan)
+    {
+        var facts = new List<RetrievedItem>(plan.Facts.Count);
+        foreach (var fact in plan.Facts)
+        {
+            // An undated fact says so. Stamping it with a stand-in date would read to the
+            // frontier as a dated one, and the epoch reads as 1970.
+            var when = fact.AsOf is null
+                ? $"{fact.Kind}, date unknown"
+                : $"{fact.Kind} {fact.AsOf:yyyy-MM-dd}";
+
+            facts.Add(new RetrievedItem(
+                "fact",
+                fact.SourceId,
+                $"[{when}] {fact.Text}",
+                fact.AsOf is null
+                    ? DateTimeOffset.MinValue
+                    : new DateTimeOffset(fact.AsOf.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)));
+        }
+
+        return facts;
     }
 
     /// <summary>
@@ -128,14 +168,45 @@ public sealed class ContextBuilder : IContextBuilder
         return beliefs;
     }
 
+    /// <summary>Runs every planned search and reranks the union against the original request.</summary>
+    /// <remarks>
+    /// One embedding of one question retrieves whatever is nearest that phrasing, which is
+    /// why "what should I ask the surgeon" returned long conversations that merely mention
+    /// surgery. Several narrower searches surface several narrower passages; judging the
+    /// pooled result against the actual question, not against the sub-query that found it,
+    /// keeps expansion from rewarding drift.
+    /// </remarks>
     private async Task<List<RetrievedItem>> RetrieveMemoriesAsync(
         string request,
-        float[] queryVector,
+        IReadOnlyList<float[]> vectors,
         CancellationToken cancellationToken)
     {
-        var candidates = new List<Observation>();
+        var candidates = new Dictionary<Guid, Observation>();
+        foreach (var vector in vectors)
+        {
+            await this.GatherAsync(vector, candidates, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        return await this.RerankAsync(request, [.. candidates.Values], cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task GatherAsync(
+        float[] vector,
+        Dictionary<Guid, Observation> candidates,
+        CancellationToken cancellationToken)
+    {
+        var slots = this.planOptions.Enabled
+            ? this.planOptions.SlotsPerSearch
+            : this.contextOptions.Candidates;
+
         await foreach (var (observation, distance) in this.embeddingStore
-            .NearestAsync(queryVector, this.embeddingClient.ModelId, this.contextOptions.Candidates, cancellationToken)
+            .NearestAsync(vector, this.embeddingClient.ModelId, slots, cancellationToken)
             .ConfigureAwait(false))
         {
             // The grounding gate: nearest-by-ranking is not the same as relevant, and a
@@ -145,15 +216,8 @@ public sealed class ContextBuilder : IContextBuilder
                 break;
             }
 
-            candidates.Add(observation);
+            candidates.TryAdd(observation.ObservationId, observation);
         }
-
-        if (candidates.Count == 0)
-        {
-            return [];
-        }
-
-        return await this.RerankAsync(request, candidates, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<List<RetrievedItem>> RerankAsync(
@@ -239,33 +303,33 @@ public sealed class ContextBuilder : IContextBuilder
         int maxTokens)
     {
         var spent = 0;
-        var keptBeliefs = new List<RetrievedItem>();
-        foreach (var belief in beliefs)
-        {
-            var cost = Cost(belief);
-            if (spent + cost > maxTokens)
-            {
-                break;
-            }
-
-            spent += cost;
-            keptBeliefs.Add(belief);
-        }
-
-        var keptMemories = new List<RetrievedItem>();
-        foreach (var memory in memories)
-        {
-            var cost = Cost(memory);
-            if (spent + cost > maxTokens)
-            {
-                break;
-            }
-
-            spent += cost;
-            keptMemories.Add(memory);
-        }
-
+        var keptBeliefs = Fill(beliefs, maxTokens, ref spent);
+        var keptMemories = Fill(memories, maxTokens, ref spent);
         return new AssembledContext(keptMemories, keptBeliefs, spent);
+    }
+
+    /// <summary>Takes what fits, in order, skipping what does not.</summary>
+    /// <remarks>
+    /// Skip, do not stop. Stopping at the first item too large to fit let one long
+    /// conversation summary end the list while several short precise facts behind it
+    /// would each have fitted easily.
+    /// </remarks>
+    private static List<RetrievedItem> Fill(List<RetrievedItem> items, int maxTokens, ref int spent)
+    {
+        var kept = new List<RetrievedItem>();
+        foreach (var item in items)
+        {
+            var cost = Cost(item);
+            if (spent + cost > maxTokens)
+            {
+                continue;
+            }
+
+            spent += cost;
+            kept.Add(item);
+        }
+
+        return kept;
     }
 
     private static int Cost(RetrievedItem item)

@@ -68,6 +68,9 @@ builder.Services.AddKeyedSingleton<ISessionTurnRunner>("frontier", (provider, _)
         provider.GetRequiredService<ISessionCancellationRegistry>(),
         provider.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton<IConversationSessionManager, ConversationSessionManager>();
+builder.Services.Configure<QueryPlanOptions>(
+    builder.Configuration.GetSection(QueryPlanOptions.SECTION_NAME));
+builder.Services.AddSingleton<Dami.Contracts.Context.IQueryPlanner, LocalQueryPlanner>();
 builder.Services.AddSingleton<Dami.Contracts.Context.IContextBuilder, ContextBuilder>();
 builder.Services.Configure<ContextOptions>(builder.Configuration.GetSection(ContextOptions.SECTION_NAME));
 builder.Services.AddSingleton<IModelRouter, ModelRouter>();

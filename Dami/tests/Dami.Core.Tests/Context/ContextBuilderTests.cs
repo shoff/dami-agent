@@ -1,3 +1,4 @@
+using Dami.Contracts.Context;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Models;
 using Dami.Core.Context;
@@ -29,7 +30,8 @@ public sealed class ContextBuilderTests
     {
         Assert.Throws<ArgumentNullException>(() => new ContextBuilder(
             null!, this.conclusionEmbeddingStore, this.embeddingClient, this.rerankClient, this.conclusionLedger,
-            Options.Create(new ContextOptions()), new FakeTimeProvider(asOf),
+            PassThroughPlanner(), Options.Create(new ContextOptions()),
+            Options.Create(new QueryPlanOptions()), new FakeTimeProvider(asOf),
             NullLogger<ContextBuilder>.Instance));
     }
 
@@ -166,11 +168,16 @@ public sealed class ContextBuilderTests
             ConclusionSource.ReflectionPass, asOf);
     }
 
-    private ContextBuilder CreateBuilder(int maxTokens = 2500, int maxMemories = 8, int recentSlots = 3)
+    private ContextBuilder CreateBuilder(
+        int maxTokens = 2500,
+        int maxMemories = 8,
+        int recentSlots = 3,
+        IQueryPlanner? planner = null)
     {
         this.embeddingClient.ModelId.Returns("test-model");
         this.embeddingClient.EmbedAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new List<float[]> { new float[4] });
+            .Returns(call => (IReadOnlyList<float[]>)call.Arg<IReadOnlyList<string>>()
+                .Select(_ => new float[4]).ToList());
         this.embeddingStore.NearestAsync(
                 Arg.Any<float[]>(), "test-model", Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => this.AsNearestAsync(this.nearest));
@@ -185,13 +192,25 @@ public sealed class ContextBuilderTests
         return new ContextBuilder(
             this.embeddingStore, this.conclusionEmbeddingStore, this.embeddingClient,
             this.rerankClient, this.conclusionLedger,
+            planner ?? PassThroughPlanner(),
             Options.Create(new ContextOptions
             {
                 MaxRetrievedTokens = maxTokens,
                 MaxMemories = maxMemories,
                 RecentSlots = recentSlots,
             }),
+            // Planning off keeps these cases on the single-query path they were written for.
+            Options.Create(new QueryPlanOptions { Enabled = planner is not null }),
             new FakeTimeProvider(asOf), NullLogger<ContextBuilder>.Instance);
+    }
+
+    /// <summary>A planner that changes nothing — the request, searched for as written.</summary>
+    private static IQueryPlanner PassThroughPlanner()
+    {
+        var planner = Substitute.For<IQueryPlanner>();
+        planner.PlanAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new QueryPlan([call.ArgAt<string>(0)], [], [])));
+        return planner;
     }
 
     [Fact]
@@ -260,5 +279,108 @@ public sealed class ContextBuilderTests
         }
 
         await Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task BuildAsync_Should_Search_Once_Per_Planned_Query()
+    {
+        this.Observe("aortic valve replacement scheduled");
+
+        await this.CreateBuilder(planner: Planner(["heart condition", "aortic stenosis", "surgeon questions"]))
+            .BuildAsync("what should I ask the surgeon", CancellationToken.None);
+
+        await this.embeddingClient.Received(1).EmbedAsync(
+            Arg.Is<IReadOnlyList<string>>(searches => searches.Count == 3),
+            Arg.Any<CancellationToken>());
+        this.embeddingStore.Received(3).NearestAsync(
+            Arg.Any<float[]>(), "test-model", Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BuildAsync_Should_Not_Repeat_An_Observation_Found_By_Two_Searches()
+    {
+        this.Observe("aortic valve replacement scheduled");
+
+        var context = await this.CreateBuilder(planner: Planner(["heart condition", "aortic stenosis"]))
+            .BuildAsync("what should I ask the surgeon", CancellationToken.None);
+
+        // Both searches return the same stubbed row; the union must dedupe by identity,
+        // or an expansion that overlaps spends the budget saying one thing twice.
+        Assert.Single(context.Memories);
+    }
+
+    [Fact]
+    public async Task BuildAsync_Should_Include_Facts_The_Plan_Resolved()
+    {
+        this.Observe("we talked about the surgery for a while");
+
+        var context = await this.CreateBuilder(
+                planner: Planner(
+                    ["heart condition"], ["health"], ["Severe aortic stenosis diagnosed"], new DateOnly(2026, 1, 30)))
+            .BuildAsync("what should I ask the surgeon", CancellationToken.None);
+
+        var fact = Assert.Single(context.Memories, item => item.Kind == "fact");
+        Assert.Contains("Severe aortic stenosis diagnosed", fact.Content, StringComparison.Ordinal);
+
+        // Facts lead: if the budget runs out it is the prose that should go missing.
+        Assert.Equal("fact", context.Memories[0].Kind);
+    }
+
+    [Fact]
+    public async Task BuildAsync_Should_Carry_No_Facts_When_The_Plan_Resolved_None()
+    {
+        this.Observe("unrelated chatter");
+
+        var context = await this.CreateBuilder(planner: Planner(["dinner plans"]))
+            .BuildAsync("what is for dinner", CancellationToken.None);
+
+        Assert.DoesNotContain(context.Memories, item => item.Kind == "fact");
+    }
+
+    [Fact]
+    public async Task BuildAsync_Should_Skip_An_Oversized_Memory_Rather_Than_Stop_Collecting()
+    {
+        this.Observe(new string('x', 4000));
+        this.Observe("short precise fact");
+
+        var context = await this.CreateBuilder(maxTokens: 200).BuildAsync("anything", CancellationToken.None);
+
+        // The regression this guards: stopping at the first item too large to fit let one
+        // long conversation summary end the list while short facts behind it would have fitted.
+        Assert.Single(context.Memories);
+        Assert.Equal("short precise fact", context.Memories[0].Content);
+    }
+
+    private static IQueryPlanner Planner(
+        IReadOnlyList<string> searches,
+        IReadOnlyList<string>? domains = null,
+        IReadOnlyList<string>? facts = null,
+        DateOnly? asOf = null)
+    {
+        var resolved = (facts ?? [])
+            .Select(fact => new StructuredFact(Guid.NewGuid(), fact, asOf, "diagnosis"))
+            .ToList();
+
+        var planner = Substitute.For<IQueryPlanner>();
+        planner.PlanAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new QueryPlan(searches, domains ?? [], resolved)));
+        return planner;
+    }
+
+    [Fact]
+    public async Task BuildAsync_Should_Say_So_Rather_Than_Invent_A_Date_For_An_Undated_Fact()
+    {
+        this.Observe("we talked about it");
+
+        var context = await this.CreateBuilder(
+                planner: Planner(["heart condition"], ["health"], ["Aortic Valve Replacement"]))
+            .BuildAsync("what should I ask the surgeon", CancellationToken.None);
+
+        // 25 of 84 stored health rows carry 1970-01-01 because the column forbids null and
+        // extraction had no date. Rendering that verbatim tells the frontier the procedure
+        // happened in 1970.
+        var fact = Assert.Single(context.Memories, item => item.Kind == "fact");
+        Assert.Contains("date unknown", fact.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("1970", fact.Content, StringComparison.Ordinal);
     }
 }

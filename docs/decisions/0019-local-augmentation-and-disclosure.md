@@ -22,6 +22,40 @@ recency and grounding gates, all on this host), the result goes through the disc
 gate, and the frontier answers on what survives. Fully traced, and the exact bytes are
 stored hash-pinned so what left is auditable afterwards rather than merely promised.
 
+## Planning the retrieval, and why the order matters
+
+`ContextBuilder` used to embed the question once and search on it. That retrieves whatever
+sits nearest that phrasing, which for *"given my heart condition, what should I ask the
+surgeon"* meant long conversation summaries that merely mention surgery. Two things were
+wrong with it, and only one was the one first suspected.
+
+Crude lexical redundancy among the eight retrieved items was **low** — one pair above 0.25
+Jaccard — so near-duplicate suppression was not the win. What the measurement did show was
+lengths of 55 to 725 characters, and that the health domain's own rows, which are short
+dated clinical statements, were never searched at all.
+
+So `LocalQueryPlanner` runs before retrieval, in two passes:
+
+1. **Route and draft** — which domains bear on the question, plus a first set of searches.
+2. **Ground and redraft** — the named domains hand over their facts, and the searches are
+   rewritten in that vocabulary.
+
+The order is the whole point. Asked cold to expand "my heart condition", the local model
+returns *"heart condition treatment options"*, which matches nothing the corpus wrote —
+it cannot expand a vague personal reference without knowing the person. Given the health
+rows it returns *"severe aortic stenosis"* and *"mechanical AVR surgery"*, which is what
+the notes actually say. Each pass costs about a second on qwen3:8b; a question naming no
+domain pays for one.
+
+The union of all searches is reranked against the **original** question, never against the
+sub-query that found it, so expansion cannot reward drift. Domain facts lead the memories
+into the budget: a domain row is a dated clinical statement, a memory is the conversation
+that mentioned it, and if the budget runs out it is the prose that should be missing.
+
+Planning **fails open**, unlike the gate below. A gate that cannot parse its answer must
+withhold, because the cost of guessing is a privacy breach; a planner that cannot parse
+its answer searches the request verbatim, which is what retrieval did before this existed.
+
 ## The disclosure gate, and why three options
 
 Blanket redaction was my first instinct and it was wrong: it degrades every item whether
@@ -54,7 +88,34 @@ answer naming severe aortic stenosis, mechanical versus tissue valve, and the qu
 worth asking. The stored artefact shows the disguised item went as *"A patient asked… a
 provider answered…"*.
 
+Retrieval planning, same question, before and after — `GET /context`:
+
+| | facts | memories | leading facts |
+|---|---|---|---|
+| before | 0 | 8 | *(the domain was never searched)* |
+| after | 8 | 8 | Open-heart surgery · Mechanical AVR by Bernard Harrison · Pre-op appointment |
+
+The end-to-end augmented turn then asked, unprompted, *"Given my chronic dizziness and the
+recent brief, sharp positional chest pain, do you want any repeat ECG, echocardiogram,
+labs…"* — both of those are structured health rows that the pre-change context did not
+contain.
+
+Two defects were found by looking at the live output rather than the tests, and both are
+worth recording because the tests passed throughout. `DISTINCT ON` requires its `ORDER BY`
+to lead with the dedupe key, so deduplicating and limiting in one query returned the
+alphabetically first rows: *aortic stenosis, Autism spectrum disorder, average heart rate,
+bowel obstruction* — an A-to-B slice of the timeline. And 25 of 84 health rows carry
+`1970-01-01`, because the column is `not null` and extraction had no date; rendered
+verbatim that tells the frontier a procedure happened in 1970. Facts now dedupe in a
+subquery and order by recency outside it, and an undated fact says "date unknown".
+
 ## What remains open
+
+Two near-duplicate symptom rows still spend two of the eight fact slots ("sharp,
+positional, and brief" and "sharp and positional, with a spike lasting 30–40 seconds").
+Exact-text deduplication does not catch them; this is the one place where the redundancy
+theory the measurement rejected turns out to hold, inside the fact set rather than across
+the prose.
 
 The corpus is largely written in the third person already ("the user…"), so much of it is
 de-identified by luck rather than design; the gate should not be credited for that.

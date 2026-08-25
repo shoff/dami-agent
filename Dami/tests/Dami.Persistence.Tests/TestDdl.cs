@@ -31,6 +31,8 @@ public static class TestDdl
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",
         "018_health_event_rejections.sql",
+        "019_briefs_without_approval.sql",
+        "020_observation_curations.sql",
     ];
 
     /// <summary>The event-store and memory DDL, rewritten to build in <paramref name="schema"/>.</summary>
@@ -60,7 +62,7 @@ public static class TestDdl
     {
         ArgumentNullException.ThrowIfNull(schema);
 
-        return DropToolStaging(schema) + $"""
+        return DropToolStaging(schema) + DropObservationOverlays(schema) + $"""
             drop table if exists {schema}.skill_changes cascade;
             drop table if exists {schema}.conversation_turns cascade;
             drop table if exists {schema}.conversation_sessions cascade;
@@ -70,7 +72,6 @@ public static class TestDdl
             drop table if exists {schema}.health_examined cascade;
             drop table if exists {schema}.health_events cascade;
             drop table if exists {schema}.egress_briefs cascade;
-            drop table if exists {schema}.observation_date_repairs cascade;
             drop table if exists {schema}.capability_embeddings cascade;
             drop table if exists {schema}.conclusion_embeddings cascade;
             drop function if exists {schema}.drop_conclusion_embedding() cascade;
@@ -87,6 +88,30 @@ public static class TestDdl
             drop function if exists {schema}.validate_tool_activation_outcome() cascade;
             drop function if exists {schema}.validate_tool_promotion() cascade;
             drop function if exists {schema}.reject_mutation() cascade;
+            """;
+    }
+
+    /// <summary>The tables that overlay observations without replacing them.</summary>
+    /// <remarks>
+    /// Curations and date repairs both sit beside <c>observations</c> rather than editing
+    /// it, because the corpus is append-only; the corpus query coalesces over them, so a
+    /// schema without them fails every read rather than quietly returning raw bodies.
+    /// </remarks>
+    private static string DropObservationOverlays(string schema)
+    {
+        return $"""
+            drop table if exists {schema}.observation_curations cascade;
+            drop table if exists {schema}.observation_date_repairs cascade;
+
+            """;
+    }
+
+    private static string TruncateObservationOverlays(string schema)
+    {
+        return $"""
+            delete from {schema}.observation_curations;
+            delete from {schema}.observation_date_repairs;
+
             """;
     }
 
@@ -118,11 +143,10 @@ public static class TestDdl
             + TruncateToolVerifications(schema)
             + TruncateToolPromotions(schema)
             + TruncateToolProposals(schema) + TruncateSkillChanges(schema)
-            + TruncateFilePatchProposals(schema) + $"""
+            + TruncateFilePatchProposals(schema) + TruncateObservationOverlays(schema) + $"""
             delete from {schema}.health_event_rejections;  delete from {schema}.gateway_authority;  delete from {schema}.health_examined;
             delete from {schema}.health_events;
             delete from {schema}.egress_briefs;
-            delete from {schema}.observation_date_repairs;
             delete from {schema}.capability_embeddings;
             delete from {schema}.conclusion_embeddings;
             delete from {schema}.approvals;

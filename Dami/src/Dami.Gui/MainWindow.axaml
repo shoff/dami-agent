@@ -31,7 +31,7 @@
         <TextBlock DockPanel.Dock="Top" Text="CONVERSATION" FontSize="11"
                    Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
         <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,0">
-          <TextBox x:Name="Input" Grid.Column="0" Watermark="say something…"
+          <TextBox x:Name="Input" Grid.Column="0" PlaceholderText="say something…"
                    Background="#0D1116" Foreground="{StaticResource Ink}"
                    BorderBrush="#2A333D"/>
           <ToggleButton x:Name="FrontierToggle" Grid.Column="1" Content="subscription"

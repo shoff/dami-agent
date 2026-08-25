@@ -76,6 +76,11 @@ public static class ServiceCollectionExtensions
     private static void RegisterDomainAndSessionStores(IServiceCollection services)
     {
         services.TryAddSingleton<IHealthEventStore, PostgresHealthEventStore>();
+
+        // The same instance in both roles: the domain that records health events is the
+        // domain that hands them to retrieval.
+        services.AddSingleton<Dami.Contracts.Context.IStructuredFactSource>(
+            provider => (PostgresHealthEventStore)provider.GetRequiredService<IHealthEventStore>());
         services.TryAddSingleton<IGatewayAuthority, PostgresGatewayAuthority>();
         services.TryAddSingleton<ICapabilityEmbeddingStore, PostgresCapabilityEmbeddingStore>();
         services.TryAddSingleton<PostgresSessionStore>();
