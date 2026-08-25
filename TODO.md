@@ -264,6 +264,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [ ] O1d Live interactive board in the hosted website
   - [ ] O1e Live interactive board in the Avalonia desktop client
   - [ ] O1f Apply migrations and demonstrate multi-actor claim, dependency, acceptance, restart, and both UI surfaces live
+  - [~ Claude 2026-08-24] O1g Import this blueprint into the board as the initial "Dami Core suite": epics become root tasks and nested checklist items become recursive SubTasks of the same type, preserving ids (G5a1), status, owner and claim date, sibling order, BLOCKED reason, acceptance language, and prerequisites. Deterministic ids so a rerun is idempotent and never overwrites newer PostgreSQL state; the run is recorded as durable board activity carrying actor, timestamp, and the source revision. Malformed or ambiguous entries are reported, never guessed. Depends on O1a landing (contracts and migration 028 committed) before the mapping layer and the live apply
 
 ---
 
