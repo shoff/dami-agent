@@ -6869,3 +6869,26 @@ XML docs and `this.` qualification and had to be brought up to standard, which a
 client never would have been.
 
 Running live on `:0`, following the real stream.
+
+## 2026-08-24 — Codex — F5c3c complete; promoted tool survives restart and runs
+
+Committed and pushed the least-privilege trigger repair as `cc4dd73`, then applied the
+checksummed `025_tool_activation_advisory_lock.sql` migration to `dami-data`. Restarting
+the deployed Host recovered the already-approved, previously stranded promotion and
+reported `Sandboxed tool recovery completed: 1/1` before Kestrel listened. PostgreSQL
+now contains exactly one verification, one promotion, one Approved resolution, and one
+Activated outcome (`321b1502-20e5-4bcc-9bc9-826808982b45`) for proposal
+`04a98141-8be1-053d-c71b-299df7210488`, plus exactly one each of the corresponding
+`ToolVerified`, `ToolPromotionRequested`, `ApprovalRequested`, `ApprovalResolved`, and
+`ToolActivated` events and no activation-failure event.
+
+The first live local turn, trace `cdb6ea19-7496-492a-b9c2-b7a9876ff65e`, selected and
+completed capability `a17970dd-ef80-4108-8d45-fc3429db06d0` and returned
+`{"value":42}`. A second deliberate Host restart again reported recovery 1/1 before
+readiness. Trace `6c8804d7-043c-4ae2-9ae1-3857fb5046f3` then selected and completed the
+same dynamically recovered capability with input 99 and returned `99`. Both durable
+traces contain `ToolRequested`, `ToolStarted`, and `ToolCompleted` for the exact
+capability. The materialized `Tool.dll` SHA-256 is
+`608f81a78b179203cb4d6186f48936cc304e6ec15667ec92a854b7f11e3a1b04`, byte-for-byte
+equal to the persisted verification digest. `dami-host` remains active and `/health`
+returns `ok`. F5c3c, F5c3, F5c, and F5 are complete.

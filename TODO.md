@@ -114,19 +114,19 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] F4c3 Crash-recoverable filesystem materialization + Host/native lifecycle demonstration
       - [x] F4c3a Version-consistent staged filesystem materialization + terminal-event recovery
       - [x] F4c3b Native author/revise/retire capability + Host/live lifecycle demonstration
-- [~ Codex 2026-08-24] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
+- [x] F5 Tool staging registry: self-authored tools proposed with source+tests+rationale, human promotion gate (D-016)
   - [x] F5a Version-pinned bounded proposal contract + transactional staging ledger/events
   - [x] F5b Native propose/list/inspect boundary + Host staged-proposal demonstration
-  - [~ Codex 2026-08-24] F5c Human single-resolution promotion gate + live-registry activation and live demonstration
+  - [x] F5c Human single-resolution promotion gate + live-registry activation and live demonstration
     - [x] F5c1 Version-pinned promotion/approval state machine + transactional ledger/events
     - [x] F5c2 Fixed package-free build/test envelope + bounded bubblewrap execution
-    - [~ Codex 2026-08-24] F5c3 Failure-atomic activation/recovery + Host/live human-promotion demonstration
+    - [x] F5c3 Failure-atomic activation/recovery + Host/live human-promotion demonstration
       - [x] F5c3a Durable exact-artifact verification/activation state and terminal events
       - [x] F5c3b Failure-atomic registry publication + startup recovery
         - [x] F5c3b1 Sandboxed execution registry + exact-rollback publication
         - [x] F5c3b2 Immutable artifact materialization + durable recovery processor
         - [x] F5c3b3 Host startup composition + recovery demonstration
-      - [~ Codex 2026-08-24] F5c3c Host promotion surfaces + live conforming proposal demonstration
+      - [x] F5c3c Host promotion surfaces + live conforming proposal demonstration
 
 ## G · Interactive runtime
 
