@@ -7404,3 +7404,9 @@ failed. The two existing `FrontierEndpointsTests` still fail on missing JSON pro
 Claude's in-flight, uncommitted O1g importer test expects 201 tasks while the current
 TODO.md produces 204. None of those owned paths were changed. O1c therefore remains
 claimed rather than marked done; this is a checkpoint, not completion evidence.
+
+## 2026-08-24 — Codex — O1d hosted task-board dashboard claimed
+
+Claimed O1d after pushing the O1c runtime API checkpoint. The next slice will add a
+live hosted board view over the same list/detail/activity and optimistic mutation
+endpoints used by other clients. Claude's O1g importer paths remain out of scope.
