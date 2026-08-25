@@ -10,7 +10,8 @@
   * { box-sizing:border-box; margin:0; }
   body { background:var(--bg); color:var(--ink); font:14px/1.45 system-ui, sans-serif;
          display:grid; grid-template-columns: 1fr 1fr;
-         grid-auto-rows: minmax(180px, auto); gap:10px; padding:10px; min-height:100vh; }
+         grid-template-rows:auto; grid-auto-rows: minmax(180px, auto);
+         gap:10px; padding:10px; min-height:100vh; }
   section { max-height: 46vh; }
   header { grid-column:1/3; display:flex; align-items:baseline; gap:14px; }
   header h1 { font-size:18px; font-weight:600; }
@@ -62,6 +63,39 @@
   .hev { padding:3px 0; border-bottom:1px solid #232c36; font:12px/1.4 ui-monospace, monospace; }
   .hev .cat { color:var(--accent); } .hev .d { color:var(--dim); }
   .quiet { color:var(--dim); font-style:italic; }
+  .board-section { grid-column:1/3; max-height:none; min-height:520px; }
+  .board-toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+  .board-toolbar input, .board-toolbar select {
+    background:#0d1116; color:var(--ink); border:1px solid #2a333d;
+    border-radius:6px; padding:6px 8px; font:inherit;
+  }
+  #featurerequest { flex:1; min-width:260px; }
+  #boardmessage { min-height:20px; margin-bottom:6px; }
+  .board-layout { display:grid; grid-template-columns:240px minmax(360px, 1fr) 300px;
+                  gap:10px; min-height:420px; }
+  .board-pane { background:#11171d; border-radius:6px; padding:8px; overflow:auto; }
+  .board-row { width:100%; text-align:left; margin-bottom:6px; border-left:3px solid transparent; }
+  .board-row.selected { border-left-color:var(--accent); background:#2d3d52; }
+  .board-row .meta, .task-meta, .activity-meta { color:var(--dim); font-size:11px; }
+  .board-head { border-bottom:1px solid #2a333d; margin-bottom:8px; padding-bottom:8px; }
+  .board-progress { color:var(--dim); margin-top:4px; }
+  .task { border-left:2px solid #2a333d; margin:7px 0; padding:7px 0 2px 9px; }
+  .task-title { display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-weight:600; }
+  .task-description { color:var(--dim); white-space:pre-wrap; margin:3px 0; }
+  .task-actions { display:flex; flex-wrap:wrap; gap:5px; margin:5px 0; }
+  .task-actions button { font-size:11px; padding:3px 7px; }
+  .criteria { margin:5px 0; }
+  .criterion { display:block; font-size:12px; }
+  .criterion input { margin-right:5px; }
+  .status-Open { color:var(--accent); } .status-InProgress { color:var(--run); }
+  .status-Done { color:var(--ok); } .status-Blocked, .status-Cancelled { color:var(--fail); }
+  .activity { padding:5px 0; border-bottom:1px solid #232c36; font-size:12px; }
+  @media (max-width:900px) {
+    body { display:block; }
+    header, section { margin-bottom:10px; max-height:none; }
+    .board-layout { grid-template-columns:1fr; }
+    .board-pane { max-height:420px; }
+  }
 </style>
 </head>
 <body>
@@ -70,6 +104,31 @@
   <span class="sub">rendered from the durable event stream — the display invents nothing</span>
   <span class="sub" id="status"></span>
 </header>
+
+<section id="taskboards" class="board-section">
+  <h2>Collaborative task boards <span class="sub">(PostgreSQL is authoritative)</span></h2>
+  <form id="planform" class="board-toolbar">
+    <input id="featurerequest" placeholder="describe a feature to plan…" autocomplete="off">
+    <select id="planner" title="planning agent">
+      <option>Local</option><option>Dami</option><option>Frontier</option>
+    </select>
+    <select id="privacy" title="privacy boundary">
+      <option>LocalOnly</option><option>Egressable</option>
+    </select>
+    <input id="boardactor" value="steve" aria-label="actor id">
+    <select id="boardactorkind" aria-label="actor kind">
+      <option>Human</option><option>Agent</option>
+    </select>
+    <button>plan feature</button>
+    <button id="boardrefresh" type="button">refresh</button>
+  </form>
+  <div id="boardmessage" class="quiet"></div>
+  <div class="board-layout">
+    <div id="boardlist" class="board-pane"></div>
+    <div id="tasktree" class="board-pane"><div class="quiet">select a board</div></div>
+    <div id="boardactivity" class="board-pane"><div class="quiet">no board selected</div></div>
+  </div>
+</section>
 
 <section>
   <h2>Conversation</h2>
@@ -145,6 +204,171 @@ function renderEvent(ev) {
 }
 
 function escapeHtml(s){ const d=document.createElement("div"); d.textContent=s??""; return d.innerHTML; }
+
+let selectedBoardId = null;
+let boardLoading = false;
+
+function boardActor() {
+  return { actorId: $("boardactor").value.trim(), actorKind: $("boardactorkind").value };
+}
+
+async function boardJson(url, options) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try { const failure = await response.json(); message = failure.error || message; } catch { }
+    const error = new Error(message); error.status = response.status; throw error;
+  }
+  return response.status === 204 ? null : response.json();
+}
+
+async function loadTaskBoards() {
+  try {
+    const boards = await boardJson("/task-boards?limit=100");
+    const list = $("boardlist"); list.innerHTML = "";
+    if (!boards.length) {
+      list.innerHTML = '<div class="quiet">no plans yet</div>';
+      selectedBoardId = null; return;
+    }
+    if (!selectedBoardId || !boards.some(board => board.boardId === selectedBoardId)) {
+      selectedBoardId = boards[0].boardId;
+    }
+    for (const board of boards) {
+      const row = document.createElement("button");
+      row.className = "board-row" + (board.boardId === selectedBoardId ? " selected" : "");
+      row.innerHTML = `<div>${escapeHtml(board.title)}</div>`
+        + `<div class="meta">${board.status} · ${board.doneTasks}/${board.totalTasks} done`
+        + `${board.blockedTasks ? ` · ${board.blockedTasks} blocked` : ""}</div>`;
+      row.onclick = () => { selectedBoardId = board.boardId; loadTaskBoards(); loadSelectedBoard(); };
+      list.appendChild(row);
+    }
+    await loadSelectedBoard();
+  } catch (error) {
+    $("boardmessage").textContent = `task boards unavailable: ${error.message}`;
+  }
+}
+
+async function loadSelectedBoard() {
+  if (!selectedBoardId || boardLoading) return;
+  boardLoading = true;
+  try {
+    const [board, activity] = await Promise.all([
+      boardJson(`/task-boards/${selectedBoardId}`),
+      boardJson(`/task-boards/${selectedBoardId}/activity?limit=100`)
+    ]);
+    renderBoard(board); renderBoardActivity(activity);
+    $("boardmessage").textContent = `live · updated ${new Date(board.updatedAt).toLocaleTimeString()}`;
+  } catch (error) {
+    $("boardmessage").textContent = `could not refresh board: ${error.message}`;
+  } finally { boardLoading = false; }
+}
+
+function renderBoard(board) {
+  const tree = $("tasktree"); tree.innerHTML = "";
+  const head = document.createElement("div"); head.className = "board-head";
+  head.innerHTML = `<h3>${escapeHtml(board.title)}</h3>`
+    + `<div>${escapeHtml(board.featureRequest)}</div>`
+    + `<div class="board-progress"><span class="status-${board.status}">${board.status}</span>`
+    + ` · ${board.rootOrdering} roots · ${escapeHtml(board.plan)}</div>`;
+  tree.appendChild(head);
+  if (!board.tasks.length) tree.insertAdjacentHTML("beforeend", '<div class="quiet">empty plan</div>');
+  for (const task of board.tasks) tree.appendChild(renderBoardTask(task));
+}
+
+function renderBoardTask(task) {
+  const div = document.createElement("div"); div.className = "task";
+  const prerequisites = (task.prerequisiteTaskIds || [])
+    .map(id => id.replaceAll("-", "").slice(0, 8)).join(", ");
+  div.innerHTML = `<div class="task-title"><span>${escapeHtml(task.title)}</span>`
+    + `<span class="status-${task.status}">${task.status}</span></div>`
+    + `<div class="task-meta">${task.priority} · v${task.version}`
+    + `${task.claim ? ` · ${escapeHtml(task.claim.actor.actorId)}` : ""}`
+    + `${prerequisites ? ` · requires ${prerequisites}` : ""}</div>`
+    + `<div class="task-description">${escapeHtml(task.description)}</div>`;
+  if (task.acceptanceCriteria.length) {
+    const criteria = document.createElement("div"); criteria.className = "criteria";
+    for (const criterion of task.acceptanceCriteria) {
+      const label = document.createElement("label"); label.className = "criterion";
+      const input = document.createElement("input"); input.type = "checkbox";
+      input.checked = criterion.isSatisfied; input.disabled = task.status !== "InProgress";
+      input.onchange = () => mutateBoard(`/task-boards/criteria/${criterion.criterionId}`, "PUT",
+        { expectedVersion: task.version, isSatisfied: input.checked });
+      label.append(input, document.createTextNode(criterion.description)); criteria.appendChild(label);
+    }
+    div.appendChild(criteria);
+  }
+  const actions = document.createElement("div"); actions.className = "task-actions";
+  if (task.status === "Open") {
+    addTaskAction(actions, "claim", () => mutateBoard(
+      `/task-boards/tasks/${task.taskId}/claim`, "POST", { expectedVersion: task.version }));
+    addStatusAction(actions, task, "cancel", "Cancelled");
+  } else if (task.status === "InProgress") {
+    addTaskAction(actions, "complete", () => mutateBoard(
+      `/task-boards/tasks/${task.taskId}/complete`, "POST", { expectedVersion: task.version }));
+    addStatusAction(actions, task, "block", "Blocked");
+  } else if (task.status === "Blocked") {
+    addStatusAction(actions, task, "reopen", "Open");
+    addStatusAction(actions, task, "cancel", "Cancelled");
+  }
+  div.appendChild(actions);
+  for (const child of task.subTasks) div.appendChild(renderBoardTask(child));
+  return div;
+}
+
+function addTaskAction(container, label, action) {
+  const button = document.createElement("button"); button.textContent = label;
+  button.onclick = action; container.appendChild(button);
+}
+
+function addStatusAction(container, task, label, status) {
+  addTaskAction(container, label, () => {
+    const detail = prompt(`${label} reason:`, "");
+    if (detail && detail.trim()) mutateBoard(`/task-boards/tasks/${task.taskId}/status`, "PUT",
+      { expectedVersion: task.version, status, detail: detail.trim() });
+  });
+}
+
+async function mutateBoard(url, method, body) {
+  const actor = boardActor();
+  if (!actor.actorId) { $("boardmessage").textContent = "actor id is required"; return; }
+  try {
+    await boardJson(url, { method, headers:{"content-type":"application/json"},
+      body:JSON.stringify({...body, ...actor}) });
+    await loadTaskBoards();
+  } catch (error) {
+    $("boardmessage").textContent = error.status === 409
+      ? "another actor changed this task; refreshed current state"
+      : `task change failed: ${error.message}`;
+    await loadSelectedBoard();
+  }
+}
+
+function renderBoardActivity(items) {
+  const box = $("boardactivity"); box.innerHTML = "<h3>Activity</h3>";
+  if (!items.length) { box.insertAdjacentHTML("beforeend", '<div class="quiet">no activity</div>'); return; }
+  for (const item of items.slice().reverse()) {
+    const div = document.createElement("div"); div.className = "activity";
+    div.innerHTML = `<div>${escapeHtml(item.kind)} · ${escapeHtml(item.actor.actorId)}</div>`
+      + `<div class="activity-meta">${new Date(item.occurredAt).toLocaleString()}`
+      + `${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</div>`;
+    box.appendChild(div);
+  }
+}
+
+$("planform").onsubmit = async event => {
+  event.preventDefault();
+  const featureRequest = $("featurerequest").value.trim(); const actor = boardActor();
+  if (!featureRequest || !actor.actorId) { $("boardmessage").textContent = "feature and actor are required"; return; }
+  const requestId = crypto.randomUUID();
+  try {
+    await boardJson("/task-boards/plan", { method:"POST", headers:{"content-type":"application/json"},
+      body:JSON.stringify({requestId, featureRequest, ...actor, planner:$("planner").value,
+        privacy:$("privacy").value, origin:"UserTurn"}) });
+    $("featurerequest").value = ""; selectedBoardId = requestId; await loadTaskBoards();
+  } catch (error) { $("boardmessage").textContent = `planning failed: ${error.message}`; }
+};
+
+$("boardrefresh").onclick = () => loadTaskBoards();
 
 async function pollEvents() {
   try {
@@ -342,6 +566,7 @@ function addMsg(who, text) {
 }
 
 pollEvents();
+loadTaskBoards(); setInterval(loadSelectedBoard, 5000);
 loadInbox(); setInterval(loadInbox, 15000);
 loadBeliefs(); setInterval(loadBeliefs, 60000);
 loadHealth(); setInterval(loadHealth, 120000);

@@ -7410,3 +7410,35 @@ claimed rather than marked done; this is a checkpoint, not completion evidence.
 Claimed O1d after pushing the O1c runtime API checkpoint. The next slice will add a
 live hosted board view over the same list/detail/activity and optimistic mutation
 endpoints used by other clients. Claude's O1g importer paths remain out of scope.
+
+## 2026-08-24 — Codex — O1d hosted dashboard implementation checkpoint
+
+Added a full-width collaborative-board surface to the existing zero-install Host page.
+It lists recent boards, selects and polls a consistent recursive snapshot plus activity,
+renders arbitrary SubTask depth with priority/prerequisite/claim/version metadata, and
+offers claim, acceptance toggle, completion, block, reopen, and cancel actions. Every
+write sends the displayed optimistic version and refreshes after success or 409 conflict.
+The same surface accepts a feature request for Local, Dami, or Frontier planning with an
+explicit privacy selection. Actor input is still visibly explicit under the O1c localhost
+compatibility rule; remote deployment remains blocked on G5a2 claim-derived identity.
+
+The Host acceptance test was written first and failed because `id="taskboards"` did not
+exist. After implementation it passes and verifies the list, recursive tree, activity,
+API route, and recursive renderer are shipped from `/`. No Node/JavaScript interpreter is
+installed on this workstation, so a syntax-only Node check was unavailable. Instead the
+actual file was loaded by headless Firefox using an isolated Steve-owned profile. Firefox
+executed the script (the expected file-origin fetch refusal appeared in the board status),
+and the captured 1366×1166 render was inspected: toolbar, three-pane responsive board,
+and the existing dashboard sections lay out without overlap. The first render also exposed
+an inherited 180px header grid track; the header was changed to an explicit auto row and
+the second render confirmed the wasted space was removed.
+
+This remains a checkpoint rather than O1d completion: live PostgreSQL-backed rows and
+mutations cannot be browser-demonstrated until O1f applies migration 028 and restarts the
+currently running Host. The existing process on port 5810 was not stopped or replaced.
+
+Mandatory checkpoint gate: `dotnet build Dami.sln` completed in 52.73 seconds with 0
+warnings and 0 errors. `dotnet test Dami.sln --no-build` remains non-green at 959 passed
+and 3 failed: the same two owned `FrontierEndpointsTests` missing-property failures and
+Claude's uncommitted O1g importer count (201 expected, 204 current). The new dashboard
+acceptance test is included in the 62 passing Host tests.
