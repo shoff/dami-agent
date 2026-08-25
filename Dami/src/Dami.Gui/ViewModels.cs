@@ -1,28 +1,59 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
 namespace Dami.Gui;
 
 /// <summary>One line in the conversation.</summary>
-public sealed class Message
+/// <remarks>
+/// It raises change notifications because a streaming reply mutates in place: without
+/// them the text binds once, at zero characters, and the answer never appears.
+/// </remarks>
+public sealed class Message : INotifyPropertyChanged
 {
     /// <summary>Creates a message.</summary>
     public Message(string who, string body)
     {
         this.Who = who;
-        this.Body = body;
+        this.body = body;
     }
+
+    private string body;
+    private string meta = string.Empty;
 
     /// <summary>Who said it — "you" or "dami".</summary>
     public string Who { get; }
 
     /// <summary>What was said. Grows while a turn streams.</summary>
-    public string Body { get; set; }
+    public string Body
+    {
+        get => this.body;
+        set => this.Set(ref this.body, value);
+    }
 
     /// <summary>Accounting shown under Dami's replies once the turn reports it.</summary>
-    public string Meta { get; set; } = string.Empty;
+    public string Meta
+    {
+        get => this.meta;
+        set => this.Set(ref this.meta, value);
+    }
 
     /// <summary>True when this is Steve's own line, for styling.</summary>
     public bool IsYou => this.Who == "you";
+
+    /// <inheritdoc />
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void Set(ref string field, string value, [CallerMemberName] string? name = null)
+    {
+        if (field == value)
+        {
+            return;
+        }
+
+        field = value;
+        this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
 }
 
 /// <summary>One event in the live execution graph, already positioned in its span tree.</summary>

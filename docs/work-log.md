@@ -6903,3 +6903,87 @@ endpoint authorization policies; G5a3 owns CLI device, GUI PKCE, and service enr
 G5a4 owns production cutover plus revocation/restart/cross-client evidence. G5a1 is
 claimed first. Library choice remains an evidence-backed implementation decision, not
 an in-house OAuth/OIDC protocol implementation.
+
+## 2026-08-24 — Codex — G5a1 in progress; maintained OIDC/PostgreSQL foundation
+
+Checked the current primary OpenIddict documentation and package metadata rather than
+assuming a version: 7.6.0 is the current stable release, explicitly ships `net10.0`
+assets, and depends on EF Core 10.0.10; 8.0 remains preview. Added isolated
+`Dami.Authentication` and `Dami.Authentication.Tests` projects to `Dami.sln` with
+`dotnet sln add`. ASP.NET Core Identity owns password hashing/user state, OpenIddict
+owns OIDC/OAuth protocol and application/authorization/scope/token state, and EF Core
+Npgsql maps every entity to `dami_auth`; domain persistence does not reference the new
+project.
+
+TDD trail: the discovery test first failed to compile on its missing JSON extension;
+after correcting the test it failed behaviorally on the absent endpoint/empty 404.
+The minimum enabled Testing composition advertised authorization-code+PKCE, device,
+and refresh grants. Its next failure was an invalid expected sort order; correcting the
+oracle made the exact flow test pass 1/1. Authentication remains disabled by default,
+so this foundation does not silently cut over current CLI/GUI clients.
+
+The production-key test then failed red because composition accepted no persistent
+key source. Configuration now loads separate signing and encryption PKCS#12 files via
+`X509CertificateLoader` with ephemeral key storage; passwords arrive only through
+secret configuration. Process-ephemeral OIDC keys are rejected outside the isolated
+`Testing` environment. The external-certificate test passed without placing a key or
+password in the repository/database.
+
+The checked-in-migration test failed red against an empty EF migration set. Generated
+`AuthFoundation` from the actual Identity/OpenIddict model using pinned `dotnet-ef`
+10.0.11, marked the mechanical migration generated so Dami's application-method
+analyzers do not reinterpret generated `Up`/`Down` bodies, and emitted an idempotent
+SQL form for the repository's checksummed runner. The first live apply failed closed
+before any bookkeeping on a UTF-8 BOM that became non-leading when `apply.sh` prepended
+`begin`; removing the BOM made migration 026 apply atomically after root provisioned
+only the isolated `dami_auth` schema owned by `dami_ddl`.
+
+An integration test through the real `dami_app` role failed red beforehand on missing
+`dami_auth.AspNetUsers`. After migration it creates a password-hashed Identity user and
+an OpenIddict confidential client, proves the attempted client secret is not stored in
+plaintext yet validates through the manager, and deletes both records. A least-
+privilege test then failed red because migration 026's schema-wide DML grant included
+EF migration history. Migration 027 revokes all runtime access to that bookkeeping
+table. The live schema has twelve tables, migrations 026/027 are checksummed with none
+pending, and the integration records were removed.
+
+Two adversarial configuration checks followed. An explicitly "insecure loopback"
+configuration initially accepted a non-loopback HTTP issuer; the new test failed red
+because no exception was thrown. Issuer validation now requires HTTPS, except for an
+explicitly enabled HTTP URI whose parsed host is actually loopback, and rejects user
+info, query, or fragment components. A group-readable PKCS#12 test then failed red
+because the certificate loaded successfully. External private-key paths must now be
+absolute and, on Linux, grant no group/other permissions. Both regressions passed and
+the focused authentication suite is 8/8 green.
+
+## 2026-08-24 — Claude — Why the desktop chat did nothing: every named control was null
+
+Steve: "this chat box does nothing." It took far too long to find, and the cause was
+one line I wrote without checking.
+
+A hand-written `InitializeComponent()` that only calls `AvaloniaXamlLoader.Load(this)`
+**does not populate `x:Name` fields**. `Input`, `SendButton`, `StatusLine`,
+`ChatScroll`, `GraphScroll` were all null from the first frame. Every symptom followed
+from that and every one of them was silent: the send button did nothing, the status
+line never updated, and the poll loop died mid-render the moment it touched a scroller
+— which also starved the UI thread, so keystrokes stopped landing. The crash log
+finally named it: `NullReferenceException at MainWindow..ctor()`.
+
+Named controls are now resolved explicitly through a `Require<T>` helper that throws
+if a name is wrong, so this class of failure is loud from now on. Handlers are wired
+in code rather than as XAML attributes for the same reason. Two real bugs found along
+the way and kept fixed: the row template put a trimming TextBlock inside a horizontal
+StackPanel (infinite width, layout loop), now a fixed-column Grid; and `ScrollToEnd`
+was called inline from inside a layout pass, now posted at background priority.
+
+**And the thing Steve actually asked for**: the desktop chat only ever spoke to the
+local sidecar. There is now a **subscription** toggle beside send — it routes the turn
+through `POST /turns {frontier:true}` to the ChatGPT subscription via the codex CLI
+(ADR-0011), with no API key and no retrieved memory. That omission was mine: I built
+the frontier turn mode for the CLI and never wired it into the client meant to be the
+centerpiece.
+
+Three process lessons, all the same one: I fire-and-forgot async work three times in
+this session (feedback buttons, send, poll loop) and each time the failure was
+invisible. And I let six copies of the app run at once while reading one instance's log
+against another's window, which turned a ten-minute bug into an hour.
