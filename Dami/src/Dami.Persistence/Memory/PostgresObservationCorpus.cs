@@ -144,9 +144,12 @@ public sealed class PostgresObservationCorpus : IObservationCorpus
             select observation_id, occurred_at, recorded_at, source, body, metadata
             from (select o.observation_id,
                          coalesce(r.repaired_occurred_at, o.occurred_at) as occurred_at,
-                         o.recorded_at, o.source, o.body, o.metadata
+                         o.recorded_at, o.source,
+                         coalesce(c.curated_body, o.body) as body,
+                         o.metadata
                     from {table} o
-                    left join {schema}.observation_date_repairs r using (observation_id)) repaired
+                    left join {schema}.observation_date_repairs r using (observation_id)
+                    left join {schema}.observation_curations c using (observation_id)) repaired
             """;
     }
 

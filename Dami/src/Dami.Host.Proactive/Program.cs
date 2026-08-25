@@ -7,6 +7,7 @@ using Dami.Privacy;
 using Dami.Proactive;
 using Dami.Proactive.Audit;
 using Dami.Proactive.CodeAudit;
+using Dami.Proactive.Curation;
 using Dami.Proactive.Health;
 using Dami.Proactive.Embedder;
 using Dami.Proactive.Librarian;
@@ -67,6 +68,11 @@ builder.Services.AddSingleton<IProactiveService, PushbackAuditService>();
 builder.Services.Configure<HealthCollectorOptions>(
     builder.Configuration.GetSection(HealthCollectorOptions.SECTION_NAME));
 builder.Services.AddSingleton<IProactiveService, HealthCollectorService>();
+
+// Rewrites imported transcript voice into usable knowledge. Derived, reversible.
+builder.Services.Configure<CuratorOptions>(
+    builder.Configuration.GetSection(CuratorOptions.SECTION_NAME));
+builder.Services.AddSingleton<IProactiveService, CuratorService>();
 
 // D-016: the codebase audit reads the repo and proposes; it commits nothing.
 builder.Services.Configure<CodebaseAuditOptions>(

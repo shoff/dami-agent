@@ -46,6 +46,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 ## B · Data foundation & memory (D-007/D-009/D-010)
 
+- [x] B11 **Corpus curation** (Claude 2026-08-24) — the Hermes import carried transcript voice in verbatim: 2,120 rows mention "user", 1,528 read as "the user…/the assistant…", 666 restate a date the column already holds. `CuratorService` rewrites them into direct statements about Steve; migration 020 keeps it derived and reversible (observations stay append-only, reads coalesce). Principle: **curate for clarity at rest, de-identify at egress** — storing "the user" was de-identifying in the wrong place
+
 - [x] B1 Schema + checksummed DDL runner: event store (append-only, trigger-enforced), observations, conclusions (supersession), pushbacks, surfacings, runs, embeddings
 - [x] B2 All Postgres stores in C# with DB-enforced invariants; 85+ integration tests against real DDL
 - [x] B3 Corpus home: 6,995 Hermes memories exported (read-only, checksummed, vectors incl.) + imported idempotently + fully indexed; full 17-class Weaviate preservation (156 MB)

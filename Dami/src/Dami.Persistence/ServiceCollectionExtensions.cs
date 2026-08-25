@@ -65,6 +65,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IConclusionEmbeddingStore, PostgresConclusionEmbeddingStore>();
         services.TryAddSingleton<IEgressMeter, PostgresEgressMeter>();
         services.TryAddSingleton<IEgressBriefStore, PostgresEgressBriefStore>();
+        services.TryAddSingleton<IObservationCurationStore, PostgresObservationCurationStore>();
         RegisterProposalStores(services);
         RegisterSkillChangeStore(services);
         RegisterDomainAndSessionStores(services);

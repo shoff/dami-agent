@@ -7032,3 +7032,28 @@ edges remain separate relations. Sibling presentation will be deterministic in b
 modes: explicit position when order is consequential, priority with a stable tie-break
 when it is not. Exact schema and transition rules remain subject to red-first tests
 and an ADR before production implementation.
+
+## 2026-08-24 — Claude — Curating the corpus, because the import was lazy
+
+Steve, on my remark that the corpus is "mostly third person": that it reads that way is
+not a fact about the system, it is an indictment of the import. The corpus grows through
+interaction — it was never meant to stay a frozen Hermes export — and carrying "the user"
+across verbatim was laziness that every future read pays for.
+
+Measured: **2,120 observations mention "user", 1,528 are in transcript voice, 666 carry
+"As of \<date\>," or "Summary:" prefixes** — about a third of 7,104 rows stored as minutes
+about a stranger, restating in prose a date the row already holds as a column. Every
+retrieval, every prompt, and every belief formed from those inherits it.
+
+It also exposed a design error of mine. Storing "the user" is de-identification **at
+rest**, which is the wrong place: it degrades every read forever to solve a problem the
+disclosure gate already solves at the egress boundary (ADR-0019). The rule should be
+curate for clarity at rest, de-identify at egress. The rewrite therefore says "Steve".
+
+`CuratorService` (nightly) rewrites transcript voice into direct statements — exactly the
+mundane structured work the local sidecar exists for. Derived and reversible: migration
+020 stores curations in a sidecar, observations stay append-only and untouched, reads
+coalesce through it, and a bad rewrite is undone by deleting one row. The service refuses
+a rewrite that lost or inflated the note, or that still says "the user" — a curation that
+drops half the content is worse than the clumsy original, which is what beliefs were
+built from.
