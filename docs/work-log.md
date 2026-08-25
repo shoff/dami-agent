@@ -7484,3 +7484,11 @@ and 3 failed: the same two owned Frontier endpoint failures plus Claude's uncomm
 desktop against migrated PostgreSQL; this checkpoint does not claim live acceptance.
 After the final synchronous actor-error visibility guard, the mandatory gate was repeated:
 build 0 warnings/errors in 34.55 seconds; tests again 965 passed and the same 3 failed.
+
+## 2026-08-24 — Codex — O1f migration and live acceptance claimed
+
+Claimed O1f after pushing both UI implementation checkpoints. This slice will follow the
+runbook migration process, preserve the running service until the database is ready, and
+demonstrate multi-actor concurrency, prerequisite/acceptance gates, restart durability,
+and the hosted plus Avalonia surfaces against the same PostgreSQL state. Claude retains
+ownership of O1g and its blueprint importer.
