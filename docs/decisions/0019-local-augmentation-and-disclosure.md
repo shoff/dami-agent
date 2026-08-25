@@ -111,11 +111,11 @@ subquery and order by recency outside it, and an undated fact says "date unknown
 
 ## What remains open
 
-Two near-duplicate symptom rows still spend two of the eight fact slots ("sharp,
-positional, and brief" and "sharp and positional, with a spike lasting 30–40 seconds").
-Exact-text deduplication does not catch them; this is the one place where the redundancy
-theory the measurement rejected turns out to hold, inside the fact set rather than across
-the prose.
+Fact-level near-duplicate suppression closed the last visible gap: domains deduplicate by
+exact text, which let one episode written twice hold two of the eight slots. Containment
+against the shorter of the two catches a restatement that adds a detail while leaving a
+diagnosis and the operation for it both standing. Live, the fact set went from eight to
+six. Prose is deliberately untouched — measured redundancy there was one pair above 0.25.
 
 The corpus is largely written in the third person already ("the user…"), so much of it is
 de-identified by luck rather than design; the gate should not be credited for that.

@@ -383,4 +383,39 @@ public sealed class ContextBuilderTests
         Assert.Contains("date unknown", fact.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("1970", fact.Content, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task BuildAsync_Should_Drop_A_Fact_That_Restates_One_Already_Kept()
+    {
+        this.Observe("we talked about it");
+
+        var context = await this.CreateBuilder(
+                planner: Planner(["chest pain"], ["health"], [
+                    "Chest pain described as sharp, positional, and brief",
+                    "Chest pain described as sharp and positional, with a spike lasting 30-40 seconds",
+                ], new DateOnly(2026, 3, 2)))
+            .BuildAsync("what should I ask the surgeon", CancellationToken.None);
+
+        // Domains dedupe by exact text, so one episode written twice held two of the eight
+        // fact slots in the live retrieval this guards.
+        var facts = context.Memories.Where(item => item.Kind == "fact").ToList();
+        Assert.Single(facts);
+        Assert.Contains("sharp, positional, and brief", facts[0].Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildAsync_Should_Keep_Two_Facts_That_Merely_Share_A_Subject()
+    {
+        this.Observe("we talked about it");
+
+        var context = await this.CreateBuilder(
+                planner: Planner(["aortic"], ["health"], [
+                    "Severe aortic stenosis",
+                    "Mechanical aortic valve replacement performed",
+                ], new DateOnly(2026, 3, 2)))
+            .BuildAsync("what should I ask the surgeon", CancellationToken.None);
+
+        // A diagnosis and the operation for it share a subject and are not the same fact.
+        Assert.Equal(2, context.Memories.Count(item => item.Kind == "fact"));
+    }
 }

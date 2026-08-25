@@ -21,6 +21,11 @@ public sealed class ContextBuilder : IContextBuilder
 {
     private const int CHARS_PER_TOKEN = 4;
 
+    /// <summary>How much of the shorter fact must already be said before it is a restatement.</summary>
+    private const double RESTATEMENT_SHARE = 0.7;
+
+    private static readonly char[] wordBreaks = [' ', ',', '.', ';', ':', '(', ')', '-', '\u2013', '/'];
+
     private readonly IObservationEmbeddingStore embeddingStore;
     private readonly IConclusionEmbeddingStore conclusionEmbeddingStore;
     private readonly IEmbeddingClient embeddingClient;
@@ -97,12 +102,28 @@ public sealed class ContextBuilder : IContextBuilder
         return assembled;
     }
 
-    /// <summary>The plan's resolved domain facts, as context items.</summary>
+    /// <summary>The plan's resolved domain facts, as context items, near-duplicates dropped.</summary>
+    /// <remarks>
+    /// Domains deduplicate by exact text, which leaves restatements of one event holding
+    /// separate slots: "Chest pain described as sharp, positional, and brief" and "Chest
+    /// pain described as sharp and positional, with a spike lasting 30-40 seconds" are the
+    /// same episode written twice, and together they spent two of the eight fact slots.
+    /// Prose is left alone — this is the one place the redundancy holds.
+    /// </remarks>
     private static List<RetrievedItem> Facts(QueryPlan plan)
     {
         var facts = new List<RetrievedItem>(plan.Facts.Count);
+        var kept = new List<HashSet<string>>();
         foreach (var fact in plan.Facts)
         {
+            var words = Words(fact.Text);
+            if (kept.Any(earlier => Restates(words, earlier)))
+            {
+                continue;
+            }
+
+            kept.Add(words);
+
             // An undated fact says so. Stamping it with a stand-in date would read to the
             // frontier as a dated one, and the epoch reads as 1970.
             var when = fact.AsOf is null
@@ -119,6 +140,33 @@ public sealed class ContextBuilder : IContextBuilder
         }
 
         return facts;
+    }
+
+    /// <summary>Whether a fact is mostly said already by one kept before it.</summary>
+    /// <remarks>
+    /// Containment rather than symmetric overlap, and measured against the shorter of the
+    /// two: a restatement that adds a detail is still a restatement, while two genuinely
+    /// different facts that share a subject ("aortic stenosis", "aortic valve replacement")
+    /// diverge on the words that matter and stay.
+    /// </remarks>
+    private static bool Restates(HashSet<string> words, HashSet<string> earlier)
+    {
+        if (words.Count == 0 || earlier.Count == 0)
+        {
+            return false;
+        }
+
+        var shared = words.Count(word => earlier.Contains(word));
+        return shared >= Math.Min(words.Count, earlier.Count) * RESTATEMENT_SHARE;
+    }
+
+    private static HashSet<string> Words(string text)
+    {
+        return text
+            .Split(wordBreaks, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(word => word.ToLowerInvariant())
+            .Where(word => word.Length > 2)
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     /// <summary>
