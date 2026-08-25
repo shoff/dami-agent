@@ -7057,3 +7057,39 @@ coalesce through it, and a bad rewrite is undone by deleting one row. The servic
 a rewrite that lost or inflated the note, or that still says "the user" — a curation that
 drops half the content is worse than the clumsy original, which is what beliefs were
 built from.
+
+## 2026-08-24 — Codex — O1a persistence checkpoint; O1b claimed
+
+Added the O1a recursive contracts, PostgreSQL migration 028, `ITaskBoardStore`, and its
+PostgreSQL implementation. The relational model uses one adjacency-list task table,
+same-board prerequisite edges, ordered acceptance criteria, optimistic task versions,
+and an append-only activity ledger. Reads load the board, tasks, criteria, and edges
+once under a repeatable-read snapshot and assemble the recursive contract in memory;
+they do not issue one query per subtask. ADR-0021 records the decision and reversal
+path.
+
+The TDD trail was not rewritten into a cleaner story. The first test failed to compile
+because the task-board namespaces/store did not exist, then passed 1/1. Priority sorting
+had been written without a discriminating assertion; it was removed, failed red with
+`[low, high]` instead of `[high, low]`, then restored. Concurrent claim first failed on
+the missing API and converged to one winner. Dependency gating failed red by incorrectly
+claiming a blocked dependent. Acceptance mutation and completion began compile-red;
+completion then proved a parent could not finish before its child. A two-node prerequisite
+cycle initially persisted and was rejected after the red test. Runtime-role coverage was
+made honestly red by removing the unproven grants, observed `42501 permission denied`,
+then restored only `SELECT`, `INSERT`, and named update columns. Activity began
+compile-red; its append-only test first proved tampering succeeded without the trigger,
+then observed the shared trigger's actual `23001 restrict_violation` (the first `55000`
+oracle was wrong). Status and summary APIs likewise began compile-red.
+
+Focused task-board tests pass 12/12; the complete persistence suite on the shared tree
+passes 245/245. The first whole-tree build was stopped by Claude's active `UNDATED`
+naming violation (0 warnings, 1 error). An isolated combined candidate containing O1a,
+the already-written authentication dependency required by committed Host code, and the
+current one-line GUI warning correction then built all projects with 0 warnings and 0
+errors. Its full test run was not green: 12 persistence tests failed because committed
+corpus reads require `observation_curations` while Claude's migration/fixture changes
+were intentionally excluded, and 2 Host frontier tests failed without Claude's active
+context-planner changes. O1a therefore remains claimed rather than falsely complete and
+its implementation remains uncommitted. O1b is now claimed so planning intake can be
+developed while the unrelated gate converges.

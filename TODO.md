@@ -134,6 +134,10 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 - [x] G1 `TurnRunner`: context → route → local model → traced `UserTurn` answer; `dami chat` live (**the charter's Phase 2 exit, demonstrated**)
 - [x] G2 Context assembly (`ContextBuilder`): hard token budget (~2.5k vs Hermes's 90–126k), recency-reserved slots, grounding gate (distance ceiling + explicit emptiness), beliefs-beat-memories under pressure; turns feed the corpus (F-05)
+- [x] G2b **Retrieval planning** (`LocalQueryPlanner`, ADR-0019): the local sidecar routes a question to the domains that bear on it, those domains hand over their structured rows, and the searches are then redrafted in that vocabulary — cold, the model expands "my heart condition" to "heart condition treatment options" and matches nothing the corpus wrote; grounded, to "severe aortic stenosis" and "mechanical AVR surgery". Union of all searches reranked against the *original* question so expansion cannot reward drift; domain facts lead memories into the budget; skip-don't-stop trimming so one 725-char summary no longer ends the list ahead of short precise facts. Fails open to the old single-query behaviour. Live: 0 → 8 structured health facts in context, and the turn asked about "chronic dizziness and the recent brief, sharp positional chest pain" unprompted
+  - [x] G2b1 Two SQL/render defects the tests missed and the live output caught: `DISTINCT ON` forced an alphabetical limit (*aortic stenosis, Autism spectrum disorder, average heart rate, bowel obstruction*) — now dedupe in a subquery, order by recency outside it; and 25 of 84 health rows carry `1970-01-01` because the column is `not null` — an undated fact now says "date unknown" instead of claiming 1970
+  - [x] G2b2 `TestDdl` never applied `019_briefs_without_approval.sql` or `020_observation_curations.sql`, so the curation join broke 12 Persistence tests unnoticed; both now applied and the observation overlay tables dropped/truncated with the rest
+- [ ] G2c Two near-duplicate symptom rows still spend two of the eight fact slots; exact-text dedupe does not catch them — the one place the redundancy theory holds, inside the fact set rather than across the prose
 - [x] G3 Streaming turns end to end — `BeginStreamingAsync`/`TurnStream`, trace completes and corpus records when drained, one coalesced ResponseStreaming event, `dami chat` streams live — acceptance item 2 (CLI half)
 - [x] G4 **Sessions**: multi-turn conversation with a recent window in context; start/resume/interrupt/reconnect without duplication — acceptance item 1
   - [x] G4a Durable session/turn contracts + PostgreSQL store with request-id idempotency
@@ -255,7 +259,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 - [~ Codex 2026-08-24] O1 PostgreSQL-backed feature-planning and task board shared by humans and agents: feature request → plan → recursive tasks, with prerequisites, acceptance criteria, claims, status, deterministic sibling ordering/priority, and live web + desktop views
   - [~ Codex 2026-08-24] O1a Recursive contracts, PostgreSQL schema/store, dependency invariants, and concurrency-safe workflow
-  - [ ] O1b Agent planning intake: persist a feature request, generated plan, and identified task tree atomically
+  - [~ Codex 2026-08-24] O1b Agent planning intake: persist a feature request, generated plan, and identified task tree atomically
   - [ ] O1c Runtime API for board queries and human/agent mutations
   - [ ] O1d Live interactive board in the hosted website
   - [ ] O1e Live interactive board in the Avalonia desktop client
