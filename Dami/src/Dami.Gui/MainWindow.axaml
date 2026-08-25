@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Dami.Gui"
+        xmlns:contracts="clr-namespace:Dami.Contracts.TaskBoard;assembly=Dami.Contracts"
         x:Class="Dami.Gui.MainWindow"
         x:DataType="local:WindowState"
         Title="Dami" Width="1400" Height="900"
@@ -13,7 +14,7 @@
     <SolidColorBrush x:Key="Accent">#5AA9E6</SolidColorBrush>
   </Window.Resources>
 
-  <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,*" Margin="10">
+  <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,*,*" Margin="10">
 
     <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal"
                 Spacing="12" Margin="4,0,4,10">
@@ -136,5 +137,123 @@
         </DockPanel>
       </Border>
     </Grid>
+
+    <Border Grid.Row="2" Grid.ColumnSpan="2" Background="{StaticResource Panel}"
+            CornerRadius="8" Padding="12" Margin="0,10,0,0">
+      <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,110,110,130,90,Auto,Auto"
+              Margin="0,0,0,8">
+          <TextBox x:Name="FeatureRequest" Grid.Column="0"
+                   PlaceholderText="describe a feature to plan…" Background="#0D1116"
+                   Foreground="{StaticResource Ink}" BorderBrush="#2A333D"/>
+          <ComboBox x:Name="PlannerPicker" Grid.Column="1" Margin="8,0,0,0"
+                    SelectedIndex="0">
+            <ComboBoxItem Content="Local"/><ComboBoxItem Content="Dami"/>
+            <ComboBoxItem Content="Frontier"/>
+          </ComboBox>
+          <ComboBox x:Name="PrivacyPicker" Grid.Column="2" Margin="8,0,0,0"
+                    SelectedIndex="0">
+            <ComboBoxItem Content="LocalOnly"/><ComboBoxItem Content="Egressable"/>
+          </ComboBox>
+          <TextBox x:Name="BoardActor" Grid.Column="3" Text="steve" Margin="8,0,0,0"
+                   Background="#0D1116" Foreground="{StaticResource Ink}"/>
+          <ComboBox x:Name="ActorKindPicker" Grid.Column="4" Margin="8,0,0,0"
+                    SelectedIndex="0">
+            <ComboBoxItem Content="Human"/><ComboBoxItem Content="Agent"/>
+          </ComboBox>
+          <Button x:Name="PlanButton" Grid.Column="5" Content="plan feature"
+                  Margin="8,0,0,0" Background="#233041" Foreground="{StaticResource Ink}"/>
+          <Button x:Name="BoardRefresh" Grid.Column="6" Content="refresh"
+                  Margin="8,0,0,0" Background="#233041" Foreground="{StaticResource Ink}"/>
+        </Grid>
+
+        <TextBlock DockPanel.Dock="Top" Text="{Binding TaskBoards.Message}"
+                   FontSize="11" Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+
+        <Grid ColumnDefinitions="250,*,310">
+          <ListBox x:Name="BoardPicker" Grid.Column="0"
+                   ItemsSource="{Binding TaskBoards.Boards}" Margin="0,0,8,0">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="contracts:TaskBoardSummary">
+                <StackPanel Margin="3">
+                  <TextBlock Text="{Binding Title}" Foreground="{StaticResource Ink}"/>
+                  <TextBlock FontSize="11" Foreground="{StaticResource Dim}">
+                    <Run Text="{Binding Status}"/><Run Text=" · "/>
+                    <Run Text="{Binding DoneTasks}"/><Run Text="/"/>
+                    <Run Text="{Binding TotalTasks}"/><Run Text=" done"/>
+                  </TextBlock>
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <DockPanel Grid.Column="1" Margin="0,0,8,0">
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+              <TextBlock Text="{Binding TaskBoards.Title}" FontWeight="SemiBold"
+                         Foreground="{StaticResource Ink}"/>
+              <TextBlock Text="{Binding TaskBoards.Detail}" TextWrapping="Wrap"
+                         FontSize="11" Foreground="{StaticResource Dim}"/>
+              <TextBox x:Name="StatusDetail" PlaceholderText="reason for block/reopen/cancel"
+                       Background="#0D1116" Foreground="{StaticResource Ink}"/>
+            </StackPanel>
+            <TreeView x:Name="TaskTree" ItemsSource="{Binding TaskBoards.Tasks}">
+              <TreeView.ItemTemplate>
+                <TreeDataTemplate x:DataType="local:TaskBoardTaskNode"
+                                  ItemsSource="{Binding SubTasks}">
+                  <StackPanel Margin="0,3">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                 Foreground="{StaticResource Ink}"/>
+                      <TextBlock Text="{Binding Status}" Foreground="{StaticResource Accent}"/>
+                      <TextBlock Text="{Binding Priority}" FontSize="11"
+                                 Foreground="{StaticResource Dim}"/>
+                      <Button Content="claim" Tag="Claim" IsVisible="{Binding CanClaim}"/>
+                      <Button Content="complete" Tag="Complete" IsVisible="{Binding CanWork}"/>
+                      <Button Content="block" Tag="Block" IsVisible="{Binding CanWork}"/>
+                      <Button Content="reopen" Tag="Reopen" IsVisible="{Binding CanReopen}"/>
+                      <Button Content="cancel" Tag="Cancel" IsVisible="{Binding CanCancel}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="11"
+                               Foreground="{StaticResource Dim}"/>
+                    <ItemsControl ItemsSource="{Binding Criteria}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="local:TaskBoardCriterionNode">
+                          <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="{Binding Description}" FontSize="11"
+                                       Foreground="{StaticResource Ink}"/>
+                            <Button Content="{Binding ActionLabel}" Tag="Criterion"/>
+                          </StackPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </TreeDataTemplate>
+              </TreeView.ItemTemplate>
+            </TreeView>
+          </DockPanel>
+
+          <DockPanel Grid.Column="2">
+            <TextBlock DockPanel.Dock="Top" Text="ACTIVITY" FontSize="11"
+                       Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+            <ScrollViewer>
+              <ItemsControl ItemsSource="{Binding TaskBoards.Activity}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="contracts:TaskBoardActivity">
+                    <StackPanel Margin="0,3">
+                      <TextBlock Foreground="{StaticResource Ink}">
+                        <Run Text="{Binding Kind}"/><Run Text=" · "/>
+                        <Run Text="{Binding Actor.ActorId}"/>
+                      </TextBlock>
+                      <TextBlock Text="{Binding Detail}" FontSize="11"
+                                 Foreground="{StaticResource Dim}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+        </Grid>
+      </DockPanel>
+    </Border>
   </Grid>
 </Window>

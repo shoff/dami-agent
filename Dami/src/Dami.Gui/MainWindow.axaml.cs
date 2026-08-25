@@ -58,6 +58,7 @@ public sealed partial class MainWindow : Window
         // looks alive, accepts text, and does nothing at all when you press the button.
         this.sendButton.Click += this.OnSendClick;
         this.input.KeyDown += this.OnInputKeyDown;
+        this.InitializeTaskBoards();
         _ = this.FollowAsync();
     }
 

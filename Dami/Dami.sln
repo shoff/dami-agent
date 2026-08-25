@@ -80,6 +80,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dami.Authentication", "src\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dami.Authentication.Tests", "tests\Dami.Authentication.Tests\Dami.Authentication.Tests.csproj", "{A166FD28-2B15-4361-A067-35976C0D4CCE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dami.Gui.Tests", "tests\Dami.Gui.Tests\Dami.Gui.Tests.csproj", "{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -546,6 +548,18 @@ Global
 		{A166FD28-2B15-4361-A067-35976C0D4CCE}.Release|x64.Build.0 = Release|Any CPU
 		{A166FD28-2B15-4361-A067-35976C0D4CCE}.Release|x86.ActiveCfg = Release|Any CPU
 		{A166FD28-2B15-4361-A067-35976C0D4CCE}.Release|x86.Build.0 = Release|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Debug|x64.Build.0 = Debug|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Debug|x86.Build.0 = Debug|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Release|x64.ActiveCfg = Release|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Release|x64.Build.0 = Release|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Release|x86.ActiveCfg = Release|Any CPU
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -589,5 +603,6 @@ Global
 		{F98D4694-5479-4A21-AE3B-B5280F88155A} = {3CAD303C-4925-4F78-9D91-2D91101307DC}
 		{D5F58AE1-FD7E-4F1D-8B3A-64EBB951410A} = {3CAD303C-4925-4F78-9D91-2D91101307DC}
 		{A166FD28-2B15-4361-A067-35976C0D4CCE} = {C40AC8F2-A735-4939-BC13-C2D510E38A09}
+		{A4D6BD1B-54F0-40B7-9F84-EFFECA7C9B62} = {C40AC8F2-A735-4939-BC13-C2D510E38A09}
 	EndGlobalSection
 EndGlobal

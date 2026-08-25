@@ -7448,3 +7448,39 @@ acceptance test is included in the 62 passing Host tests.
 Claimed O1e after pushing the hosted dashboard checkpoint. The desktop implementation
 will remain a thin client of the O1c runtime API; it will not duplicate PostgreSQL,
 workflow, concurrency, or planning rules inside the GUI process.
+
+## 2026-08-24 — Codex — O1e Avalonia implementation checkpoint
+
+Added `Dami.Gui.Tests` to the solution before implementing the desktop board. The first
+typed-client test compile failed because `TaskBoardClient` did not exist; after the
+recursive read passed, the list test compile failed because `ListAsync` did not exist.
+The claim test then compiled red for the absent claim API/outcome, and a combined workflow
+test compiled red for the absent criterion, completion, status, activity, and planning
+methods. Each production method was added only after its red. One test assertion initially
+compared record-owned list instances and failed despite byte-correct deserialization; it
+was corrected to assert stable scalar and recursive ids. One recording-handler refactor
+also triggered the synchronous-serialization analyzer and was corrected to `JsonContent`
+before accepting any behavioral result.
+
+The resulting injectable `TaskBoardClient` speaks only the O1c HTTP API and deserializes
+the shared `Dami.Contracts.TaskBoard` types. It reports optimistic conflicts distinctly,
+uses the exact method/route/body for every mutation, and has no PostgreSQL/model
+dependency. A separate red-first presentation test required recursive
+`TaskBoardTaskNode` mapping; its criterion nodes carry the owning task version so an
+acceptance action cannot use an unrelated version.
+
+The compiled Avalonia window now includes a live lower task-board panel: recent progress
+list, recursive tree, activity, five-second polling, explicit actor/planner/privacy
+controls, planning intake, and claim/satisfy/reopen/complete/block/reopen/cancel actions.
+Status changes require a reason; conflicts are named and refreshed. All network and
+mutation exceptions become visible panel status instead of ending the polling loop.
+The existing runtime HTTP policy is factored into one factory used by both thin clients.
+
+Focused evidence: the new GUI suite passes 6/6 and the Avalonia XAML/project builds with
+0 warnings and 0 errors. Mandatory `dotnet build Dami.sln` completed in 61.81 seconds with
+0 warnings and 0 errors. `dotnet test Dami.sln --no-build` remains non-green at 965 passed
+and 3 failed: the same two owned Frontier endpoint failures plus Claude's uncommitted O1g
+201-vs-204 importer count. O1e remains claimed until O1f can demonstrate the running
+desktop against migrated PostgreSQL; this checkpoint does not claim live acceptance.
+After the final synchronous actor-error visibility guard, the mandatory gate was repeated:
+build 0 warnings/errors in 34.55 seconds; tests again 965 passed and the same 3 failed.

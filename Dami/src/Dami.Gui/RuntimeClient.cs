@@ -19,15 +19,21 @@ public sealed class RuntimeClient
     // system-proxy detection can block on the very first request, and the symptom is
     // silent: no socket is ever opened, the await never returns, and the window sits
     // there looking like an idle system with nothing to show.
-    private readonly HttpClient httpClient = new(
-        new SocketsHttpHandler
+    private readonly HttpClient httpClient = CreateHttpClient();
+
+    /// <summary>Creates the shared loopback HTTP policy for thin desktop clients.</summary>
+    internal static HttpClient CreateHttpClient()
+    {
+        return new HttpClient(new SocketsHttpHandler
         {
             UseProxy = false,
             ConnectTimeout = TimeSpan.FromSeconds(5),
         })
-    {
-        Timeout = TimeSpan.FromMinutes(10),
-    };
+        {
+            BaseAddress = new Uri(BASE_URL),
+            Timeout = TimeSpan.FromMinutes(10),
+        };
+    }
 
     /// <summary>Reads a JSON array from the runtime, or an empty document on failure.</summary>
     public async Task<JsonDocument?> GetAsync(string path, CancellationToken cancellationToken)
