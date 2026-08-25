@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Dami.Authentication/Dami.Authentication.csproj" />
     <ProjectReference Include="../Dami.Capabilities/Dami.Capabilities.csproj" />
     <ProjectReference Include="../Dami.Capabilities.Mcp/Dami.Capabilities.Mcp.csproj" />
     <ProjectReference Include="../Dami.Capabilities.Native/Dami.Capabilities.Native.csproj" />

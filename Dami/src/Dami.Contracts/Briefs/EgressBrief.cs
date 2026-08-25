@@ -6,7 +6,7 @@ public sealed record EgressBrief
     /// <summary>Creates a brief.</summary>
     public EgressBrief(
         Guid briefId,
-        Guid approvalId,
+        Guid? approvalId,
         Guid traceId,
         string question,
         string brief,
@@ -33,8 +33,11 @@ public sealed record EgressBrief
     /// <summary>Identity.</summary>
     public Guid BriefId { get; }
 
-    /// <summary>The approval gating this brief. One approval, one brief.</summary>
-    public Guid ApprovalId { get; }
+    /// <summary>
+    /// The approval gating this brief, or null when it egressed under standing consent
+    /// (an augmented frontier turn). Absent means unapproved-per-turn, never unrecorded.
+    /// </summary>
+    public Guid? ApprovalId { get; }
 
     /// <summary>The trace the whole exchange belongs to.</summary>
     public Guid TraceId { get; }

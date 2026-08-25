@@ -28,7 +28,7 @@ public sealed class PostgresEgressBriefStoreTests
         await this.fixture.ResetAsync();
         var (store, brief) = await this.CreateStoredBriefAsync("the exact brief text");
 
-        var found = await store.FindByApprovalAsync(brief.ApprovalId, CancellationToken.None);
+        var found = await store.FindByApprovalAsync(brief.ApprovalId!.Value, CancellationToken.None);
 
         Assert.Equal("the exact brief text", found!.Brief);
     }
@@ -50,7 +50,7 @@ public sealed class PostgresEgressBriefStoreTests
 
         await store.MarkSentAsync(brief.BriefId, "the frontier's answer", at.AddMinutes(5), CancellationToken.None);
 
-        var found = await store.FindByApprovalAsync(brief.ApprovalId, CancellationToken.None);
+        var found = await store.FindByApprovalAsync(brief.ApprovalId!.Value, CancellationToken.None);
         Assert.Equal("the frontier's answer", found!.Answer);
     }
 

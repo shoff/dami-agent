@@ -34,7 +34,7 @@ public sealed class PostgresEgressBriefStore : IEgressBriefStore
             values (@brief_id, @approval_id, @trace_id, @question, @brief, @sha, @created_at);
             """);
         command.Parameters.AddWithValue("brief_id", brief.BriefId);
-        command.Parameters.AddWithValue("approval_id", brief.ApprovalId);
+        command.Parameters.AddWithValue("approval_id", (object?)brief.ApprovalId ?? DBNull.Value);
         command.Parameters.AddWithValue("trace_id", brief.TraceId);
         command.Parameters.AddWithValue("question", brief.Question);
         command.Parameters.AddWithValue("brief", brief.Brief);
@@ -60,11 +60,12 @@ public sealed class PostgresEgressBriefStore : IEgressBriefStore
             return null;
         }
 
+        var approvalNull = await reader.IsDBNullAsync(1, cancellationToken).ConfigureAwait(false);
         var sentAtNull = await reader.IsDBNullAsync(7, cancellationToken).ConfigureAwait(false);
         var answerNull = await reader.IsDBNullAsync(8, cancellationToken).ConfigureAwait(false);
         return new EgressBrief(
             briefId: reader.GetGuid(0),
-            approvalId: reader.GetGuid(1),
+            approvalId: approvalNull ? null : reader.GetGuid(1),
             traceId: reader.GetGuid(2),
             question: reader.GetString(3),
             brief: reader.GetString(4),

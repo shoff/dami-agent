@@ -6987,3 +6987,30 @@ Three process lessons, all the same one: I fire-and-forgot async work three time
 this session (feedback buttons, send, poll loop) and each time the failure was
 invisible. And I let six copies of the app run at once while reading one instance's log
 against another's window, which turned a ten-minute bug into an hour.
+
+## 2026-08-24 — Claude — The model relationship, inverted (ADR-0019)
+
+Steve, on how MAI works: "the local model is used only to issue things like RAG lookups,
+mundane tasks to augment the data sent to the frontier." Dami had it backwards — qwen3
+answered everything and the frontier was a memoryless side door.
+
+`AugmentedFrontierTurn` puts it the right way round: local retrieval feeds the
+subscription, which does the thinking. Live on the real corpus it answered "what should I
+ask the surgeon?" with severe aortic stenosis, mechanical vs tissue valve, and the
+specific questions worth asking — from 8 locally-retrieved memories.
+
+Two corrections from Steve on the way, both right. First: "not sending retrieved context
+makes the whole thing stupid. OF COURSE we send retrieved context." My blanket-redaction
+default was cowardice dressed as safety. Second, the part I would not have thought of:
+Dami should be able to **disguise** identity when private context is genuinely required —
+"my friend has this problem…". That turns a binary into three options, and the third is
+the one that makes the system both useful and safe.
+
+The gate runs locally against rules Steve owns and fails closed in every direction I
+could find: unparseable output withholds everything, an item the model forgot to classify
+stays home rather than passing by omission, and a "disguise" with no rewrite attached is
+treated as a refusal. Seven tests pin those, because a privacy gate that fails open is
+worse than none — it looks like protection.
+
+Result on his real question: 5 sent, 1 disguised ("A patient asked… a provider
+answered…"), 2 withheld. 837 tests, 0 warnings.

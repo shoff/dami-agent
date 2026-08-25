@@ -19,9 +19,16 @@ public static class TurnEndpoints
     {
         app.MapPost("/turns", async (
             TurnRequest request, ITurnRunner runner, IFrontierChat frontier,
-            IIdentityProvider identity, IExecutionEventStore events, TimeProvider clock,
+            IIdentityProvider identity, IExecutionEventStore events,
+            Dami.Core.Frontier.AugmentedFrontierTurn augmentedTurn, TimeProvider clock,
             CancellationToken token) =>
         {
+            if (request.Augmented)
+            {
+                return await AugmentedTurnAsync(request.Message, augmentedTurn, token)
+                    .ConfigureAwait(false);
+            }
+
             if (request.Frontier)
             {
                 return await FrontierTurnAsync(
@@ -40,6 +47,28 @@ public static class TurnEndpoints
             });
         });
 
+    }
+
+    /// <summary>
+    /// Retrieval happens locally; the frontier answers on what the sidecar found. The
+    /// local model is infrastructure here, not the brain.
+    /// </summary>
+    private static async Task<IResult> AugmentedTurnAsync(
+        string message,
+        Dami.Core.Frontier.AugmentedFrontierTurn augmentedTurn,
+        CancellationToken cancellationToken)
+    {
+        var augmented = await augmentedTurn.RunAsync(message, cancellationToken)
+            .ConfigureAwait(false);
+        return Results.Ok(new
+        {
+            traceId = augmented.TraceId,
+            answer = augmented.Answer,
+            contextTokens = augmented.EstimatedTokens,
+            beliefs = 0,
+            memories = augmented.ContextItems,
+            route = "Frontier (locally augmented)",
+        });
     }
 
     /// <summary>

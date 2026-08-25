@@ -24,7 +24,9 @@ public static class RuntimeEndpoints
 }
 
 /// <summary>One interactive turn.</summary>
-public sealed record TurnRequest(string Message, bool Frontier = false);
+/// <summary>One interactive turn. <paramref name="Augmented"/> retrieves locally and
+/// lets the frontier answer on that context.</summary>
+public sealed record TurnRequest(string Message, bool Frontier = false, bool Augmented = false);
 
 /// <summary>A reaction to a surfacing.</summary>
 public sealed record FeedbackRequest(string Verdict, string? Note);

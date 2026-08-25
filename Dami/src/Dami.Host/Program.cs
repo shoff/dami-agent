@@ -1,3 +1,4 @@
+using Dami.Authentication;
 using Dami.Contracts.Approvals;
 using Dami.Contracts.Models;
 using Dami.Core.Approvals;
@@ -31,6 +32,14 @@ var connectionString =
        + Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "/.pgpass";
 
 builder.Services.AddDamiPersistence(connectionString);
+bool authenticationEnabled = builder.Configuration.GetValue<bool>(
+    $"{DamiAuthenticationOptions.SECTION_NAME}:Enabled");
+if (authenticationEnabled)
+{
+    builder.Services.AddDamiAuthentication(
+        builder.Configuration, builder.Environment, connectionString);
+}
+
 builder.Services.AddSingleton(TimeProvider.System);
 
 // Turns: the same runner the CLI proved out — leading with the §9.1 identity block.
@@ -94,6 +103,14 @@ builder.Services.AddSingleton<IApprovalExecutionHandler>(services =>
 builder.Services.AddSingleton<ApprovalExecutionDispatcher>();
 builder.Services.AddSingleton<Dami.Contracts.Privacy.IPromptRedactor, PromptRedactor>();
 
+// The frontier answers; the local sidecar does the retrieval that feeds it.
+builder.Services.Configure<DisclosureOptions>(
+    builder.Configuration.GetSection(DisclosureOptions.SECTION_NAME));
+builder.Services.AddSingleton<Dami.Contracts.Privacy.IContextDisclosureGate, LocalDisclosureGate>();
+builder.Services.Configure<AugmentedTurnOptions>(
+    builder.Configuration.GetSection(AugmentedTurnOptions.SECTION_NAME));
+builder.Services.AddSingleton<AugmentedFrontierTurn>();
+
 // Frontier: subscription door (ADR-0011) behind the C5 egress budget.
 builder.Services.Configure<CodexOptions>(builder.Configuration.GetSection(CodexOptions.SECTION_NAME));
 builder.Services.AddSingleton<ICodexProcess, CodexProcess>();
@@ -135,6 +152,12 @@ app.Use(async (context, next) =>
 // from the same endpoints every other client uses. Localhost-only like the API.
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+if (authenticationEnabled)
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+}
 
 app.MapDamiRuntime();
 app.Run();
