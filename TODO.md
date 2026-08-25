@@ -260,7 +260,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [~ Codex 2026-08-24] O1 PostgreSQL-backed feature-planning and task board shared by humans and agents: feature request → plan → recursive tasks, with prerequisites, acceptance criteria, claims, status, deterministic sibling ordering/priority, and live web + desktop views
   - [~ Codex 2026-08-24] O1a Recursive contracts, PostgreSQL schema/store, dependency invariants, and concurrency-safe workflow
   - [~ Codex 2026-08-24] O1b Agent planning intake: persist a feature request, generated plan, and identified task tree atomically
-  - [ ] O1c Runtime API for board queries and human/agent mutations
+  - [~ Codex 2026-08-24] O1c Runtime API for board queries and human/agent mutations
   - [ ] O1d Live interactive board in the hosted website
   - [ ] O1e Live interactive board in the Avalonia desktop client
   - [ ] O1f Apply migrations and demonstrate multi-actor claim, dependency, acceptance, restart, and both UI surfaces live

@@ -7352,3 +7352,15 @@ completed in 72.49 seconds with 0 warnings and 0 errors. `dotnet test Dami.sln
 `FrontierEndpointsTests` property failures. All 251 persistence tests passed in the
 exact candidate. This supports a checkpoint commit to unblock O1g, not a completed
 O1a/O1b claim; their TODO markers remain in progress until the full gate is green.
+
+## 2026-08-24 — Codex — O1c runtime API claimed
+
+After committing and pushing the isolated OIDC foundation (`71fdb5e`) and task-board
+foundation (`a2c956a`), normalized the stale staging index to current `HEAD` without
+changing the worktree. Only Claude's O1g importer paths remain dirty. Claimed O1c
+before API work. The slice will expose board list/detail/activity and versioned claim,
+criterion, completion, and status commands over the existing application/store
+contracts. Actor identity will be an explicit request value only for the current
+localhost compatibility phase; G5a2 must replace that trust boundary with OIDC claims
+before remote exposure. Tests will be written against the in-memory Host first, one
+endpoint behavior at a time.
