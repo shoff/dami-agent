@@ -77,6 +77,26 @@ public sealed class TodoBoardParserTests
     }
 
     [Fact]
+    public void Parse_Should_Read_A_Trailing_Steve_Annotation_The_Way_It_Reads_The_Marker()
+    {
+        // "- [ ] B7 Kokoro classes … `[STEVE: whose memories are they]`" is not open work.
+        // It waits on him exactly as a leading [STEVE] does, and the reason is worth keeping.
+        var entry = ParseOne("- [ ] B7 Kokoro classes: import or leave? `[STEVE: whose memories are they]`");
+
+        Assert.Equal(TodoState.NeedsSteve, entry.State);
+        Assert.Equal("whose memories are they", entry.StateDetail);
+        Assert.DoesNotContain("STEVE", entry.Title, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_Should_Not_Let_An_Annotation_Override_A_Finished_Task()
+    {
+        var entry = ParseOne("- [x] A4 Backups done `[STEVE: destination + a GPG key]`");
+
+        Assert.Equal(TodoState.Done, entry.State);
+    }
+
+    [Fact]
     public void Parse_Should_Nest_By_Indentation()
     {
         var document = TodoBoardParser.Parse("""

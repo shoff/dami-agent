@@ -97,10 +97,11 @@ public static partial class TodoBoardParser
         var marker = ReadMarker(item.Groups[2].Value, line, lineNumber, anomalies);
         var text = item.Groups[3].Value.Trim();
 
-        var blocked = BlockedPattern().Match(text);
-        if (blocked.Success)
+        var annotation = AnnotationPattern().Match(text);
+        if (annotation.Success)
         {
-            text = text.Remove(blocked.Index, blocked.Length).Trim();
+            text = text.Remove(annotation.Index, annotation.Length).Trim();
+            marker = Annotate(marker, annotation);
         }
 
         var id = ReadId(text, line, lineNumber, anomalies);
@@ -112,9 +113,39 @@ public static partial class TodoBoardParser
             Marker = marker,
             Id = id.Value,
             Title = text[id.Consumed..].Trim(' ', '—', '-', ':'),
-            BlockedReason = blocked.Success ? blocked.Groups[1].Value.Trim() : null,
+            BlockedReason = Blocked(annotation),
             Acceptance = [.. AcceptancePattern().Matches(text).Select(match => match.Value)],
         };
+    }
+
+    /// <summary>
+    /// Applies a trailing annotation to the state the leading marker gave.
+    /// </summary>
+    /// <remarks>
+    /// The file annotates in two keywords, and neither is a leading marker. BLOCKED gives a
+    /// reason a task cannot move. STEVE means precisely what the leading <c>[STEVE]</c>
+    /// marker means — "- [ ] B7 Kokoro classes … `[STEVE: whose memories are they]`" is
+    /// waiting on him, not open work — so it is read the same way, with the reason kept.
+    /// </remarks>
+    private static Marker Annotate(Marker marker, Match annotation)
+    {
+        var reason = annotation.Groups[2].Value.Trim();
+        if (!annotation.Groups[1].Value.Equals("STEVE", StringComparison.Ordinal))
+        {
+            return marker;
+        }
+
+        return marker.State == TodoState.Open
+            ? marker with { State = TodoState.NeedsSteve, Detail = reason }
+            : marker;
+    }
+
+    private static string? Blocked(Match annotation)
+    {
+        return annotation.Success
+            && annotation.Groups[1].Value.Equals("BLOCKED", StringComparison.Ordinal)
+                ? annotation.Groups[2].Value.Trim()
+                : null;
     }
 
     /// <summary>Translates a leading marker, reporting anything the protocol does not define.</summary>
@@ -278,8 +309,8 @@ public static partial class TodoBoardParser
     [GeneratedRegex(@"^DEFERRED:\s*(.*)$")]
     private static partial Regex DeferredPattern();
 
-    [GeneratedRegex(@"`?\[BLOCKED:\s*([^\]]*)\]`?")]
-    private static partial Regex BlockedPattern();
+    [GeneratedRegex(@"`?\[(BLOCKED|STEVE):\s*([^\]]*)\]`?")]
+    private static partial Regex AnnotationPattern();
 
     [GeneratedRegex(@"^(?:\*\*|(~~))?([A-Z]\d+[a-z0-9]*)\b(?:\*\*|~~)?")]
     private static partial Regex IdPattern();
