@@ -29,14 +29,17 @@ priority-sorted. Concurrent agents make last-write-wins updates unacceptable.
 ## Evidence
 
 The initial integration suite exercises the repository's deployed DDL in a throwaway
-schema and uses the real `dami_app` role. Twelve focused tests demonstrate recursive
+schema and uses the real `dami_app` role. Eighteen focused tests demonstrate recursive
 round-trip, ordered and priority sibling sorting, single-winner concurrent claims,
 prerequisite gating, acceptance evidence, child-gated completion, cycle rejection,
 least-privilege create/read/claim, ordered append-only activity, block/reopen behavior,
-and task-derived board summaries. The complete persistence suite passed 245/245 on the
-shared tree. A combined isolated candidate built with 0 warnings and 0 errors; its
-whole-solution test gate remained red only where concurrent uncommitted corpus/frontier
-work was intentionally excluded, so O1a was not marked complete or committed.
+task-derived board summaries, exact retry convergence, conflicting-id refusal,
+planning-provenance round-trip, derived detail status, audited-only runtime mutation,
+and bounded task count/depth. The earlier complete persistence suite passed 245/245
+on the shared tree; the current focused task-board suite passes 18/18. A combined
+isolated candidate built with 0 warnings and 0 errors; its whole-solution test gate
+remained red only where concurrent uncommitted corpus/frontier work was intentionally
+excluded, so O1a was not marked complete or committed at that checkpoint.
 
 ## Consequences
 
@@ -49,8 +52,20 @@ children, and completed prerequisites. Every successful mutation appends actor/t
 evidence in the same SQL transaction. Reads use a repeatable-read snapshot and load
 each relation once, avoiding recursive N+1 queries.
 
-This design does not yet choose how an LLM produces a plan. Planning is an application
-service above `ITaskBoardStore`; provider adapters must not become persistence owners.
+The runtime role cannot update task or criterion state directly. Four
+schema-qualified, empty-search-path `SECURITY DEFINER` functions own guarded workflow
+updates and their matching activity inserts; public execution is revoked. Boards are
+bounded to 1,024 tasks and 64 containment levels because reads intentionally return a
+complete point-in-time tree. Board status is derived from task state rather than
+persisted twice.
+
+Agent-generated boards also persist the planner route, disclosure class, and execution
+origin. Directly created human boards may omit that grouped provenance, but the schema
+rejects partially populated provenance.
+
+Planning remains an application service above `ITaskBoardStore`; local, frontier, and
+Dami-routed planner adapters produce the same provider-neutral proposal and never own
+persistence.
 
 ## Reversal path
 

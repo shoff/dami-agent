@@ -7308,3 +7308,47 @@ method that does not exist at `HEAD`, so any commit of this work would not build
 own tree. It is written, tested, and demonstrated, and it lands the moment O1a is committed.
 Applying the import to `dami-data` is deliberately not done either: that database has no
 task tables, and applying 028 to it is O1f.
+
+## 2026-08-24 — Codex — O1a/O1b adversarial hardening checkpoint
+
+Found and fixed three boundary defects with separate red-first tests. Detailed reads
+returned the never-updated board status while list reads derived status from tasks;
+the new test observed `Open` instead of `InProgress`. Detail now derives from the same
+task state, and the redundant board-status column was removed before migration 028 is
+applied. Direct drafts and model proposals are both bounded to 1,024 tasks; the direct
+store test first persisted all 1,025 tasks in about three seconds. Direct task nesting
+is capped at 64 levels; the 65-level test first persisted without error. The focused
+Core task-board slice passes 12/12 and persistence passes 18/18 after these changes.
+
+The least-privilege audit also proved `dami_app` could update task status directly and
+bypass activity. Its red test completed the unaudited update successfully. All four
+workflow mutations now execute through schema-qualified `SECURITY DEFINER` functions
+with an empty search path; public execution and direct task/criterion update rights are
+revoked, while runtime execute is granted only on the four functions. Existing claim,
+criterion, completion, status, concurrency, and activity tests stayed green. A fresh
+test process then exposed PostgreSQL `42723`: SQL-language function body dependencies
+did not make table teardown drop the functions. Fixture teardown now drops the exact
+function signatures before rebuilding. The originally intended 1,025-task test was
+rerun after that fixture correction to obtain its actual red result.
+
+One added null-acceptance-collection test was green on its first run because LINQ
+already throws `ArgumentNullException`; it is coverage, not TDD, and caused no
+production change.
+
+Mandatory combined-tree checkpoint after these changes: `dotnet build Dami.sln`
+completed in 73.63 seconds with 0 warnings and 0 errors. `dotnet test Dami.sln
+--no-build` completed with 940 passed and 3 failed, so it is not a passing gate. Two
+failures are Claude's active `FrontierEndpointsTests` expecting response properties
+that were absent; the third is Claude's in-flight `TodoBoardImporterTests` expecting
+201 tasks while the importer reported 204. Codex did not change those owned tests or
+claim O1 complete.
+
+The collision-free O1a/O1b commit candidate was then reconstructed by three-way
+merging only Codex's staged task-board fixture/registration hunks with current `HEAD`;
+Claude's uncommitted importer, context, GUI, and project-reference paths are absent
+from that tree. In a fresh Steve-owned detached worktree, `dotnet build Dami.sln`
+completed in 72.49 seconds with 0 warnings and 0 errors. `dotnet test Dami.sln
+--no-build` completed with 907 passed and 2 failed: the same two pre-existing
+`FrontierEndpointsTests` property failures. All 251 persistence tests passed in the
+exact candidate. This supports a checkpoint commit to unblock O1g, not a completed
+O1a/O1b claim; their TODO markers remain in progress until the full gate is green.

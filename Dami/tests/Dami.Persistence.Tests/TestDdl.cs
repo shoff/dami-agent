@@ -27,6 +27,7 @@ public static class TestDdl
         "023_tool_promotions.sql",
         "024_tool_activation_state.sql",
         "025_tool_activation_advisory_lock.sql",
+        "028_task_boards.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",
@@ -62,7 +63,7 @@ public static class TestDdl
     {
         ArgumentNullException.ThrowIfNull(schema);
 
-        return DropToolStaging(schema) + DropObservationOverlays(schema) + $"""
+        return DropTaskBoards(schema) + DropToolStaging(schema) + DropObservationOverlays(schema) + $"""
             drop table if exists {schema}.skill_changes cascade;
             drop table if exists {schema}.conversation_turns cascade;
             drop table if exists {schema}.conversation_sessions cascade;
@@ -106,6 +107,22 @@ public static class TestDdl
             """;
     }
 
+    private static string DropTaskBoards(string schema)
+    {
+        return $"""
+            drop function if exists {schema}.task_board_try_claim(uuid, uuid, bigint, text, text, timestamptz);
+            drop function if exists {schema}.task_board_try_set_criterion(uuid, uuid, bigint, boolean, text, text, timestamptz);
+            drop function if exists {schema}.task_board_try_complete(uuid, uuid, bigint, text, text, timestamptz);
+            drop function if exists {schema}.task_board_try_set_status(uuid, uuid, bigint, text, text, text, text, timestamptz);
+            drop table if exists {schema}.task_board_activity cascade;
+            drop table if exists {schema}.task_prerequisites cascade;
+            drop table if exists {schema}.task_acceptance_criteria cascade;
+            drop table if exists {schema}.task_board_tasks cascade;
+            drop table if exists {schema}.task_boards cascade;
+
+            """;
+    }
+
     private static string TruncateObservationOverlays(string schema)
     {
         return $"""
@@ -139,7 +156,7 @@ public static class TestDdl
 
         // Order matters: children before parents, and the append-only tables need their
         // guard dropped deliberately; that friction is the guarantee working.
-        return TruncateSessions(schema) + TruncateToolActivationOutcomes(schema)
+        return TruncateTaskBoards(schema) + TruncateSessions(schema) + TruncateToolActivationOutcomes(schema)
             + TruncateToolVerifications(schema)
             + TruncateToolPromotions(schema)
             + TruncateToolProposals(schema) + TruncateSkillChanges(schema)
@@ -172,6 +189,20 @@ public static class TestDdl
             alter table {schema}.file_patch_proposals disable trigger file_patch_proposals_append_only;
             delete from {schema}.file_patch_proposals;
             alter table {schema}.file_patch_proposals enable trigger file_patch_proposals_append_only;
+
+            """;
+    }
+
+    private static string TruncateTaskBoards(string schema)
+    {
+        return $"""
+            alter table {schema}.task_board_activity disable trigger task_board_activity_append_only;
+            delete from {schema}.task_board_activity;
+            alter table {schema}.task_board_activity enable trigger task_board_activity_append_only;
+            delete from {schema}.task_prerequisites;
+            delete from {schema}.task_acceptance_criteria;
+            delete from {schema}.task_board_tasks;
+            delete from {schema}.task_boards;
 
             """;
     }
