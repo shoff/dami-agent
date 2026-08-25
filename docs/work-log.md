@@ -7364,3 +7364,43 @@ contracts. Actor identity will be an explicit request value only for the current
 localhost compatibility phase; G5a2 must replace that trust boundary with OIDC claims
 before remote exposure. Tests will be written against the in-memory Host first, one
 endpoint behavior at a time.
+
+## 2026-08-24 — Codex — O1c runtime API implementation checkpoint
+
+Implemented the localhost runtime boundary for the collaborative task board. The Host
+now exposes bounded board summaries, one recursive snapshot, bounded activity, feature
+planning intake, and optimistic claim, criterion, completion, and status mutations.
+All mutation timestamps come from the server `TimeProvider`; stale versions return 409;
+invalid limits, versions, actors, planning metadata, and status transitions return 400
+before the store is called. The general status endpoint accepts only Open, Blocked, and
+Cancelled, so callers cannot bypass acceptance/prerequisite gates by setting Done;
+completion remains a separate command.
+
+The planning endpoint composes Local, Frontier, and Dami `IFeaturePlanner` adapters over
+the existing model clients/router and persists through `FeaturePlanningService`. It uses
+the request id as the stable board id and returns that board's location. Actor ids remain
+explicit request data only under the documented loopback compatibility boundary; this
+surface must use G5a2 OIDC claims before it is exposed remotely.
+
+### TDD evidence
+
+Each behavior was introduced through a focused Host test before production code. The
+observed red results were: criterion, completion, and status routes returned 404; the
+planning route returned 405; nonpositive list limits and unbounded activity both returned
+200 and called the store; a nonpositive mutation version returned 200; a blank actor and
+blank planning request escaped as 500; a blank status detail returned 200; and `Done`
+through the general status route returned 200. Production changes followed each red run,
+and the corresponding focused test was rerun green before moving on. The composition test
+was red because adding the endpoint without production planner registrations made even
+`/health` return 500; registering the three focused adapters and application service made
+it green. One planning test setup initially registered the same Local planner twice and
+failed with a duplicate-key exception; that fixture error was corrected before accepting
+the endpoint result.
+
+Focused evidence: 18/18 `TaskBoardEndpointsTests` plus the feature-planning composition
+test passed. Mandatory `dotnet build Dami.sln` succeeded in 31.74 seconds with 0 warnings
+and 0 errors. Mandatory `dotnet test Dami.sln --no-build` is not green: 958 passed and 3
+failed. The two existing `FrontierEndpointsTests` still fail on missing JSON properties;
+Claude's in-flight, uncommitted O1g importer test expects 201 tasks while the current
+TODO.md produces 204. None of those owned paths were changed. O1c therefore remains
+claimed rather than marked done; this is a checkpoint, not completion evidence.

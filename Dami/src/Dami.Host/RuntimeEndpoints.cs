@@ -20,6 +20,7 @@ public static class RuntimeEndpoints
         HealthDomainEndpoints.Map(app);
         TranscriptionEndpoints.Map(app);
         ToolProposalEndpoints.Map(app);
+        TaskBoardEndpoints.Map(app);
     }
 }
 

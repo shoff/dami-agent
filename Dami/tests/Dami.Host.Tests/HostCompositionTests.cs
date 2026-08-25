@@ -8,6 +8,8 @@ using Dami.Contracts.Capabilities;
 using Dami.Contracts.Context;
 using Dami.Contracts.Events;
 using Dami.Contracts.Privacy;
+using Dami.Contracts.TaskBoard;
+using Dami.Core.TaskBoard;
 using Dami.Privacy;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -19,6 +21,24 @@ namespace Dami.Host.Tests;
 
 public sealed class HostCompositionTests
 {
+    [Fact]
+    public async Task Host_Should_Compose_All_Feature_Planners_And_The_Planning_Service()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+        using var health = await client.GetAsync("/health", CancellationToken.None);
+
+        FeaturePlannerKind[] kinds = factory.Services.GetServices<IFeaturePlanner>()
+            .Select(planner => planner.Kind)
+            .Order()
+            .ToArray();
+
+        Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+        Assert.Equal(Enum.GetValues<FeaturePlannerKind>(), kinds);
+        Assert.IsType<FeaturePlanningService>(
+            factory.Services.GetRequiredService<FeaturePlanningService>());
+    }
+
     [Fact]
     public async Task Health_Should_Build_The_Production_Session_Composition()
     {

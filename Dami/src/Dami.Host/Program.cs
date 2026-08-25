@@ -1,10 +1,12 @@
 using Dami.Authentication;
 using Dami.Contracts.Approvals;
 using Dami.Contracts.Models;
+using Dami.Contracts.TaskBoard;
 using Dami.Core.Approvals;
 using Dami.Core.Context;
 using Dami.Core.Frontier;
 using Dami.Core.Sessions;
+using Dami.Core.TaskBoard;
 using Dami.Core.Turns;
 using Dami.Host;
 using Dami.Persistence;
@@ -121,6 +123,23 @@ builder.Services.AddSingleton<IFrontierChat, CodexChatClient>();
 builder.Services.Configure<EgressBudgetOptions>(
     builder.Configuration.GetSection(EgressBudgetOptions.SECTION_NAME));
 builder.Services.AddSingleton<Dami.Contracts.Privacy.IEgressBudget, EventCountEgressBudget>();
+
+// Feature planning is provider-neutral at the application boundary. The three
+// adapters share the already-composed model clients and router; only the selected
+// IFeaturePlanner is invoked for a request.
+builder.Services.AddSingleton<LocalFeaturePlanner>();
+builder.Services.AddSingleton<FrontierFeaturePlanner>();
+builder.Services.AddSingleton<DamiFeaturePlanner>(services => new DamiFeaturePlanner(
+    services.GetRequiredService<IModelRouter>(),
+    services.GetRequiredService<LocalFeaturePlanner>(),
+    services.GetRequiredService<FrontierFeaturePlanner>()));
+builder.Services.AddSingleton<IFeaturePlanner>(services =>
+    services.GetRequiredService<LocalFeaturePlanner>());
+builder.Services.AddSingleton<IFeaturePlanner>(services =>
+    services.GetRequiredService<FrontierFeaturePlanner>());
+builder.Services.AddSingleton<IFeaturePlanner>(services =>
+    services.GetRequiredService<DamiFeaturePlanner>());
+builder.Services.AddSingleton<FeaturePlanningService>();
 
 var app = builder.Build();
 
