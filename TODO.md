@@ -249,6 +249,16 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] N7 Host endpoint regression tests (Claude 2026-08-24) — the two bugs Steve hit both lived in Host composition and were caught by a human, not the suite: surfacing feedback recorded but never delivered (so the click looked dead), and refusals escaping as 500s. 13 tests added to Codex's `Dami.Host.Tests`, each mutation-checked by reverting its fix. Host suite 21 → 36
 - [x] N8 Interactive failure reporting: the runtime names the cause (500 + `{error}`), and the CLI separates "the runtime failed: <cause>" from "dami-host unreachable". Fixed on both the JSON and streaming paths — the streaming path was the one still calling `EnsureSuccessStatusCode`. Closes **acceptance item 8**
 
+## O · Collaborative planning and task board
+
+- [~ Codex 2026-08-24] O1 PostgreSQL-backed feature-planning and task board shared by humans and agents: feature request → plan → recursive tasks, with prerequisites, acceptance criteria, claims, status, deterministic sibling ordering/priority, and live web + desktop views
+  - [~ Codex 2026-08-24] O1a Recursive contracts, PostgreSQL schema/store, dependency invariants, and concurrency-safe workflow
+  - [ ] O1b Agent planning intake: persist a feature request, generated plan, and identified task tree atomically
+  - [ ] O1c Runtime API for board queries and human/agent mutations
+  - [ ] O1d Live interactive board in the hosted website
+  - [ ] O1e Live interactive board in the Avalonia desktop client
+  - [ ] O1f Apply migrations and demonstrate multi-actor claim, dependency, acceptance, restart, and both UI surfaces live
+
 ---
 
 ## Steve's queue (nothing moves these but you)

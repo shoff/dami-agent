@@ -7014,3 +7014,21 @@ worse than none — it looks like protection.
 
 Result on his real question: 5 sent, 1 disguised ("A patient asked… a provider
 answered…"), 2 withheld. 837 tests, 0 warnings.
+
+## 2026-08-24 — Codex — O1/O1a claimed; collaborative PostgreSQL task board started
+
+Steve requested a shared task board that moves the feature-request and planning
+workflow out of Markdown and into PostgreSQL, remains usable by both humans and
+agents, and appears as a live interactive surface in both the hosted website and the
+Avalonia desktop client. Added epic O1 to `TODO.md` and split it before production
+work: recursive contracts/schema/store and concurrency invariants (O1a), atomic agent
+planning intake (O1b), Runtime API (O1c), web UI (O1d), desktop UI (O1e), and applied
+migration plus live multi-actor/restart evidence (O1f). Claimed O1 and O1a.
+
+The planned relational representation is an adjacency-list task table whose rows all
+have the same shape; `parent_task_id` forms `SubTasks` rather than introducing a
+second subtask abstraction. Ordered acceptance criteria and explicit prerequisite
+edges remain separate relations. Sibling presentation will be deterministic in both
+modes: explicit position when order is consequential, priority with a stable tie-break
+when it is not. Exact schema and transition rules remain subject to red-first tests
+and an ADR before production implementation.
