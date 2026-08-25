@@ -64,8 +64,7 @@ public static class TestDdl
         ArgumentNullException.ThrowIfNull(schema);
 
         return DropTaskBoards(schema) + DropToolStaging(schema) + DropObservationOverlays(schema) + $"""
-            drop table if exists {schema}.skill_changes cascade;
-            drop table if exists {schema}.conversation_turns cascade;
+            drop table if exists {schema}.skill_changes cascade;  drop table if exists {schema}.conversation_turns cascade;
             drop table if exists {schema}.conversation_sessions cascade;
             drop table if exists {schema}.file_patch_proposals cascade;
             drop table if exists {schema}.health_event_rejections cascade;
@@ -119,15 +118,10 @@ public static class TestDdl
             drop table if exists {schema}.task_acceptance_criteria cascade;
             drop table if exists {schema}.task_board_tasks cascade;
             drop table if exists {schema}.task_boards cascade;
-
-            """;
-    }
-
-    private static string TruncateObservationOverlays(string schema)
-    {
-        return $"""
-            delete from {schema}.observation_curations;
-            delete from {schema}.observation_date_repairs;
+            drop function if exists {schema}.task_board_try_claim cascade;
+            drop function if exists {schema}.task_board_try_set_criterion cascade;
+            drop function if exists {schema}.task_board_try_complete cascade;
+            drop function if exists {schema}.task_board_try_set_status cascade;
 
             """;
     }
@@ -162,8 +156,7 @@ public static class TestDdl
             + TruncateToolProposals(schema) + TruncateSkillChanges(schema)
             + TruncateFilePatchProposals(schema) + TruncateObservationOverlays(schema) + $"""
             delete from {schema}.health_event_rejections;  delete from {schema}.gateway_authority;  delete from {schema}.health_examined;
-            delete from {schema}.health_events;
-            delete from {schema}.egress_briefs;
+            delete from {schema}.health_events;  delete from {schema}.egress_briefs;
             delete from {schema}.capability_embeddings;
             delete from {schema}.conclusion_embeddings;
             delete from {schema}.approvals;
@@ -183,12 +176,11 @@ public static class TestDdl
             """;
     }
 
-    private static string TruncateFilePatchProposals(string schema)
+    private static string TruncateObservationOverlays(string schema)
     {
         return $"""
-            alter table {schema}.file_patch_proposals disable trigger file_patch_proposals_append_only;
-            delete from {schema}.file_patch_proposals;
-            alter table {schema}.file_patch_proposals enable trigger file_patch_proposals_append_only;
+            delete from {schema}.observation_curations;
+            delete from {schema}.observation_date_repairs;
 
             """;
     }
@@ -203,6 +195,16 @@ public static class TestDdl
             delete from {schema}.task_acceptance_criteria;
             delete from {schema}.task_board_tasks;
             delete from {schema}.task_boards;
+
+            """;
+    }
+
+    private static string TruncateFilePatchProposals(string schema)
+    {
+        return $"""
+            alter table {schema}.file_patch_proposals disable trigger file_patch_proposals_append_only;
+            delete from {schema}.file_patch_proposals;
+            alter table {schema}.file_patch_proposals enable trigger file_patch_proposals_append_only;
 
             """;
     }

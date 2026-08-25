@@ -108,6 +108,13 @@ Local only \- these rows have no egress path.
 .TP
 .B dami stats
 Corpus and event-stream counts.
+.TP
+.B dami board-import \fITODO.md\fR --revision \fIsha\fR --actor \fIid\fR [--agent] [--dry-run]
+Write the blueprint onto the collaborative task board (O1g). Talks to
+PostgreSQL directly. Safe to rerun: it only advances tasks, and where the
+board already knows better than the file it reports the conflict and
+leaves the board alone. \fB--dry-run\fR prints the plan and anomalies
+without writing.
 .SH FILES
 .TP
 .I /opt/dami/cli

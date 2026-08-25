@@ -7538,3 +7538,72 @@ define least-privilege endpoint scope policies (including a separate approval-re
 scope), and replace client-supplied task-board actor identity with validated claims when
 authentication is enabled. Localhost compatibility remains available only while auth is
 explicitly disabled.
+
+## 2026-08-25 — Claude — O1g landed: importer committed, `dami board-import`, live on dami-data
+
+Arrived to a tree that could not build: 753 root-owned paths under `Dami.Gui.Tests` and
+`Dami.Proactive.Tests` `bin/obj` (runbook §7's chown trap), so restore failed on a temp file
+before any compiler ran. Steve cleared it; nothing in source was affected.
+
+### O1g2 — the held work lands
+
+The contracts and migration 028 are in `HEAD` since Codex's O1a–O1f commits, so the importer
+files build from their own tree now. One test was red on arrival: the whole-file import
+expected 201 tasks and found 204, because TODO.md gained three O1 sub-items while the work
+waited. A constant asserted against a living file is the wrong assertion; it now checks
+`plan.Draft.Tasks.Count`, `plan.Desired.Count`, and `report.TasksWritten` against each
+other, which is what the test was actually claiming.
+
+### O1g3 — an entry point, and the live run
+
+Nothing called the importer. The choice was a Host endpoint or a CLI verb; the verb talks to
+PostgreSQL directly, which makes it the third documented exception to D-005 beside `health`
+and `caption`: the file lives in the repository, the deployed Host at `/opt/dami` cannot see
+it, and the run is an operator's deliberate act rather than a turn. `--revision` and
+`--actor` are required, not inferred — a report without either is not traceable.
+`--dry-run` parses and plans and is tested to reach no store method (a stub that counts and
+refuses every call). The analyzer's 30-line cap fired on four methods, including two in
+`CommandRouter` that were already at the edge; the verb routes through the existing status
+dispatcher rather than growing the seventeen-parameter router further.
+
+Dry run first, against the real file at `3107935`: 15 epics, 204 tasks, the 9 known
+anomalies, nothing written. Then the write:
+
+```
+board created
+tasks held:  204
+mutations:   338
+conflicts:   0
+```
+
+and the exact rerun: `board already existed`, `mutations: 0`. Read back as `dami_app`: 204
+tasks on board `d621fe5f…` — 153 Done, 27 Open, 16 Blocked, 8 InProgress; `G2` Done; `E3`
+Blocked; `G4c3a` present; one `H9 → K1` prerequisite edge. `GET /task-boards` on the running
+Host lists "Dami Core suite" (`InProgress`, 204/153/16) beside Codex's acceptance board.
+
+### What the activity ledger actually holds
+
+339 rows: 1 BoardCreated, 161 TaskClaimed, 153 TaskCompleted, 16 TaskStatusChanged, 8
+CriterionSatisfied. Claims are attributed to the claimant the file names — the four
+Codex-owned in-progress tasks are `codex`, the four Claude-owned are `claude` — and the
+remaining 153 `claude` claims are the transient claim the board requires before it will
+accept a completion. The source revision is on the board record and in the detail of all 16
+status changes. It is **not** on the claim and completion rows: `ITaskBoardStore`'s
+`TryClaimAsync`/`TryCompleteAsync` take no detail, so those rows carry actor and timestamp
+only. O1g's text says "carrying actor, timestamp, and the source revision"; that holds for
+the run as a whole, not for every row, and the honest fix is a detail parameter on those two
+mutations, which is Codex's contract to change. Noted in TODO.md rather than worked around.
+
+### Not done
+
+The published CLI at `/opt/dami/cli` is unchanged; the live run used the Debug build from
+the tree (`dotnet build` output, same source as this commit). Redeploying is a `sudo rsync`
+per runbook §4 and is Steve's to run.
+
+### Gate
+
+`dotnet build Dami.sln`: 0 warnings, 0 errors. `dotnet test Dami.sln`: nineteen suites,
+**971 passed, 0 failed**. `dotnet format --verify-no-changes`: exit 0. One flake observed
+and not touched: `HostCompositionTests.Host_Should_Discover_Invoke_And_Close_A_Local_Streamable_Http_Server`
+failed once under the full run before any of my changes and passed 1/1 in isolation and in
+both later full runs — Codex's lane.

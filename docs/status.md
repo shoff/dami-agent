@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-24 18:08 CDT (`2026-08-24T23:08Z`)
+- **Last updated:** 2026-08-25 18:42 CDT (`2026-08-25T23:42Z`)
 - **Updated from:** direct workstation inspection and solution test evidence
 - **Current phases:** 0, 1, and 3 in progress
 
@@ -260,6 +260,17 @@ it. PostgreSQL contains exactly three immutable rows, three requested events, an
 three successful terminal events for skill `27b90cfb-3449-4260-9e56-abdcfe83f157`.
 Restart recovery reported zero pending changes, `/health` returned `ok`, and migrations
 001–021 remain applied with none pending. F4/F4c/F4c3/F4c3b are complete.
+
+Verification on 2026-08-25 for O1g (blueprint import): the CLI suite passed 12/12
+including a dry run proven to touch no store method; the importer's whole-file test now
+asserts against the parsed plan rather than a constant. The solution build completed with
+0 warnings and 0 errors, all nineteen suites passed 971/971, and format verification
+exited 0. Live: `dami board-import TODO.md` against `dami-data` at revision `3107935`
+created board `d621fe5f…` with 15 roots and 204 tasks (153 Done, 27 Open, 16 Blocked,
+8 InProgress) in 338 mutations with 0 conflicts; the exact rerun applied 0 mutations.
+`G2` Done, `E3` Blocked, `G4c3a` present, and the `H9 → K1` edge were read back as
+`dami_app`; `/task-boards` lists the board beside Codex's acceptance board. O1 is closed.
+The published CLI at `/opt/dami/cli` has not been redeployed; the run used the tree build.
 
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 

@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/Dami.Core/Dami.Core.csproj" />
     <ProjectReference Include="../../src/Dami.Persistence/Dami.Persistence.csproj" />
   </ItemGroup>
 

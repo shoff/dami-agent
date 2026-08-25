@@ -257,17 +257,17 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 
 ## O · Collaborative planning and task board
 
-- [~ Codex 2026-08-24] O1 PostgreSQL-backed feature-planning and task board shared by humans and agents: feature request → plan → recursive tasks, with prerequisites, acceptance criteria, claims, status, deterministic sibling ordering/priority, and live web + desktop views
+- [x] O1 PostgreSQL-backed feature-planning and task board shared by humans and agents: feature request → plan → recursive tasks, with prerequisites, acceptance criteria, claims, status, deterministic sibling ordering/priority, and live web + desktop views
   - [x] O1a Recursive contracts, PostgreSQL schema/store, dependency invariants, and concurrency-safe workflow
   - [x] O1b Agent planning intake: persist a feature request, generated plan, and identified task tree atomically
   - [x] O1c Runtime API for board queries and human/agent mutations
   - [x] O1d Live interactive board in the hosted website
   - [x] O1e Live interactive board in the Avalonia desktop client
   - [x] O1f Apply migrations and demonstrate multi-actor claim, dependency, acceptance, restart, and both UI surfaces live
-  - [~ Claude 2026-08-24] O1g Import this blueprint into the board as the initial "Dami Core suite": epics become root tasks and nested checklist items become recursive SubTasks of the same type, preserving ids (G5a1), status, owner and claim date, sibling order, BLOCKED reason, acceptance language, and prerequisites. Deterministic ids so a rerun is idempotent and never overwrites newer PostgreSQL state; the run is recorded as durable board activity carrying actor, timestamp, and the source revision. Malformed or ambiguous entries are reported, never guessed. Depends on O1a landing (contracts and migration 028 committed) before the mapping layer and the live apply
+  - [x] O1g Import this blueprint into the board as the initial "Dami Core suite": epics become root tasks and nested checklist items become recursive SubTasks of the same type, preserving ids (G5a1), status, owner and claim date, sibling order, BLOCKED reason, acceptance language, and prerequisites. Deterministic ids so a rerun is idempotent and never overwrites newer PostgreSQL state; the run is recorded as durable board activity carrying actor, timestamp, and the source revision. Malformed or ambiguous entries are reported, never guessed. Depends on O1a landing (contracts and migration 028 committed) before the mapping layer and the live apply
     - [x] O1g1 Reader: TODO.md parsed against its measured grammar — 186 entries, 15 epics, five depths, two trailing annotation forms (`[BLOCKED: …]`, `[STEVE: …]`) that are not markers, one undocumented `[DEFERRED: …]`, and a struck-through `~~G9~~` that is a reference rather than an id. Ambiguities reported, never guessed
-    - [~ Claude 2026-08-24] O1g2 Mapper, deterministic ids, advance-only rerun rules, and importer: written and demonstrated against real PostgreSQL (201 tasks, 324 mutations, 0 conflicts, 0 on rerun; H9→K1 edge and G4c3a at depth 5 verified). **Held uncommitted** — every file references `Dami.Contracts.TaskBoard`, which is staged but not in HEAD, so it would not build from its own tree. Lands when O1a is committed
-    - [ ] O1g3 Apply to `dami-data` and demonstrate live — needs migration 028 applied there, which is O1f
+    - [x] O1g2 Mapper, deterministic ids, advance-only rerun rules, and importer (Claude 2026-08-25) — the count assertion now derives from the parsed plan rather than a constant, since TODO.md is a living file (it had grown 201→204 while the work waited on O1a)
+    - [x] O1g3 `dami board-import <TODO.md> --revision <sha> --actor <id> [--agent] [--dry-run]` (Claude 2026-08-25) — direct-DB by design (the Host cannot see the repo file). Live on `dami-data` at `3107935`: board `d621fe5f…` "Dami Core suite", 15 roots, 204 tasks (153 Done / 27 Open / 16 Blocked / 8 InProgress), 338 mutations, 0 conflicts; rerun 0 mutations; visible beside Codex's acceptance board at `/task-boards`. Known limit: the store's claim/complete mutations take no detail, so the revision rides on the board record and the 16 status changes, not on every row. **The published CLI at `/opt/dami/cli` is not yet redeployed** — the live run used the tree build; `[STEVE: sudo rsync per runbook §4]`
 
 ---
 

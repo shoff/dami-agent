@@ -9,7 +9,8 @@ using Microsoft.Extensions.Logging;
 // D-005 honored: the CLI is a thin client of the localhost runtime API (dami-host).
 // Two deliberate exceptions keep talking to local resources directly:
 //   - `dami health` diagnoses the host — including when the API itself is down;
-//   - `dami caption` reads a local image file and runs the vision worker.
+//   - `dami caption` reads a local image file and runs the vision worker;
+//   - `dami board-import` writes a repository file the deployed Host cannot see (O1g).
 var configuration = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json", optional: true)
     .AddUserSecrets<InboxCommands>(optional: true)
@@ -35,6 +36,7 @@ services.AddHttpClient<IVisionClient, OllamaVisionClient>(client =>
     client.Timeout = TimeSpan.FromMinutes(10));
 services.AddSingleton<Dami.Contracts.Workers.IWorkerRunner, Dami.Core.Workers.WorkerRunner>();
 services.AddSingleton<VisionCommands>();
+services.AddSingleton<BoardImportCommands>();
 
 // Everything else is the API client.
 services.AddSingleton<InboxCommands>();
@@ -73,7 +75,8 @@ try
         provider.GetRequiredService<ApprovalCommands>(),
         provider.GetRequiredService<BriefCommands>(),
         provider.GetRequiredService<HealthLogCommands>(),
-        provider.GetRequiredService<ListenCommands>());
+        provider.GetRequiredService<ListenCommands>(),
+        provider.GetRequiredService<BoardImportCommands>());
 }
 catch (Dami.Contracts.Privacy.EgressRefusedException exception)
 {

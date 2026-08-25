@@ -49,6 +49,8 @@ public static class CommandRouter
           dami health-log                the structured health timeline (K2), local only
           dami health-reject <id8> <why> remove a wrong health fact, permanently
           dami listen <audio-file>       transcribe speech locally; audio never leaves the host
+          dami board-import <TODO.md> --revision <sha> --actor <id> [--agent] [--dry-run]
+                                         write the blueprint onto the task board; rerun-safe
         """;
 
     /// <summary>Runs one command. Returns the process exit code.</summary>
@@ -69,7 +71,8 @@ public static class CommandRouter
         ApprovalCommands approvals,
         BriefCommands briefs,
         HealthLogCommands healthLog,
-        ListenCommands listen)
+        ListenCommands listen,
+        BoardImportCommands boardImport)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
@@ -88,18 +91,16 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(briefs);
         ArgumentNullException.ThrowIfNull(healthLog);
         ArgumentNullException.ThrowIfNull(listen);
+        ArgumentNullException.ThrowIfNull(boardImport);
 
         using var cancellation = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, eventArgs) =>
-        {
-            eventArgs.Cancel = true;
-            cancellation.Cancel();
-        };
+        Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
 
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
             args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            chat, sessions, frontier, approvals, briefs, healthLog, listen, cancellation.Token)
+            chat, sessions, frontier, approvals, briefs, healthLog, listen, boardImport,
+            cancellation.Token)
             .ConfigureAwait(false);
     }
 
@@ -122,6 +123,7 @@ public static class CommandRouter
         BriefCommands briefs,
         HealthLogCommands healthLog,
         ListenCommands listen,
+        BoardImportCommands boardImport,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -130,9 +132,9 @@ public static class CommandRouter
                 await DispatchInboxAsync(verb, args, inbox, cancellationToken).ConfigureAwait(false),
             "trace" when args.Length > 1 =>
                 await traces.ReplayAsync(args[1], cancellationToken).ConfigureAwait(false),
-            "health" or "stats" or "health-log" or "health-reject" =>
-                await DispatchStatusAsync(verb, args, health, stats, healthLog, cancellationToken)
-                    .ConfigureAwait(false),
+            "health" or "stats" or "health-log" or "health-reject" or "board-import" =>
+                await DispatchStatusAsync(verb, args, health, stats, healthLog, boardImport,
+                    cancellationToken).ConfigureAwait(false),
             "recall" or "ask" or "context" or "caption" or "chat" when args.Length > 1 =>
                 await DispatchModelAsync(verb, args, recall, ask, contextCommands, vision, chat,
                     cancellationToken).ConfigureAwait(false),
@@ -181,11 +183,14 @@ public static class CommandRouter
         HealthCommands health,
         StatsCommands stats,
         HealthLogCommands healthLog,
+        BoardImportCommands boardImport,
         CancellationToken cancellationToken)
     {
         return verb switch
         {
             "health" => await health.CheckAsync(cancellationToken).ConfigureAwait(false),
+            "board-import" =>
+                await boardImport.ImportAsync(args[1..], cancellationToken).ConfigureAwait(false),
             "stats" => await stats.ShowAsync(cancellationToken).ConfigureAwait(false),
             "health-reject" when args.Length > 1 => await healthLog.RejectAsync(
                 args[1], args.Length > 2 ? string.Join(' ', args[2..]) : null, cancellationToken)
