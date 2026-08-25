@@ -258,12 +258,12 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 ## O · Collaborative planning and task board
 
 - [~ Codex 2026-08-24] O1 PostgreSQL-backed feature-planning and task board shared by humans and agents: feature request → plan → recursive tasks, with prerequisites, acceptance criteria, claims, status, deterministic sibling ordering/priority, and live web + desktop views
-  - [~ Codex 2026-08-24] O1a Recursive contracts, PostgreSQL schema/store, dependency invariants, and concurrency-safe workflow
-  - [~ Codex 2026-08-24] O1b Agent planning intake: persist a feature request, generated plan, and identified task tree atomically
-  - [~ Codex 2026-08-24] O1c Runtime API for board queries and human/agent mutations
-  - [~ Codex 2026-08-24] O1d Live interactive board in the hosted website
-  - [~ Codex 2026-08-24] O1e Live interactive board in the Avalonia desktop client
-  - [~ Codex 2026-08-24] O1f Apply migrations and demonstrate multi-actor claim, dependency, acceptance, restart, and both UI surfaces live
+  - [x] O1a Recursive contracts, PostgreSQL schema/store, dependency invariants, and concurrency-safe workflow
+  - [x] O1b Agent planning intake: persist a feature request, generated plan, and identified task tree atomically
+  - [x] O1c Runtime API for board queries and human/agent mutations
+  - [x] O1d Live interactive board in the hosted website
+  - [x] O1e Live interactive board in the Avalonia desktop client
+  - [x] O1f Apply migrations and demonstrate multi-actor claim, dependency, acceptance, restart, and both UI surfaces live
   - [~ Claude 2026-08-24] O1g Import this blueprint into the board as the initial "Dami Core suite": epics become root tasks and nested checklist items become recursive SubTasks of the same type, preserving ids (G5a1), status, owner and claim date, sibling order, BLOCKED reason, acceptance language, and prerequisites. Deterministic ids so a rerun is idempotent and never overwrites newer PostgreSQL state; the run is recorded as durable board activity carrying actor, timestamp, and the source revision. Malformed or ambiguous entries are reported, never guessed. Depends on O1a landing (contracts and migration 028 committed) before the mapping layer and the live apply
     - [x] O1g1 Reader: TODO.md parsed against its measured grammar — 186 entries, 15 epics, five depths, two trailing annotation forms (`[BLOCKED: …]`, `[STEVE: …]`) that are not markers, one undocumented `[DEFERRED: …]`, and a struck-through `~~G9~~` that is a reference rather than an id. Ambiguities reported, never guessed
     - [~ Claude 2026-08-24] O1g2 Mapper, deterministic ids, advance-only rerun rules, and importer: written and demonstrated against real PostgreSQL (201 tasks, 324 mutations, 0 conflicts, 0 on rerun; H9→K1 edge and G4c3a at depth 5 verified). **Held uncommitted** — every file references `Dami.Contracts.TaskBoard`, which is staged but not in HEAD, so it would not build from its own tree. Lands when O1a is committed

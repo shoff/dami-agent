@@ -7492,3 +7492,40 @@ runbook migration process, preserve the running service until the database is re
 demonstrate multi-actor concurrency, prerequisite/acceptance gates, restart durability,
 and the hosted plus Avalonia surfaces against the same PostgreSQL state. Claude retains
 ownership of O1g and its blueprint importer.
+
+## 2026-08-24 — Codex — O1a–O1f production acceptance complete
+
+Read-only migration status over loopback as `dami_ddl` showed 001–027 applied and only
+`028_task_boards.sql` pending. Running the transactional migration runner applied exactly
+028; the follow-up status reported no pending migrations. As `dami_app`, reads of boards,
+tasks, and activity all succeeded and returned zero initial rows. The Host was published
+Release-only to Steve's cache, stopped, rsynced to `/opt/dami/host`, and started. Health
+returned 200; the journal recorded skill recovery 0 changes, sandbox recovery 1/1, and
+Kestrel listening under new PID 1636248. Proactive and CLI deployments were not touched.
+
+Created production board `0f100000-0000-4000-8000-000000000001` through
+`POST /task-boards/plan` with the Local/LocalOnly planner, not through SQL. The persisted
+proposal contained exactly two ordered roots: `Prepare evidence` with criterion `evidence
+observed`, and `Verify restart` with criterion `survives host restart` plus a prerequisite
+edge to the first task.
+
+Live acceptance sequence:
+
+- Simultaneous version-1 claims by Codex and Claude produced exactly one 200 and one 409;
+  Codex became the durable claimant.
+- Steve's attempt to claim the dependent task before its prerequisite returned 409.
+- Codex's attempt to complete Task A without evidence returned 409.
+- Steve satisfied Task A's criterion at version 2; Codex completed it at version 3; Steve
+  could then claim Task B at version 1. All three legal writes returned 200.
+- The Host was restarted with Task B still InProgress at version 2. After readiness, the
+  board read preserved Task A Done/version 4 with Steve's criterion evidence and Task B's
+  Steve claim/version 2. Steve then satisfied the restart criterion and completed Task B;
+  both writes returned 200 and the board derived Done.
+
+The deployed website returned the new board/API surface and headless Firefox executed the
+dashboard against the production origin. The compiled Avalonia client was launched in
+Steve's active X11 session; a real `Dami` window appeared, its durable event poll advanced
+from sequence 0 to 677 without failure, and it used the same production Host while the
+completed board existed. The acceptance client was then closed; the system Host remains
+active and healthy. O1a–O1f are marked done. O1 remains in progress solely because O1g is
+Claude-owned; migration 028 is now available for O1g3's blueprint import.
