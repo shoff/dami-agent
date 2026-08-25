@@ -7093,3 +7093,85 @@ were intentionally excluded, and 2 Host frontier tests failed without Claude's a
 context-planner changes. O1a therefore remains claimed rather than falsely complete and
 its implementation remains uncommitted. O1b is now claimed so planning intake can be
 developed while the unrelated gate converges.
+
+## 2026-08-24 — Codex — O1b retry convergence resumed
+
+Resumed the claimed task-board planning intake after Claude's context and corpus
+commits advanced the shared branch. The shared staging index predates those commits
+and now falsely shows their tracked files as deletions, so verification uses a
+temporary index and the existing isolated worktree; no Claude-owned path will be
+staged or rewritten.
+
+Added one not-yet-run persistence test for the planning request's stable board id:
+an exact `CreateAsync` retry must converge while the same id with different immutable
+content must be rejected. The isolated first completed run failed 0/1 as expected:
+the exact retry raised PostgreSQL `23505` on `task_boards_pkey`. The first 30-second
+attempt ended before xUnit reported a result and is not counted as evidence.
+
+## 2026-08-24 — Claude — O1g claimed; TODO.md reader built against the measured grammar
+
+Read `TODO.md`, `docs/work-log.md`, and ADR-0021 before acting, then added and committed
+`O1g` as a separate subtask so the lane boundary stays legible: Codex owns O1/O1a/O1b —
+the contracts, schema, store, and planning intake — and O1g owns reading the blueprint and
+mapping it onto them. Nothing under `Dami/src/*/TaskBoard/`, `Dami/tests/*/TaskBoard/`, or
+`tools/ddl/028_task_boards.sql` was modified; importer code lives in `BoardImport/`.
+
+### The grammar was measured, not assumed
+
+`TODO.md` documents four task states. The file uses six things. Counting before writing a
+parser produced: 186 checklist entries across 15 lettered sections, five indent levels at
+two spaces each, and these markers — `[x]` 143, `[ ]` 28, `[STEVE]` 6, `[~ OWNER DATE]` 8,
+`[DEFERRED: reason]` 1.
+
+Three findings changed the design:
+
+- **BLOCKED is not a marker.** The protocol documents `[BLOCKED: reason]` as a state, but
+  all four uses are trailing annotations on open tasks: ``- [ ] E3 UDP path `[BLOCKED:
+  L-phase]` ``. Parsed as a leading marker it would have matched nothing.
+- **`[DEFERRED: correct as-is]` is undocumented.** It is reported rather than translated.
+  `Cancelled` would be a guess, and deferred work is not abandoned work.
+- **`G9` appears twice.** `- [x] G9 Frontier-informed turns` and, two lines later,
+  `- [STEVE] ~~G9~~ posture`. The strikethrough is a reference to the retired task, not a
+  second task named G9. The first implementation read it as an id; the duplicate-id test
+  against the real file caught it. Reading it that way would have merged the two and lost
+  the open posture question behind the done one.
+
+**Prerequisites have no syntax.** They are prose: "needs K1 first", "decide after voice
+proves itself". An edge is recorded only when the phrase names an id the file defines —
+two such edges exist — and every other dependency phrase is reported. A guessed edge is a
+false prerequisite that nothing downstream could distinguish from a real one.
+
+`TodoState` is deliberately not `TaskBoardStatus`. The board has five statuses and is right
+to; this file has six distinguishable states. `NeedsSteve` and `Deferred` both collapse into
+`Blocked` on the way in, and collapsing at parse time would discard the distinction before
+anything could report it.
+
+### TDD trail
+
+Tests were written first and observed red: the whole file failed to compile because
+`Dami.Core.BoardImport` did not exist. After the parser was written, 20/20 unit tests passed
+and the real-file test then failed on `duplicate ids: G9`, which produced the strikethrough
+finding above. Correcting it exposed a second, smaller error: the id pattern's trailing `\b`
+forced backtracking so the closing `~~` was never consumed and the title began `~~ post`.
+The pattern now checks the boundary before consuming the closer. 23/23 pass.
+
+The reader currently reports 8 anomalies against the live file — one undocumented marker,
+one struck-through id, and six unresolved dependency phrases — and finds 4 blocked entries,
+10 acceptance references, and 2 prerequisite edges.
+
+`Steve's queue` is a numbered cross-reference view of tasks that live in other sections
+(B9, H7, G9, A7, B6, …), not a source of new tasks. Sections holding no checklist items are
+skipped, so it is excluded by construction rather than by a special case.
+
+### Gate
+
+`dotnet build Dami.sln`: 0 warnings, 0 errors. `dotnet test Dami.sln`: 898 passed, 0 failed.
+
+### Not done, and why
+
+The mapping layer and the live apply are deliberately absent. Migration 028 and the
+task-board contracts are staged but not in `HEAD`, and `dami-data` has no task tables yet, so
+a commit containing code that referenced `Dami.Contracts.TaskBoard` would not build from its
+own tree. The reader is committed on its own because it depends on nothing in Codex's lane.
+Deterministic ids, the `TaskBoardDraft` mapping, advance-only rerun semantics, and the
+activity record carrying actor/timestamp/source revision follow once O1a lands.
