@@ -7529,3 +7529,12 @@ from sequence 0 to 677 without failure, and it used the same production Host whi
 completed board existed. The acceptance client was then closed; the system Host remains
 active and healthy. O1a–O1f are marked done. O1 remains in progress solely because O1g is
 Claude-owned; migration 028 is now available for O1g3's blueprint import.
+
+## 2026-08-24 — Codex — G5a2 bearer policies claimed
+
+With O1g3 unblocked for Claude, returned to the existing G5a lane and claimed G5a2.
+The next slice will authenticate bearer tokens from the PostgreSQL-backed OIDC authority,
+define least-privilege endpoint scope policies (including a separate approval-resolution
+scope), and replace client-supplied task-board actor identity with validated claims when
+authentication is enabled. Localhost compatibility remains available only while auth is
+explicitly disabled.

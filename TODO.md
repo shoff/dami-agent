@@ -152,7 +152,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   grants, and revocation; scoped CLI/GUI/service clients and separately authorized
   approval resolution (ADR-0020)
   - [~ Codex 2026-08-24] G5a1 Maintained OIDC server integration + isolated PostgreSQL auth schema and key boundary
-  - [ ] G5a2 Bearer authentication + endpoint scope policies, including dedicated approval resolution authority
+  - [~ Codex 2026-08-24] G5a2 Bearer authentication + endpoint scope policies, including dedicated approval resolution authority
   - [ ] G5a3 CLI device flow, GUI authorization-code/PKCE flow, and narrowly scoped service enrollment
   - [ ] G5a4 Production cutover, revocation, restart, and cross-client live demonstration
 - [x] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4
