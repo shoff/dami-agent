@@ -6892,3 +6892,14 @@ capability. The materialized `Tool.dll` SHA-256 is
 `608f81a78b179203cb4d6186f48936cc304e6ec15667ec92a854b7f11e3a1b04`, byte-for-byte
 equal to the persisted verification digest. `dami-host` remains active and `/health`
 returns `ok`. F5c3c, F5c3, F5c, and F5 are complete.
+
+## 2026-08-24 — Codex — G5a/G5a1 claimed
+
+After completing and pushing F5, pulled as Steve (`Already up to date`) and selected
+the next open item rather than waiting for direction. G5a is too large to treat as one
+opaque commit, so its existing scope is split without widening it: G5a1 owns the
+maintained OIDC server and isolated PostgreSQL state/key boundary; G5a2 owns bearer and
+endpoint authorization policies; G5a3 owns CLI device, GUI PKCE, and service enrollment;
+G5a4 owns production cutover plus revocation/restart/cross-client evidence. G5a1 is
+claimed first. Library choice remains an evidence-backed implementation decision, not
+an in-house OAuth/OIDC protocol implementation.

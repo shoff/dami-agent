@@ -142,9 +142,13 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] G4c3 Deploy and demonstrate multi-turn context, interruption, resume, and retry convergence live
       - [x] G4c3a Propagate durable session interruption into active turn/model cancellation
 - [x] G5 Runtime API on localhost (D-005): `dami-host` service on 127.0.0.1:5810 — turns/SSE, surfacings, beliefs, approvals, traces, `/events`; CLI rework stays I2
-- [ ] G5a OIDC authentication on localhost with PostgreSQL-backed identities, clients,
+- [~ Codex 2026-08-24] G5a OIDC authentication on localhost with PostgreSQL-backed identities, clients,
   grants, and revocation; scoped CLI/GUI/service clients and separately authorized
   approval resolution (ADR-0020)
+  - [~ Codex 2026-08-24] G5a1 Maintained OIDC server integration + isolated PostgreSQL auth schema and key boundary
+  - [ ] G5a2 Bearer authentication + endpoint scope policies, including dedicated approval resolution authority
+  - [ ] G5a3 CLI device flow, GUI authorization-code/PKCE flow, and narrowly scoped service enrollment
+  - [ ] G5a4 Production cutover, revocation, restart, and cross-client live demonstration
 - [x] G6 Tool execution in turns: bounded terminal/file ops through the capability registry — acceptance item 4
 - [x] G11 **Subscription frontier restored and made usable** (Claude 2026-08-24) — a deploy had reverted the host `appsettings.json` and silently switched `Codex:Enabled` off; runtime config now lives in the `dami-host` systemd drop-in where deploys cannot reach it. `EgressRefusedException` no longer escapes as a 500 (it returns 403 + reason, and the CLI prints `refused:` instead of blaming transport)
 - [x] G12 **`dami chat --frontier`** (Claude 2026-08-24) — the ChatGPT subscription as a turn mode: identity + question, no retrieved memory, fully traced. No API key anywhere (`auth_mode: chatgpt`)
