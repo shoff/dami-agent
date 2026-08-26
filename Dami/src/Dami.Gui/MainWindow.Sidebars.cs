@@ -9,7 +9,44 @@ public sealed partial class MainWindow
         this.state.Attention.Clear();
         await this.AddApprovalsAsync().ConfigureAwait(true);
         await this.AddSurfacingsAsync().ConfigureAwait(true);
+        await this.AddTodayAsync().ConfigureAwait(true);
         await this.RefreshBeliefsAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>The board's questions for Steve, the civic week, and network problems (K4).</summary>
+    private async Task AddTodayAsync()
+    {
+        using var boards = await this.runtime.GetAsync("/task-boards", this.lifetime.Token).ConfigureAwait(true);
+        foreach (var board in boards?.RootElement.EnumerateArray() ?? default)
+        {
+            using var snapshot = await this.runtime
+                .GetAsync($"/task-boards/{board.GetProperty("boardId").GetGuid():D}", this.lifetime.Token)
+                .ConfigureAwait(true);
+            if (snapshot is not null)
+            {
+                this.AddAll(TodayDigest.BoardQuestions(snapshot.RootElement.GetProperty("tasks")));
+            }
+        }
+
+        using var civic = await this.runtime.GetAsync("/domains/civic", this.lifetime.Token).ConfigureAwait(true);
+        if (civic is not null)
+        {
+            this.AddAll(TodayDigest.CivicWeek(civic.RootElement, DateOnly.FromDateTime(DateTime.Today)));
+        }
+
+        using var network = await this.runtime.GetAsync("/domains/network", this.lifetime.Token).ConfigureAwait(true);
+        if (network is not null)
+        {
+            this.AddAll(TodayDigest.NetworkProblems(network.RootElement));
+        }
+    }
+
+    private void AddAll(IEnumerable<SidebarItem> items)
+    {
+        foreach (var item in items)
+        {
+            this.state.Attention.Add(item);
+        }
     }
 
     private async Task AddApprovalsAsync()
