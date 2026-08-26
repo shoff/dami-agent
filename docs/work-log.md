@@ -7898,3 +7898,50 @@ demonstrations; D5 on the condition under which it is revisited. Verified by SQL
 leaf tasks on the suite board without a criterion. O2e's own criterion was satisfied and
 it was completed on the board. O2 stays open on one criterion that is not mine to satisfy:
 an agent other than Claude claims and completes a task there.
+
+## 2026-08-25 — Claude — G9a: the gate records its decisions and learns from corrections
+
+ADR-0019 said `DisclosureOptions.Examples` would carry Steve's corrections and that
+capturing them was not built. The gate logged only counts, so there was nothing to
+correct. Now (`542c1db`, `2722042`):
+
+- Migration 032: `disclosure_decisions` (append-only, one row per item per gated turn,
+  under the turn's trace) and `disclosure_corrections` (one per decision, append-only).
+- The augmented turn records every decision; a disabled gate records nothing, because
+  there was no decision.
+- `dami disclosures` lists them newest first; `dami disclose-correct <id8>
+  pass|disguise|withhold [why]` records the correction as `$DAMI_ACTOR`.
+- The gate reads the last twenty corrections into its prompt after the configured
+  examples: *for "<item>" the gate chose X; the user says it should have been Y because…*
+- `dami chat --augmented` — the API took `augmented:true` but no verb sent it.
+
+Tests: a recorded correction reaches the prompt and the (stubbed) model's answer follows
+it; the ledger's record, single correction, unknown-id refusal, and both append-only
+guards against PostgreSQL; the Host routes and CLI verbs.
+
+### Live, on production, after the redeploy
+
+`dami chat --augmented "Given my heart condition, what should I ask my surgeon…"` →
+trace `8a457d83`, 13 decisions recorded: 8 pass, 2 disguise, 3 withhold. The disguise of
+the surgery row reads *"performed by a surgeon at Park Nicollet Specialty Center"* — the
+surgeon's name gone, the clinic kept. One decision was wrong by Steve's own rule: item
+`c942cf7f`, *"Steve asked: what is my heart condition? — Dami answered…"*, **passed with
+his name in it.** Corrected to withhold with the reason *"the user's own name identifies
+him; anything carrying 'Steve' is disguised or withheld, never passed"*. The same turn
+again → trace `db8f94a4`: the same item is now `e2542454 Withhold`. Nothing else changed
+between the two turns.
+
+**Attribution note.** That one live correction is recorded as `corrected_by = steve`
+because the CLI used the login user; I made it, as a demonstration, on his behalf. The
+CLI now sends `$DAMI_ACTOR` like the board verbs do, so the next one is attributed
+truthfully; the ledger is append-only, so the first row stays as it is, with this note as
+its correction.
+
+### Gate
+
+For the two commits: `dotnet build Dami.sln` 0 warnings, 0 errors; `dotnet test
+Dami.sln` nineteen suites, **1002 passed, 0 failed**; format exit 0; 032 applied live,
+none pending. The attribution fix after them could not be gated on the whole solution:
+Codex's in-flight G5a2 edits to `TaskBoardEndpoints` and its tests were red (IDE0009)
+in the shared tree at that moment. The CLI project and its tests built and passed on their
+own and the two changed files pass format verification; the fix is confined to them.

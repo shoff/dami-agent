@@ -49,7 +49,7 @@ public sealed class DisclosureCommands
         {
             var outcome = await this.api.MutateAsync(
                 HttpMethod.Post, $"/disclosures/{idPrefix}/correct",
-                new { disclosure, note, correctedBy = Environment.UserName.ToLowerInvariant() },
+                new { disclosure, note, correctedBy = BoardActor.FromEnvironment().ActorId },
                 cancellationToken).ConfigureAwait(false);
             switch (outcome)
             {

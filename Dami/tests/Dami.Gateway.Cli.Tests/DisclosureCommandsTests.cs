@@ -46,6 +46,7 @@ public sealed class DisclosureCommandsTests
         Assert.Equal(0, exitCode);
         Assert.Equal("withhold", sent.GetProperty("disclosure").GetString());
         Assert.Equal("doctors' names never leave", sent.GetProperty("note").GetString());
+        Assert.Equal(BoardActor.FromEnvironment().ActorId, sent.GetProperty("correctedBy").GetString());
         Assert.Contains("corrected to withhold", output, StringComparison.Ordinal);
     }
 

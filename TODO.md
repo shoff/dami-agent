@@ -186,7 +186,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] G7a2 Insert request/resolution events atomically and demonstrate them live
 - [x] G8 Workers/sub-agents with child traces and returned evidence — acceptance item 6 (WorkerRunner; vision caption is the first live worker)
 - [x] G9 **Frontier-informed turns** — ADR-0019: local RAG augments the frontier, which answers. Three-way local disclosure gate (pass / disguise / withhold), fails closed, rules owned by Steve
-- [ ] G9a Capture Steve's corrections to gate decisions and feed them back as examples (the gate learns *his* boundaries, like the taste model)
+- [x] G9a (Claude 2026-08-25; migration 032, `dami disclosures`, `dami disclose-correct`, `dami chat --augmented`; live: a passed item carrying "Steve" was corrected to withhold and the next turn withheld it; completed on the board) Capture Steve's corrections to gate decisions and feed them back as examples (the gate learns *his* boundaries, like the taste model)
 - [STEVE] ~~G9~~ posture — the mechanism shipped (C4 briefs + server-side execution); what remains is the posture ADR-0013 deferred: should `dami chat` ever offer a brief unprompted? Steve's call
 - [x] G10 Identity/prompt: charter reconstructed from migrated identity data (docs/identity/); §9.1 stable block installed at /opt/dami/identity-prompt.md; identity demonstrated across qwen3 + codex — acceptance item 9. SOUL.md reconciles at M4.
 

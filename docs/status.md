@@ -324,6 +324,16 @@ staged in `~/.cache/dami-pub` for the rsync and restart.
 
 Update 2026-08-25, later: Host and CLI redeployed; `dami board needs` wrote 33 criteria live, and a `dami_app` count shows zero open leaf tasks without one. O2e is complete on the board.
 
+Verification on 2026-08-25 for G9a: a unit test observed a recorded correction in the
+gate's prompt and the model's answer following it; the ledger's record, single
+correction, unknown-id refusal, and append-only guards passed against migration 032; the
+Host routes and CLI verbs passed their suites. The solution build completed with 0
+warnings and 0 errors, all nineteen suites passed 1002/1002, and format verification
+exited 0. Migration 032 is applied to `dami-data` with none pending; Host and CLI were
+redeployed. Live: an augmented turn recorded 13 decisions under trace `8a457d83`; one
+that passed the user's name was corrected to withhold; the same turn again (`db8f94a4`)
+withheld it. G9a is complete on the board.
+
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
 | Item | State | Evidence |
