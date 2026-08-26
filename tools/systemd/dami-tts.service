@@ -1,0 +1,23 @@
+# Dami — local text-to-speech sidecar (Piper, CPU, loopback only).
+#   sudo cp tools/systemd/dami-tts.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now dami-tts
+# Voices are downloaded deliberately into /home/steve/Data/piper and recorded in
+# docs/decisions; the service never fetches one.
+[Unit]
+Description=Dami text-to-speech sidecar (Piper)
+After=network-online.target
+
+[Service]
+Type=simple
+User=steve
+Group=steve
+WorkingDirectory=/home/steve/dev/dami-agent
+Environment=DAMI_TTS_VOICES=/home/steve/Data/piper
+Environment=DAMI_TTS_VOICE=en_US-ljspeech-medium
+Environment=DAMI_TTS_PORT=8091
+ExecStart=/usr/local/bin/uv run --with piper-tts /home/steve/dev/dami-agent/tools/tts/server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

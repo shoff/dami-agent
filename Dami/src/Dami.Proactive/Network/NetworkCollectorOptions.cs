@@ -40,6 +40,7 @@ public sealed class NetworkCollectorOptions
         new WatchedService { Name = "tei-embed", Port = 8080 },
         new WatchedService { Name = "tei-rerank", Port = 8081 },
         new WatchedService { Name = "dami-stt", Port = 8090 },
+        new WatchedService { Name = "dami-tts", Port = 8091 },
         new WatchedService { Name = "ollama", Port = 11434 },
     ];
 }

@@ -57,6 +57,7 @@ public static class CommandRouter
           dami disclose-correct <id8> pass|disguise|withhold [why]
                                          correct one decision; the gate learns from it
           dami listen <audio-file>       transcribe speech locally; audio never leaves the host
+          dami say <text> [--out f.wav]  speak locally through the Piper sidecar; plays or writes the WAV
           dami board                     the task board: list, show, claim, complete, block
           dami board-import <TODO.md> --revision <sha> --actor <id> [--agent] [--dry-run]
                                          write the blueprint onto the task board; rerun-safe
@@ -80,7 +81,7 @@ public static class CommandRouter
         ApprovalCommands approvals,
         BriefCommands briefs,
         HealthLogCommands healthLog,
-        ListenCommands listen,
+        VoiceVerbs voice,
         ReviewVerbs review,
         BoardVerbs board)
     {
@@ -100,7 +101,7 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(approvals);
         ArgumentNullException.ThrowIfNull(briefs);
         ArgumentNullException.ThrowIfNull(healthLog);
-        ArgumentNullException.ThrowIfNull(listen);
+        ArgumentNullException.ThrowIfNull(voice);
         ArgumentNullException.ThrowIfNull(review);
         ArgumentNullException.ThrowIfNull(board);
 
@@ -108,7 +109,7 @@ public static class CommandRouter
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
             args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            chat, sessions, frontier, approvals, briefs, healthLog, listen, review, board,
+            chat, sessions, frontier, approvals, briefs, healthLog, voice, review, board,
             cancellation.Token).ConfigureAwait(false);
     }
 
@@ -137,7 +138,7 @@ public static class CommandRouter
         ApprovalCommands approvals,
         BriefCommands briefs,
         HealthLogCommands healthLog,
-        ListenCommands listen,
+        VoiceVerbs voice,
         ReviewVerbs review,
         BoardVerbs board,
         CancellationToken cancellationToken)
@@ -164,8 +165,7 @@ public static class CommandRouter
                 await DispatchApprovalsAsync(verb, args, approvals, cancellationToken).ConfigureAwait(false),
             "frontier" when args.Length > 1 =>
                 await frontier.AskAsync(string.Join(' ', args[1..]), cancellationToken).ConfigureAwait(false),
-            "listen" when args.Length > 1 =>
-                await listen.TranscribeAsync(args[1], cancellationToken).ConfigureAwait(false),
+            "listen" or "say" when args.Length > 1 => await VoiceAsync(verb, args, voice, cancellationToken).ConfigureAwait(false),
             "brief" when args.Length > 1 =>
                 await briefs.DraftAsync(string.Join(' ', args[1..]), cancellationToken).ConfigureAwait(false),
             "beliefs" or "correct" or "retract" or "note" =>
@@ -299,6 +299,34 @@ public static class CommandRouter
         };
     }
 
+    private static Task<int> VoiceAsync(string verb, string[] args, VoiceVerbs voice, CancellationToken cancellationToken)
+    {
+        return verb == "listen"
+            ? voice.Listen.TranscribeAsync(args[1], cancellationToken)
+            : SayAsync(args, voice.Say, cancellationToken);
+    }
+
+    /// <summary>`say [--out file] words…` — the words are everything that is not the flag.</summary>
+    private static Task<int> SayAsync(string[] args, SayCommands say, CancellationToken cancellationToken)
+    {
+        string? output = null;
+        var words = new List<string>();
+        for (var index = 1; index < args.Length; index++)
+        {
+            if (args[index] == "--out" && index + 1 < args.Length)
+            {
+                output = args[++index];
+                continue;
+            }
+
+            words.Add(args[index]);
+        }
+
+        return words.Count == 0
+            ? Task.FromResult(Usage())
+            : say.SayAsync(string.Join(' ', words), output, cancellationToken);
+    }
+
     private static int Usage()
     {
         Console.WriteLine(USAGE);
@@ -308,6 +336,9 @@ public static class CommandRouter
 
 /// <summary>The verbs that review what the system recorded and correct it.</summary>
 public sealed record ReviewVerbs(DisclosureCommands Disclosures, DomainCommands Domains, TodayCommands Today);
+
+/// <summary>Ears and mouth: both local, neither sends audio anywhere.</summary>
+public sealed record VoiceVerbs(ListenCommands Listen, SayCommands Say);
 
 /// <summary>The board verbs travel together: one surface with two doors.</summary>
 public sealed record BoardVerbs(BoardCommands Board, BoardImportCommands Import);

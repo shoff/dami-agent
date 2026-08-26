@@ -91,6 +91,9 @@ builder.Services.AddSingleton<Dami.Contracts.Workers.IWorkerRunner, Dami.Core.Wo
 builder.Services.Configure<WhisperOptions>(
     builder.Configuration.GetSection(WhisperOptions.SECTION_NAME));
 builder.Services.AddHttpClient<ITranscriptionClient, WhisperTranscriptionClient>(client =>
+// L4: text to speech through the local Piper sidecar; audio never leaves the host.
+builder.Services.Configure<PiperOptions>(builder.Configuration.GetSection(PiperOptions.SECTION_NAME));
+builder.Services.AddHttpClient<ISpeechClient, PiperSpeechClient>(client => client.Timeout = TimeSpan.FromMinutes(2));
     client.Timeout = TimeSpan.FromMinutes(5));
 builder.Services.AddDamiNativeTools(builder.Configuration, TimeProvider.System);
 builder.Services.AddDamiMcpTools(builder.Configuration);

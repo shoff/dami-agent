@@ -1,4 +1,5 @@
 using Dami.Gateway.Cli;
+using Dami.Authentication;
 using Dami.Contracts.Models;
 using Dami.Persistence;
 using Dami.Vision;
@@ -24,7 +25,11 @@ var connectionString =
 
 var services = new ServiceCollection();
 services.AddLogging(logging => logging.AddFilter(_ => false));
-services.AddHttpClient<DamiApiClient>(client => client.Timeout = TimeSpan.FromMinutes(15));
+services.AddHttpClient<DamiApiClient>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(15);
+    DamiBearerToken.Apply(client, configuration["Authentication:AccessToken"]);
+});
 
 // The two direct-access exceptions.
 services.AddDamiPersistence(connectionString);
@@ -56,6 +61,8 @@ services.AddSingleton<ApprovalCommands>();
 services.AddSingleton<BriefCommands>();
 services.AddSingleton<HealthLogCommands>();
 services.AddSingleton<ListenCommands>();
+services.AddSingleton<SayCommands>();
+services.AddSingleton<VoiceVerbs>();
 services.AddSingleton<DisclosureCommands>();
 services.AddSingleton<DomainCommands>();
 services.AddSingleton<TodayCommands>();
@@ -82,7 +89,7 @@ try
         provider.GetRequiredService<ApprovalCommands>(),
         provider.GetRequiredService<BriefCommands>(),
         provider.GetRequiredService<HealthLogCommands>(),
-        provider.GetRequiredService<ListenCommands>(),
+        provider.GetRequiredService<VoiceVerbs>(),
         provider.GetRequiredService<ReviewVerbs>(),
         provider.GetRequiredService<BoardVerbs>());
 }

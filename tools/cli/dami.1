@@ -115,6 +115,10 @@ through the disclosure gate (ADR-0019): each item is sent, disguised as an
 unnamed third party, or withheld. Every decision is recorded for
 \fBdami disclosures\fR.
 .TP
+.B dami say \fItext\fR [--out \fIfile.wav\fR]
+Speak through the local Piper sidecar (127.0.0.1:8091). Plays with paplay
+or aplay, or writes the WAV to \fB--out\fR. Nothing leaves the host.
+.TP
 .B dami today
 The morning screen: pending surfacings, the board's questions for you,
 this week's civic meetings, and anything on the network that stopped
