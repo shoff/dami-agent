@@ -32,7 +32,7 @@ public sealed class SystemNetworkProbe : INetworkProbe
     public IReadOnlyList<InterfaceState> Interfaces()
     {
         return NetworkInterface.GetAllNetworkInterfaces()
-            .Where(nic => nic.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+            .Where(nic => nic.NetworkInterfaceType != NetworkInterfaceType.Loopback && !IsContainerPlumbing(nic.Name))
             .Select(nic => new InterfaceState(
                 nic.Name,
                 nic.OperationalStatus == OperationalStatus.Up,
@@ -41,6 +41,14 @@ public sealed class SystemNetworkProbe : INetworkProbe
                     .Select(address => $"{address.Address}/{address.PrefixLength}")]))
             .OrderBy(nic => nic.Name, StringComparer.Ordinal)
             .ToArray();
+    }
+
+    /// <summary>Docker's bridges and veth pairs come and go with containers; they are not the network.</summary>
+    private static bool IsContainerPlumbing(string name)
+    {
+        return name.StartsWith("veth", StringComparison.Ordinal)
+            || name.StartsWith("br-", StringComparison.Ordinal)
+            || name.StartsWith("docker", StringComparison.Ordinal);
     }
 
     /// <inheritdoc />
