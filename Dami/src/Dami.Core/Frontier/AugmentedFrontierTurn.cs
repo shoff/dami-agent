@@ -30,6 +30,7 @@ public sealed class AugmentedFrontierTurn
     private readonly IFrontierChat frontierChat;
     private readonly IIdentityProvider identityProvider;
     private readonly IEgressBriefStore briefStore;
+    private readonly IDisclosureLedger disclosureLedger;
     private readonly IExecutionEventStore eventStore;
     private readonly AugmentedTurnOptions turnOptions;
     private readonly TimeProvider clock;
@@ -42,6 +43,7 @@ public sealed class AugmentedFrontierTurn
         IFrontierChat frontierChat,
         IIdentityProvider identityProvider,
         IEgressBriefStore briefStore,
+        IDisclosureLedger disclosureLedger,
         IExecutionEventStore eventStore,
         IOptions<AugmentedTurnOptions> turnOptions,
         TimeProvider clock,
@@ -52,6 +54,7 @@ public sealed class AugmentedFrontierTurn
         ArgumentNullException.ThrowIfNull(frontierChat);
         ArgumentNullException.ThrowIfNull(identityProvider);
         ArgumentNullException.ThrowIfNull(briefStore);
+        ArgumentNullException.ThrowIfNull(disclosureLedger);
         ArgumentNullException.ThrowIfNull(eventStore);
         ArgumentNullException.ThrowIfNull(turnOptions);
         ArgumentNullException.ThrowIfNull(clock);
@@ -62,6 +65,7 @@ public sealed class AugmentedFrontierTurn
         this.frontierChat = frontierChat;
         this.identityProvider = identityProvider;
         this.briefStore = briefStore;
+        this.disclosureLedger = disclosureLedger;
         this.eventStore = eventStore;
         this.turnOptions = turnOptions.Value;
         this.clock = clock;
@@ -79,7 +83,7 @@ public sealed class AugmentedFrontierTurn
         var context = await this.RetrieveAsync(traceId, question, cancellationToken)
             .ConfigureAwait(false);
         var lines = context.Beliefs.Concat(context.Memories).Select(item => item.Content).ToList();
-        var prepared = await this.PrepareAsync(question, lines, cancellationToken)
+        var prepared = await this.PrepareAsync(traceId, question, lines, cancellationToken)
             .ConfigureAwait(false);
 
         var answer = await this.frontierChat.CompleteAsync(
@@ -116,14 +120,12 @@ public sealed class AugmentedFrontierTurn
     /// all, and the count of each is recorded so the decision is reviewable.
     /// </summary>
     private async Task<string> PrepareAsync(
+        Guid traceId,
         string question,
         List<string> lines,
         CancellationToken cancellationToken)
     {
-        var decided = this.turnOptions.Gate
-            ? await this.gate.ClassifyAsync(question, lines, cancellationToken).ConfigureAwait(false)
-            : [.. lines.Select(line => new DisclosedItem(line, Disclosure.Pass, line, "gate disabled"))];
-
+        var decided = await this.DecideAsync(traceId, question, lines, cancellationToken).ConfigureAwait(false);
         var sendable = decided.Where(item => item.Disclosure != Disclosure.Withhold).ToList();
         this.logger.LogInformation(
             "Disclosure: {Pass} sent, {Disguise} disguised, {Withheld} withheld",
@@ -146,6 +148,28 @@ public sealed class AugmentedFrontierTurn
 
         prompt.Append("Question: ").AppendLine(question);
         return prompt.ToString();
+    }
+
+    /// <summary>
+    /// The gate's verdict per item, recorded so it can be reviewed and corrected — the
+    /// corrections are what the gate reads back as examples (G9a). A disabled gate
+    /// records nothing: there was no decision to correct.
+    /// </summary>
+    private async Task<IReadOnlyList<DisclosedItem>> DecideAsync(
+        Guid traceId,
+        string question,
+        List<string> lines,
+        CancellationToken cancellationToken)
+    {
+        if (!this.turnOptions.Gate)
+        {
+            return [.. lines.Select(line => new DisclosedItem(line, Disclosure.Pass, line, "gate disabled"))];
+        }
+
+        var decided = await this.gate.ClassifyAsync(question, lines, cancellationToken).ConfigureAwait(false);
+        await this.disclosureLedger.RecordAsync(
+            traceId, question, decided, this.clock.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+        return decided;
     }
 
     /// <summary>Stores exactly what left, hash-pinned, so it is auditable afterwards.</summary>

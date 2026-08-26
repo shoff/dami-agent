@@ -109,6 +109,15 @@ Local only \- these rows have no egress path.
 .B dami stats
 Corpus and event-stream counts.
 .TP
+.B dami disclosures
+What the privacy gate decided, per item, on recent augmented frontier
+turns (ADR-0019): pass, disguise, or withhold, with any correction.
+.TP
+.B dami disclose-correct \fIid8\fR pass|disguise|withhold [\fIwhy\fR]
+Correct one gate decision. The correction and its reason are fed back to
+the gate as an example on every later turn; this is how it learns your
+boundaries rather than boundaries in general.
+.TP
 .B dami board \fR[\fIboard\fR [--open]]
 The collaborative task board (O1). Alone, lists boards; with a board id or
 title prefix, prints its task tree with 8-char ids, status marks, and

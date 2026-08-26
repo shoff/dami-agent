@@ -48,6 +48,9 @@ public static class CommandRouter
           dami caption <image-path>      caption an image locally; it never leaves the host
           dami health-log                the structured health timeline (K2), local only
           dami health-reject <id8> <why> remove a wrong health fact, permanently
+          dami disclosures               what the privacy gate decided on recent frontier turns
+          dami disclose-correct <id8> pass|disguise|withhold [why]
+                                         correct one decision; the gate learns from it
           dami listen <audio-file>       transcribe speech locally; audio never leaves the host
           dami board                     the task board: list, show, claim, complete, block
           dami board-import <TODO.md> --revision <sha> --actor <id> [--agent] [--dry-run]
@@ -73,6 +76,7 @@ public static class CommandRouter
         BriefCommands briefs,
         HealthLogCommands healthLog,
         ListenCommands listen,
+        DisclosureCommands disclosures,
         BoardVerbs board)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -92,17 +96,22 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(briefs);
         ArgumentNullException.ThrowIfNull(healthLog);
         ArgumentNullException.ThrowIfNull(listen);
+        ArgumentNullException.ThrowIfNull(disclosures);
         ArgumentNullException.ThrowIfNull(board);
 
-        using var cancellation = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
-
+        using var cancellation = ConsoleCancellation();
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
             args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            chat, sessions, frontier, approvals, briefs, healthLog, listen, board,
-            cancellation.Token)
-            .ConfigureAwait(false);
+            chat, sessions, frontier, approvals, briefs, healthLog, listen, disclosures, board,
+            cancellation.Token).ConfigureAwait(false);
+    }
+
+    private static CancellationTokenSource ConsoleCancellation()
+    {
+        var cancellation = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
+        return cancellation;
     }
 
     private static async Task<int> DispatchAsync(
@@ -124,6 +133,7 @@ public static class CommandRouter
         BriefCommands briefs,
         HealthLogCommands healthLog,
         ListenCommands listen,
+        DisclosureCommands disclosures,
         BoardVerbs board,
         CancellationToken cancellationToken)
     {
@@ -133,8 +143,8 @@ public static class CommandRouter
                 await DispatchInboxAsync(verb, args, inbox, cancellationToken).ConfigureAwait(false),
             "trace" when args.Length > 1 =>
                 await traces.ReplayAsync(args[1], cancellationToken).ConfigureAwait(false),
-            "health" or "stats" or "health-log" or "health-reject" =>
-                await DispatchStatusAsync(verb, args, health, stats, healthLog, cancellationToken)
+            "health" or "stats" or "health-log" or "health-reject" or "disclosures" or "disclose-correct" =>
+                await DispatchStatusAsync(verb, args, health, stats, healthLog, disclosures, cancellationToken)
                     .ConfigureAwait(false),
             "board" or "board-import" =>
                 await BoardCommandRouter.RunAsync(args, board.Board, board.Import, cancellationToken)
@@ -185,11 +195,17 @@ public static class CommandRouter
         HealthCommands health,
         StatsCommands stats,
         HealthLogCommands healthLog,
+        DisclosureCommands disclosures,
         CancellationToken cancellationToken)
     {
         return verb switch
         {
             "health" => await health.CheckAsync(cancellationToken).ConfigureAwait(false),
+            "disclosures" => await disclosures.ListAsync(cancellationToken).ConfigureAwait(false),
+            "disclose-correct" when args.Length > 2 => await disclosures.CorrectAsync(
+                args[1], args[2], args.Length > 3 ? string.Join(' ', args[3..]) : null, cancellationToken)
+                .ConfigureAwait(false),
+            "disclose-correct" => Usage(),
             "stats" => await stats.ShowAsync(cancellationToken).ConfigureAwait(false),
             "health-reject" when args.Length > 1 => await healthLog.RejectAsync(
                 args[1], args.Length > 2 ? string.Join(' ', args[2..]) : null, cancellationToken)

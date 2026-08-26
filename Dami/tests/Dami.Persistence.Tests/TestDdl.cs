@@ -31,6 +31,7 @@ public static class TestDdl
         "029_task_board_mutation_detail.sql",
         "030_task_added_activity.sql",
         "031_criterion_added.sql",
+        "032_disclosure_decisions.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",
@@ -71,6 +72,8 @@ public static class TestDdl
             drop table if exists {schema}.conversation_sessions cascade;
             drop table if exists {schema}.file_patch_proposals cascade;
             drop table if exists {schema}.health_event_rejections cascade;
+            drop table if exists {schema}.disclosure_corrections cascade;
+            drop table if exists {schema}.disclosure_decisions cascade;
             drop table if exists {schema}.gateway_authority cascade;
             drop table if exists {schema}.health_examined cascade;
             drop table if exists {schema}.health_events cascade;
@@ -157,7 +160,7 @@ public static class TestDdl
 
         // Order matters: children before parents, and the append-only tables need their
         // guard dropped deliberately; that friction is the guarantee working.
-        return TruncateTaskBoards(schema) + TruncateSessions(schema) + TruncateToolActivationOutcomes(schema)
+        return TruncateDisclosures(schema) + TruncateTaskBoards(schema) + TruncateSessions(schema) + TruncateToolActivationOutcomes(schema)
             + TruncateToolVerifications(schema)
             + TruncateToolPromotions(schema)
             + TruncateToolProposals(schema) + TruncateSkillChanges(schema)
@@ -188,6 +191,19 @@ public static class TestDdl
         return $"""
             delete from {schema}.observation_curations;
             delete from {schema}.observation_date_repairs;
+
+            """;
+    }
+
+    private static string TruncateDisclosures(string schema)
+    {
+        return $"""
+            alter table {schema}.disclosure_corrections disable trigger disclosure_corrections_append_only;
+            delete from {schema}.disclosure_corrections;
+            alter table {schema}.disclosure_corrections enable trigger disclosure_corrections_append_only;
+            alter table {schema}.disclosure_decisions disable trigger disclosure_decisions_append_only;
+            delete from {schema}.disclosure_decisions;
+            alter table {schema}.disclosure_decisions enable trigger disclosure_decisions_append_only;
 
             """;
     }

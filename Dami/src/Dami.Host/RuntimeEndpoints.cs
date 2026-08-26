@@ -22,6 +22,7 @@ public static class RuntimeEndpoints
         ToolProposalEndpoints.Map(app);
         TaskBoardEndpoints.Map(app);
     }
+        DisclosureEndpoints.Map(app);
 }
 
 /// <summary>One interactive turn.</summary>

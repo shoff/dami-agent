@@ -19,21 +19,28 @@ namespace Dami.Core.Frontier;
 /// </remarks>
 public sealed class LocalDisclosureGate : IContextDisclosureGate
 {
+    /// <summary>How many of Steve's most recent corrections ride in the prompt.</summary>
+    private const int EXAMPLE_LIMIT = 20;
+
     private readonly IChatClient chatClient;
+    private readonly IDisclosureLedger ledger;
     private readonly DisclosureOptions gateOptions;
     private readonly ILogger<LocalDisclosureGate> logger;
 
     /// <summary>Creates the gate.</summary>
     public LocalDisclosureGate(
         IChatClient chatClient,
+        IDisclosureLedger ledger,
         IOptions<DisclosureOptions> gateOptions,
         ILogger<LocalDisclosureGate> logger)
     {
         ArgumentNullException.ThrowIfNull(chatClient);
+        ArgumentNullException.ThrowIfNull(ledger);
         ArgumentNullException.ThrowIfNull(gateOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.chatClient = chatClient;
+        this.ledger = ledger;
         this.gateOptions = gateOptions.Value;
         this.logger = logger;
     }
@@ -51,8 +58,9 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
             return [];
         }
 
+        var examples = await this.ExamplesAsync(cancellationToken).ConfigureAwait(false);
         var reply = await this.chatClient
-            .CompleteAsync(this.BuildPrompt(question, context), cancellationToken)
+            .CompleteAsync(this.BuildPrompt(question, context, examples), cancellationToken)
             .ConfigureAwait(false);
         var decisions = Parse(reply, context);
         if (decisions is null)
@@ -79,7 +87,33 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
 
         """;
 
-    private string BuildPrompt(string question, IReadOnlyList<string> context)
+    /// <summary>
+    /// The configured examples, then Steve's recorded corrections newest first: what the
+    /// gate decided, what he said it should have been, and why. This is the gate learning
+    /// his boundaries rather than boundaries in general.
+    /// </summary>
+    private async Task<List<string>> ExamplesAsync(CancellationToken cancellationToken)
+    {
+        var examples = new List<string>(this.gateOptions.Examples);
+        var corrections = await this.ledger.CorrectionsAsync(EXAMPLE_LIMIT, cancellationToken).ConfigureAwait(false);
+        foreach (var decision in corrections)
+        {
+            var correction = decision.Correction!;
+            var why = correction.Note.Length > 0 ? $" because: {correction.Note}" : string.Empty;
+            examples.Add(
+                $"For \"{decision.Original}\" the gate chose {Word(decision.Disclosure)}; "
+                + $"the user says it should have been {Word(correction.Corrected)}{why}");
+        }
+
+        return examples;
+    }
+
+    private static string Word(Disclosure disclosure)
+    {
+        return disclosure.ToString().ToLowerInvariant();
+    }
+
+    private string BuildPrompt(string question, IReadOnlyList<string> context, IList<string> examples)
     {
         var prompt = new StringBuilder(INSTRUCTIONS);
         prompt.AppendLine("The user's rules:");
@@ -88,7 +122,7 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
             prompt.Append("- ").AppendLine(rule);
         }
 
-        AppendExamples(prompt, this.gateOptions.Examples);
+        AppendExamples(prompt, examples);
         prompt.AppendLine();
         prompt.Append("Question being asked: ").AppendLine(question);
         prompt.AppendLine("Items:");

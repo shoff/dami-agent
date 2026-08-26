@@ -12,6 +12,7 @@ namespace Dami.Core.Tests.Frontier;
 public sealed class LocalDisclosureGateTests
 {
     private readonly IChatClient chatClient = Substitute.For<IChatClient>();
+    private readonly IDisclosureLedger ledger = Substitute.For<IDisclosureLedger>();
 
     [Fact]
     public async Task ClassifyAsync_Should_Pass_An_Item_The_Gate_Cleared()
@@ -86,6 +87,27 @@ public sealed class LocalDisclosureGateTests
         await this.chatClient.DidNotReceiveWithAnyArgs().CompleteAsync(default!, default);
     }
 
+    [Fact]
+    public async Task ClassifyAsync_Should_Feed_A_Recorded_Correction_Back_As_An_Example()
+    {
+        var at = new DateTimeOffset(2026, 8, 25, 20, 0, 0, TimeSpan.Zero);
+        this.ledger.CorrectionsAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(
+            [new DisclosureDecision(
+                Guid.NewGuid(), Guid.NewGuid(), "earlier question", "Steve's surgeon is Dr Harrison",
+                Disclosure.Pass, "Steve's surgeon is Dr Harrison", "public",
+                at, new DisclosureCorrection(Disclosure.Withhold, "names of doctors never leave", "steve", at))]);
+        string? prompt = null;
+        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+            .Returns("""[{"n":1,"action":"withhold","text":"","why":"learned"}]""");
+
+        var decided = await this.ClassifyAsync("a later item about a doctor");
+
+        Assert.NotNull(prompt);
+        Assert.Contains("Corrections the user has made before", prompt, StringComparison.Ordinal);
+        Assert.Contains("the gate chose pass; the user says it should have been withhold because: names of doctors never leave", prompt, StringComparison.Ordinal);
+        Assert.Equal(Disclosure.Withhold, Assert.Single(decided).Disclosure);
+    }
+
     private void Says(string reply)
     {
         this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -94,8 +116,9 @@ public sealed class LocalDisclosureGateTests
 
     private async Task<IReadOnlyList<DisclosedItem>> ClassifyAsync(params string[] context)
     {
+
         var gate = new LocalDisclosureGate(
-            this.chatClient, Options.Create(new DisclosureOptions()),
+            this.chatClient, this.ledger, Options.Create(new DisclosureOptions()),
             NullLogger<LocalDisclosureGate>.Instance);
         return await gate.ClassifyAsync("a question", context, CancellationToken.None);
     }
