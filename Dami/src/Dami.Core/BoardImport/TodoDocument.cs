@@ -23,6 +23,9 @@ public enum TodoState
 
     /// <summary><c>[DEFERRED: reason]</c> — undocumented in the protocol; reported, not guessed at.</summary>
     Deferred,
+
+    /// <summary><c>[-]</c>: cancelled on the board, rendered back so the file can say so.</summary>
+    Cancelled,
 }
 
 /// <summary>Something in the file that could not be read, or could only be read by guessing.</summary>

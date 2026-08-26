@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Dami.Contracts.TaskBoard;
+using Dami.Core.BoardImport;
 
 namespace Dami.Gateway.Cli;
 
@@ -9,7 +11,7 @@ namespace Dami.Gateway.Cli;
 /// way traces are. Every mutation is guarded server-side by the version the CLI read, so
 /// a stale view cannot overwrite a newer one; a 409 is reported as what it is.
 /// </remarks>
-public sealed class BoardCommands
+public sealed partial class BoardCommands
 {
     private const int TITLE_WIDTH = 88;
 
@@ -91,8 +93,17 @@ public sealed class BoardCommands
         ArgumentNullException.ThrowIfNull(target);
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentNullException.ThrowIfNull(criteria);
+        var id = TitleIdPattern().Match(title);
         return ApiCall.RunAsync(async () =>
         {
+            if (!id.Success)
+            {
+                await Console.Error.WriteLineAsync(
+                    "a task title starts with its id, like `O2g Do the thing` - that id is its identity on the board and in TODO.md")
+                    .ConfigureAwait(false);
+                return 2;
+            }
+
             var parent = await this.FindAsync(target, criteria: false, cancellationToken).ConfigureAwait(false);
             var boardId = parent?.BoardId ?? await this.ResolveBoardAsync(target, cancellationToken).ConfigureAwait(false);
             if (boardId is null)
@@ -105,16 +116,18 @@ public sealed class BoardCommands
                 ?? await this.RootCountAsync(boardId.Value, cancellationToken).ConfigureAwait(false);
             using var reply = await this.api.PostAsync(
                 $"/task-boards/{boardId:D}/tasks",
-                this.AddBody(title, parent?.Id, position, criteria), cancellationToken).ConfigureAwait(false);
+                this.AddBody(title, TodoBoardMapper.StableTaskId(boardId.Value, id.Value), parent?.Id, position, criteria),
+                cancellationToken).ConfigureAwait(false);
             return await ReportAddedAsync(reply, title, parent?.Title).ConfigureAwait(false);
         });
     }
 
-    private object AddBody(string title, Guid? parentTaskId, int position, IReadOnlyList<string> criteria)
+    private object AddBody(string title, Guid? taskId, Guid? parentTaskId, int position, IReadOnlyList<string> criteria)
     {
         return new
         {
             title,
+            taskId,
             parentTaskId,
             position,
             criteria,
@@ -137,6 +150,36 @@ public sealed class BoardCommands
             + (parentTitle is null ? string.Empty : $"  under {Shorten(parentTitle)}"));
         return 0;
     }
+
+    /// <summary>Prints the board in TODO.md's grammar, so the file can be derived from it.</summary>
+    public Task<int> ExportAsync(string boardPrefix, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(boardPrefix);
+        return ApiCall.RunAsync(async () =>
+        {
+            var boardId = await this.ResolveBoardAsync(boardPrefix, cancellationToken).ConfigureAwait(false);
+            if (boardId is null)
+            {
+                await Console.Error.WriteLineAsync($"no board matches '{boardPrefix}'").ConfigureAwait(false);
+                return 1;
+            }
+
+            using var reply = await this.api.GetAsync($"/task-boards/{boardId:D}", cancellationToken)
+                .ConfigureAwait(false);
+            var board = reply!.RootElement.Deserialize<TaskBoardSnapshot>(snapshotJson)
+                ?? throw new DamiRuntimeException("the board could not be read as a snapshot");
+            Console.Write(TodoBoardRenderer.Render(board));
+            return 0;
+        });
+    }
+
+    private static readonly JsonSerializerOptions snapshotJson = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+    };
+
+    [GeneratedRegex(@"^[A-Z]\d+[a-z0-9]*\b")]
+    private static partial Regex TitleIdPattern();
 
     private async Task<int> RootCountAsync(Guid boardId, CancellationToken cancellationToken)
     {

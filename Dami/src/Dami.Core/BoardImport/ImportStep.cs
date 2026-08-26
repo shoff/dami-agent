@@ -20,6 +20,12 @@ public enum ImportStepKind
     /// <summary>Mark it blocked, with the reason.</summary>
     Block,
 
+    /// <summary>Cancel it — the file says <c>[-]</c>.</summary>
+    Cancel,
+
+    /// <summary>Reopen it: the board has it blocked and the file has moved past that.</summary>
+    Reopen,
+
     /// <summary>The file and the board disagree in a way the import must not resolve itself.</summary>
     Conflict,
 }
@@ -59,6 +65,7 @@ public sealed record ImportStep(ImportStepKind Kind, TaskActor Actor, string Det
         {
             TodoState.Done => Finish(desired, actual, importer),
             TodoState.InProgress => Start(desired, actual, importer),
+            TodoState.Cancelled => Cancel(desired, actual, importer),
             _ => new ImportStep(ImportStepKind.None, importer, string.Empty),
         };
     }
@@ -96,6 +103,19 @@ public sealed record ImportStep(ImportStepKind Kind, TaskActor Actor, string Det
         };
     }
 
+    private static ImportStep Cancel(DesiredTask desired, BoardTask actual, TaskActor importer)
+    {
+        return actual.Status switch
+        {
+            TaskBoardStatus.Cancelled => None(importer),
+            TaskBoardStatus.Open or TaskBoardStatus.Blocked
+                => new ImportStep(ImportStepKind.Cancel, importer, "Cancelled in TODO.md."),
+            TaskBoardStatus.InProgress when Holds(actual, importer)
+                => new ImportStep(ImportStepKind.Cancel, importer, "Cancelled in TODO.md."),
+            _ => Conflict(desired, actual, importer),
+        };
+    }
+
     private static ImportStep Finish(DesiredTask desired, BoardTask actual, TaskActor importer)
     {
         switch (actual.Status)
@@ -104,6 +124,8 @@ public sealed record ImportStep(ImportStepKind Kind, TaskActor Actor, string Det
                 return None(importer);
             case TaskBoardStatus.Open:
                 return new ImportStep(ImportStepKind.Claim, Owner(desired, importer), string.Empty);
+            case TaskBoardStatus.Blocked:
+                return new ImportStep(ImportStepKind.Reopen, importer, "Done in TODO.md; reopened to finish it.");
             case TaskBoardStatus.InProgress when Holds(actual, importer):
                 return actual.AcceptanceCriteria.Any(criterion => !criterion.IsSatisfied)
                     ? new ImportStep(ImportStepKind.SatisfyCriteria, importer, string.Empty)
@@ -117,6 +139,7 @@ public sealed record ImportStep(ImportStepKind Kind, TaskActor Actor, string Det
     {
         return actual.Status switch
         {
+            TaskBoardStatus.Blocked => new ImportStep(ImportStepKind.Reopen, importer, "Claimed in TODO.md; reopened to claim it."),
             TaskBoardStatus.InProgress => None(importer),
             TaskBoardStatus.Open => new ImportStep(
                 ImportStepKind.Claim, Owner(desired, importer), string.Empty),

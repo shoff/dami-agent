@@ -222,6 +222,7 @@ public static partial class TodoBoardParser
             " " or "" => new Marker(TodoState.Open, null, null, null),
             "x" => new Marker(TodoState.Done, null, null, null),
             "STEVE" => new Marker(TodoState.NeedsSteve, null, null, null),
+            "-" => new Marker(TodoState.Cancelled, null, null, null),
             _ => null,
         };
     }
@@ -309,7 +310,7 @@ public static partial class TodoBoardParser
     [GeneratedRegex(@"^DEFERRED:\s*(.*)$")]
     private static partial Regex DeferredPattern();
 
-    [GeneratedRegex(@"`?\[(BLOCKED|STEVE):\s*([^\]]*)\]`?")]
+    [GeneratedRegex(@"`?\[(BLOCKED|STEVE):\s*([^\]]*)\]`?\s*$")]
     private static partial Regex AnnotationPattern();
 
     [GeneratedRegex(@"^(?:\*\*|(~~))?([A-Z]\d+[a-z0-9]*)\b(?:\*\*|~~)?")]

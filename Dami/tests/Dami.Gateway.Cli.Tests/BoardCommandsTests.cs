@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Dami.Contracts.TaskBoard;
+using Dami.Core.BoardImport;
 using Xunit;
 
 namespace Dami.Gateway.Cli.Tests;
@@ -145,10 +146,11 @@ public sealed class BoardCommandsTests
         }));
 
         var (exitCode, output) = await CaptureAsync(() => new BoardCommands(new DamiApiClient(http), claude)
-            .AddAsync("aaaaaaaa", "Write the thing", ["it exists"], CancellationToken.None));
+            .AddAsync("aaaaaaaa", "A9 Write the thing", ["it exists"], CancellationToken.None));
 
         Assert.Equal(0, exitCode);
         Assert.Equal(epicId, sent.GetProperty("parentTaskId").GetGuid());
+        Assert.Equal(BoardImportIds.Task(TodoBoardMapper.BOARD_KEY, "A9"), sent.GetProperty("taskId").GetGuid());
         Assert.Equal(2, sent.GetProperty("position").GetInt32());
         Assert.Equal("it exists", sent.GetProperty("criteria")[0].GetString());
         Assert.Equal("claude", sent.GetProperty("actorId").GetString());
@@ -163,10 +165,28 @@ public sealed class BoardCommandsTests
             : ReadOnlyBoardAsync(request)));
 
         var (exitCode, output) = await CaptureAsync(() => new BoardCommands(new DamiApiClient(http), claude)
-            .AddAsync("aaaaaaaa", "Write the thing", [], CancellationToken.None));
+            .AddAsync("aaaaaaaa", "A9 Write the thing", [], CancellationToken.None));
 
         Assert.Equal(1, exitCode);
         Assert.Contains("older", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AddAsync_Should_Refuse_A_Title_Without_An_Id_Before_Any_Request()
+    {
+        var requests = 0;
+        using var http = new HttpClient(new StubHandler(request =>
+        {
+            requests++;
+            return ReadOnlyBoardAsync(request);
+        }));
+
+        var (exitCode, output) = await CaptureAsync(() => new BoardCommands(new DamiApiClient(http), claude)
+            .AddAsync("aaaaaaaa", "Write the thing", [], CancellationToken.None));
+
+        Assert.Equal(2, exitCode);
+        Assert.Equal(0, requests);
+        Assert.Contains("starts with its id", output, StringComparison.Ordinal);
     }
 
     private static Task<HttpResponseMessage> ReadOnlyBoardAsync(HttpRequestMessage request)

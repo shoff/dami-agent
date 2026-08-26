@@ -13,7 +13,9 @@ public static class BoardCommandRouter
                dami board block|reopen|cancel <id8> <reason>
                dami board criterion <id8> yes|no   mark an acceptance criterion
                dami board add <id8|board> <title> [--needs <criterion>]...
-                                                   add a task under a task, or at a board's root
+                                                   add a task under a task, or at a board's root;
+                                                   the title starts with the task's id (O2g …)
+               dami board export <board>            the board in TODO.md's grammar, to stdout
                dami board-import <TODO.md> --revision <sha> --actor <id> [--agent] [--dry-run]
         """;
 
@@ -60,7 +62,8 @@ public static class BoardCommandRouter
             "criterion" when rest.Length == 3 && rest[2] is "yes" or "no" =>
                 await board.SetCriterionAsync(rest[1], rest[2] == "yes", cancellationToken).ConfigureAwait(false),
             "add" when rest.Length >= 3 => await AddAsync(rest, board, cancellationToken).ConfigureAwait(false),
-            "claim" or "complete" or "block" or "reopen" or "cancel" or "criterion" or "add" => Usage(),
+            "export" when rest.Length == 2 => await board.ExportAsync(rest[1], cancellationToken).ConfigureAwait(false),
+            "claim" or "complete" or "block" or "reopen" or "cancel" or "criterion" or "add" or "export" => Usage(),
             _ => await board.ShowAsync(rest[0], rest.Contains("--open"), cancellationToken).ConfigureAwait(false),
         };
     }

@@ -22,6 +22,17 @@ public static class TodoBoardMapper
     /// <summary>The board's title.</summary>
     public const string BOARD_TITLE = "Dami Core suite";
 
+    /// <summary>
+    /// The id a task with this TODO id has on the suite board, so a task created on the
+    /// board and one imported from the file are the same task. Null for any other board,
+    /// whose tasks have no file identity to be stable against.
+    /// </summary>
+    public static Guid? StableTaskId(Guid boardId, string todoId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(todoId);
+        return boardId == BoardImportIds.Board(BOARD_KEY) ? BoardImportIds.Task(BOARD_KEY, todoId) : null;
+    }
+
     /// <summary>Maps a parsed document onto a board draft and its intended task states.</summary>
     /// <param name="document">The parsed file.</param>
     /// <param name="source">Where it came from.</param>

@@ -159,15 +159,25 @@ public sealed class TodoBoardImporter
             ImportStepKind.Complete => await this.store.TryCompleteAsync(
                 actual.TaskId, actual.Version, step.Actor, now, ImportTag(context), cancellationToken)
                 .ConfigureAwait(false),
-            ImportStepKind.Block => await this.store.TrySetStatusAsync(
+            ImportStepKind.Block or ImportStepKind.Cancel or ImportStepKind.Reopen => await this.store.TrySetStatusAsync(
                 actual.TaskId,
                 actual.Version,
-                TaskBoardStatus.Blocked,
+                StatusFor(step.Kind),
                 step.Actor,
                 $"{step.Detail} {ImportTag(context)}",
                 now,
                 cancellationToken).ConfigureAwait(false),
             _ => false,
+        };
+    }
+
+    private static TaskBoardStatus StatusFor(ImportStepKind kind)
+    {
+        return kind switch
+        {
+            ImportStepKind.Block => TaskBoardStatus.Blocked,
+            ImportStepKind.Cancel => TaskBoardStatus.Cancelled,
+            _ => TaskBoardStatus.Open,
         };
     }
 

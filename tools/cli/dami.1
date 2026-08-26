@@ -128,7 +128,13 @@ Mark an acceptance criterion satisfied or not.
 .B dami board add \fIid8\fR|\fIboard\fR \fItitle\fR [--needs \fIcriterion\fR]...
 Add a task under a task, or at a board's root, last among its siblings.
 Each \fB--needs\fR becomes an acceptance criterion the completion gate
-checks. Adding under a finished task reopens it, on the record.
+checks. The title starts with the task's id (\fBO2g Do the thing\fR); on
+the suite board that id is the task's identity in TODO.md too. Adding under
+a finished task reopens it, on the record.
+.TP
+.B dami board export \fIboard\fR
+Print the board in TODO.md's own grammar. What the grammar cannot say is
+written as an HTML comment, never invented into a task.
 .TP
 .B dami board-import \fITODO.md\fR --revision \fIsha\fR --actor \fIid\fR [--agent] [--dry-run]
 Write the blueprint onto the collaborative task board (O1g). Talks to

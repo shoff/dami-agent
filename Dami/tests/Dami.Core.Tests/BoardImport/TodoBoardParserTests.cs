@@ -259,4 +259,14 @@ public sealed class TodoBoardParserTests
         var document = TodoBoardParser.Parse($"## A · Host\n\n{line}\n");
         return document.Sections[0].Entries[0];
     }
+
+    [Fact]
+    public void Parse_Should_Read_A_Dash_Marker_As_Cancelled()
+    {
+        var document = TodoBoardParser.Parse("## Q · Quiet\n\n- [-] Q1 Dropped on the board\n");
+
+        var entry = Assert.Single(Assert.Single(document.Sections).Entries);
+        Assert.Equal((TodoState.Cancelled, "Q1"), (entry.State, entry.Id));
+        Assert.Empty(document.Anomalies);
+    }
 }
