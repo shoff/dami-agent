@@ -7748,3 +7748,111 @@ completion row: `/opt/dami/host` is still the pre-029 build.
 `dotnet build Dami.sln`: 0 warnings, 0 errors. `dotnet test Dami.sln`: nineteen suites,
 **984 passed, 0 failed**. `dotnet format --verify-no-changes`: exit 0. Migration 030 applied
 to `dami-data`, none pending, `/health` 200.
+
+## 2026-08-25 — Codex — N4 scheduler concurrency flake audit started
+
+Claimed N4 on PostgreSQL board `d621fe5f`. The current tree already contains the
+atomic one-winner lease fixture and cross-process scheduler lease implementation from
+2026-08-23, while TODO.md and the imported board still describe the earlier flake as
+open. No production change is justified yet. The audit will stress the narrow test in
+fresh processes, verify the affected suite, and close N4 only if the recorded fix is
+reproducibly stable; any reproduced failure will become the red test for a minimal fix.
+Claude's uncommitted O2 renderer/importer paths are present and remain untouched.
+
+## 2026-08-25 — Codex — N4 scheduler concurrency flake closed as already remediated
+
+The historical red-green record shows the original timing-sensitive NSubstitute return
+sequence was replaced before the scheduler lease work completed: the fixture grants one
+lease through `Interlocked.CompareExchange`, and production acquires an expiring durable
+lease before checking cadence. Reopening production code without a reproduced failure
+would duplicate a fix that is already present.
+
+Verification on the current shared tree: the exact concurrency test passed **20/20**
+fresh-process repetitions, then `dotnet test
+tests/Dami.Proactive.Tests/Dami.Proactive.Tests.csproj --no-restore` passed **100/100**.
+No source or test change was needed. N4 was completed on the PostgreSQL board with this
+evidence; Claude's concurrent O2 files were not modified.
+
+## 2026-08-25 — Codex — G5a2 bearer policy implementation resumed
+
+Resumed the existing Codex claim after completing N4. Scope is one red-green slice at a
+time: authenticate OpenIddict validation bearer tokens when authentication is enabled,
+require narrowly named endpoint scopes, reserve approval resolution behind its own
+authority, and derive task-board actor identity from validated claims. Authentication
+disabled remains the explicit localhost compatibility mode. Claude's O2 work committed
+before this slice; unrelated paths remain out of scope.
+
+## 2026-08-25 — Claude — O2b and O2f: the board follows the file, the file can follow the board
+
+### O2b — sync on commit (`9be4b21`)
+
+`.githooks/post-commit` already repaired root ownership; it now also runs
+`tools/board/sync-from-todo.sh` when the commit touches TODO.md. The script imports at HEAD
+as `$DAMI_ACTOR` (`Agent` when `$DAMI_ACTOR_KIND` says so), prints conflicts, and never
+fails the commit. The commit that introduced it was the first to fire it: one mutation
+(O2b itself, which I held, completed from the file's `[x]`), and the standing O1 conflict.
+The hook runs whatever `dami` is on PATH — the deployed CLI — so the importer it uses is
+the deployed one; the staged Release build in `~/.cache/dami-pub/cli` carries today's.
+
+### O2f — `dami board export` (`9b157af`)
+
+`TodoBoardRenderer` is the reader's inverse for everything the grammar can say, and an
+HTML comment for what it cannot (a root without a `K · Name` key, a task whose title
+carries no id, a free-text criterion) — never a task invented to fit. The grammar grew by
+one marker, `[-]` for cancelled, so the file can say what the board can. `dami board add`
+now requires an id-shaped title and, on the suite board, uses the importer's
+deterministic id for it: a task born on the board and one imported from the file are one
+task. O2f itself had been added before that rule with a random id. Cancelling it to re-create
+it under the stable id was refused — it was already Done, and Done→Cancelled is not a
+transition the board has, which is right — so the stable-id copy I had already added was
+cancelled instead, with the reason on the record, and `d221c091` stands. The hole that
+leaves — a regenerated file would re-import O2f under the stable id beside it — is closed
+in the importer: a task whose TODO id already leads a live sibling's title under the same
+parent is reported as already present, never added twice. Test:
+`ImportAsync_Should_Not_Add_A_Twin_Of_A_Task_The_Board_Already_Holds_Under_Another_Id`.
+
+Three defects came out of running the export against production rather than reading it:
+
+- **O1g1 was Blocked on the board, and Done in the file.** Its text *mentions* the
+  `` `[BLOCKED: …]` `` and `` `[STEVE: …]` `` annotation forms; the reader's annotation
+  regex was not anchored to the end of the line and read the mention as an annotation.
+  Anchored now. The importer gained a `Reopen` step (Blocked→Open is a legal transition)
+  so a blocked task the file has moved past can be claimed and finished; the live sync
+  after the fix took O1g1 to Done in three mutations.
+- **Every `dami board add` was refused.** A regex written through a Python string turned
+  `\b` into a literal backspace. Caught by the CLI tests, which is what they are for.
+- **Imported titles already say "acceptance item N".** Rendering the criterion as a suffix
+  as well made two on re-read (G3). The renderer skips a criterion the title states.
+
+The round trip is proven at the document level against the real file: parse → map →
+render → parse → map yields the same ids, depths, criterion counts, and parent/prerequisite
+edges for every id-bearing task; the one entry without an id is written as a comment and
+counted. The live export at `9b157af` is 245 lines, 195 checklist entries, three comments.
+
+Not done here: regenerating TODO.md *from* the board is the cutover Steve has not given
+(O2c). Until then the file trails the board and says so at the top of O2.
+
+### Gate
+
+`dotnet build Dami.sln`: 0 warnings, 0 errors. `dotnet test Dami.sln`: nineteen suites,
+**991 passed, 0 failed** on the final run. One earlier full run had
+`OidcDiscoveryTests.Runtime_Should_Require_Authentication_While_Health_Remains_Anonymous`
+fail once; it passed 1/1 isolated, 66/66 three times in its suite, and in the final full
+run — a flake under the parallel run, in Codex's lane, not touched. `dotnet format
+--verify-no-changes`: exit 0. No migration.
+
+## 2026-08-25 — Codex — G5a2 authenticated runtime boundary checkpoint
+
+Added a Host acceptance test requiring an enabled-auth `/task-boards` request without a
+credential to return 401 while `/health` remains 200. It failed as expected with runtime
+200: authentication middleware existed, but no policy required it. The minimum fallback
+authenticated-user policy then exposed a second real configuration defect: the request
+returned 500 because no default challenge scheme was selected. The response body named
+the missing scheme; configuring OpenIddict's maintained validation handler as the default
+made the test green. `/health` is explicitly anonymous, matching ADR-0020.
+
+Focused `OidcDiscoveryTests` passed 2/2, proving discovery remains reachable and advertises
+the configured flows. Affected suites then passed: Host **66/66**, Authentication **8/8**.
+G5a2 remains in progress: dedicated scope policies and claim-derived task-board actors
+have not yet been implemented or claimed complete. Claude's concurrent TODO/importer,
+status, and work-log changes were preserved.

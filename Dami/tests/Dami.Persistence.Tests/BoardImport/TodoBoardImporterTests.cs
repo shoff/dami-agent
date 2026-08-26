@@ -226,6 +226,29 @@ public sealed class TodoBoardImporterTests
         Assert.Contains(TaskId("Y1"), Flatten(snapshot.Tasks).Select(task => task.TaskId));
     }
 
+    [Fact]
+    public async Task ImportAsync_Should_Not_Add_A_Twin_Of_A_Task_The_Board_Already_Holds_Under_Another_Id()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+        var plan = Plan(SMALL_BOARD);
+        await this.ImportAsync(store, plan);
+        var epic = (await store.FindAsync(plan.Draft.BoardId, CancellationToken.None))!.Tasks.Single();
+        var bornOnBoard = new BoardTaskDraft(
+            Guid.NewGuid(), "Z2 New parent", "added with dami board add", TaskPriority.Normal, 1,
+            TaskOrdering.Ordered, [], [], []);
+        await store.TryAddTaskAsync(
+            plan.Draft.BoardId, epic.TaskId, bornOnBoard, importer, importedAt, null, CancellationToken.None);
+
+        var grown = await this.ImportAsync(store, Plan(GROWN_BOARD));
+        var snapshot = await store.FindAsync(plan.Draft.BoardId, CancellationToken.None);
+        var z2s = Flatten(snapshot!.Tasks).Where(task => task.Title.StartsWith("Z2 ", StringComparison.Ordinal)).ToList();
+
+        var twin = Assert.Single(z2s);
+        Assert.Equal(bornOnBoard.TaskId, twin.TaskId);
+        Assert.Contains(grown.Conflicts, conflict => conflict.StartsWith("Z2 is already on the board", StringComparison.Ordinal));
+    }
+
     private static TodoImportPlan Plan(string markdown)
     {
         return TodoBoardMapper.Map(

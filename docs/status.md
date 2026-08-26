@@ -297,6 +297,21 @@ board itself. The Host at `/opt/dami/host` is still the pre-029 build — it dro
 `detail` on complete and has no add endpoint — and the CLI at `/opt/dami/cli` is older
 still; Release builds of both are staged in `~/.cache/dami-pub`.
 
+Verification on 2026-08-25 for O2b/O2f (the board follows the file; the file can follow
+the board): `.githooks/post-commit` ran `tools/board/sync-from-todo.sh` on the commit that
+introduced it (`9be4b21`) and imported at HEAD as `claude`. The renderer round-trips the
+real TODO.md at the document level — every id-bearing task keeps its identity, depth,
+criteria, and edges; the one entry with no id (`~~G9~~ posture`) is written as a comment
+and reported. `[-]` reads as cancelled; the BLOCKED/STEVE annotation is anchored to the
+end of the line, which moved O1g1 from Blocked (a misread of its own text) to Done on the
+live board through the new Reopen step. `dami board add` refuses a title without an id
+and uses the importer's deterministic id on the suite board. The solution build completed
+with 0 warnings and 0 errors, all nineteen suites passed 991/991, and format verification
+exited 0. Live: `dami board export dami` wrote 245 lines, 195 checklist entries, three
+comments; O2f was re-created under its stable id and completed on the board. The Host at
+`/opt/dami/host` is current; the CLI at `/opt/dami/cli` predates `export`, `[-]`, and the
+reader fix — the hook uses it, so until the rsync the hook imports with the older reader.
+
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
 | Item | State | Evidence |

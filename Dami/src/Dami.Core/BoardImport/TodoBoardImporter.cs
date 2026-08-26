@@ -88,7 +88,7 @@ public sealed class TodoBoardImporter
                 ?? throw new InvalidOperationException("The board vanished mid-import.");
 
             var context = new PassContext(
-                Index(snapshot), importer, revision, snapshot.BoardId, Parents(plan.Draft));
+                Index(snapshot), importer, revision, snapshot.BoardId, Parents(plan.Draft), ParentOf(snapshot));
             var moved = await this.PassAsync(order, context, cancellationToken).ConfigureAwait(false);
             applied += moved.Applied;
             if (moved.Applied == 0)
@@ -239,7 +239,8 @@ public sealed class TodoBoardImporter
         TaskActor Importer,
         string Revision,
         Guid BoardId,
-        Dictionary<Guid, (Guid? ParentId, BoardTaskDraft Draft)> Parents);
+        Dictionary<Guid, (Guid? ParentId, BoardTaskDraft Draft)> Parents,
+        Dictionary<Guid, Guid?> ParentOf);
 
     /// <summary>
     /// A task the file has and the board lacks is added — one node, no subtree, so its
@@ -262,6 +263,12 @@ public sealed class TodoBoardImporter
         }
 
         var (parentId, draft) = context.Parents[desired.TaskId];
+        if (desired.TodoId is not null && SameIdOnBoard(desired.TodoId, parentId, context) is { } twin)
+        {
+            conflicts.Add($"{name} is already on the board as {twin.TaskId:N} under a different id; not added again.");
+            return false;
+        }
+
         var single = new BoardTaskDraft(
             draft.TaskId, draft.Title, draft.Description, draft.Priority, draft.Position,
             draft.SubTaskOrdering, draft.PrerequisiteTaskIds, draft.AcceptanceCriteria, []);
@@ -274,6 +281,18 @@ public sealed class TodoBoardImporter
         }
 
         return added;
+    }
+
+    /// <summary>
+    /// A task born on the board before ids were made stable carries its TODO id only in its
+    /// title. Adding the file's copy beside it would make two; the board's one stands.
+    /// </summary>
+    private static BoardTask? SameIdOnBoard(string todoId, Guid? parentId, PassContext context)
+    {
+        return context.ById.Values.FirstOrDefault(task =>
+            task.Status != TaskBoardStatus.Cancelled
+            && task.Title.StartsWith(todoId + " ", StringComparison.Ordinal)
+            && context.ParentOf.GetValueOrDefault(task.TaskId) == parentId);
     }
 
     private static string? WhyNotPlaceable(DesiredTask desired, PassContext context)
@@ -310,6 +329,23 @@ public sealed class TodoBoardImporter
         {
             parents[task.TaskId] = (parentId, task);
             Place(task.SubTasks, task.TaskId, parents);
+        }
+    }
+
+    /// <summary>Each board task's parent, so a twin is only a twin under the same parent.</summary>
+    private static Dictionary<Guid, Guid?> ParentOf(TaskBoardSnapshot snapshot)
+    {
+        var parents = new Dictionary<Guid, Guid?>();
+        Walk(snapshot.Tasks, null, parents);
+        return parents;
+    }
+
+    private static void Walk(IReadOnlyList<BoardTask> tasks, Guid? parentId, Dictionary<Guid, Guid?> parents)
+    {
+        foreach (var task in tasks)
+        {
+            parents[task.TaskId] = parentId;
+            Walk(task.SubTasks, task.TaskId, parents);
         }
     }
 
