@@ -76,7 +76,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] D3 Frontier adapters: Codex-subscription (live) + Anthropic (built, dormant)
 - [x] D4 Streaming completion contract — `IChatClient.StreamAsync`, Ollama JSONL impl, thinking excluded (tests + live)
 - [DEFERRED: correct as-is] D5 Cheap-model-assisted routing — deliberately not built: every interactive turn currently routes LocalOnly (TurnRunner passes LocalOnly), and frontier routing is a C4 *consent* decision, not an automatic route. A cheap-model classifier that auto-picked frontier would fight C4. Revisit only when real misrouting is observed AND frontier turns are routine (G9).
-- [~ Claude 2026-08-24] D6 VRAM budget — measured with four residents (qwen3:8b pinned + TEI embed + TEI rerank + faster-whisper small.en): **9.7 GB used of 16.4 GB, 6.2 GB free**. Vision loads on demand; TTS is the remaining unknown `[STEVE: L4 voice choice sets the last number]`
+- [x] D6 (Claude 2026-08-25: with TTS resident — Piper is CPU-only, 0 MiB VRAM — the card sits at 8,821 of 16,376 MiB; runbook §5) VRAM budget — measured with four residents (qwen3:8b pinned + TEI embed + TEI rerank + faster-whisper small.en): **9.7 GB used of 16.4 GB, 6.2 GB free**. Vision loads on demand; TTS is the remaining unknown `[STEVE: L4 voice choice sets the last number]`
 
 ## E · Transport (§7.5) — Codex's lane
 
