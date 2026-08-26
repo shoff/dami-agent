@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace Dami.Gateway.Cli;
 
 /// <summary>`dami say &lt;text&gt;` — Dami speaks, locally (L4).</summary>
-public sealed class SayCommands
+public class SayCommands
 {
     private readonly DamiApiClient api;
 
@@ -18,7 +18,7 @@ public sealed class SayCommands
     /// Renders the text through the runtime and either writes the WAV to
     /// <paramref name="outputPath"/> or plays it with the first player found.
     /// </summary>
-    public Task<int> SayAsync(string text, string? outputPath, CancellationToken cancellationToken)
+    public virtual Task<int> SayAsync(string text, string? outputPath, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         return ApiCall.RunAsync(async () =>

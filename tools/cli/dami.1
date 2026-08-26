@@ -109,6 +109,10 @@ Local only \- these rows have no egress path.
 .B dami stats
 Corpus and event-stream counts.
 .TP
+.B dami chat --speak \fImessage\fR
+The ordinary local turn, printed as it streams and then read aloud through
+the Piper voice. Nothing leaves the host.
+.TP
 .B dami chat --augmented \fImessage\fR
 The frontier answers, but on context retrieved locally first and passed
 through the disclosure gate (ADR-0019): each item is sent, disguised as an

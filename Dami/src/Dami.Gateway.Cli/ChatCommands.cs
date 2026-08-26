@@ -51,6 +51,15 @@ public sealed class ChatCommands
     /// <summary>Runs one streaming turn, printing tokens as they arrive.</summary>
     public Task<int> TurnAsync(string request, CancellationToken cancellationToken)
     {
+        return this.TurnAsync(request, speak: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// A streaming turn that, when <paramref name="speak"/> is given, is read aloud
+    /// afterwards through the local voice — the output half of the spoken cycle (L5).
+    /// </summary>
+    public Task<int> TurnAsync(string request, SayCommands? speak, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(request);
         return ApiCall.RunAsync(async () =>
         {
@@ -64,19 +73,23 @@ public sealed class ChatCommands
                 + $" · {Header(response, "X-Dami-Beliefs")} beliefs]");
             Console.WriteLine();
 
-            await PrintStreamAsync(response, cancellationToken).ConfigureAwait(false);
+            var spoken = await PrintStreamAsync(response, cancellationToken).ConfigureAwait(false);
 
             Console.WriteLine();
             Console.WriteLine();
             Console.WriteLine($"replay: dami trace {Header(response, "X-Dami-Trace")?[..8]}");
-            return 0;
+            return speak is null || spoken.Length == 0
+                ? 0
+                : await speak.SayAsync(spoken, null, cancellationToken).ConfigureAwait(false);
         });
     }
 
-    private static async Task PrintStreamAsync(
+    /// <summary>Prints the stream as it arrives and returns the whole answer.</summary>
+    private static async Task<string> PrintStreamAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
+        var whole = new System.Text.StringBuilder();
         await using var body = await response.Content.ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);
         using var reader = new StreamReader(body);
@@ -93,11 +106,15 @@ public sealed class ChatCommands
             {
                 // One SSE event is one model fragment; embedded newlines arrive as
                 // consecutive data lines.
-                Console.Write(string.Join('\n', lines));
+                var fragment = string.Join('\n', lines);
+                Console.Write(fragment);
+                whole.Append(fragment);
                 lines.Clear();
                 await Console.Out.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
         }
+
+        return whole.ToString().Trim();
     }
 
     private static string? Header(HttpResponseMessage response, string name)

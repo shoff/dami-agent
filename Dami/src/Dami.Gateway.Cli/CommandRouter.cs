@@ -31,6 +31,7 @@ public static class CommandRouter
           dami chat <message>            one full interactive turn - context, routing, traced
           dami chat --frontier <message> the same turn on your ChatGPT subscription
                                          (codex CLI, no API key); no memories are sent
+          dami chat --speak <message>    the local turn, then read aloud through the Piper voice
           dami chat --augmented <message> frontier answers on local context that passed
                                          the disclosure gate; decisions land in disclosures
           dami sessions                  list recent durable conversation sessions
@@ -156,7 +157,7 @@ public static class CommandRouter
                 await BoardCommandRouter.RunAsync(args, board.Board, board.Import, cancellationToken)
                     .ConfigureAwait(false),
             "recall" or "ask" or "context" or "caption" or "chat" when args.Length > 1 =>
-                await DispatchModelAsync(verb, args, recall, ask, contextCommands, vision, chat,
+                await DispatchModelAsync(verb, args, recall, ask, contextCommands, vision, chat, voice,
                     cancellationToken).ConfigureAwait(false),
             "sessions" or "session" =>
                 await SessionCommandRouter.RunAsync(args, sessions, cancellationToken)
@@ -252,6 +253,7 @@ public static class CommandRouter
         ContextCommands contextCommands,
         VisionCommands vision,
         ChatCommands chat,
+        VoiceVerbs voice,
         CancellationToken cancellationToken)
     {
         var rest = string.Join(' ', args[1..]);
@@ -261,6 +263,8 @@ public static class CommandRouter
             "ask" => await ask.AskAsync(rest, cancellationToken).ConfigureAwait(false),
             "context" => await contextCommands.ShowAsync(rest, cancellationToken).ConfigureAwait(false),
             "caption" => await vision.CaptionAsync(args[1], cancellationToken).ConfigureAwait(false),
+            "chat" when rest.StartsWith("--speak", StringComparison.Ordinal) =>
+                await chat.TurnAsync(rest["--speak".Length..].Trim(), voice.Say, cancellationToken).ConfigureAwait(false),
             "chat" when rest.StartsWith("--augmented", StringComparison.Ordinal) =>
                 await chat.FrontierTurnAsync(rest["--augmented".Length..].Trim(), augmented: true, cancellationToken)
                     .ConfigureAwait(false),
