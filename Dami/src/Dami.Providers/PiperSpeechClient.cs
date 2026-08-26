@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+using System.Text.Json;
 using Dami.Contracts.Models;
 using Microsoft.Extensions.Options;
 
@@ -27,10 +27,13 @@ public sealed class PiperSpeechClient : ISpeechClient
     public async Task<byte[]> SpeakAsync(string text, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
-        using var response = await this.httpClient.PostAsJsonAsync(
-            new Uri(new Uri(this.piperOptions.BaseUrl), "/speak"),
-            new { text, voice = this.piperOptions.Voice },
-            cancellationToken).ConfigureAwait(false);
+        // A plain body with a Content-Length: the sidecar is Python's http.server, which
+        // does not read chunked requests, and PostAsJsonAsync would send one.
+        using var body = new StringContent(
+            JsonSerializer.Serialize(new { text, voice = this.piperOptions.Voice }),
+            System.Text.Encoding.UTF8, "application/json");
+        using var response = await this.httpClient.PostAsync(
+            new Uri(new Uri(this.piperOptions.BaseUrl), "/speak"), body, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
     }
