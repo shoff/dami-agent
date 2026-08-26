@@ -83,6 +83,7 @@ builder.Services.AddSingleton<IProactiveService, NetworkCollectorService>();
 builder.Services.Configure<CivicFeedOptions>(
     builder.Configuration.GetSection(CivicFeedOptions.SECTION_NAME));
 builder.Services.AddSingleton<IProactiveService, CivicFeedCollectorService>();
+builder.Services.AddSingleton<IProactiveService, CivicAgendaService>();
 
 // Rewrites imported transcript voice into usable knowledge. Derived, reversible.
 builder.Services.Configure<CuratorOptions>(

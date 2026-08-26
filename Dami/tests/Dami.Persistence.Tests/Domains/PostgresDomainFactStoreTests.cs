@@ -66,6 +66,20 @@ public sealed class PostgresDomainFactStoreTests
         Assert.Equal(("ollama on 127.0.0.1:11434 is listening", "service"), (only.Text, only.Kind));
     }
 
+    [Fact]
+    public async Task BetweenAsync_Should_Serve_A_Window_Soonest_First()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+        await store.RecordAsync(Fact("civic", new DateOnly(2026, 8, 31), "meeting", "Council"), CancellationToken.None);
+        await store.RecordAsync(Fact("civic", new DateOnly(2026, 8, 26), "meeting", "Finance"), CancellationToken.None);
+        await store.RecordAsync(Fact("civic", new DateOnly(2026, 9, 9), "meeting", "Too late"), CancellationToken.None);
+
+        var window = await ListAsync(store.BetweenAsync("civic", new DateOnly(2026, 8, 25), new DateOnly(2026, 9, 1), 10, CancellationToken.None));
+
+        Assert.Equal(["Finance", "Council"], window.Select(fact => fact.Description));
+    }
+
     private static DomainFact Fact(string domain, DateOnly asOf, string category, string description)
     {
         return new DomainFact(Guid.NewGuid(), domain, asOf, category, description, "test", at);

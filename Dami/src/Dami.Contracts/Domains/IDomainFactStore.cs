@@ -26,6 +26,10 @@ public interface IDomainFactStore
     /// <summary>Facts newest first, in one domain or, with null, across all, rejections excluded.</summary>
     IAsyncEnumerable<DomainFact> TimelineAsync(string? domain, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Facts in one domain dated within a window, soonest first, rejections excluded.</summary>
+    IAsyncEnumerable<DomainFact> BetweenAsync(
+        string domain, DateOnly from, DateOnly to, int limit, CancellationToken cancellationToken);
+
     /// <summary>Rejects a wrong fact permanently. False when the id is unknown.</summary>
     Task<bool> RejectAsync(Guid factId, string reason, CancellationToken cancellationToken);
 

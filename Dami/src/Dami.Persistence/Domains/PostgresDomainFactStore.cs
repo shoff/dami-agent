@@ -62,6 +62,28 @@ public sealed class PostgresDomainFactStore : IDomainFactStore
     }
 
     /// <inheritdoc />
+    public IAsyncEnumerable<DomainFact> BetweenAsync(
+        string domain, DateOnly from, DateOnly to, int limit, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(domain);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+        var command = this.dataSource.CreateCommand(
+            $"""
+            select f.fact_id, f.domain, f.as_of, f.category, f.description, f.source, f.recorded_at
+              from {this.schema}.domain_facts f
+             where f.domain = @domain and f.as_of between @from and @to
+               and not exists (select 1 from {this.schema}.domain_fact_rejections r where r.fact_id = f.fact_id)
+             order by f.as_of, f.description
+             limit @limit;
+            """);
+        command.Parameters.AddWithValue("domain", domain);
+        command.Parameters.AddWithValue("from", from);
+        command.Parameters.AddWithValue("to", to);
+        command.Parameters.AddWithValue("limit", limit);
+        return StreamAsync(command, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<bool> RejectAsync(Guid factId, string reason, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);

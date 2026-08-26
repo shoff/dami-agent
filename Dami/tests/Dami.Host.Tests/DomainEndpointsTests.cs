@@ -64,6 +64,12 @@ public sealed class DomainEndpointsTests
             }
         }
 
+        public IAsyncEnumerable<DomainFact> BetweenAsync(
+            string domain, DateOnly from, DateOnly to, int limit, CancellationToken cancellationToken)
+        {
+            return this.TimelineAsync(domain, limit, cancellationToken);
+        }
+
         public Task<bool> RejectAsync(Guid factId, string reason, CancellationToken cancellationToken)
         {
             this.RejectedId = factId;
