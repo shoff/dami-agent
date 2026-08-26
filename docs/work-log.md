@@ -8008,3 +8008,40 @@ Steve's sign-off — which is the board doing its job; K4 holds this work.
 Codex's uncommitted G5a2 test on Codex's uncommitted Host edits, in the shared tree.
 Format: exit 0 on my files; the same uncommitted test file has a whitespace finding.
 Migration 033 applied to `dami-data`, none pending.
+
+## 2026-08-25 — Claude — L4: Dami speaks (Piper, public-domain LJ Speech voice); `dami today`; K4 across CLI, web, and desktop
+
+### Voice (`47dd542`, `e0044e1`)
+
+`tools/tts/server.py` wraps Piper (`piper-tts`, MIT) on `127.0.0.1:8091`, run with
+`uv run --with piper-tts`; the unit is `tools/systemd/dami-tts.service`. The sidecar never
+downloads a voice. Two voices were tried and their model cards read:
+
+- `en_US-lessac-medium` — card points at the Blizzard 2013 licence: "exclusively for
+  Research Purposes only", no commercial voice products, no redistribution, destroy on
+  termination. Rejected; files deleted.
+- `en_US-ljspeech-medium` — card: dataset LJ Speech, **licence public domain**, trained
+  from scratch. Chosen. ADR-0022 records it for Steve to accept or reject.
+
+Live: `POST /speak` on the sidecar → 200, 149,036-byte 16-bit mono 22.05 kHz WAV in 0.19 s
+on CPU. Runtime side: `ISpeechClient`/`PiperSpeechClient`, `POST /speak` as a bounded
+worker under a trace, `dami say <text> [--out file.wav]` (plays via paplay/aplay or writes
+the file). Tests at the client, endpoint, and CLI. The network collector now watches 8091.
+L4's criterion (voice with licence and consent recorded in docs/decisions) satisfied and
+L4 completed on the board.
+
+### `dami today`, web, desktop (`5ede878`, `847fa6c`, `8ecc3b8`)
+
+The same morning digest in three places: inbox, the board's questions for Steve (blocked
+tasks whose reason names him), this week's civic meetings, network problems. The web view
+gained Today and Domains panels; the desktop client's attention sidebar gained the digest
+items through a pure, tested `TodayDigest`.
+
+### Gate
+
+`dotnet build Dami.sln`: 0 warnings, 0 errors. `dotnet test Dami.sln`: nineteen suites,
+**1034 passed, 0 failed** (Codex's OIDC test is green again in the shared tree). Format:
+exit 0 on my files. Release builds of Host, Proactive, CLI, and GUI are staged in
+`~/.cache/dami-pub`; `/opt/dami` still runs the builds from before the domain store, so
+`/domains`, `/speak`, and both collectors are not yet observable through the deployed
+runtime.

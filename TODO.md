@@ -232,7 +232,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] L1 PipeWire validation (Claude 2026-08-24) — PipeWire 1.0.5, USB audio device, capture verified producing signal. **Finding: this host has no analog microphone.** The only input is `alsa_input.usb-Generic_USB_Audio-00.iec958-stereo` (S/PDIF digital); the other two sources are output monitors. `[STEVE: a real mic is needed for L2/L5]`
 - [ ] L2 Wake word "Hey Dami" (DAH-mee) + utterance capture; suppression during playback. **Evidence from L3: general-purpose STT will not do this** — Whisper hears "Hey Dami" as `HEY BABY`. Needs a dedicated wake-word engine (openWakeWord/Porcupine) trained on the phrase, and a real microphone
 - [x] L3 Local STT (Claude 2026-08-24) — `dami-stt` sidecar (faster-whisper small.en, CUDA, loopback 8090), `ITranscriptionClient`/`WhisperTranscriptionClient`, `/transcribe` run as a bounded worker under a real trace, `dami listen <file>`. Warm latency ~1s for 5s of audio (5x realtime). Audio never leaves the host
-- [ ] L4 TTS engine + **legally clean voice source with documented consent** `[STEVE: voice choice]`
+- [x] L4 (Claude 2026-08-25, defaults per Steve's direction; **ADR-0022** for accept/reject) Piper on loopback `:8091` (`tools/tts/server.py`, unit in `tools/systemd`), voice `en_US-ljspeech-medium` — model card says LJ Speech is **public domain**; the lessac voice tried first is research-only and was deleted. `ISpeechClient`, `POST /speak` as a traced worker, `dami say <text> [--out f.wav]`. Completed on the board. TTS engine + legally clean voice source with documented consent
 - [ ] L5 End-to-end spoken cycle — acceptance item 14
 - [ ] L6 Avatar: decide after voice proves itself (register: may distract from presence)
 
