@@ -58,7 +58,8 @@ internal sealed class TaskRow
         int position,
         TaskOrdering subTaskOrdering,
         TaskClaim? claim,
-        long version)
+        long version,
+        DateTimeOffset createdAt)
     {
         this.TaskId = taskId;
         this.ParentTaskId = parentTaskId;
@@ -70,6 +71,7 @@ internal sealed class TaskRow
         this.SubTaskOrdering = subTaskOrdering;
         this.Claim = claim;
         this.Version = version;
+        this.CreatedAt = createdAt;
     }
 
     internal Guid TaskId { get; }
@@ -92,6 +94,8 @@ internal sealed class TaskRow
 
     internal long Version { get; }
 
+    internal DateTimeOffset CreatedAt { get; }
+
     internal List<Guid> Prerequisites { get; } = [];
 
     internal List<AcceptanceCriterion> Criteria { get; } = [];
@@ -108,7 +112,8 @@ internal sealed class TaskRow
             reader.GetString(2), reader.GetString(3),
             Enum.Parse<TaskBoardStatus>(reader.GetString(4)),
             (TaskPriority)reader.GetInt16(5), reader.GetInt32(6),
-            Enum.Parse<TaskOrdering>(reader.GetString(7)), claim, reader.GetInt64(11));
+            Enum.Parse<TaskOrdering>(reader.GetString(7)), claim, reader.GetInt64(11),
+            reader.GetFieldValue<DateTimeOffset>(12));
     }
 
     internal BoardTask ToTask(IReadOnlyList<BoardTask> children)
@@ -116,6 +121,6 @@ internal sealed class TaskRow
         return new BoardTask(
             this.TaskId, this.Title, this.Description, this.Status, this.Priority,
             this.Position, this.SubTaskOrdering, this.Claim, this.Version,
-            this.Prerequisites.ToArray(), this.Criteria.ToArray(), children);
+            this.Prerequisites.ToArray(), this.Criteria.ToArray(), children, this.CreatedAt);
     }
 }

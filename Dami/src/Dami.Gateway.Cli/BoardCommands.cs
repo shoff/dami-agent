@@ -80,6 +80,52 @@ public sealed class BoardCommands
         });
     }
 
+    /// <summary>
+    /// Adds a task under a task, or at a board's root when <paramref name="target"/> names a
+    /// board. It goes last among its siblings; each <paramref name="criteria"/> becomes an
+    /// acceptance criterion the completion gate will check.
+    /// </summary>
+    public Task<int> AddAsync(
+        string target, string title, IReadOnlyList<string> criteria, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        ArgumentNullException.ThrowIfNull(criteria);
+        return ApiCall.RunAsync(async () =>
+        {
+            var parent = await this.FindAsync(target, criteria: false, cancellationToken).ConfigureAwait(false);
+            var boardId = parent?.BoardId ?? await this.ResolveBoardAsync(target, cancellationToken).ConfigureAwait(false);
+            if (boardId is null)
+            {
+                await Console.Error.WriteLineAsync($"no task or board matches '{target}'").ConfigureAwait(false);
+                return 1;
+            }
+
+            using var reply = await this.api.PostAsync(
+                $"/task-boards/{boardId:D}/tasks",
+                new
+                {
+                    title,
+                    parentTaskId = parent?.Id,
+                    position = parent?.ChildCount ?? await this.RootCountAsync(boardId.Value, cancellationToken).ConfigureAwait(false),
+                    criteria,
+                    actorId = this.actor.ActorId,
+                    actorKind = this.actor.Kind.ToString(),
+                },
+                cancellationToken).ConfigureAwait(false);
+            Console.WriteLine($"added {reply!.RootElement.GetProperty("taskId").GetGuid().ToString("N")[..8]}: {Shorten(title)}"
+                + (parent is null ? string.Empty : $"  under {Shorten(parent.Title)}"));
+            return 0;
+        });
+    }
+
+    private async Task<int> RootCountAsync(Guid boardId, CancellationToken cancellationToken)
+    {
+        using var snapshot = await this.api.GetAsync($"/task-boards/{boardId:D}", cancellationToken)
+            .ConfigureAwait(false);
+        return snapshot!.RootElement.GetProperty("tasks").GetArrayLength();
+    }
+
     /// <summary>Claims a task as the configured actor.</summary>
     public Task<int> ClaimAsync(string taskPrefix, string? detail, CancellationToken cancellationToken)
     {
@@ -203,19 +249,21 @@ public sealed class BoardCommands
                 .ConfigureAwait(false);
             foreach (var task in snapshot!.RootElement.GetProperty("tasks").EnumerateArray())
             {
-                Collect(task, prefix, criteria, matches);
+                Collect(task, boardId, prefix, criteria, matches);
             }
         }
 
         return matches.Count == 1 ? matches[0] : null;
     }
 
-    private static void Collect(JsonElement task, string prefix, bool criteria, List<Located> matches)
+    private static void Collect(JsonElement task, Guid boardId, string prefix, bool criteria, List<Located> matches)
     {
         var version = task.GetProperty("version").GetInt64();
+        var children = task.GetProperty("subTasks");
         if (!criteria && Matches(task, "taskId", prefix))
         {
-            matches.Add(new Located(task.GetProperty("taskId").GetGuid(), version, Title(task)));
+            matches.Add(new Located(
+                task.GetProperty("taskId").GetGuid(), version, Title(task), boardId, children.GetArrayLength()));
         }
 
         if (criteria)
@@ -226,14 +274,14 @@ public sealed class BoardCommands
                 {
                     matches.Add(new Located(
                         criterion.GetProperty("criterionId").GetGuid(), version,
-                        criterion.GetProperty("description").GetString() ?? string.Empty));
+                        criterion.GetProperty("description").GetString() ?? string.Empty, boardId, 0));
                 }
             }
         }
 
-        foreach (var child in task.GetProperty("subTasks").EnumerateArray())
+        foreach (var child in children.EnumerateArray())
         {
-            Collect(child, prefix, criteria, matches);
+            Collect(child, boardId, prefix, criteria, matches);
         }
     }
 
@@ -311,5 +359,5 @@ public sealed class BoardCommands
         return title.Length <= TITLE_WIDTH ? title : title[..(TITLE_WIDTH - 1)] + "…";
     }
 
-    private sealed record Located(Guid Id, long Version, string Title);
+    private sealed record Located(Guid Id, long Version, string Title, Guid BoardId, int ChildCount);
 }

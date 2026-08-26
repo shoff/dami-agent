@@ -180,6 +180,61 @@ public sealed class TodoBoardImporterTests
         return BoardImportIds.Task(TodoBoardMapper.BOARD_KEY, todoId);
     }
 
+    private const string SMALL_BOARD = """
+        # Board
+
+        ## Z · Growth
+
+        - [x] Z1 Already there
+        """;
+
+    private const string GROWN_BOARD = """
+        # Board
+
+        ## Z · Growth
+
+        - [x] Z1 Already there
+        - [~ Claude 2026-08-25] Z2 New parent
+          - [ ] Z2a New child — acceptance item 3
+        - [ ] Z3 Depends on Z2 (needs Z2 first)
+
+        ## Y · New epic
+
+        - [ ] Y1 In a new section
+        """;
+
+    [Fact]
+    public async Task ImportAsync_Should_Add_Entries_The_File_Gained_Since_The_Board_Was_Created()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+
+        await this.ImportAsync(store, Plan(SMALL_BOARD));
+        var grown = await this.ImportAsync(store, Plan(GROWN_BOARD));
+        var rerun = await this.ImportAsync(store, Plan(GROWN_BOARD));
+        var snapshot = await store.FindAsync(Plan(GROWN_BOARD).Draft.BoardId, CancellationToken.None);
+        var byId = Flatten(snapshot!.Tasks).ToDictionary(task => task.TaskId);
+
+        Assert.Empty(grown.Conflicts);
+        Assert.Equal(0, rerun.MutationsApplied);
+        Assert.Equal(2, snapshot.Tasks.Count);
+        Assert.Equal(TaskBoardStatus.InProgress, byId[TaskId("Z2")].Status);
+        Assert.Equal("claude", byId[TaskId("Z2")].Claim!.Actor.ActorId);
+        Assert.Contains(byId[TaskId("Z2a")], byId[TaskId("Z2")].SubTasks);
+        Assert.Single(byId[TaskId("Z2a")].AcceptanceCriteria);
+        Assert.Contains(TaskId("Z2"), byId[TaskId("Z3")].PrerequisiteTaskIds);
+        Assert.Contains(TaskId("Y1"), Flatten(snapshot.Tasks).Select(task => task.TaskId));
+    }
+
+    private static TodoImportPlan Plan(string markdown)
+    {
+        return TodoBoardMapper.Map(
+            TodoBoardParser.Parse(markdown),
+            new TodoImportSource("test-revision", "The Dami Core end state.", "Imported from TODO.md"),
+            importer,
+            importedAt);
+    }
+
     private static TodoImportPlan RealPlan()
     {
         var document = TodoBoardParser.Parse(File.ReadAllText(FindBoard()));

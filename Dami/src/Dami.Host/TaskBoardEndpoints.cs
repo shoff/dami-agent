@@ -19,6 +19,7 @@ internal static class TaskBoardEndpoints
         app.MapGet("/task-boards/{boardId:guid}", FindAsync);
         app.MapGet("/task-boards/{boardId:guid}/activity", ActivityAsync);
         app.MapPost("/task-boards/plan", PlanAsync);
+        app.MapPost("/task-boards/{boardId:guid}/tasks", AddTaskAsync);
         app.MapPost("/task-boards/tasks/{taskId:guid}/claim", ClaimAsync);
         app.MapPut("/task-boards/criteria/{criterionId:guid}", SetCriterionAsync);
         app.MapPost("/task-boards/tasks/{taskId:guid}/complete", CompleteAsync);
@@ -117,6 +118,36 @@ internal static class TaskBoardEndpoints
         }
 
         return null;
+    }
+
+    private static async Task<IResult> AddTaskAsync(
+        Guid boardId,
+        TaskBoardAddTaskRequest request,
+        ITaskBoardStore store,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.ActorId)
+            || !Enum.IsDefined(request.ActorKind) || !Enum.IsDefined(request.Priority)
+            || request.Position < 0)
+        {
+            return Results.BadRequest(new { error = "a title, a valid actor, priority, and position are required" });
+        }
+
+        var taskId = request.TaskId ?? Guid.NewGuid();
+        var criteria = (request.Criteria ?? [])
+            .Select((text, index) => new AcceptanceCriterionDraft(Guid.NewGuid(), text, index))
+            .ToArray();
+        var draft = new BoardTaskDraft(
+            taskId, request.Title.Trim(), request.Description ?? string.Empty, request.Priority,
+            request.Position, TaskOrdering.Ordered, request.PrerequisiteTaskIds ?? [], criteria, []);
+        var actor = new TaskActor(request.ActorId, request.ActorKind);
+        var added = await store.TryAddTaskAsync(
+            boardId, request.ParentTaskId, draft, actor, clock.GetUtcNow(), request.Detail, cancellationToken)
+            .ConfigureAwait(false);
+        return added
+            ? Results.Created($"/task-boards/{boardId:D}", new { taskId })
+            : Results.Conflict(new { updated = false });
     }
 
     private static async Task<IResult> ClaimAsync(
@@ -241,6 +272,19 @@ internal sealed record TaskBoardMutationRequest(
     long ExpectedVersion,
     string ActorId,
     TaskActorKind ActorKind,
+    string? Detail = null);
+
+internal sealed record TaskBoardAddTaskRequest(
+    string Title,
+    string ActorId,
+    TaskActorKind ActorKind,
+    Guid? ParentTaskId = null,
+    Guid? TaskId = null,
+    string? Description = null,
+    TaskPriority Priority = TaskPriority.Normal,
+    int Position = 0,
+    IReadOnlyList<Guid>? PrerequisiteTaskIds = null,
+    IReadOnlyList<string>? Criteria = null,
     string? Detail = null);
 
 internal sealed record TaskBoardCriterionRequest(

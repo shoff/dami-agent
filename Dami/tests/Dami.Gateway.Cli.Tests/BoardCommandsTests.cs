@@ -127,6 +127,34 @@ public sealed class BoardCommandsTests
         Assert.Equal(0, posts);
     }
 
+    [Fact]
+    public async Task AddAsync_Should_Post_Under_The_Parent_At_The_Next_Position_With_Criteria()
+    {
+        JsonElement sent = default;
+        using var http = new HttpClient(new StubHandler(async request =>
+        {
+            if (request.Method == HttpMethod.Post)
+            {
+                Assert.Equal($"/task-boards/{boardId:D}/tasks", request.RequestUri!.AbsolutePath);
+                using var body = await request.Content!.ReadFromJsonAsync<JsonDocument>();
+                sent = body!.RootElement.Clone();
+                return Json(HttpStatusCode.Created, new { taskId = Guid.NewGuid() });
+            }
+
+            return await ReadOnlyBoardAsync(request);
+        }));
+
+        var (exitCode, output) = await CaptureAsync(() => new BoardCommands(new DamiApiClient(http), claude)
+            .AddAsync("aaaaaaaa", "Write the thing", ["it exists"], CancellationToken.None));
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(epicId, sent.GetProperty("parentTaskId").GetGuid());
+        Assert.Equal(2, sent.GetProperty("position").GetInt32());
+        Assert.Equal("it exists", sent.GetProperty("criteria")[0].GetString());
+        Assert.Equal("claude", sent.GetProperty("actorId").GetString());
+        Assert.Contains("added", output, StringComparison.Ordinal);
+    }
+
     private static Task<HttpResponseMessage> ReadOnlyBoardAsync(HttpRequestMessage request)
     {
         Assert.Equal(HttpMethod.Get, request.Method);

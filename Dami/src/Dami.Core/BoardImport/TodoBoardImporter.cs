@@ -87,7 +87,8 @@ public sealed class TodoBoardImporter
                 .ConfigureAwait(false)
                 ?? throw new InvalidOperationException("The board vanished mid-import.");
 
-            var context = new PassContext(Index(snapshot), importer, revision, snapshot.CreatedAt);
+            var context = new PassContext(
+                Index(snapshot), importer, revision, snapshot.BoardId, Parents(plan.Draft));
             var moved = await this.PassAsync(order, context, cancellationToken).ConfigureAwait(false);
             applied += moved.Applied;
             if (moved.Applied == 0)
@@ -112,7 +113,9 @@ public sealed class TodoBoardImporter
         {
             if (!context.ById.TryGetValue(desired.TaskId, out var actual))
             {
-                conflicts.Add($"{desired.TodoId ?? desired.TaskId.ToString()} is not on the board.");
+                var added = await this.AddMissingAsync(desired, context, conflicts, cancellationToken)
+                    .ConfigureAwait(false);
+                applied += added ? 1 : 0;
                 continue;
             }
 
@@ -148,7 +151,7 @@ public sealed class TodoBoardImporter
                 actual.TaskId,
                 actual.Version,
                 step.Actor,
-                ClaimedAt(desired, context.BoardCreatedAt, now),
+                ClaimedAt(desired, actual.CreatedAt, now),
                 ImportTag(context),
                 cancellationToken).ConfigureAwait(false),
             ImportStepKind.SatisfyCriteria => await this.SatisfyAsync(
@@ -202,26 +205,103 @@ public sealed class TodoBoardImporter
     /// TODO.md by X on YYYY-MM-DD" into the task's description, which is where a date that
     /// predates the record it lives in honestly belongs.
     /// </remarks>
+    /// <summary>
+    /// The file's claim date, clamped to the task's own creation: a task cannot have been
+    /// claimed before it existed on the board, and the schema refuses the row if it says so.
+    /// </summary>
     private static DateTimeOffset ClaimedAt(
         DesiredTask desired,
-        DateTimeOffset boardCreatedAt,
+        DateTimeOffset taskCreatedAt,
         DateTimeOffset now)
     {
         if (desired.ClaimedOn is null)
         {
-            return now < boardCreatedAt ? boardCreatedAt : now;
+            return now < taskCreatedAt ? taskCreatedAt : now;
         }
 
         var stated = new DateTimeOffset(
             desired.ClaimedOn.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-        return stated < boardCreatedAt ? boardCreatedAt : stated;
+        return stated < taskCreatedAt ? taskCreatedAt : stated;
     }
 
     private sealed record PassContext(
         Dictionary<Guid, BoardTask> ById,
         TaskActor Importer,
         string Revision,
-        DateTimeOffset BoardCreatedAt);
+        Guid BoardId,
+        Dictionary<Guid, (Guid? ParentId, BoardTaskDraft Draft)> Parents);
+
+    /// <summary>
+    /// A task the file has and the board lacks is added — one node, no subtree, so its
+    /// children are added on the next pass once it is there to hang them on. It waits
+    /// while its parent or a prerequisite is still missing, and is reported only when
+    /// nothing else moved either.
+    /// </summary>
+    private async Task<bool> AddMissingAsync(
+        DesiredTask desired,
+        PassContext context,
+        List<string> conflicts,
+        CancellationToken cancellationToken)
+    {
+        var name = desired.TodoId ?? desired.TaskId.ToString();
+        var blocker = WhyNotPlaceable(desired, context);
+        if (blocker is not null)
+        {
+            conflicts.Add($"{name} is not on the board and {blocker}.");
+            return false;
+        }
+
+        var (parentId, draft) = context.Parents[desired.TaskId];
+        var single = new BoardTaskDraft(
+            draft.TaskId, draft.Title, draft.Description, draft.Priority, draft.Position,
+            draft.SubTaskOrdering, draft.PrerequisiteTaskIds, draft.AcceptanceCriteria, []);
+        var added = await this.store.TryAddTaskAsync(
+            context.BoardId, parentId, single, context.Importer, this.clock.GetUtcNow(),
+            ImportTag(context), cancellationToken).ConfigureAwait(false);
+        if (!added)
+        {
+            conflicts.Add($"{name} is not on the board and the board refused to add it.");
+        }
+
+        return added;
+    }
+
+    private static string? WhyNotPlaceable(DesiredTask desired, PassContext context)
+    {
+        if (!context.Parents.TryGetValue(desired.TaskId, out var place))
+        {
+            return "the plan does not place it";
+        }
+
+        if (place.ParentId is not null && !context.ById.ContainsKey(place.ParentId.Value))
+        {
+            return "neither is its parent";
+        }
+
+        return place.Draft.PrerequisiteTaskIds.Any(id => !context.ById.ContainsKey(id))
+            ? "it waits on a prerequisite that is not either"
+            : null;
+    }
+
+    /// <summary>Where every drafted task belongs: its parent's id, or null at the root.</summary>
+    private static Dictionary<Guid, (Guid? ParentId, BoardTaskDraft Draft)> Parents(TaskBoardDraft board)
+    {
+        var parents = new Dictionary<Guid, (Guid?, BoardTaskDraft)>();
+        Place(board.Tasks, null, parents);
+        return parents;
+    }
+
+    private static void Place(
+        IReadOnlyList<BoardTaskDraft> tasks,
+        Guid? parentId,
+        Dictionary<Guid, (Guid? ParentId, BoardTaskDraft Draft)> parents)
+    {
+        foreach (var task in tasks)
+        {
+            parents[task.TaskId] = (parentId, task);
+            Place(task.SubTasks, task.TaskId, parents);
+        }
+    }
 
     private static Dictionary<Guid, BoardTask> Index(TaskBoardSnapshot snapshot)
     {

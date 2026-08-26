@@ -20,6 +20,14 @@ internal static class TaskDraftGraph
         return nodes;
     }
 
+    /// <summary>Flattens one subtree that will hang under an existing task.</summary>
+    internal static IReadOnlyList<TaskDraftNode> Flatten(BoardTaskDraft root, Guid? parentTaskId)
+    {
+        var nodes = new List<TaskDraftNode>();
+        Add(root, parentTaskId, 1, nodes);
+        return nodes;
+    }
+
     internal static void Validate(IReadOnlyList<TaskDraftNode> nodes)
     {
         var ids = nodes.Select(node => node.Draft.TaskId).ToHashSet();

@@ -6,6 +6,20 @@ public interface ITaskBoardStore
     /// <summary>Atomically creates a board and its entire initial task tree.</summary>
     Task CreateAsync(TaskBoardDraft draft, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Adds one task (and its drafted subtree) to an existing board, under
+    /// <paramref name="parentTaskId"/> or at the root when it is null. False when the board
+    /// or parent is unknown, the parent is finished, or the task id already exists.
+    /// </summary>
+    Task<bool> TryAddTaskAsync(
+        Guid boardId,
+        Guid? parentTaskId,
+        BoardTaskDraft draft,
+        TaskActor actor,
+        DateTimeOffset addedAt,
+        string? detail,
+        CancellationToken cancellationToken);
+
     /// <summary>Reads one consistent board snapshot.</summary>
     Task<TaskBoardSnapshot?> FindAsync(Guid boardId, CancellationToken cancellationToken);
 

@@ -160,6 +160,41 @@ public sealed class TaskBoardEndpointsTests
     }
 
     [Fact]
+    public async Task AddTask_Should_Create_Under_The_Parent_As_The_Actor_And_Report_Conflict_When_Refused()
+    {
+        var boardId = Guid.NewGuid();
+        var parentId = Guid.NewGuid();
+        var store = new StubStore(new TaskBoardSummary(boardId, "board", TaskBoardStatus.Open, at, 1, 0, 0));
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+
+        using var created = await client.PostAsJsonAsync(
+            $"/task-boards/{boardId:D}/tasks",
+            new { title = "  new work ", parentTaskId = parentId, position = 4, criteria = new[] { "proven" }, actorId = "claude", actorKind = "Agent", detail = "why" },
+            CancellationToken.None);
+        var firstCall = (store.LastAddedBoardId, store.LastAddedParentId, store.LastAddedDraft!.Title,
+            store.LastAddedDraft.Position, store.LastAddedDetail);
+        var firstDraft = store.LastAddedDraft;
+        var firstActor = store.LastAddedActor;
+        store.AddResult = false;
+        using var refused = await client.PostAsJsonAsync(
+            $"/task-boards/{boardId:D}/tasks",
+            new { title = "again", actorId = "claude", actorKind = "Agent" },
+            CancellationToken.None);
+        using var invalid = await client.PostAsJsonAsync(
+            $"/task-boards/{boardId:D}/tasks",
+            new { title = " ", actorId = "claude", actorKind = "Agent" },
+            CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        Assert.Equal((boardId, parentId, "new work", 4, "why"), firstCall);
+        Assert.Equal("proven", Assert.Single(firstDraft.AcceptanceCriteria).Description);
+        Assert.Equal(new TaskActor("claude", TaskActorKind.Agent), firstActor);
+    }
+
+    [Fact]
     public async Task Claim_Should_Return_Conflict_When_The_Compare_And_Set_Loses()
     {
         var store = new StubStore(new TaskBoardSummary(
@@ -459,6 +494,18 @@ public sealed class TaskBoardEndpointsTests
 
         internal DateTimeOffset LastCompletedAt { get; private set; }
 
+        internal bool AddResult { get; set; } = true;
+
+        internal Guid LastAddedBoardId { get; private set; }
+
+        internal Guid? LastAddedParentId { get; private set; }
+
+        internal BoardTaskDraft? LastAddedDraft { get; private set; }
+
+        internal TaskActor? LastAddedActor { get; private set; }
+
+        internal string? LastAddedDetail { get; private set; }
+
         internal Guid LastStatusTaskId { get; private set; }
 
         internal long LastStatusVersion { get; private set; }
@@ -493,6 +540,23 @@ public sealed class TaskBoardEndpointsTests
             this.LastLimit = limit;
             yield return summary;
             await Task.CompletedTask.ConfigureAwait(false);
+        }
+
+        public Task<bool> TryAddTaskAsync(
+            Guid boardId,
+            Guid? parentTaskId,
+            BoardTaskDraft draft,
+            TaskActor actor,
+            DateTimeOffset addedAt,
+            string? detail,
+            CancellationToken cancellationToken)
+        {
+            this.LastAddedBoardId = boardId;
+            this.LastAddedParentId = parentTaskId;
+            this.LastAddedDraft = draft;
+            this.LastAddedActor = actor;
+            this.LastAddedDetail = detail;
+            return Task.FromResult(this.AddResult);
         }
 
         public Task<bool> TryClaimAsync(

@@ -16,7 +16,8 @@ public sealed record BoardTask(
     long Version,
     IReadOnlyList<Guid> PrerequisiteTaskIds,
     IReadOnlyList<AcceptanceCriterion> AcceptanceCriteria,
-    IReadOnlyList<BoardTask> SubTasks);
+    IReadOnlyList<BoardTask> SubTasks,
+    DateTimeOffset CreatedAt = default);
 
 /// <summary>A consistent point-in-time view of a feature plan and its task tree.</summary>
 public sealed record TaskBoardSnapshot(

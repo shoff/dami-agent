@@ -209,7 +209,7 @@ public sealed class HostCompositionTests
 
         Assert.Equal(1, server.DiscoveryCount);
         Assert.Equal(1, server.InvocationCount);
-        Assert.Equal(1, server.ShutdownCount);
+        Assert.Equal(1, await SettledAsync(() => server.ShutdownCount, 1));
         Assert.Equal(2, events.Count(item => item.Type == ExecutionEventType.TraceStarted));
         Assert.Equal(2, events.Count(item => item.Type == ExecutionEventType.TraceCompleted));
     }
@@ -257,5 +257,20 @@ public sealed class HostCompositionTests
                 Arg.Do<ExecutionEvent>(events.Add), Arg.Any<CancellationToken>())
             .Returns(1L);
         return eventStore;
+    }
+
+    /// <summary>
+    /// The SDK's session DisposeAsync returns before the server has necessarily processed
+    /// its DELETE; under a full parallel run that arrived late about one time in four. The
+    /// Host awaits everything on its side, so the wait belongs here, bounded.
+    /// </summary>
+    private static async Task<int> SettledAsync(Func<int> read, int expected)
+    {
+        for (var attempt = 0; attempt < 100 && read() != expected; attempt++)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(20));
+        }
+
+        return read();
     }
 }

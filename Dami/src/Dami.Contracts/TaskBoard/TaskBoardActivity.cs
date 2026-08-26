@@ -6,6 +6,9 @@ public enum TaskBoardActivityKind
     /// <summary>A feature request, plan, and initial tree were created.</summary>
     BoardCreated,
 
+    /// <summary>A task was added to an existing board.</summary>
+    TaskAdded,
+
     /// <summary>An actor atomically claimed an open task.</summary>
     TaskClaimed,
 

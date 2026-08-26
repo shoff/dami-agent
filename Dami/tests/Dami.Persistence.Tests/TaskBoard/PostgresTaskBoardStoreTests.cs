@@ -296,6 +296,101 @@ public sealed class PostgresTaskBoardStoreTests
     }
 
     [Fact]
+    public async Task TryAddTaskAsync_Should_Add_Under_A_Parent_And_Record_The_Addition()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+        var parent = CreateLeaf("parent", TaskPriority.Normal, 0);
+        var draft = CreateDraft([parent], TaskOrdering.Ordered);
+        await store.CreateAsync(draft, CancellationToken.None);
+        var criterion = new AcceptanceCriterionDraft(Guid.NewGuid(), "proven", 0);
+        var child = new BoardTaskDraft(
+            Guid.NewGuid(), "child", "added later", TaskPriority.High, 0,
+            TaskOrdering.Ordered, [], [criterion], []);
+        var agent = new TaskActor("claude", TaskActorKind.Agent);
+
+        var added = await store.TryAddTaskAsync(
+            draft.BoardId, parent.TaskId, child, agent, createdAt.AddMinutes(1), "from the file",
+            CancellationToken.None);
+        var again = await store.TryAddTaskAsync(
+            draft.BoardId, parent.TaskId, child, agent, createdAt.AddMinutes(2), null, CancellationToken.None);
+        var found = await store.FindAsync(draft.BoardId, CancellationToken.None);
+        var activity = new List<TaskBoardActivity>();
+        await foreach (var item in store.ActivityAsync(draft.BoardId, 20, CancellationToken.None))
+        {
+            activity.Add(item);
+        }
+
+        Assert.True(added);
+        Assert.False(again);
+        var persisted = Assert.Single(Assert.Single(found!.Tasks).SubTasks);
+        Assert.Equal((child.TaskId, "child", TaskBoardStatus.Open, 1L), (persisted.TaskId, persisted.Title, persisted.Status, persisted.Version));
+        Assert.Equal("proven", Assert.Single(persisted.AcceptanceCriteria).Description);
+        var addition = Assert.Single(activity, item => item.Kind == TaskBoardActivityKind.TaskAdded);
+        Assert.Equal((child.TaskId, "claude", "from the file"), (addition.TaskId, addition.Actor.ActorId, addition.Detail));
+    }
+
+    [Fact]
+    public async Task TryAddTaskAsync_Should_Reopen_A_Done_Parent_That_Gains_A_Child()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+        var done = CreateLeaf("finished", TaskPriority.Normal, 0);
+        var draft = CreateDraft([done], TaskOrdering.Ordered);
+        var actor = new TaskActor("steve", TaskActorKind.Human);
+        await store.CreateAsync(draft, CancellationToken.None);
+        await store.TryClaimAsync(done.TaskId, 1, actor, createdAt.AddMinutes(1), null, CancellationToken.None);
+        await store.TryCompleteAsync(done.TaskId, 2, actor, createdAt.AddMinutes(2), null, CancellationToken.None);
+
+        var added = await store.TryAddTaskAsync(
+            draft.BoardId, done.TaskId, CreateLeaf("late", TaskPriority.Normal, 0), actor,
+            createdAt.AddMinutes(3), null, CancellationToken.None);
+        var found = await store.FindAsync(draft.BoardId, CancellationToken.None);
+        var activity = new List<TaskBoardActivity>();
+        await foreach (var item in store.ActivityAsync(draft.BoardId, 20, CancellationToken.None))
+        {
+            activity.Add(item);
+        }
+
+        Assert.True(added);
+        var reopened = Assert.Single(found!.Tasks);
+        Assert.Equal((TaskBoardStatus.Open, 4L, 1), (reopened.Status, reopened.Version, reopened.SubTasks.Count));
+        Assert.Null(reopened.Claim);
+        var change = Assert.Single(activity, item => item.Kind == TaskBoardActivityKind.TaskStatusChanged);
+        Assert.Equal((TaskBoardStatus.Done, TaskBoardStatus.Open), (change.FromStatus, change.ToStatus));
+        Assert.Contains("late", change.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TryAddTaskAsync_Should_Refuse_A_Cancelled_Parent_Or_A_Missing_Target()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+        var cancelled = CreateLeaf("abandoned", TaskPriority.Normal, 0);
+        var draft = CreateDraft([cancelled], TaskOrdering.Ordered);
+        var actor = new TaskActor("steve", TaskActorKind.Human);
+        await store.CreateAsync(draft, CancellationToken.None);
+        await store.TrySetStatusAsync(
+            cancelled.TaskId, 1, TaskBoardStatus.Cancelled, actor, "dropped", createdAt.AddMinutes(1), CancellationToken.None);
+
+        var underCancelled = await store.TryAddTaskAsync(
+            draft.BoardId, cancelled.TaskId, CreateLeaf("too late", TaskPriority.Normal, 0), actor,
+            createdAt.AddMinutes(2), null, CancellationToken.None);
+        var noParent = await store.TryAddTaskAsync(
+            draft.BoardId, Guid.NewGuid(), CreateLeaf("orphan", TaskPriority.Normal, 0), actor,
+            createdAt.AddMinutes(2), null, CancellationToken.None);
+        var noBoard = await store.TryAddTaskAsync(
+            Guid.NewGuid(), null, CreateLeaf("lost", TaskPriority.Normal, 0), actor,
+            createdAt.AddMinutes(2), null, CancellationToken.None);
+        var found = await store.FindAsync(draft.BoardId, CancellationToken.None);
+
+        Assert.False(underCancelled);
+        Assert.False(noParent);
+        Assert.False(noBoard);
+        Assert.Empty(Assert.Single(found!.Tasks).SubTasks);
+    }
+
+    [Fact]
     public async Task Activity_Should_Reject_Update_Tampering()
     {
         await this.fixture.ResetAsync();

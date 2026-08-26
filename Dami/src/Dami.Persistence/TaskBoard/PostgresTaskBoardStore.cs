@@ -69,6 +69,122 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
     }
 
     /// <inheritdoc />
+    public async Task<bool> TryAddTaskAsync(
+        Guid boardId,
+        Guid? parentTaskId,
+        BoardTaskDraft draft,
+        TaskActor actor,
+        DateTimeOffset addedAt,
+        string? detail,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        ArgumentNullException.ThrowIfNull(actor);
+        var nodes = TaskDraftGraph.Flatten(draft, parentTaskId);
+        await using var connection = await this.dataSource
+            .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection
+            .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var parentStatus = await this.ParentStatusAsync(
+            connection, transaction, boardId, parentTaskId, draft.TaskId, cancellationToken).ConfigureAwait(false);
+        if (parentStatus is null or "Cancelled")
+        {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
+        if (parentStatus == "Done")
+        {
+            await this.ReopenForChildAsync(
+                connection, transaction, parentTaskId!.Value, draft, actor, addedAt, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        await this.InsertSubtreeAsync(connection, transaction, boardId, addedAt, nodes, cancellationToken)
+            .ConfigureAwait(false);
+        await this.InsertActivityAsync(
+            connection, transaction, boardId, draft.TaskId, null, TaskBoardActivityKind.TaskAdded,
+            actor, addedAt, cancellationToken, detail).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    private async Task InsertSubtreeAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid boardId,
+        DateTimeOffset createdAt,
+        IReadOnlyList<TaskDraftNode> nodes,
+        CancellationToken cancellationToken)
+    {
+        foreach (var node in nodes)
+        {
+            await this.InsertTaskAsync(connection, transaction, boardId, createdAt, node, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        foreach (var node in nodes)
+        {
+            await this.InsertTaskRelationsAsync(connection, transaction, boardId, node.Draft, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// The parent's status when the add is possible — "Open" standing in for a root add —
+    /// or null when the board or parent is unknown or the task id is already taken.
+    /// </summary>
+    private async Task<string?> ParentStatusAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid boardId,
+        Guid? parentTaskId,
+        Guid taskId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            $"""
+            select case
+                     when not exists (select 1 from {this.boardsTable} where board_id = @board) then null
+                     when exists (select 1 from {this.tasksTable} where task_id = @task) then null
+                     when @parent is null then 'Open'
+                     else (select status from {this.tasksTable}
+                            where board_id = @board and task_id = @parent for update)
+                   end;
+            """, connection, transaction);
+        command.Parameters.AddWithValue("board", boardId);
+        command.Parameters.AddWithValue("parent", NpgsqlDbType.Uuid, (object?)parentTaskId ?? DBNull.Value);
+        command.Parameters.AddWithValue("task", taskId);
+        var status = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return status is DBNull or null ? null : (string)status;
+    }
+
+    /// <summary>A finished parent that gains a child is open again, on the record.</summary>
+    private async Task ReopenForChildAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid parentTaskId,
+        BoardTaskDraft child,
+        TaskActor actor,
+        DateTimeOffset at,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            $"select {this.schema}.task_board_reopen_for_child(@event, @task, @actor, @kind, @detail, @changed);",
+            connection, transaction);
+        command.Parameters.AddWithValue("event", Guid.NewGuid());
+        command.Parameters.AddWithValue("task", parentTaskId);
+        command.Parameters.AddWithValue("actor", actor.ActorId);
+        command.Parameters.AddWithValue("kind", actor.Kind.ToString());
+        command.Parameters.AddWithValue("detail", $"Reopened: gained the task '{child.Title}'.");
+        command.Parameters.AddWithValue("changed", at);
+        if (!await ExecuteBooleanAsync(command, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException($"Task '{parentTaskId}' could not be reopened for its new child.");
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<TaskBoardSnapshot?> FindAsync(
         Guid boardId,
         CancellationToken cancellationToken)
@@ -266,15 +382,18 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
         TaskBoardActivityKind kind,
         TaskActor actor,
         DateTimeOffset occurredAt,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? detail = null)
     {
         await using var command = new NpgsqlCommand(
             $"""
             insert into {this.activityTable}
                 (event_id, board_id, task_id, criterion_id, kind,
-                 actor_id, actor_kind, occurred_at)
-            values (@event, @board, @task, @criterion, @kind, @actor, @actorKind, @occurred);
+                 actor_id, actor_kind, occurred_at, detail)
+            values (@event, @board, @task, @criterion, @kind, @actor, @actorKind, @occurred, @detail);
             """, connection, transaction);
+        command.Parameters.AddWithValue(
+            "detail", NpgsqlDbType.Text, string.IsNullOrWhiteSpace(detail) ? DBNull.Value : detail.Trim());
         command.Parameters.AddWithValue("event", Guid.NewGuid());
         command.Parameters.AddWithValue("board", boardId);
         command.Parameters.AddWithValue("task", (object?)taskId ?? DBNull.Value);
@@ -416,7 +535,8 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
         foreach (var node in nodes)
         {
             await this.InsertTaskAsync(
-                connection, transaction, board, node, cancellationToken).ConfigureAwait(false);
+                connection, transaction, board.BoardId, board.CreatedAt, node, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         foreach (var node in nodes)
@@ -430,7 +550,8 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
     private async Task InsertTaskAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
-        TaskBoardDraft board,
+        Guid boardId,
+        DateTimeOffset createdAt,
         TaskDraftNode node,
         CancellationToken cancellationToken)
     {
@@ -443,14 +564,14 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
                     @position, @ordering, 1, @created, @created);
             """, connection, transaction);
         command.Parameters.AddWithValue("id", node.Draft.TaskId);
-        command.Parameters.AddWithValue("board", board.BoardId);
+        command.Parameters.AddWithValue("board", boardId);
         command.Parameters.AddWithValue("parent", (object?)node.ParentTaskId ?? DBNull.Value);
         command.Parameters.AddWithValue("title", node.Draft.Title);
         command.Parameters.AddWithValue("description", node.Draft.Description);
         command.Parameters.AddWithValue("priority", (short)node.Draft.Priority);
         command.Parameters.AddWithValue("position", node.Draft.Position);
         command.Parameters.AddWithValue("ordering", node.Draft.SubTaskOrdering.ToString());
-        command.Parameters.AddWithValue("created", board.CreatedAt);
+        command.Parameters.AddWithValue("created", createdAt);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -548,7 +669,7 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
             $"""
             select task_id, parent_task_id, title, description, status, priority,
                    position, subtask_ordering, claimed_by_id, claimed_by_kind,
-                   claimed_at, version
+                   claimed_at, version, created_at
               from {this.tasksTable}
              where board_id = @board;
             """, connection, transaction);

@@ -148,7 +148,7 @@ public static class TodoBoardMapper
             TaskPriority.Normal,
             entry.Position,
             TaskOrdering.Ordered,
-            [.. entry.DependsOnIds.Where(byTodoId.ContainsKey).Select(id => byTodoId[id])],
+            [.. entry.DependsOnIds.Where(byTodoId.ContainsKey).Select(id => byTodoId[id]).Distinct()],
             criteria,
             [.. entry.Children.Select(child => Task(section, child, byTodoId, desired, depth + 1))]);
     }

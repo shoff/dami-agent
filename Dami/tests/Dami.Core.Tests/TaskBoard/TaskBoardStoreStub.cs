@@ -24,6 +24,18 @@ internal abstract class TaskBoardStoreStub : ITaskBoardStore
         yield break;
     }
 
+    public Task<bool> TryAddTaskAsync(
+        Guid boardId,
+        Guid? parentTaskId,
+        BoardTaskDraft draft,
+        TaskActor actor,
+        DateTimeOffset addedAt,
+        string? detail,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(false);
+    }
+
     public Task<bool> TryClaimAsync(
         Guid taskId,
         long expectedVersion,

@@ -124,6 +124,13 @@ public sealed class BoardImportCommandsTests
             throw new InvalidOperationException("The store must not be touched.");
         }
 
+        public Task<bool> TryAddTaskAsync(
+            Guid boardId, Guid? parentTaskId, BoardTaskDraft draft, TaskActor actor,
+            DateTimeOffset addedAt, string? detail, CancellationToken cancellationToken)
+        {
+            return this.RefuseAsync<bool>();
+        }
+
         public Task<bool> TryClaimAsync(
             Guid taskId, long expectedVersion, TaskActor actor, DateTimeOffset claimedAt,
             string? detail, CancellationToken cancellationToken)

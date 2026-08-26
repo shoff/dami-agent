@@ -125,6 +125,11 @@ Change a task's status with a recorded reason.
 .B dami board criterion \fIid8\fR yes|no
 Mark an acceptance criterion satisfied or not.
 .TP
+.B dami board add \fIid8\fR|\fIboard\fR \fItitle\fR [--needs \fIcriterion\fR]...
+Add a task under a task, or at a board's root, last among its siblings.
+Each \fB--needs\fR becomes an acceptance criterion the completion gate
+checks. Adding under a finished task reopens it, on the record.
+.TP
 .B dami board-import \fITODO.md\fR --revision \fIsha\fR --actor \fIid\fR [--agent] [--dry-run]
 Write the blueprint onto the collaborative task board (O1g). Talks to
 PostgreSQL directly. Safe to rerun: it only advances tasks, and where the

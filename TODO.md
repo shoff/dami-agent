@@ -275,7 +275,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - [~ Claude 2026-08-25] O2a `dami board` verbs over the runtime API: list boards, show a tree (`--open`), claim/complete/block/reopen/cancel by 8-char id, criteria yes/no; actor from `$DAMI_ACTOR`/`$DAMI_ACTOR_KIND` until G5a2 supplies validated claims; 409 reported as a conflict, never retried
   - [ ] O2b Keep the board current from this file until the cutover: re-import at every commit that touches TODO.md (advance-only, so board state written directly is never regressed); report the conflicts each run finds
   - [ ] O2c Agents start from the board: the onboarding and runbook protocol says `dami board <board> --open` before asking for work, and a claim on the board is the claim `[STEVE: TODO.md stops being the claim board on your say — after that, new tasks are created on the board, not here]`
-  - [ ] O2d Task creation on the board without the planner: a direct "add task under <parent>" API and verb, so a new piece of work does not need a TODO.md edit plus an import
+  - [~ Claude 2026-08-25] O2d Task creation on the board without the planner: a direct "add task under <parent>" API and verb, so a new piece of work does not need a TODO.md edit plus an import
   - [ ] O2e Acceptance criteria worth gating on: most imported tasks have none, so the completion gate has nothing to check; write real criteria for open work as it is claimed
 
 ---
