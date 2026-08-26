@@ -45,7 +45,8 @@ public static class FeedParser
                 continue;
             }
 
-            items.Add(new FeedItem(title, link, ParseDate(item.Element("pubDate")?.Value)));
+            items.Add(new FeedItem(
+                title, link, ParseDate(item.Element("pubDate")?.Value), item.Element("description")?.Value));
         }
 
         return items;

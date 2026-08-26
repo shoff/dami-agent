@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Net;
+using System.Text.RegularExpressions;
 using Dami.Contracts.Domains;
 using Dami.Contracts.Events;
 using Dami.Contracts.Privacy;
@@ -16,7 +19,7 @@ namespace Dami.Proactive.Civic;
 /// re-read of the same feed writes nothing new. It surfaces nothing itself; the facts join
 /// retrieval and reflection like every other domain's.
 /// </remarks>
-public sealed class CivicFeedCollectorService : IProactiveService
+public sealed partial class CivicFeedCollectorService : IProactiveService
 {
     private const string DOMAIN = "civic";
 
@@ -73,6 +76,29 @@ public sealed class CivicFeedCollectorService : IProactiveService
         return ProactiveResult.quiet;
     }
 
+    /// <summary>The CivicPlus "Event date:" line, when the description carries one.</summary>
+    internal static DateOnly? EventDate(string? summary)
+    {
+        if (summary is null)
+        {
+            return null;
+        }
+
+        var text = WebUtility.HtmlDecode(TagPattern().Replace(summary, " "));
+        var match = EventDatePattern().Match(text);
+        return match.Success
+            && DateOnly.TryParseExact(match.Groups[1].Value.Trim(), "MMMM d, yyyy", CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var date)
+            ? date
+            : null;
+    }
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex TagPattern();
+
+    [GeneratedRegex(@"Event date:\s*([A-Za-z]+ \d{1,2}, \d{4})")]
+    private static partial Regex EventDatePattern();
+
     private async Task<int> ReadOneAsync(CivicFeed feed, ProactiveContext context, CancellationToken cancellationToken)
     {
         IReadOnlyList<FeedItem> items;
@@ -94,7 +120,9 @@ public sealed class CivicFeedCollectorService : IProactiveService
         var written = 0;
         foreach (var item in items)
         {
-            var asOf = DateOnly.FromDateTime((item.PublishedAt ?? now).UtcDateTime);
+            // A calendar item's pubDate is when it was posted; the day it happens is in the
+            // description ("Event date: August 26, 2026"). That is the fact's date.
+            var asOf = EventDate(item.Summary) ?? DateOnly.FromDateTime((item.PublishedAt ?? now).UtcDateTime);
             var fact = new DomainFact(
                 Guid.NewGuid(), DOMAIN, asOf, feed.Category, $"{item.Title.Trim()} — {item.Link}", feed.Name, now);
             written += await this.store.RecordAsync(fact, cancellationToken).ConfigureAwait(false) ? 1 : 0;

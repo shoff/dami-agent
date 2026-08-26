@@ -16,7 +16,7 @@ public sealed class CivicFeedCollectorServiceTests
 
     private const string RSS = """
         <rss version="2.0"><channel><title>Lakeville, MN - Calendar</title>
-        <item><title>Finance Committee Meeting</title><link>https://www.lakevillemn.gov/calendar.aspx?EID=1</link><pubDate>Wed, 26 Aug 2026 00:00:00 GMT</pubDate></item>
+        <item><title>Finance Committee Meeting</title><link>https://www.lakevillemn.gov/calendar.aspx?EID=1</link><pubDate>Mon, 05 Jan 2026 14:43:32 -0600</pubDate><description>&lt;strong&gt;Event date:&lt;/strong&gt; August 26, 2026 &lt;br&gt;&lt;strong&gt;Event Time: &lt;/strong&gt;05:00 PM</description></item>
         <item><title>City Council Meeting</title><link>https://www.lakevillemn.gov/calendar.aspx?EID=2</link></item>
         </channel></rss>
         """;
@@ -41,6 +41,7 @@ public sealed class CivicFeedCollectorServiceTests
         Assert.Equal(ProactiveStatus.Completed, result.Status);
         Assert.Equal(2, written.Count);
         Assert.All(written, fact => Assert.Equal(("civic", "meeting", "lakeville-calendar"), (fact.Domain, fact.Category, fact.Source)));
+        // Posted in January; happens on August 26 — the event date is the fact's date.
         Assert.Equal(new DateOnly(2026, 8, 26), written[0].AsOf);
         Assert.Equal(new DateOnly(2026, 8, 25), written[1].AsOf);
         Assert.Equal("Finance Committee Meeting — https://www.lakevillemn.gov/calendar.aspx?EID=1", written[0].Description);
