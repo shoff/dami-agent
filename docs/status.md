@@ -272,6 +272,15 @@ created board `d621fe5f…` with 15 roots and 204 tasks (153 Done, 27 Open, 16 B
 `dami_app`; `/task-boards` lists the board beside Codex's acceptance board. O1 is closed.
 The published CLI at `/opt/dami/cli` has not been redeployed; the run used the tree build.
 
+Verification on 2026-08-25 for migration 029 (claim/completion detail): a red-first
+persistence test observed detail stored on a claim and a blank detail omitted on a
+completion; the solution build completed with 0 warnings and 0 errors, all nineteen
+suites passed 972/972, and format verification exited 0. `apply.sh` applied exactly 029
+to `dami-data` with none pending; `pg_proc` shows both the six- and seven-argument
+`task_board_try_claim`/`task_board_try_complete`, the six-argument wrapper returned
+`false` with no side effect when called as `dami_app`, and the running Host answered
+`/health` 200 afterwards. The Host and CLI at `/opt/dami` have not been redeployed.
+
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
 | Item | State | Evidence |

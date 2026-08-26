@@ -7607,3 +7607,49 @@ per runbook §4 and is Steve's to run.
 and not touched: `HostCompositionTests.Host_Should_Discover_Invoke_And_Close_A_Local_Streamable_Http_Server`
 failed once under the full run before any of my changes and passed 1/1 in isolation and in
 both later full runs — Codex's lane.
+
+## 2026-08-25 — Claude — Migration 029: the revision now rides on every imported mutation
+
+Steve asked for the two findings from the O1g landing to be fixed.
+
+### Claim and completion detail (fixed)
+
+`ITaskBoardStore.TryClaimAsync` and `TryCompleteAsync` had no detail parameter, so an
+import that stamps its source revision could attach it to 16 of 338 rows. The activity
+table already allowed `detail` on every kind; only the two SQL functions and the contract
+lacked it. This crosses into Codex's O1a lane — contract, store, endpoints, migration — and
+was done at Steve's direction, kept to the minimum:
+
+- `029_task_board_mutation_detail.sql`: seven-argument `task_board_try_claim` and
+  `task_board_try_complete` that write `nullif(btrim(p_detail), '')`; the six-argument
+  signatures are redefined as wrappers passing null, so the Host built against 028 keeps
+  working until it is redeployed. Grants mirror 028's.
+- Contract: `string? detail` on both mutations. Store passes it; the Host's
+  `TaskBoardMutationRequest` gains an optional `Detail` (the web view and Avalonia client
+  send none and are unchanged); the importer stamps `[imported from TODO.md at <sha>]` on
+  claims and completions the way it already did on status changes.
+- Red-first test: detail stored on a claim, blank detail omitted on a completion.
+- `TestDdl` drops both overloads by explicit signature; `drop function` without an
+  argument list fails once a name is overloaded.
+
+Applied live: `apply.sh --status` showed only 029 pending; apply recorded exactly 029; a
+follow-up status showed none pending. `pg_proc` lists both signatures of each function.
+Called as `dami_app`, the six-argument wrapper returned `false` for a nonexistent task and
+wrote nothing (activity count unchanged), and `/health` answered 200 afterwards. No
+existing row was rewritten — the ledger is append-only — so the 338 rows from this
+morning's import still carry the revision only where 028 allowed it; the next import into
+a fresh board, or any new mutation, carries it everywhere.
+
+### Host MCP flake (not fixed, with reason)
+
+`Host_Should_Discover_Invoke_And_Close_A_Local_Streamable_Http_Server` failed once under a
+full-solution run and passed 1/1 in isolation, 64/64 in six consecutive Host-suite runs, and
+in every full run since. Without a reproduced failure there is no assertion to work from;
+patching a guess is how a flake turns into a silent one. Left for whoever catches it red
+with output.
+
+### Gate
+
+`dotnet build Dami.sln`: 0 warnings, 0 errors. `dotnet test Dami.sln`: nineteen suites,
+**972 passed, 0 failed**. `dotnet format --verify-no-changes`: exit 0. The Host and CLI at
+`/opt/dami` are not redeployed (sudo).

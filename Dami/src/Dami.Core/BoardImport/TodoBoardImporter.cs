@@ -149,21 +149,29 @@ public sealed class TodoBoardImporter
                 actual.Version,
                 step.Actor,
                 ClaimedAt(desired, context.BoardCreatedAt, now),
+                ImportTag(context),
                 cancellationToken).ConfigureAwait(false),
             ImportStepKind.SatisfyCriteria => await this.SatisfyAsync(
                 actual, step.Actor, now, cancellationToken).ConfigureAwait(false),
             ImportStepKind.Complete => await this.store.TryCompleteAsync(
-                actual.TaskId, actual.Version, step.Actor, now, cancellationToken).ConfigureAwait(false),
+                actual.TaskId, actual.Version, step.Actor, now, ImportTag(context), cancellationToken)
+                .ConfigureAwait(false),
             ImportStepKind.Block => await this.store.TrySetStatusAsync(
                 actual.TaskId,
                 actual.Version,
                 TaskBoardStatus.Blocked,
                 step.Actor,
-                $"{step.Detail} [imported from TODO.md at {context.Revision}]",
+                $"{step.Detail} {ImportTag(context)}",
                 now,
                 cancellationToken).ConfigureAwait(false),
             _ => false,
         };
+    }
+
+    /// <summary>The provenance every imported mutation carries.</summary>
+    private static string ImportTag(PassContext context)
+    {
+        return $"[imported from TODO.md at {context.Revision}]";
     }
 
     /// <summary>

@@ -78,10 +78,10 @@ public sealed class PostgresTaskBoardStoreTests
         var claims = await Task.WhenAll(
             store.TryClaimAsync(
                 task.TaskId, 1, new TaskActor("codex", TaskActorKind.Agent),
-                createdAt.AddMinutes(1), CancellationToken.None),
+                createdAt.AddMinutes(1), null, CancellationToken.None),
             store.TryClaimAsync(
                 task.TaskId, 1, new TaskActor("steve", TaskActorKind.Human),
-                createdAt.AddMinutes(1), CancellationToken.None));
+                createdAt.AddMinutes(1), null, CancellationToken.None));
         var found = await store.FindAsync(draft.BoardId, CancellationToken.None);
 
         Assert.Single(claims, result => result);
@@ -104,7 +104,7 @@ public sealed class PostgresTaskBoardStoreTests
 
         var claimed = await store.TryClaimAsync(
             dependent.TaskId, 1, new TaskActor("codex", TaskActorKind.Agent),
-            createdAt.AddMinutes(1), CancellationToken.None);
+            createdAt.AddMinutes(1), null, CancellationToken.None);
 
         Assert.False(claimed);
     }
@@ -150,19 +150,19 @@ public sealed class PostgresTaskBoardStoreTests
         var draft = CreateDraft([parent], TaskOrdering.Ordered);
         await store.CreateAsync(draft, CancellationToken.None);
         await store.TryClaimAsync(
-            parent.TaskId, 1, actor, createdAt.AddMinutes(1), CancellationToken.None);
+            parent.TaskId, 1, actor, createdAt.AddMinutes(1), null, CancellationToken.None);
         await store.TrySetCriterionAsync(
             criterion.CriterionId, 2, true, actor, createdAt.AddMinutes(2),
             CancellationToken.None);
 
         var premature = await store.TryCompleteAsync(
-            parent.TaskId, 3, actor, createdAt.AddMinutes(3), CancellationToken.None);
+            parent.TaskId, 3, actor, createdAt.AddMinutes(3), null, CancellationToken.None);
         await store.TryClaimAsync(
-            child.TaskId, 1, actor, createdAt.AddMinutes(4), CancellationToken.None);
+            child.TaskId, 1, actor, createdAt.AddMinutes(4), null, CancellationToken.None);
         var childDone = await store.TryCompleteAsync(
-            child.TaskId, 2, actor, createdAt.AddMinutes(5), CancellationToken.None);
+            child.TaskId, 2, actor, createdAt.AddMinutes(5), null, CancellationToken.None);
         var parentDone = await store.TryCompleteAsync(
-            parent.TaskId, 3, actor, createdAt.AddMinutes(6), CancellationToken.None);
+            parent.TaskId, 3, actor, createdAt.AddMinutes(6), null, CancellationToken.None);
         var found = await store.FindAsync(draft.BoardId, CancellationToken.None);
 
         Assert.Equal((false, true, true), (premature, childDone, parentDone));
@@ -205,7 +205,7 @@ public sealed class PostgresTaskBoardStoreTests
         await store.CreateAsync(draft, CancellationToken.None);
         var claimed = await store.TryClaimAsync(
             task.TaskId, 1, new TaskActor("dami", TaskActorKind.Agent),
-            createdAt.AddMinutes(1), CancellationToken.None);
+            createdAt.AddMinutes(1), null, CancellationToken.None);
 
         Assert.True(claimed);
         Assert.NotNull(await store.FindAsync(draft.BoardId, CancellationToken.None));
@@ -245,12 +245,12 @@ public sealed class PostgresTaskBoardStoreTests
         var agent = new TaskActor("codex", TaskActorKind.Agent);
         await store.CreateAsync(draft, CancellationToken.None);
         await store.TryClaimAsync(
-            task.TaskId, 1, agent, createdAt.AddMinutes(1), CancellationToken.None);
+            task.TaskId, 1, agent, createdAt.AddMinutes(1), null, CancellationToken.None);
         await store.TrySetCriterionAsync(
             criterion.CriterionId, 2, true, agent, createdAt.AddMinutes(2),
             CancellationToken.None);
         await store.TryCompleteAsync(
-            task.TaskId, 3, agent, createdAt.AddMinutes(3), CancellationToken.None);
+            task.TaskId, 3, agent, createdAt.AddMinutes(3), null, CancellationToken.None);
 
         var activity = new List<TaskBoardActivity>();
         await foreach (var item in store.ActivityAsync(
@@ -265,6 +265,34 @@ public sealed class PostgresTaskBoardStoreTests
             activity.Select(item => item.Kind));
         Assert.Equal(new[] { "steve", "codex", "codex", "codex" },
             activity.Select(item => item.Actor.ActorId));
+    }
+
+    [Fact]
+    public async Task Claim_And_Completion_Should_Carry_Detail_When_Given_And_Omit_It_When_Blank()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+        var task = CreateLeaf("annotated", TaskPriority.Normal, 0);
+        var draft = CreateDraft([task], TaskOrdering.Ordered);
+        var agent = new TaskActor("claude", TaskActorKind.Agent);
+        await store.CreateAsync(draft, CancellationToken.None);
+        await store.TryClaimAsync(
+            task.TaskId, 1, agent, createdAt.AddMinutes(1), "[imported at abc1234]",
+            CancellationToken.None);
+        await store.TryCompleteAsync(
+            task.TaskId, 2, agent, createdAt.AddMinutes(2), "   ", CancellationToken.None);
+
+        var activity = new List<TaskBoardActivity>();
+        await foreach (var item in store.ActivityAsync(
+            draft.BoardId, 20, CancellationToken.None))
+        {
+            activity.Add(item);
+        }
+
+        var claimed = Assert.Single(activity, item => item.Kind == TaskBoardActivityKind.TaskClaimed);
+        var completed = Assert.Single(activity, item => item.Kind == TaskBoardActivityKind.TaskCompleted);
+        Assert.Equal("[imported at abc1234]", claimed.Detail);
+        Assert.Null(completed.Detail);
     }
 
     [Fact]
@@ -294,7 +322,7 @@ public sealed class PostgresTaskBoardStoreTests
         var actor = new TaskActor("codex", TaskActorKind.Agent);
         await store.CreateAsync(draft, CancellationToken.None);
         await store.TryClaimAsync(
-            task.TaskId, 1, actor, createdAt.AddMinutes(1), CancellationToken.None);
+            task.TaskId, 1, actor, createdAt.AddMinutes(1), null, CancellationToken.None);
 
         var blocked = await store.TrySetStatusAsync(
             task.TaskId, 2, TaskBoardStatus.Blocked, actor, "waiting for access",
@@ -330,7 +358,7 @@ public sealed class PostgresTaskBoardStoreTests
         await store.CreateAsync(newer, CancellationToken.None);
         await store.TryClaimAsync(
             activeTask.TaskId, 1, new TaskActor("codex", TaskActorKind.Agent),
-            createdAt.AddMinutes(2), CancellationToken.None);
+            createdAt.AddMinutes(2), null, CancellationToken.None);
 
         var summaries = new List<TaskBoardSummary>();
         await foreach (var summary in store.ListRecentAsync(1, CancellationToken.None))
@@ -354,7 +382,7 @@ public sealed class PostgresTaskBoardStoreTests
         await store.CreateAsync(draft, CancellationToken.None);
         await store.TryClaimAsync(
             task.TaskId, 1, new TaskActor("codex", TaskActorKind.Agent),
-            createdAt.AddMinutes(1), CancellationToken.None);
+            createdAt.AddMinutes(1), null, CancellationToken.None);
 
         var found = await store.FindAsync(draft.BoardId, CancellationToken.None);
 

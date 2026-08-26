@@ -500,6 +500,7 @@ public sealed class TaskBoardEndpointsTests
             long expectedVersion,
             TaskActor actor,
             DateTimeOffset claimedAt,
+            string? detail,
             CancellationToken cancellationToken)
         {
             this.LastClaimTaskId = taskId;
@@ -530,6 +531,7 @@ public sealed class TaskBoardEndpointsTests
             long expectedVersion,
             TaskActor actor,
             DateTimeOffset completedAt,
+            string? detail,
             CancellationToken cancellationToken)
         {
             this.LastCompletedTaskId = taskId;

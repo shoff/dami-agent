@@ -100,11 +100,13 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
         long expectedVersion,
         TaskActor actor,
         DateTimeOffset claimedAt,
+        string? detail,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expectedVersion);
         ArgumentNullException.ThrowIfNull(actor);
         await using var command = this.dataSource.CreateCommand(this.ClaimSql);
+        command.Parameters.AddWithValue("detail", NpgsqlDbType.Text, (object?)detail ?? DBNull.Value);
         command.Parameters.AddWithValue("event", Guid.NewGuid());
         command.Parameters.AddWithValue("task", taskId);
         command.Parameters.AddWithValue("version", expectedVersion);
@@ -142,12 +144,14 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
         long expectedVersion,
         TaskActor actor,
         DateTimeOffset completedAt,
+        string? detail,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expectedVersion);
         ArgumentNullException.ThrowIfNull(actor);
         await using var command = this.CreateCompletionCommand(
             taskId, expectedVersion, actor, completedAt);
+        command.Parameters.AddWithValue("detail", NpgsqlDbType.Text, (object?)detail ?? DBNull.Value);
         return await ExecuteBooleanAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
@@ -219,13 +223,13 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
     }
 
     private string ClaimSql => $"select {this.schema}.task_board_try_claim("
-        + "@event, @task, @version, @actor, @kind, @claimed);";
+        + "@event, @task, @version, @actor, @kind, @claimed, @detail);";
 
     private string CriterionSql => $"select {this.schema}.task_board_try_set_criterion("
         + "@event, @criterion, @version, @satisfied, @actor, @kind, @changed);";
 
     private string CompletionSql => $"select {this.schema}.task_board_try_complete("
-        + "@event, @task, @version, @actor, @kind, @completed);";
+        + "@event, @task, @version, @actor, @kind, @completed, @detail);";
 
     private string StatusSql => $"select {this.schema}.task_board_try_set_status("
         + "@event, @task, @version, @next, @actor, @kind, @detail, @changed);";

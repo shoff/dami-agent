@@ -28,6 +28,7 @@ public static class TestDdl
         "024_tool_activation_state.sql",
         "025_tool_activation_advisory_lock.sql",
         "028_task_boards.sql",
+        "029_task_board_mutation_detail.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",
@@ -118,9 +119,11 @@ public static class TestDdl
             drop table if exists {schema}.task_acceptance_criteria cascade;
             drop table if exists {schema}.task_board_tasks cascade;
             drop table if exists {schema}.task_boards cascade;
-            drop function if exists {schema}.task_board_try_claim cascade;
+            drop function if exists {schema}.task_board_try_claim(uuid, uuid, bigint, text, text, timestamptz) cascade;
+            drop function if exists {schema}.task_board_try_claim(uuid, uuid, bigint, text, text, timestamptz, text) cascade;
             drop function if exists {schema}.task_board_try_set_criterion cascade;
-            drop function if exists {schema}.task_board_try_complete cascade;
+            drop function if exists {schema}.task_board_try_complete(uuid, uuid, bigint, text, text, timestamptz) cascade;
+            drop function if exists {schema}.task_board_try_complete(uuid, uuid, bigint, text, text, timestamptz, text) cascade;
             drop function if exists {schema}.task_board_try_set_status cascade;
 
             """;

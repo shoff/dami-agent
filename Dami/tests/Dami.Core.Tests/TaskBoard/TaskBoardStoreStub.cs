@@ -29,6 +29,7 @@ internal abstract class TaskBoardStoreStub : ITaskBoardStore
         long expectedVersion,
         TaskActor actor,
         DateTimeOffset claimedAt,
+        string? detail,
         CancellationToken cancellationToken)
     {
         return Task.FromResult(false);
@@ -50,6 +51,7 @@ internal abstract class TaskBoardStoreStub : ITaskBoardStore
         long expectedVersion,
         TaskActor actor,
         DateTimeOffset completedAt,
+        string? detail,
         CancellationToken cancellationToken)
     {
         return Task.FromResult(false);

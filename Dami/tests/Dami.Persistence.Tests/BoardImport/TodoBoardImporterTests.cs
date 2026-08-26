@@ -121,10 +121,10 @@ public sealed class TodoBoardImporterTests
         var k1 = TaskId("K1");
         var before = await ReadAsync(store, plan.Draft.BoardId, k1);
         Assert.True(await store.TryClaimAsync(
-            k1, before.Version, importer, importedAt, CancellationToken.None));
+            k1, before.Version, importer, importedAt, null, CancellationToken.None));
         var claimed = await ReadAsync(store, plan.Draft.BoardId, k1);
         Assert.True(await store.TryCompleteAsync(
-            k1, claimed.Version, importer, importedAt, CancellationToken.None));
+            k1, claimed.Version, importer, importedAt, null, CancellationToken.None));
 
         var rerun = await this.ImportAsync(store, RealPlan());
         var after = await ReadAsync(store, plan.Draft.BoardId, k1);

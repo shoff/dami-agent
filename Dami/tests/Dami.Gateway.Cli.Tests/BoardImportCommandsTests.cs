@@ -126,7 +126,7 @@ public sealed class BoardImportCommandsTests
 
         public Task<bool> TryClaimAsync(
             Guid taskId, long expectedVersion, TaskActor actor, DateTimeOffset claimedAt,
-            CancellationToken cancellationToken)
+            string? detail, CancellationToken cancellationToken)
         {
             return this.RefuseAsync<bool>();
         }
@@ -140,7 +140,7 @@ public sealed class BoardImportCommandsTests
 
         public Task<bool> TryCompleteAsync(
             Guid taskId, long expectedVersion, TaskActor actor, DateTimeOffset completedAt,
-            CancellationToken cancellationToken)
+            string? detail, CancellationToken cancellationToken)
         {
             return this.RefuseAsync<bool>();
         }

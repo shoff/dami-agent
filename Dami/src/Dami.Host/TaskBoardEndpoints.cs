@@ -135,8 +135,8 @@ internal static class TaskBoardEndpoints
 
         var actor = new TaskActor(request.ActorId, request.ActorKind);
         var updated = await store.TryClaimAsync(
-            taskId, request.ExpectedVersion, actor, clock.GetUtcNow(), cancellationToken)
-            .ConfigureAwait(false);
+            taskId, request.ExpectedVersion, actor, clock.GetUtcNow(), request.Detail,
+            cancellationToken).ConfigureAwait(false);
         return MutationResult(updated);
     }
 
@@ -177,8 +177,8 @@ internal static class TaskBoardEndpoints
 
         var actor = new TaskActor(request.ActorId, request.ActorKind);
         var updated = await store.TryCompleteAsync(
-            taskId, request.ExpectedVersion, actor, clock.GetUtcNow(), cancellationToken)
-            .ConfigureAwait(false);
+            taskId, request.ExpectedVersion, actor, clock.GetUtcNow(), request.Detail,
+            cancellationToken).ConfigureAwait(false);
         return MutationResult(updated);
     }
 
@@ -240,7 +240,8 @@ internal static class TaskBoardEndpoints
 internal sealed record TaskBoardMutationRequest(
     long ExpectedVersion,
     string ActorId,
-    TaskActorKind ActorKind);
+    TaskActorKind ActorKind,
+    string? Detail = null);
 
 internal sealed record TaskBoardCriterionRequest(
     long ExpectedVersion,

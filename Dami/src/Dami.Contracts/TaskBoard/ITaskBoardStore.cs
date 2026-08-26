@@ -15,11 +15,13 @@ public interface ITaskBoardStore
         CancellationToken cancellationToken);
 
     /// <summary>Atomically claims an open task when its optimistic version still matches.</summary>
+    /// <remarks><paramref name="detail"/> is recorded on the activity row when given; null or blank is omitted.</remarks>
     Task<bool> TryClaimAsync(
         Guid taskId,
         long expectedVersion,
         TaskActor actor,
         DateTimeOffset claimedAt,
+        string? detail,
         CancellationToken cancellationToken);
 
     /// <summary>Sets one criterion result and advances its task's optimistic version atomically.</summary>
@@ -37,6 +39,7 @@ public interface ITaskBoardStore
         long expectedVersion,
         TaskActor actor,
         DateTimeOffset completedAt,
+        string? detail,
         CancellationToken cancellationToken);
 
     /// <summary>Blocks, reopens, or cancels a task without bypassing completion gates.</summary>
