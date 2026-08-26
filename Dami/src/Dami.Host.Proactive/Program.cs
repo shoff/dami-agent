@@ -9,6 +9,7 @@ using Dami.Proactive.Audit;
 using Dami.Proactive.CodeAudit;
 using Dami.Proactive.Curation;
 using Dami.Proactive.Health;
+using Dami.Proactive.Civic;
 using Dami.Proactive.Network;
 using Dami.Proactive.Embedder;
 using Dami.Proactive.Librarian;
@@ -76,6 +77,12 @@ builder.Services.Configure<NetworkCollectorOptions>(
     builder.Configuration.GetSection(NetworkCollectorOptions.SECTION_NAME));
 builder.Services.AddSingleton<INetworkProbe, SystemNetworkProbe>();
 builder.Services.AddSingleton<IProactiveService, NetworkCollectorService>();
+
+// K4: the civic domain from public feeds through the egress boundary. Defaults are
+// Lakeville, MN; the feed host must be on Egress:AllowedHosts or every fetch is refused.
+builder.Services.Configure<CivicFeedOptions>(
+    builder.Configuration.GetSection(CivicFeedOptions.SECTION_NAME));
+builder.Services.AddSingleton<IProactiveService, CivicFeedCollectorService>();
 
 // Rewrites imported transcript voice into usable knowledge. Derived, reversible.
 builder.Services.Configure<CuratorOptions>(
