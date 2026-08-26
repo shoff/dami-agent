@@ -22,6 +22,7 @@ internal static class TaskBoardEndpoints
         app.MapPost("/task-boards/{boardId:guid}/tasks", AddTaskAsync);
         app.MapPost("/task-boards/tasks/{taskId:guid}/claim", ClaimAsync);
         app.MapPut("/task-boards/criteria/{criterionId:guid}", SetCriterionAsync);
+        app.MapPost("/task-boards/tasks/{taskId:guid}/criteria", AddCriterionAsync);
         app.MapPost("/task-boards/tasks/{taskId:guid}/complete", CompleteAsync);
         app.MapPut("/task-boards/tasks/{taskId:guid}/status", SetStatusAsync);
     }
@@ -171,6 +172,31 @@ internal static class TaskBoardEndpoints
         return MutationResult(updated);
     }
 
+    private static async Task<IResult> AddCriterionAsync(
+        Guid taskId,
+        TaskBoardAddCriterionRequest request,
+        ITaskBoardStore store,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        var invalid = ValidateMutation(request.ExpectedVersion, request.ActorId, request.ActorKind);
+        if (invalid is not null)
+        {
+            return invalid;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Description))
+        {
+            return Results.BadRequest(new { error = "a criterion needs a description" });
+        }
+
+        var actor = new TaskActor(request.ActorId, request.ActorKind);
+        var added = await store.TryAddCriterionAsync(
+            taskId, request.ExpectedVersion, request.Description, actor, clock.GetUtcNow(), cancellationToken)
+            .ConfigureAwait(false);
+        return MutationResult(added);
+    }
+
     private static async Task<IResult> SetCriterionAsync(
         Guid criterionId,
         TaskBoardCriterionRequest request,
@@ -286,6 +312,12 @@ internal sealed record TaskBoardAddTaskRequest(
     IReadOnlyList<Guid>? PrerequisiteTaskIds = null,
     IReadOnlyList<string>? Criteria = null,
     string? Detail = null);
+
+internal sealed record TaskBoardAddCriterionRequest(
+    long ExpectedVersion,
+    string Description,
+    string ActorId,
+    TaskActorKind ActorKind);
 
 internal sealed record TaskBoardCriterionRequest(
     long ExpectedVersion,

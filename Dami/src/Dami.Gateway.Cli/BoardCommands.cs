@@ -216,6 +216,16 @@ public sealed partial class BoardCommands
             cancellationToken), cancellationToken);
     }
 
+    /// <summary>Adds an acceptance criterion to an unfinished task — a gate its completion must pass.</summary>
+    public Task<int> AddCriterionAsync(string taskPrefix, string description, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+        return this.MutateTaskAsync(taskPrefix, "gate", found => this.api.MutateAsync(
+            HttpMethod.Post, $"/task-boards/tasks/{found.Id:D}/criteria",
+            new { expectedVersion = found.Version, description, actorId = this.actor.ActorId, actorKind = this.actor.Kind.ToString() },
+            cancellationToken), cancellationToken);
+    }
+
     /// <summary>Marks an acceptance criterion satisfied or not.</summary>
     public Task<int> SetCriterionAsync(string criterionPrefix, bool satisfied, CancellationToken cancellationToken)
     {

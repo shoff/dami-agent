@@ -391,6 +391,38 @@ public sealed class PostgresTaskBoardStoreTests
     }
 
     [Fact]
+    public async Task TryAddCriterionAsync_Should_Append_Bump_The_Version_And_Gate_Completion_And_Refuse_Finished_Work()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+        var task = CreateLeaf("gated later", TaskPriority.Normal, 0);
+        var draft = CreateDraft([task], TaskOrdering.Ordered);
+        var actor = new TaskActor("claude", TaskActorKind.Agent);
+        await store.CreateAsync(draft, CancellationToken.None);
+
+        var added = await store.TryAddCriterionAsync(task.TaskId, 1, "it works", actor, createdAt.AddMinutes(1), CancellationToken.None);
+        var stale = await store.TryAddCriterionAsync(task.TaskId, 1, "stale", actor, createdAt.AddMinutes(1), CancellationToken.None);
+        var second = await store.TryAddCriterionAsync(task.TaskId, 2, "it is documented", actor, createdAt.AddMinutes(2), CancellationToken.None);
+        await store.TryClaimAsync(task.TaskId, 3, actor, createdAt.AddMinutes(3), null, CancellationToken.None);
+        var premature = await store.TryCompleteAsync(task.TaskId, 4, actor, createdAt.AddMinutes(4), null, CancellationToken.None);
+        var found = await store.FindAsync(draft.BoardId, CancellationToken.None);
+        var criteria = Assert.Single(found!.Tasks).AcceptanceCriteria;
+        await store.TrySetCriterionAsync(criteria[0].CriterionId, 4, true, actor, createdAt.AddMinutes(5), CancellationToken.None);
+        await store.TrySetCriterionAsync(criteria[1].CriterionId, 5, true, actor, createdAt.AddMinutes(6), CancellationToken.None);
+        var done = await store.TryCompleteAsync(task.TaskId, 6, actor, createdAt.AddMinutes(7), null, CancellationToken.None);
+        var afterDone = await store.TryAddCriterionAsync(task.TaskId, 7, "too late", actor, createdAt.AddMinutes(8), CancellationToken.None);
+
+        Assert.True(added);
+        Assert.False(stale);
+        Assert.True(second);
+        Assert.False(premature);
+        Assert.True(done);
+        Assert.False(afterDone);
+        Assert.Equal(["it works", "it is documented"], criteria.Select(criterion => criterion.Description));
+        Assert.Equal([0, 1], criteria.Select(criterion => criterion.Position));
+    }
+
+    [Fact]
     public async Task Activity_Should_Reject_Update_Tampering()
     {
         await this.fixture.ResetAsync();

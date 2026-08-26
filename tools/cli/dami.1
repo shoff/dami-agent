@@ -125,6 +125,10 @@ Change a task's status with a recorded reason.
 .B dami board criterion \fIid8\fR yes|no
 Mark an acceptance criterion satisfied or not.
 .TP
+.B dami board needs \fIid8\fR \fIcriterion\fR
+Add an acceptance criterion to an unfinished task. Completion will not pass
+until it is marked satisfied.
+.TP
 .B dami board add \fIid8\fR|\fIboard\fR \fItitle\fR [--needs \fIcriterion\fR]...
 Add a task under a task, or at a board's root, last among its siblings.
 Each \fB--needs\fR becomes an acceptance criterion the completion gate

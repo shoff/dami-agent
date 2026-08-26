@@ -12,6 +12,9 @@ public enum TaskBoardActivityKind
     /// <summary>An actor atomically claimed an open task.</summary>
     TaskClaimed,
 
+    /// <summary>An acceptance criterion was added to an unfinished task.</summary>
+    CriterionAdded,
+
     /// <summary>An acceptance criterion gained evidence.</summary>
     CriterionSatisfied,
 

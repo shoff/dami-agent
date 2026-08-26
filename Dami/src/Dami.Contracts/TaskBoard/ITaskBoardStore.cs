@@ -38,6 +38,18 @@ public interface ITaskBoardStore
         string? detail,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Adds an acceptance criterion to an unfinished task when its version still matches,
+    /// advancing the version: the completion gate changed.
+    /// </summary>
+    Task<bool> TryAddCriterionAsync(
+        Guid taskId,
+        long expectedVersion,
+        string description,
+        TaskActor actor,
+        DateTimeOffset addedAt,
+        CancellationToken cancellationToken);
+
     /// <summary>Sets one criterion result and advances its task's optimistic version atomically.</summary>
     Task<bool> TrySetCriterionAsync(
         Guid criterionId,

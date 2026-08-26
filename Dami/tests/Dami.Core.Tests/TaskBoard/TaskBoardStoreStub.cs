@@ -36,6 +36,17 @@ internal abstract class TaskBoardStoreStub : ITaskBoardStore
         return Task.FromResult(false);
     }
 
+    public Task<bool> TryAddCriterionAsync(
+        Guid taskId,
+        long expectedVersion,
+        string description,
+        TaskActor actor,
+        DateTimeOffset addedAt,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(false);
+    }
+
     public Task<bool> TryClaimAsync(
         Guid taskId,
         long expectedVersion,

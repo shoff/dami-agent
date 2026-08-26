@@ -12,6 +12,7 @@ public static class BoardCommandRouter
                dami board complete <id8> [note]    complete a task you hold
                dami board block|reopen|cancel <id8> <reason>
                dami board criterion <id8> yes|no   mark an acceptance criterion
+               dami board needs <id8> <criterion>  add an acceptance criterion to an unfinished task
                dami board add <id8|board> <title> [--needs <criterion>]...
                                                    add a task under a task, or at a board's root;
                                                    the title starts with the task's id (O2g …)
@@ -59,11 +60,13 @@ public static class BoardCommandRouter
                 await board.SetStatusAsync(rest[1], TaskBoardStatus.Open, note, cancellationToken).ConfigureAwait(false),
             "cancel" when note is not null =>
                 await board.SetStatusAsync(rest[1], TaskBoardStatus.Cancelled, note, cancellationToken).ConfigureAwait(false),
+            "needs" when note is not null =>
+                await board.AddCriterionAsync(rest[1], note, cancellationToken).ConfigureAwait(false),
             "criterion" when rest.Length == 3 && rest[2] is "yes" or "no" =>
                 await board.SetCriterionAsync(rest[1], rest[2] == "yes", cancellationToken).ConfigureAwait(false),
             "add" when rest.Length >= 3 => await AddAsync(rest, board, cancellationToken).ConfigureAwait(false),
             "export" when rest.Length == 2 => await board.ExportAsync(rest[1], cancellationToken).ConfigureAwait(false),
-            "claim" or "complete" or "block" or "reopen" or "cancel" or "criterion" or "add" or "export" => Usage(),
+            "claim" or "complete" or "block" or "reopen" or "cancel" or "criterion" or "add" or "export" or "needs" => Usage(),
             _ => await board.ShowAsync(rest[0], rest.Contains("--open"), cancellationToken).ConfigureAwait(false),
         };
     }

@@ -195,6 +195,35 @@ public sealed class TaskBoardEndpointsTests
     }
 
     [Fact]
+    public async Task AddCriterion_Should_Post_As_The_Actor_And_Report_Conflict_When_Refused()
+    {
+        var taskId = Guid.NewGuid();
+        var store = new StubStore(new TaskBoardSummary(Guid.NewGuid(), "board", TaskBoardStatus.Open, at, 1, 0, 0));
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+
+        using var added = await client.PostAsJsonAsync(
+            $"/task-boards/tasks/{taskId:D}/criteria",
+            new { expectedVersion = 2, description = "it works", actorId = "claude", actorKind = "Agent" },
+            CancellationToken.None);
+        var first = (store.LastCriterionAddedTo, store.LastCriterionAddedVersion, store.LastCriterionAddedText, store.LastCriterionAddedBy);
+        store.AddResult = false;
+        using var refused = await client.PostAsJsonAsync(
+            $"/task-boards/tasks/{taskId:D}/criteria",
+            new { expectedVersion = 3, description = "again", actorId = "claude", actorKind = "Agent" },
+            CancellationToken.None);
+        using var blank = await client.PostAsJsonAsync(
+            $"/task-boards/tasks/{taskId:D}/criteria",
+            new { expectedVersion = 3, description = " ", actorId = "claude", actorKind = "Agent" },
+            CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, added.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, blank.StatusCode);
+        Assert.Equal((taskId, 2L, "it works", new TaskActor("claude", TaskActorKind.Agent)), first);
+    }
+
+    [Fact]
     public async Task Claim_Should_Return_Conflict_When_The_Compare_And_Set_Loses()
     {
         var store = new StubStore(new TaskBoardSummary(
@@ -496,6 +525,14 @@ public sealed class TaskBoardEndpointsTests
 
         internal bool AddResult { get; set; } = true;
 
+        internal Guid LastCriterionAddedTo { get; private set; }
+
+        internal long LastCriterionAddedVersion { get; private set; }
+
+        internal string? LastCriterionAddedText { get; private set; }
+
+        internal TaskActor? LastCriterionAddedBy { get; private set; }
+
         internal Guid LastAddedBoardId { get; private set; }
 
         internal Guid? LastAddedParentId { get; private set; }
@@ -556,6 +593,21 @@ public sealed class TaskBoardEndpointsTests
             this.LastAddedDraft = draft;
             this.LastAddedActor = actor;
             this.LastAddedDetail = detail;
+            return Task.FromResult(this.AddResult);
+        }
+
+        public Task<bool> TryAddCriterionAsync(
+            Guid taskId,
+            long expectedVersion,
+            string description,
+            TaskActor actor,
+            DateTimeOffset addedAt,
+            CancellationToken cancellationToken)
+        {
+            this.LastCriterionAddedTo = taskId;
+            this.LastCriterionAddedVersion = expectedVersion;
+            this.LastCriterionAddedText = description;
+            this.LastCriterionAddedBy = actor;
             return Task.FromResult(this.AddResult);
         }
 

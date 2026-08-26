@@ -131,6 +131,13 @@ public sealed class BoardImportCommandsTests
             return this.RefuseAsync<bool>();
         }
 
+        public Task<bool> TryAddCriterionAsync(
+            Guid taskId, long expectedVersion, string description, TaskActor actor,
+            DateTimeOffset addedAt, CancellationToken cancellationToken)
+        {
+            return this.RefuseAsync<bool>();
+        }
+
         public Task<bool> TryClaimAsync(
             Guid taskId, long expectedVersion, TaskActor actor, DateTimeOffset claimedAt,
             string? detail, CancellationToken cancellationToken)

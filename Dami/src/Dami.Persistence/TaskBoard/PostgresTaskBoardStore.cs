@@ -233,6 +233,32 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
     }
 
     /// <inheritdoc />
+    public async Task<bool> TryAddCriterionAsync(
+        Guid taskId,
+        long expectedVersion,
+        string description,
+        TaskActor actor,
+        DateTimeOffset addedAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expectedVersion);
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+        ArgumentNullException.ThrowIfNull(actor);
+        await using var command = this.dataSource.CreateCommand(
+            $"select {this.schema}.task_board_try_add_criterion("
+            + "@event, @criterion, @task, @version, @description, @actor, @kind, @added);");
+        command.Parameters.AddWithValue("event", Guid.NewGuid());
+        command.Parameters.AddWithValue("criterion", Guid.NewGuid());
+        command.Parameters.AddWithValue("task", taskId);
+        command.Parameters.AddWithValue("version", expectedVersion);
+        command.Parameters.AddWithValue("description", description.Trim());
+        command.Parameters.AddWithValue("actor", actor.ActorId);
+        command.Parameters.AddWithValue("kind", actor.Kind.ToString());
+        command.Parameters.AddWithValue("added", addedAt);
+        return await ExecuteBooleanAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<bool> TrySetCriterionAsync(
         Guid criterionId,
         long expectedTaskVersion,
