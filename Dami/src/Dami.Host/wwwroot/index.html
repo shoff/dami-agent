@@ -105,6 +105,17 @@
   <span class="sub" id="status"></span>
 </header>
 
+<section id="today">
+  <h2>Today <span class="sub">(inbox · the board's questions for you · civic week · network problems)</span></h2>
+  <div id="todaybox" class="quiet">loading…</div>
+</section>
+
+<section id="domains">
+  <h2>Domains <span class="sub">(K4 — local only; click a domain for its timeline)</span></h2>
+  <div id="domainlist"></div>
+  <div id="domainbox"></div>
+</section>
+
 <section id="taskboards" class="board-section">
   <h2>Collaborative task boards <span class="sub">(PostgreSQL is authoritative)</span></h2>
   <form id="planform" class="board-toolbar">
@@ -512,6 +523,59 @@ async function loadApprovals() {
   } catch { box.innerHTML = '<div class="quiet">unavailable</div>'; }
 }
 
+function todayLine(label, summary) {
+  return `<div class="hev"><span class="cat">${label}</span> ${escapeHtml(summary)}</div>`;
+}
+
+async function loadToday() {
+  const box = $("todaybox");
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const weekOut = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const [inbox, boards, civic, network] = await Promise.all([
+      fetch("/surfacings").then(r => r.json()),
+      fetch("/task-boards").then(r => r.json()),
+      fetch("/domains/civic").then(r => r.ok ? r.json() : []),
+      fetch("/domains/network").then(r => r.ok ? r.json() : []),
+    ]);
+    const questions = []; let held = 0;
+    const walk = t => {
+      if (t.status === "InProgress") held++;
+      if (t.status === "Blocked" && (t.description || "").includes("STEVE")) questions.push(t.title);
+      (t.subTasks || []).forEach(walk);
+    };
+    for (const b of boards) { const snap = await fetch(`/task-boards/${b.boardId}`).then(r => r.json()); snap.tasks.forEach(walk); }
+    const meetings = civic.filter(f => f.category === "meeting" && f.asOf >= today && f.asOf <= weekOut)
+      .sort((a, b) => a.asOf.localeCompare(b.asOf));
+    const latest = network.length ? network[0].asOf : null;
+    const problems = network.filter(f => f.asOf === latest && /not listening|does not answer/.test(f.description));
+    let html = todayLine("inbox", inbox.length ? `${inbox.length} pending` : "quiet");
+    html += todayLine("board", `${held} in progress · ${questions.length} waiting on you`);
+    html += questions.slice(0, 6).map(q => `<div class="hev">&nbsp;&nbsp;${escapeHtml(q.slice(0, 90))}</div>`).join("");
+    html += todayLine("civic", meetings.length ? `${meetings.length} meeting(s) this week` : "no meetings in the next week");
+    html += meetings.slice(0, 6).map(m => `<div class="hev">&nbsp;&nbsp;<span class="d">${m.asOf}</span> ${escapeHtml(m.description.split(" — ")[0])}</div>`).join("");
+    html += todayLine("network", !latest ? "not collected yet" : problems.length ? `${problems.length} problem(s) as of ${latest}` : `all good as of ${latest}`);
+    html += problems.slice(0, 6).map(f => `<div class="hev">&nbsp;&nbsp;${escapeHtml(f.description)}</div>`).join("");
+    box.className = ""; box.innerHTML = html;
+  } catch { box.innerHTML = '<div class="quiet">unavailable</div>'; }
+}
+
+async function loadDomains(selected) {
+  const list = $("domainlist"), box = $("domainbox");
+  try {
+    const r = await fetch("/domains"); const domains = await r.json();
+    list.innerHTML = domains.length ? "" : '<div class="quiet">no domain facts yet — collectors run nightly</div>';
+    for (const d of domains) {
+      const b = document.createElement("button"); b.type = "button";
+      b.textContent = `${d.domain} (${d.facts})`; b.onclick = () => loadDomains(d.domain);
+      list.appendChild(b);
+    }
+    if (!selected) { box.innerHTML = ""; return; }
+    const facts = await fetch(`/domains/${encodeURIComponent(selected)}`).then(x => x.json());
+    box.innerHTML = facts.map(f => `<div class="hev"><span class="d">${f.asOf}</span> <span class="cat">[${f.category}]</span> ${escapeHtml(f.description)}</div>`).join("");
+  } catch { list.innerHTML = '<div class="quiet">unavailable</div>'; }
+}
+
 async function loadHealth() {
   const box = $("healthlog");
   try {
@@ -570,6 +634,8 @@ loadTaskBoards(); setInterval(loadSelectedBoard, 5000);
 loadInbox(); setInterval(loadInbox, 15000);
 loadBeliefs(); setInterval(loadBeliefs, 60000);
 loadHealth(); setInterval(loadHealth, 120000);
+loadToday(); setInterval(loadToday, 60000);
+loadDomains(); setInterval(() => loadDomains(), 300000);
 loadApprovals(); setInterval(loadApprovals, 20000);
 $("diffbtn").onclick = () => { if ($("diffsince").value) loadDiff($("diffsince").value); };
 $("diffclear").onclick = () => loadBeliefs();
