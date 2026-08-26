@@ -7653,3 +7653,98 @@ with output.
 `dotnet build Dami.sln`: 0 warnings, 0 errors. `dotnet test Dami.sln`: nineteen suites,
 **972 passed, 0 failed**. `dotnet format --verify-no-changes`: exit 0. The Host and CLI at
 `/opt/dami` are not redeployed (sudo).
+
+## 2026-08-25 — Claude — Working from the board: `dami board`, adding to a live board, O2
+
+Steve: "work on the board — you're the only agent active." So the board is now where I
+claim, and this entry is the trail of making that true.
+
+### O2a — `dami board` (`67b8e12`)
+
+Thin client over Codex's task-board API, nothing direct: list boards; show a tree with
+8-char ids, status marks, and claimants (`--open` hides finished work but keeps a finished
+parent whose descendants are open); claim, complete, block/reopen/cancel, criterion yes/no.
+The actor is `$DAMI_ACTOR`/`$DAMI_ACTOR_KIND` — client-asserted until G5a2 supplies
+validated claims, and an agent has to say it is one. Every mutation carries the version
+the CLI just read; a 409 prints what it is and is never retried. The stub-handler test
+caught `actorKind` serialising as `1`; names are sent now.
+
+Read-only against production it was immediately legible: 27 open, 16 blocked, 8 in
+progress, each with its holder.
+
+### The re-import found the gap
+
+Re-importing at `67b8e12` (after adding the O2 lane to TODO.md) reported the six O2 entries
+as "not on the board": 028 creates a board and its whole tree atomically and has no path
+for one more task, and neither did the store, the Host, or the CLI. That is O2d, and O2b
+(keep the board current from the file) depends on it.
+
+### O2d — adding to a board that exists (`b54cec2`)
+
+`ITaskBoardStore.TryAddTaskAsync(boardId, parentTaskId?, draft, actor, at, detail)`,
+`POST /task-boards/{id}/tasks`, `dami board add <id8|board> <title> [--needs criterion]…`,
+and the importer adds a missing entry one node per pass under a parent that is on the
+board, waiting while its parent or a prerequisite is still missing. Migration 030 admits a
+`TaskAdded` ledger kind.
+
+Two rules fell out of running it rather than reading:
+
+- **A finished parent that gains a child is reopened.** The first attempt refused a Done
+  parent and the growth test failed on exactly that: epic `Z` had been completed by the
+  first import because all its children were, then the file added `Z2` under it.
+  `try_set_status` has no Done→Open on purpose, and `dami_app` cannot update tasks
+  directly (Codex's least-privilege audit), so 030 adds `task_board_reopen_for_child`,
+  run inside the add transaction — a Done parent never holds an Open child, and the
+  ledger shows Done→Open with the child's title. A Cancelled parent refuses the add.
+- **A claim cannot predate the task.** The importer clamped a file claim date to the
+  *board's* creation; a task added later has a newer `created_at`, and the schema's
+  `updated_at >= created_at` refused the claim. `BoardTask` now carries `CreatedAt` (the
+  row always had it; a trailing defaulted parameter, so no construction site moved) and
+  the clamp is to the task's own creation.
+
+Also found by the growth test: `Z3 Depends on Z2 (needs Z2 first)` — the reader catches
+both phrasings, the mapper emitted `Z2` twice, and two identical prerequisite rows hit
+`23505`. The mapper dedupes. Codex's `TaskDraftGraph.Validate` would also accept such a
+draft and let the insert fail; noted, not changed.
+
+### The Host MCP flake, now with a line number
+
+`HostCompositionTests.cs:212`, `ShutdownCount` expected 1, got 0, reproduced one time in
+four under a full-solution run and never in isolation. `McpCapabilityHostedService`
+awaits its whole shutdown; the SDK's session `DisposeAsync` returns before the fake
+server has necessarily processed its DELETE. The assertion now waits, bounded (100 × 20
+ms), for the count to settle. Not a Host bug; the test asserted an ordering the SDK does
+not promise.
+
+### Live, on the board
+
+Re-import at `b54cec2`: the six O2 entries added through the new path, the file's claims
+honoured (O2, O2a, O2d held by `claude`), O2c blocked on Steve, 10 mutations, and the one
+conflict is correct — O1 is Done in the file but `codex` holds it on the board, and only
+the claimant completes. Then, on the board rather than in the file:
+
+```
+$ DAMI_ACTOR=claude DAMI_ACTOR_KIND=Agent dami board complete 3b9fd2dd "…"
+complete: O2a `dami board` verbs over the runtime API …
+```
+
+`dami board add` against production crashed: the deployed Host has no add endpoint, the
+404 came back as a null reply, and the CLI dereferenced it. Fixed with a test — an older
+runtime is now named, not dereferenced. The same fact explains the empty `detail` on that
+completion row: `/opt/dami/host` is still the pre-029 build.
+
+### Not done, and whose
+
+- **Redeploy** (`sudo`): Release builds of Host and CLI are staged in `~/.cache/dami-pub`;
+  the rsync and restart are runbook §4, Steve's to run. Until then `dami board add` and
+  `detail` on claim/complete are proven by tests and by the importer's direct-DB path only.
+- **O1** on the board waits for `codex` to complete it, or Steve.
+- O2b (import at every TODO.md commit), O2c (protocol: start from the board — needs
+  Steve's word on when TODO.md stops being the claim board), O2e (real criteria), and the
+  reverse path (board → TODO.md) remain open on the board.
+
+### Gate
+
+`dotnet build Dami.sln`: 0 warnings, 0 errors. `dotnet test Dami.sln`: nineteen suites,
+**984 passed, 0 failed**. `dotnet format --verify-no-changes`: exit 0. Migration 030 applied
+to `dami-data`, none pending, `/health` 200.

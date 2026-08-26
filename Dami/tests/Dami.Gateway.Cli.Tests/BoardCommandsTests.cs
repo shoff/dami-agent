@@ -155,6 +155,20 @@ public sealed class BoardCommandsTests
         Assert.Contains("added", output, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task AddAsync_Should_Name_An_Older_Runtime_When_The_Endpoint_Is_Missing()
+    {
+        using var http = new HttpClient(new StubHandler(request => request.Method == HttpMethod.Post
+            ? Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound))
+            : ReadOnlyBoardAsync(request)));
+
+        var (exitCode, output) = await CaptureAsync(() => new BoardCommands(new DamiApiClient(http), claude)
+            .AddAsync("aaaaaaaa", "Write the thing", [], CancellationToken.None));
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("older", output, StringComparison.Ordinal);
+    }
+
     private static Task<HttpResponseMessage> ReadOnlyBoardAsync(HttpRequestMessage request)
     {
         Assert.Equal(HttpMethod.Get, request.Method);

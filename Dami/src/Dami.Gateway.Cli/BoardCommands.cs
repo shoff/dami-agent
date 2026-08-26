@@ -101,22 +101,41 @@ public sealed class BoardCommands
                 return 1;
             }
 
+            var position = parent?.ChildCount
+                ?? await this.RootCountAsync(boardId.Value, cancellationToken).ConfigureAwait(false);
             using var reply = await this.api.PostAsync(
                 $"/task-boards/{boardId:D}/tasks",
-                new
-                {
-                    title,
-                    parentTaskId = parent?.Id,
-                    position = parent?.ChildCount ?? await this.RootCountAsync(boardId.Value, cancellationToken).ConfigureAwait(false),
-                    criteria,
-                    actorId = this.actor.ActorId,
-                    actorKind = this.actor.Kind.ToString(),
-                },
-                cancellationToken).ConfigureAwait(false);
-            Console.WriteLine($"added {reply!.RootElement.GetProperty("taskId").GetGuid().ToString("N")[..8]}: {Shorten(title)}"
-                + (parent is null ? string.Empty : $"  under {Shorten(parent.Title)}"));
-            return 0;
+                this.AddBody(title, parent?.Id, position, criteria), cancellationToken).ConfigureAwait(false);
+            return await ReportAddedAsync(reply, title, parent?.Title).ConfigureAwait(false);
         });
+    }
+
+    private object AddBody(string title, Guid? parentTaskId, int position, IReadOnlyList<string> criteria)
+    {
+        return new
+        {
+            title,
+            parentTaskId,
+            position,
+            criteria,
+            actorId = this.actor.ActorId,
+            actorKind = this.actor.Kind.ToString(),
+        };
+    }
+
+    private static async Task<int> ReportAddedAsync(JsonDocument? reply, string title, string? parentTitle)
+    {
+        if (reply is null)
+        {
+            await Console.Error.WriteLineAsync(
+                "the runtime has no add-task endpoint for that board - is dami-host older than this CLI?")
+                .ConfigureAwait(false);
+            return 1;
+        }
+
+        Console.WriteLine($"added {reply.RootElement.GetProperty("taskId").GetGuid().ToString("N")[..8]}: {Shorten(title)}"
+            + (parentTitle is null ? string.Empty : $"  under {Shorten(parentTitle)}"));
+        return 0;
     }
 
     private async Task<int> RootCountAsync(Guid boardId, CancellationToken cancellationToken)

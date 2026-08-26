@@ -281,6 +281,22 @@ to `dami-data` with none pending; `pg_proc` shows both the six- and seven-argume
 `false` with no side effect when called as `dami_app`, and the running Host answered
 `/health` 200 afterwards. The Host and CLI at `/opt/dami` have not been redeployed.
 
+Verification on 2026-08-25 for O2a/O2d (working from the board): `dami board`
+list/show/claim/complete/block/criterion/add passed 19/19 CLI tests including a dry
+import that touches no store, a 409 reported once and never retried, and an older
+runtime named rather than dereferenced. Adding to an existing board passed in the
+persistence suite (add under a parent with a criterion and a `TaskAdded` row; a Done
+parent reopened Done→Open on the record; a Cancelled parent, an unknown parent, and an
+unknown board refused) and the importer added the entries a grown file gained with 0
+conflicts and 0 mutations on rerun. The solution build completed with 0 warnings and 0
+errors, all nineteen suites passed 984/984, and format verification exited 0.
+Migration 030 applied to `dami-data` with none pending; `/health` 200 after. Live: the
+re-import at `b54cec2` added O2 and its five children to board `d621fe5f…` (10
+mutations, the one conflict being O1 held by `codex`); O2a was then completed on the
+board itself. The Host at `/opt/dami/host` is still the pre-029 build — it drops
+`detail` on complete and has no add endpoint — and the CLI at `/opt/dami/cli` is older
+still; Release builds of both are staged in `~/.cache/dami-pub`.
+
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
 | Item | State | Evidence |
