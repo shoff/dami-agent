@@ -430,6 +430,16 @@ creating files, run:
 chown -R steve:steve /home/steve/dev/dami-agent
 ```
 
+**The board follows TODO.md automatically.** `.githooks/post-commit` (enabled by
+`git config core.hooksPath .githooks`, already set on this clone) runs
+`tools/board/sync-from-todo.sh` whenever a commit touches `TODO.md`: it re-imports the
+file at HEAD as `$DAMI_ACTOR` (`$DAMI_ACTOR_KIND=Agent` for an agent; default is your
+login user as a human). The import advances only and prints conflicts — it never
+regresses a status set on the board and never fails the commit. If `dami` cannot reach
+PostgreSQL (a root shell has no `.pgpass`), it says so and the commit still lands; run
+the script by hand afterwards. The board is authoritative for status; claim there
+(`dami board claim <id8>`), and add new work there (`dami board add`).
+
 **When you finish**
 
 - Commit and push promptly if you have been asked to. Long-lived local work is how two
