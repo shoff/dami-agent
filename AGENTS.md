@@ -3,6 +3,11 @@
 Read `docs/onboarding.md` before working in this repository. Current architecture
 and decisions take precedence as described there.
 
+Work is found, claimed, and completed on the PostgreSQL task board:
+`DAMI_ACTOR=codex DAMI_ACTOR_KIND=Agent dami board dami --open`, then
+`dami board claim <id8> "<plan>"`, `dami board needs <id8> "<criterion>"`, and
+`dami board complete <id8> "<evidence>"`. `TODO.md` trails the board; do not claim there.
+
 ## Development method
 
 - Use strict test-driven development for every behavior change:

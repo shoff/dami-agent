@@ -17,6 +17,9 @@ over one runtime and one durable execution-event stream. Status: active build â€
 the transport slice (Codex) and the data foundation, proactive tier, and `dami`
 CLI (Claude Code) exist and are tested; the proactive tier runs unattended as the
 `dami-proactive` systemd service. `docs/status.md` has the phase board.
+**Work is claimed on the task board, not in a file:** `dami board dami --open` shows what
+is open, `dami board claim|complete|needs|add` move it, with `DAMI_ACTOR=claude
+DAMI_ACTOR_KIND=Agent` set. `TODO.md` is the board rendered in prose and trails it.
 
 ## Working agreements
 

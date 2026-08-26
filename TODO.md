@@ -1,9 +1,11 @@
 # Dami Core — Blueprint & Board
 
-**This file is the kanban.** It is the accurate picture of the end-goal system, what
-exists, what does not, and who is working on what. Both agents check this file **before
-asking Steve for work**, claim a task by editing it, and update it in the same commit as
-the work. It supersedes `docs/ownership.md`'s in-flight table as the claim board.
+**The task board in PostgreSQL is the kanban** (Steve, 2026-08-25: "work on the board").
+This file is its rendering in prose and trails it: `dami board dami --open` is the picture
+of what is open and who holds it, `dami board export dami` prints the board in this
+grammar, and every commit that touches this file re-imports it (advance-only) so nothing
+written here is lost. Check the board **before asking Steve for work**, claim there, and
+add new work there. This file still supersedes `docs/ownership.md`.
 
 - Authority on *what to build*: `docs/dami-core-system-architecture.md` + `docs/dami-core-decisions-and-requirements.md` (D-001…D-022) > `docs/dami-core-charter.md`
 - Authority on *how*: `AGENTS.md` (TDD, no push without being asked — Codex) · `CLAUDE.md` (build/test gate, no AI attribution)
@@ -11,10 +13,10 @@ the work. It supersedes `docs/ownership.md`'s in-flight table as the claim board
 
 ## Protocol
 
-- Task states: `[ ]` open · `[~ OWNER since DATE]` claimed/in progress · `[x]` done · `[STEVE]` needs Steve's key/decision · `[BLOCKED: reason]`
-- **Claim before you code**: edit this file, set `[~ Codex 2026-08-24]` or `[~ Claude 2026-08-24]`, commit that edit (alone or with the first slice), push.
-- **Done means demonstrated**: tests green *and* the behavior observed (`docs/work-log.md` entry with evidence). Then flip to `[x]` in the same commit.
-- One task can be split: add sub-bullets with their own ids rather than silently widening scope.
+- **Claim before you code, on the board**: `DAMI_ACTOR=<you> DAMI_ACTOR_KIND=Agent dami board claim <id8> "<what you will do>"`. A claim here in the file is honoured by the next import, but the board is the record.
+- **Done means demonstrated**: tests green *and* the behavior observed (`docs/work-log.md` entry with evidence). Then `dami board complete <id8> "<evidence>"` — the board refuses until every acceptance criterion is satisfied and every child is done; add criteria with `dami board needs <id8> "<criterion>"`.
+- **New work goes on the board**: `dami board add <parent-id8> "<Id> <title>" [--needs "<criterion>"]` — the title starts with the task's id (`O2g …`), which is its identity here too. Split rather than widen: add sub-tasks with their own ids.
+- Task states here: `[ ]` open · `[~ OWNER since DATE]` claimed · `[x]` done · `[-]` cancelled · `[STEVE]` needs Steve · trailing `` `[BLOCKED: reason]` ``. They are the board's statuses in this grammar.
 - Shared files (`Dami.sln`, contracts another owner is mid-flight on): pull, stage by path, never `git add -A`.
 - If you believe a task is wrong or mis-scoped, don't silently change it — note it under the task and raise it in `work-log.md`.
 
@@ -274,7 +276,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [~ Claude 2026-08-25] O2 **This file now trails the board.** `dami board export dami` prints the board in this grammar, and tasks born on the board (O2f, done) are not written here by hand. The board replaces this file as the claim board: agents and Steve find, claim, complete, and block work on it, and the ledger — not a markdown diff — is the record of who did what and when
   - [x] O2a (Claude 2026-08-25; completed **on the board** with `dami board complete 3b9fd2dd`, not here) `dami board` verbs over the runtime API: list boards, show a tree (`--open`), claim/complete/block/reopen/cancel by 8-char id, criteria yes/no; actor from `$DAMI_ACTOR`/`$DAMI_ACTOR_KIND` until G5a2 supplies validated claims; 409 reported as a conflict, never retried
   - [x] O2b (Claude 2026-08-25) `.githooks/post-commit` → `tools/board/sync-from-todo.sh`: every commit that touches this file re-imports it at HEAD as `$DAMI_ACTOR`; the commit that flipped this line was the first to fire it. Keep the board current from this file until the cutover: re-import at every commit that touches TODO.md (advance-only, so board state written directly is never regressed); report the conflicts each run finds
-  - [ ] O2c Agents start from the board: the onboarding and runbook protocol says `dami board <board> --open` before asking for work, and a claim on the board is the claim `[STEVE: TODO.md stops being the claim board on your say — after that, new tasks are created on the board, not here]`
+  - [x] O2c (Claude 2026-08-25; Steve's word was "work on the board", 2026-08-25) — Protocol above, `CLAUDE.md`, `AGENTS.md`, and `docs/onboarding.md` §1 now say the board is where work is found, claimed, and completed. Agents start from the board: the onboarding and runbook protocol says `dami board <board> --open` before asking for work, and a claim on the board is the claim `[STEVE: TODO.md stops being the claim board on your say — after that, new tasks are created on the board, not here]`
   - [x] O2d (Claude 2026-08-25) — `TryAddTaskAsync`, `POST /task-boards/{id}/tasks`, `dami board add <id8|board> <title> [--needs …]`, migration 030; a finished parent that gains a child is reopened on the record, a cancelled one refuses. Live proof: the re-import at `b54cec2` added the six O2 entries to the production board through this path. The endpoint and verb are proven by tests; their live run waits on the Host redeploy `[STEVE: runbook §4 rsync + restart — Release builds are staged in ~/.cache/dami-pub]`. Task creation on the board without the planner: a direct "add task under <parent>" API and verb, so a new piece of work does not need a TODO.md edit plus an import
   - [ ] O2e Acceptance criteria worth gating on: most imported tasks have none, so the completion gate has nothing to check; write real criteria for open work as it is claimed
 

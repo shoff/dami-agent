@@ -10,6 +10,10 @@
   and Phase 3 (transport) is in progress. `docs/status.md` is the phase board and
   `docs/work-log.md` the history — trust those two over any phase claim elsewhere in
   this file.
+- **Where work is claimed (2026-08-25):** the PostgreSQL task board, through
+  `dami board` (`dami board dami --open`, then `claim`, `needs`, `complete`, `add`,
+  with `DAMI_ACTOR`/`DAMI_ACTOR_KIND` set). `TODO.md` is the board rendered in prose
+  and trails it; its Protocol section has the commands.
 
 ---
 
