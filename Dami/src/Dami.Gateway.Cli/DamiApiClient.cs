@@ -37,6 +37,32 @@ public sealed class DamiApiClient
         return await ReadAsync(response, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Sends a guarded mutation. True on success, false when the runtime answered 409 —
+    /// the version moved or a board gate refused — and null when the target is unknown.
+    /// </summary>
+    public async Task<bool?> MutateAsync(
+        HttpMethod method,
+        string path,
+        object body,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        using var request = new HttpRequestMessage(method, new Uri(BASE_URL + path))
+        {
+            Content = JsonContent.Create(body),
+        };
+        using var response = await this.httpClient.SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            return false;
+        }
+
+        using var reply = await ReadAsync(response, cancellationToken).ConfigureAwait(false);
+        return reply is null ? null : true;
+    }
+
     /// <summary>POSTs raw bytes (audio, images) and returns the JSON reply.</summary>
     public async Task<JsonDocument?> PostBytesAsync(
         string path,

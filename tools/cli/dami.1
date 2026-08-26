@@ -109,6 +109,22 @@ Local only \- these rows have no egress path.
 .B dami stats
 Corpus and event-stream counts.
 .TP
+.B dami board \fR[\fIboard\fR [--open]]
+The collaborative task board (O1). Alone, lists boards; with a board id or
+title prefix, prints its task tree with 8-char ids, status marks, and
+claimants. \fB--open\fR hides finished work.
+.TP
+.B dami board claim|complete \fIid8\fR [\fInote\fR]
+Claim a task, or complete one you hold. Acts as \fB$DAMI_ACTOR\fR
+(kind \fB$DAMI_ACTOR_KIND\fR, Human or Agent; default: the login user,
+Human). A 409 from the board is reported as a conflict, never retried.
+.TP
+.B dami board block|reopen|cancel \fIid8\fR \fIreason\fR
+Change a task's status with a recorded reason.
+.TP
+.B dami board criterion \fIid8\fR yes|no
+Mark an acceptance criterion satisfied or not.
+.TP
 .B dami board-import \fITODO.md\fR --revision \fIsha\fR --actor \fIid\fR [--agent] [--dry-run]
 Write the blueprint onto the collaborative task board (O1g). Talks to
 PostgreSQL directly. Safe to rerun: it only advances tasks, and where the

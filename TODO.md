@@ -269,6 +269,15 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
     - [x] O1g2 Mapper, deterministic ids, advance-only rerun rules, and importer (Claude 2026-08-25) — the count assertion now derives from the parsed plan rather than a constant, since TODO.md is a living file (it had grown 201→204 while the work waited on O1a)
     - [x] O1g3 `dami board-import <TODO.md> --revision <sha> --actor <id> [--agent] [--dry-run]` (Claude 2026-08-25) — direct-DB by design (the Host cannot see the repo file). Live on `dami-data` at `3107935`: board `d621fe5f…` "Dami Core suite", 15 roots, 204 tasks (153 Done / 27 Open / 16 Blocked / 8 InProgress), 338 mutations, 0 conflicts; rerun 0 mutations; visible beside Codex's acceptance board at `/task-boards`. Migration 029 (Claude 2026-08-25) added a detail slot to claim/complete — the two 028 functions lacked one — so every imported mutation now carries `[imported from TODO.md at <sha>]`; 028-shaped six-argument wrappers keep the deployed Host working until it is redeployed. **The published CLI at `/opt/dami/cli` is not yet redeployed** — the live run used the tree build; `[STEVE: sudo rsync per runbook §4]`
 
+## O2 · Working from the board — Claude's lane
+
+- [~ Claude 2026-08-25] O2 The board replaces this file as the claim board: agents and Steve find, claim, complete, and block work on it, and the ledger — not a markdown diff — is the record of who did what and when
+  - [~ Claude 2026-08-25] O2a `dami board` verbs over the runtime API: list boards, show a tree (`--open`), claim/complete/block/reopen/cancel by 8-char id, criteria yes/no; actor from `$DAMI_ACTOR`/`$DAMI_ACTOR_KIND` until G5a2 supplies validated claims; 409 reported as a conflict, never retried
+  - [ ] O2b Keep the board current from this file until the cutover: re-import at every commit that touches TODO.md (advance-only, so board state written directly is never regressed); report the conflicts each run finds
+  - [ ] O2c Agents start from the board: the onboarding and runbook protocol says `dami board <board> --open` before asking for work, and a claim on the board is the claim `[STEVE: TODO.md stops being the claim board on your say — after that, new tasks are created on the board, not here]`
+  - [ ] O2d Task creation on the board without the planner: a direct "add task under <parent>" API and verb, so a new piece of work does not need a TODO.md edit plus an import
+  - [ ] O2e Acceptance criteria worth gating on: most imported tasks have none, so the completion gate has nothing to check; write real criteria for open work as it is claimed
+
 ---
 
 ## Steve's queue (nothing moves these but you)

@@ -49,6 +49,7 @@ public static class CommandRouter
           dami health-log                the structured health timeline (K2), local only
           dami health-reject <id8> <why> remove a wrong health fact, permanently
           dami listen <audio-file>       transcribe speech locally; audio never leaves the host
+          dami board                     the task board: list, show, claim, complete, block
           dami board-import <TODO.md> --revision <sha> --actor <id> [--agent] [--dry-run]
                                          write the blueprint onto the task board; rerun-safe
         """;
@@ -72,7 +73,7 @@ public static class CommandRouter
         BriefCommands briefs,
         HealthLogCommands healthLog,
         ListenCommands listen,
-        BoardImportCommands boardImport)
+        BoardVerbs board)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(inbox);
@@ -91,7 +92,7 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(briefs);
         ArgumentNullException.ThrowIfNull(healthLog);
         ArgumentNullException.ThrowIfNull(listen);
-        ArgumentNullException.ThrowIfNull(boardImport);
+        ArgumentNullException.ThrowIfNull(board);
 
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
@@ -99,7 +100,7 @@ public static class CommandRouter
         return await DispatchAsync(
             args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
             args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            chat, sessions, frontier, approvals, briefs, healthLog, listen, boardImport,
+            chat, sessions, frontier, approvals, briefs, healthLog, listen, board,
             cancellation.Token)
             .ConfigureAwait(false);
     }
@@ -123,7 +124,7 @@ public static class CommandRouter
         BriefCommands briefs,
         HealthLogCommands healthLog,
         ListenCommands listen,
-        BoardImportCommands boardImport,
+        BoardVerbs board,
         CancellationToken cancellationToken)
     {
         return verb switch
@@ -132,9 +133,12 @@ public static class CommandRouter
                 await DispatchInboxAsync(verb, args, inbox, cancellationToken).ConfigureAwait(false),
             "trace" when args.Length > 1 =>
                 await traces.ReplayAsync(args[1], cancellationToken).ConfigureAwait(false),
-            "health" or "stats" or "health-log" or "health-reject" or "board-import" =>
-                await DispatchStatusAsync(verb, args, health, stats, healthLog, boardImport,
-                    cancellationToken).ConfigureAwait(false),
+            "health" or "stats" or "health-log" or "health-reject" =>
+                await DispatchStatusAsync(verb, args, health, stats, healthLog, cancellationToken)
+                    .ConfigureAwait(false),
+            "board" or "board-import" =>
+                await BoardCommandRouter.RunAsync(args, board.Board, board.Import, cancellationToken)
+                    .ConfigureAwait(false),
             "recall" or "ask" or "context" or "caption" or "chat" when args.Length > 1 =>
                 await DispatchModelAsync(verb, args, recall, ask, contextCommands, vision, chat,
                     cancellationToken).ConfigureAwait(false),
@@ -144,13 +148,11 @@ public static class CommandRouter
             "approvals" or "approve" or "deny" =>
                 await DispatchApprovalsAsync(verb, args, approvals, cancellationToken).ConfigureAwait(false),
             "frontier" when args.Length > 1 =>
-                await frontier.AskAsync(string.Join(' ', args[1..]), cancellationToken)
-                    .ConfigureAwait(false),
+                await frontier.AskAsync(string.Join(' ', args[1..]), cancellationToken).ConfigureAwait(false),
             "listen" when args.Length > 1 =>
                 await listen.TranscribeAsync(args[1], cancellationToken).ConfigureAwait(false),
             "brief" when args.Length > 1 =>
-                await briefs.DraftAsync(string.Join(' ', args[1..]), cancellationToken)
-                    .ConfigureAwait(false),
+                await briefs.DraftAsync(string.Join(' ', args[1..]), cancellationToken).ConfigureAwait(false),
             "beliefs" or "correct" or "retract" or "note" =>
                 await DispatchBeliefsAsync(verb, args, beliefs, cancellationToken).ConfigureAwait(false),
             _ => Usage(),
@@ -183,14 +185,11 @@ public static class CommandRouter
         HealthCommands health,
         StatsCommands stats,
         HealthLogCommands healthLog,
-        BoardImportCommands boardImport,
         CancellationToken cancellationToken)
     {
         return verb switch
         {
             "health" => await health.CheckAsync(cancellationToken).ConfigureAwait(false),
-            "board-import" =>
-                await boardImport.ImportAsync(args[1..], cancellationToken).ConfigureAwait(false),
             "stats" => await stats.ShowAsync(cancellationToken).ConfigureAwait(false),
             "health-reject" when args.Length > 1 => await healthLog.RejectAsync(
                 args[1], args.Length > 2 ? string.Join(' ', args[2..]) : null, cancellationToken)
@@ -276,3 +275,6 @@ public static class CommandRouter
         return 2;
     }
 }
+
+/// <summary>The board verbs travel together: one surface with two doors.</summary>
+public sealed record BoardVerbs(BoardCommands Board, BoardImportCommands Import);

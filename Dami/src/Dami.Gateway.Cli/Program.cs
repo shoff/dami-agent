@@ -37,6 +37,9 @@ services.AddHttpClient<IVisionClient, OllamaVisionClient>(client =>
 services.AddSingleton<Dami.Contracts.Workers.IWorkerRunner, Dami.Core.Workers.WorkerRunner>();
 services.AddSingleton<VisionCommands>();
 services.AddSingleton<BoardImportCommands>();
+services.AddSingleton(BoardActor.FromEnvironment());
+services.AddSingleton<BoardCommands>();
+services.AddSingleton<BoardVerbs>();
 
 // Everything else is the API client.
 services.AddSingleton<InboxCommands>();
@@ -76,7 +79,7 @@ try
         provider.GetRequiredService<BriefCommands>(),
         provider.GetRequiredService<HealthLogCommands>(),
         provider.GetRequiredService<ListenCommands>(),
-        provider.GetRequiredService<BoardImportCommands>());
+        provider.GetRequiredService<BoardVerbs>());
 }
 catch (Dami.Contracts.Privacy.EgressRefusedException exception)
 {
