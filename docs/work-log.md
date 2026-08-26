@@ -8045,3 +8045,38 @@ exit 0 on my files. Release builds of Host, Proactive, CLI, and GUI are staged i
 `~/.cache/dami-pub`; `/opt/dami` still runs the builds from before the domain store, so
 `/domains`, `/speak`, and both collectors are not yet observable through the deployed
 runtime.
+
+## 2026-08-25 — Claude — Deployed: domains, voice, today; civic live after two fixes
+
+Steve ran `tools/deploy.sh` at 22:33: Host, proactive, CLI at `/opt/dami` from the staged
+builds; `dami-tts` installed and active; `Egress__AllowedHosts__1=www.lakevillemn.gov`
+appended to the proactive drop-in. Then:
+
+- **Network** had already run unattended on the tier's first tick after the earlier
+  restart (22:27, 19 facts). Docker's veth/bridge interfaces were noise; filtered
+  (`9c3ba0b`… `Network collector: ignore docker bridges`).
+- **Voice through the Host failed with 400** while curl succeeded: `PostAsJsonAsync` sends
+  a chunked body and Python's `http.server` reads `Content-Length: 0`. Reproduced with
+  `curl -H 'Transfer-Encoding: chunked'` → 400. The client now sends a sized body.
+  `dami say` → trace `4cce66d2`, 114,732-byte WAV through the deployed Host.
+- **Civic had "run" for the day with every feed refused** (the allowlist line landed after
+  the tick), and a failed run counts as a run by design — pinned by
+  `LastRanAtAsync_Should_Count_A_Failed_Run`, not reversed. Instead the operator got a
+  hand: `Dami.Host.Proactive --run <service>` runs one pass now and exits, recorded like
+  any run (`6884967`, scheduler test). Run with the service's own environment from the
+  staged build: 20 facts from 2 feeds.
+- **The calendar's dates were wrong**: CivicPlus's `pubDate` is when the item was posted;
+  the event day is in the description ("Event date: August 26, 2026"). `FeedItem` now
+  carries the description and the civic collector reads that line (`9d8ce83`, test pins a
+  January-posted August meeting). Re-run: 9 new event-dated rows; the 9 pubDate-dated
+  meeting rows rejected with the reason on the record. `--run civic-agenda` then surfaced
+  "Civic calendar, week of 2026-08-25: 5 meeting(s)" into the inbox.
+
+`dami today` on the deployed build now reads: inbox 7 pending · board 7 in progress, 9
+waiting on Steve · civic 3 meetings this week (Finance Committee Wed 08-26 among them) ·
+network all good as of 2026-08-26.
+
+Still to deploy: the proactive build with the event-date fix (`tools/deploy.sh
+--no-build`); until then tomorrow's tick would date new calendar items by pubDate again.
+
+Gate on every commit: 0 warnings, 0 errors; `dotnet test` 1036/1036 at `9d8ce83`.

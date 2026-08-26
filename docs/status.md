@@ -345,6 +345,14 @@ applied to `dami-data`. Not yet observed live: the proactive service is still th
 2026-08-24 build and the Host lacks `/domains`; both collectors run on the first tick
 after the redeploy, civic only once `www.lakevillemn.gov` is on the egress allowlist.
 
+Update 2026-08-25 22:50: deployed by `tools/deploy.sh`. Network collector ran unattended
+on the tick (19 facts, then docker noise filtered); `dami say` spoke through the Host
+(trace `4cce66d2`) after the chunked-body fix; civic feeds fetched after the allowlist
+line landed (`--run civic-collector`: 20 then 9 event-dated facts); the week's five
+meetings surfaced into the inbox. `dami today` is populated on the deployed build.
+H9's "one collector beyond health runs unattended" is observed; its board task stays
+behind K1's sign-off prerequisite.
+
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
 | Item | State | Evidence |
