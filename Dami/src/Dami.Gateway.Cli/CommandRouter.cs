@@ -6,6 +6,7 @@ public static class CommandRouter
     private const string USAGE = """
         dami - the queue you read when you want to
 
+          dami today                     the morning screen: inbox, board, civic week, network
           dami inbox                     pending surfacings
           dami read <id-prefix>          show one in full and mark it delivered
           dami good|bad|meh <id-prefix> [note]
@@ -147,7 +148,7 @@ public static class CommandRouter
                 await DispatchInboxAsync(verb, args, inbox, cancellationToken).ConfigureAwait(false),
             "trace" when args.Length > 1 => await traces.ReplayAsync(args[1], cancellationToken).ConfigureAwait(false),
             "health" or "stats" or "health-log" or "health-reject" or "disclosures" or "disclose-correct"
-                or "domain" or "domain-reject" =>
+                or "domain" or "domain-reject" or "today" =>
                 await DispatchStatusAsync(verb, args, health, stats, healthLog, review, cancellationToken)
                     .ConfigureAwait(false),
             "board" or "board-import" =>
@@ -205,6 +206,7 @@ public static class CommandRouter
         return verb switch
         {
             "health" => await health.CheckAsync(cancellationToken).ConfigureAwait(false),
+            "today" => await review.Today.ShowAsync(cancellationToken).ConfigureAwait(false),
             "domain" => await review.Domains.ShowAsync(args.Length > 1 ? args[1] : null, cancellationToken)
                 .ConfigureAwait(false),
             "domain-reject" when args.Length > 1 => await review.Domains.RejectAsync(
@@ -305,7 +307,7 @@ public static class CommandRouter
 }
 
 /// <summary>The verbs that review what the system recorded and correct it.</summary>
-public sealed record ReviewVerbs(DisclosureCommands Disclosures, DomainCommands Domains);
+public sealed record ReviewVerbs(DisclosureCommands Disclosures, DomainCommands Domains, TodayCommands Today);
 
 /// <summary>The board verbs travel together: one surface with two doors.</summary>
 public sealed record BoardVerbs(BoardCommands Board, BoardImportCommands Import);

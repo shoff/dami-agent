@@ -58,6 +58,7 @@ services.AddSingleton<HealthLogCommands>();
 services.AddSingleton<ListenCommands>();
 services.AddSingleton<DisclosureCommands>();
 services.AddSingleton<DomainCommands>();
+services.AddSingleton<TodayCommands>();
 services.AddSingleton<ReviewVerbs>();
 
 await using var provider = services.BuildServiceProvider();
