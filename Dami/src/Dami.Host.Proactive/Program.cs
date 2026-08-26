@@ -120,6 +120,21 @@ builder.Services.AddSingleton<IProactiveService, MediaLibrarianService>();
 builder.Services.Configure<EmbedderOptions>(builder.Configuration.GetSection(EmbedderOptions.SECTION_NAME));
 builder.Services.AddSingleton<IProactiveService, EmbedderService>();
 
-builder.Services.AddHostedService<ProactiveWorker>();
+// `--run <service-name>`: one pass now, due or not, then exit — the operator's hand on
+// the tier, for a collector whose feeds were refused or a config just changed.
+var runNow = Array.IndexOf(args, "--run") is var flag && flag >= 0 && flag + 1 < args.Length ? args[flag + 1] : null;
+if (runNow is null)
+{
+    builder.Services.AddHostedService<ProactiveWorker>();
+}
 
-await builder.Build().RunAsync();
+var host = builder.Build();
+if (runNow is null)
+{
+    await host.RunAsync();
+    return;
+}
+
+var ran = await host.Services.GetRequiredService<ProactiveScheduler>().RunNowAsync(runNow, CancellationToken.None);
+Console.WriteLine(ran ? $"ran {runNow}" : $"no proactive service is named {runNow}");
+Environment.ExitCode = ran ? 0 : 2;

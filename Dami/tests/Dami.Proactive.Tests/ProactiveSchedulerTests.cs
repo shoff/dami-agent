@@ -178,4 +178,20 @@ public sealed class ProactiveSchedulerTests
             services, runner, this.runLog, new FakeTimeProvider(now),
             NullLogger<ProactiveScheduler>.Instance);
     }
+
+    [Fact]
+    public async Task RunNowAsync_Should_Run_The_Named_Service_Even_When_Not_Due_And_Refuse_Unknown_Names()
+    {
+        this.runLog.LastRanAtAsync("scout", Arg.Any<CancellationToken>())
+            .Returns(now.AddMinutes(-5));
+        var scheduler = this.CreateScheduler(Scout());
+
+        var ran = await scheduler.RunNowAsync("scout", CancellationToken.None);
+        var unknown = await scheduler.RunNowAsync("nobody", CancellationToken.None);
+
+        Assert.True(ran);
+        Assert.False(unknown);
+        await this.runLog.Received(1).RecordAsync(
+            Arg.Any<Guid>(), "scout", Arg.Any<Guid>(), Arg.Any<DateTimeOffset>(), Arg.Any<ProactiveStatus>(), Arg.Any<CancellationToken>());
+    }
 }

@@ -97,6 +97,25 @@ public sealed class ProactiveScheduler
         }
     }
 
+    /// <summary>
+    /// Runs one named service now, due or not — an operator's deliberate act, recorded
+    /// like any other run. False when no service has that name.
+    /// </summary>
+    public async Task<bool> RunNowAsync(string serviceName, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        var service = this.services.FirstOrDefault(
+            candidate => string.Equals(candidate.ServiceName, serviceName, StringComparison.Ordinal));
+        if (service is null)
+        {
+            return false;
+        }
+
+        var lastRanAt = await this.runLog.LastRanAtAsync(service.ServiceName, cancellationToken).ConfigureAwait(false);
+        await this.RunOneAsync(service, lastRanAt, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     private bool IsDue(ProactiveCadence cadence, DateTimeOffset? lastRanAt)
     {
         if (lastRanAt is null)
