@@ -7887,3 +7887,14 @@ with Steve's word as the reason, claimed, and completed on the board.
 `dotnet build Dami.sln`: 0 warnings, 0 errors. `dotnet test Dami.sln`: nineteen suites,
 **993 passed, 0 failed**. `dotnet format --verify-no-changes`: exit 0. Migration 031
 applied live.
+
+## 2026-08-25 — Claude — O2e live: every open task on the board is gated
+
+After the redeploy, `dami board needs` wrote 33 acceptance criteria across the open work:
+each proposed ADR gates on "marked accepted or rejected in docs/decisions"; the backup
+lane on a key, a named destination, and a rehearsed restore; the Mac-bound items on the
+measurement or manifest they exist to produce; Codex's G5a items on their own stated
+demonstrations; D5 on the condition under which it is revisited. Verified by SQL: zero open
+leaf tasks on the suite board without a criterion. O2e's own criterion was satisfied and
+it was completed on the board. O2 stays open on one criterion that is not mine to satisfy:
+an agent other than Claude claims and completes a task there.

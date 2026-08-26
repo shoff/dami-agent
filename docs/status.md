@@ -322,6 +322,8 @@ passed 993/993, and format verification exited 0. Migration 031 is applied to
 criteria endpoint is not yet on the deployed Host; Release builds of Host and CLI are
 staged in `~/.cache/dami-pub` for the rsync and restart.
 
+Update 2026-08-25, later: Host and CLI redeployed; `dami board needs` wrote 33 criteria live, and a `dami_app` count shows zero open leaf tasks without one. O2e is complete on the board.
+
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
 | Item | State | Evidence |
