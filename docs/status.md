@@ -334,6 +334,17 @@ redeployed. Live: an augmented turn recorded 13 decisions under trace `8a457d83`
 that passed the user's name was corrected to withhold; the same turn again (`db8f94a4`)
 withheld it. G9a is complete on the board.
 
+Verification on 2026-08-25 for K4 (shared domain store, network, civic, `dami today`):
+the store's per-day uniqueness, timeline order, rejection, domain counts, and dated window
+passed against migration 033; the network collector's every fact line passed against a
+fake probe; the civic collector's dated facts and refused-feed survival passed against a
+fake egress client; the weekly agenda surfacing and its once-only rule passed; the Host
+routes and the CLI verbs passed. Builds 0 warnings/0 errors throughout; suites 1015 →
+1025 passed with the one red being Codex's uncommitted OIDC test. Migration 033 is
+applied to `dami-data`. Not yet observed live: the proactive service is still the
+2026-08-24 build and the Host lacks `/domains`; both collectors run on the first tick
+after the redeploy, civic only once `www.lakevillemn.gov` is on the egress allowlist.
+
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
 | Item | State | Evidence |

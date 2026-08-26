@@ -7945,3 +7945,66 @@ none pending. The attribution fix after them could not be gated on the whole sol
 Codex's in-flight G5a2 edits to `TaskBoardEndpoints` and its tests were red (IDE0009)
 in the shared tree at that moment. The CLI project and its tests built and passed on their
 own and the two changed files pass format verification; the fix is confined to them.
+
+## 2026-08-25 — Claude — K4: one store for the domains after health; network and civic live-ready; `dami today`
+
+Steve: make it usable, choose defaults, iterate later. So the defaults are chosen and
+written down where they can be changed.
+
+### The shared domain store (`ce8ac9b`)
+
+Health has its own schema because it was first and maximally sensitive. Everything after
+it shares one: `domain_facts` (migration 033) — a dated, categorised, one-clause fact with
+its source, unique per `(domain, day, description)` so a persisting state is a row a day
+and a change is visible as the day it changed; `domain_fact_rejections` so a wrong fact
+stays gone. `IDomainFactStore`; a `DomainFactSource` per domain so ADR-0019's planner
+routes to `network`, `civic`, `estate`, `workshop` the way it routes to `health`;
+reflection joins the facts after the health timeline; `GET /domains`,
+`GET /domains/{name}`, `POST /domains/facts/{id8}/reject`; `dami domain [name]`,
+`dami domain-reject`.
+
+### Network (`ce8ac9b`)
+
+`NetworkCollectorService`, nightly, from this host's own state through an injectable
+probe: interfaces and IPv4 addresses, the default gateway, ping to the gateway and to
+watched LAN hosts (default: the Mac mini at `192.168.4.23` — the address the corpus and
+onboarding use), and whether each watched loopback service listens (PostgreSQL, dami-host,
+both TEI, STT, Ollama). LocalOnly by construction: no egress client anywhere in it. The
+unit test drives a fake probe and checks every fact line.
+
+### Civic (`6106eab`, `08a5394`)
+
+The corpus places Steve in Lakeville, MN. I looked for the city's feeds rather than
+inventing them: the CivicPlus site serves RSS at `/RSSFeed.aspx?ModID=1&CID=All-newsflash.xml`
+(News Flash — live, latest item 2026-08-25) and `ModID=58…All-calendar.xml` (Calendar —
+live, "Finance Committee Meeting" 2026-08-26); the Agenda Center feed exists but is empty.
+Dakota County's site links no feed. `CivicFeedCollectorService` reads the two nightly
+through `IEgressClient`, so the host must be allowlisted and every send is recorded; each
+item is one fact (`notice` or `meeting`) dated by its `pubDate`. `CivicAgendaService`
+turns the next seven days of meetings into one surfacing titled by the week and finds a
+week already surfaced in the queue's recent rows, so `dami inbox` gets it once.
+
+### `dami today` (`5ede878`)
+
+One screen: pending surfacings; the board's questions for Steve (blocked tasks whose
+reason names him) and how many tasks are held; this week's civic meetings; and only the
+network facts that say something stopped answering. It computes nothing new.
+
+### Not yet live, and exactly why
+
+The proactive service at `/opt/dami/proactive` is the 2026-08-24 build; the Host at
+`/opt/dami/host` is 21:17 today and lacks `/domains`. Both collectors run on the proactive
+tier's first tick after restart (a never-run service is due immediately). The civic
+fetches will be refused until the drop-in carries
+`Environment=Egress__AllowedHosts__1=www.lakevillemn.gov`. Release builds are staged.
+H9's claim was refused by the board — its prerequisite K1 is open, whose criterion is
+Steve's sign-off — which is the board doing its job; K4 holds this work.
+
+### Gate
+
+`dotnet build Dami.sln`: 0 warnings, 0 errors on every commit. `dotnet test Dami.sln`:
+1015/1015 at `ce8ac9b`, 1018/1018 at `6106eab`, 1024/1024 at `08a5394`, 1025 passed at
+`5ede878` with one failure — `OidcDiscoveryTests.Health_Should_Be_The_Only_Anonymous_Runtime_Route`,
+Codex's uncommitted G5a2 test on Codex's uncommitted Host edits, in the shared tree.
+Format: exit 0 on my files; the same uncommitted test file has a whitespace finding.
+Migration 033 applied to `dami-data`, none pending.

@@ -225,7 +225,7 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] K2a Health domain **correctable** (Claude 2026-08-24) — `dami health-reject <id8> <reason>`; migration 018 makes the rejection durable so the next collector pass cannot resurrect the fact. Health facts are model-derived, so this is not optional
 - [x] K2 Health domain end to end — schema (014/015) + HealthCollectorService + IHealthEventStore + /health-log + `dami health-log` + privacy review (LocalOnly, no egress path)
 - [x] K3 Reflection consumes domain rows — health timeline joins the reflection prompt (D-007 cross-domain correlation); adding a domain now makes reflection strictly better
-- [ ] K4 Remaining domains, one at a time
+- [~ Claude 2026-08-25] K4 Remaining domains, one at a time — **shared `domain_facts` store (migration 033)** so a domain is a collector and a name, not a migration; `dami domain [name]`, `/domains`; facts route into retrieval (network/civic/estate/workshop known to the planner) and into reflection. **Network** collected nightly from this host (interfaces, gateway, LAN ping incl. the Mac mini, sidecar ports). **Civic** from Lakeville's News Flash and Calendar feeds (verified live 2026-08-25) through the egress allowlist, with the week's meetings surfaced once into the inbox. `dami today` reads inbox + board questions + civic week + network problems. Live runs wait on the proactive redeploy and `Egress__AllowedHosts__1=www.lakevillemn.gov`
 
 ## L · Voice & presence (Phase 9 — after runtime streaming)
 
