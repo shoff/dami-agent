@@ -26,6 +26,7 @@ public sealed class ReflectionService : IProactiveService
     private readonly IObservationCorpus observationCorpus;
     private readonly IConclusionLedger conclusionLedger;
     private readonly IHealthEventStore healthStore;
+    private readonly IDomainFactStore domainStore;
     private readonly IObservationEmbeddingStore embeddingStore;
     private readonly IEmbeddingClient embeddingClient;
     private readonly IChatClient chatClient;
@@ -38,6 +39,7 @@ public sealed class ReflectionService : IProactiveService
         IObservationCorpus observationCorpus,
         IConclusionLedger conclusionLedger,
         IHealthEventStore healthStore,
+        IDomainFactStore domainStore,
         IObservationEmbeddingStore embeddingStore,
         IEmbeddingClient embeddingClient,
         IChatClient chatClient,
@@ -48,6 +50,7 @@ public sealed class ReflectionService : IProactiveService
         ArgumentNullException.ThrowIfNull(observationCorpus);
         ArgumentNullException.ThrowIfNull(conclusionLedger);
         ArgumentNullException.ThrowIfNull(healthStore);
+        ArgumentNullException.ThrowIfNull(domainStore);
         ArgumentNullException.ThrowIfNull(embeddingStore);
         ArgumentNullException.ThrowIfNull(embeddingClient);
         ArgumentNullException.ThrowIfNull(chatClient);
@@ -58,6 +61,7 @@ public sealed class ReflectionService : IProactiveService
         this.observationCorpus = observationCorpus;
         this.conclusionLedger = conclusionLedger;
         this.healthStore = healthStore;
+        this.domainStore = domainStore;
         this.embeddingStore = embeddingStore;
         this.embeddingClient = embeddingClient;
         this.chatClient = chatClient;
@@ -243,6 +247,14 @@ public sealed class ReflectionService : IProactiveService
         {
             var date = health.EventDate.Year < 1971 ? "undated" : health.EventDate.ToString("yyyy-MM-dd");
             timeline.Add($"{date} [{health.Category}] {health.Description}");
+        }
+
+        // The domains after health share one store; their facts join the same prompt.
+        await foreach (var fact in this.domainStore
+            .TimelineAsync(null, this.reflectionOptions.DomainFactRows, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            timeline.Add($"{fact.AsOf:yyyy-MM-dd} [{fact.Domain}/{fact.Category}] {fact.Description}");
         }
 
         return timeline;

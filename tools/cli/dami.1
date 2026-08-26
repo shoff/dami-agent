@@ -115,6 +115,15 @@ through the disclosure gate (ADR-0019): each item is sent, disguised as an
 unnamed third party, or withheld. Every decision is recorded for
 \fBdami disclosures\fR.
 .TP
+.B dami domain \fR[\fIname\fR]
+The shared domain facts (K4). Alone, lists domains with counts; with a
+name, that domain's timeline newest first. The network domain is collected
+nightly from this host's own interfaces, LAN, and loopback services.
+.TP
+.B dami domain-reject \fIid8\fR \fIreason\fR
+Reject a wrong domain fact permanently; the next collector pass cannot
+resurrect it.
+.TP
 .B dami disclosures
 What the privacy gate decided, per item, on recent augmented frontier
 turns (ADR-0019): pass, disguise, or withhold, with any correction.

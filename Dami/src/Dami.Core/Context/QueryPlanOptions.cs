@@ -19,5 +19,5 @@ public sealed class QueryPlanOptions
     public int FactsPerDomain { get; set; } = 8;
 
     /// <summary>Domains a plan may name. Anything else the model invents is dropped.</summary>
-    public HashSet<string> KnownDomains { get; } = new(StringComparer.Ordinal) { "health" };
+    public HashSet<string> KnownDomains { get; } = new(StringComparer.Ordinal) { "health", "network", "civic", "estate", "workshop" };
 }

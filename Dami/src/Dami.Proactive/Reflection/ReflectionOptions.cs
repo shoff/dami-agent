@@ -9,6 +9,9 @@ public sealed class ReflectionOptions
     /// <summary>Fewer observations than this and the pass stays quiet.</summary>
     public int MinimumObservations { get; set; } = 3;
 
+    /// <summary>How many facts from the shared domain store join the reflection prompt.</summary>
+    public int DomainFactRows { get; set; } = 30;
+
     /// <summary>The most observations one prompt carries.</summary>
     public int MaximumObservations { get; set; } = 100;
 

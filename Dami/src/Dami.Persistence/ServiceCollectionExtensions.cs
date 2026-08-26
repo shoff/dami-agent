@@ -82,6 +82,14 @@ public static class ServiceCollectionExtensions
     private static void RegisterDomainAndSessionStores(IServiceCollection services)
     {
         services.TryAddSingleton<IHealthEventStore, PostgresHealthEventStore>();
+        services.TryAddSingleton<IDomainFactStore, PostgresDomainFactStore>();
+        foreach (var domain in new[] { "network", "civic", "estate", "workshop" })
+        {
+            var name = domain;
+            services.AddSingleton<Dami.Contracts.Context.IStructuredFactSource>(
+                provider => new DomainFactSource(provider.GetRequiredService<IDomainFactStore>(), name));
+        }
+
 
         // The same instance in both roles: the domain that records health events is the
         // domain that hands them to retrieval.

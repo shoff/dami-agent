@@ -9,6 +9,7 @@ using Dami.Proactive.Audit;
 using Dami.Proactive.CodeAudit;
 using Dami.Proactive.Curation;
 using Dami.Proactive.Health;
+using Dami.Proactive.Network;
 using Dami.Proactive.Embedder;
 using Dami.Proactive.Librarian;
 using Dami.Proactive.Reflection;
@@ -68,6 +69,13 @@ builder.Services.AddSingleton<IProactiveService, PushbackAuditService>();
 builder.Services.Configure<HealthCollectorOptions>(
     builder.Configuration.GetSection(HealthCollectorOptions.SECTION_NAME));
 builder.Services.AddSingleton<IProactiveService, HealthCollectorService>();
+
+// K4: the network domain from this host's own state — interfaces, the LAN, loopback
+// services. LocalOnly by construction; it has no egress client.
+builder.Services.Configure<NetworkCollectorOptions>(
+    builder.Configuration.GetSection(NetworkCollectorOptions.SECTION_NAME));
+builder.Services.AddSingleton<INetworkProbe, SystemNetworkProbe>();
+builder.Services.AddSingleton<IProactiveService, NetworkCollectorService>();
 
 // Rewrites imported transcript voice into usable knowledge. Derived, reversible.
 builder.Services.Configure<CuratorOptions>(

@@ -19,6 +19,7 @@ public sealed class ReflectionServiceTests
     private readonly IObservationCorpus observationCorpus = Substitute.For<IObservationCorpus>();
     private readonly IConclusionLedger conclusionLedger = Substitute.For<IConclusionLedger>();
     private readonly IHealthEventStore healthStore = Substitute.For<IHealthEventStore>();
+    private readonly IDomainFactStore domainStore = Substitute.For<IDomainFactStore>();
     private readonly List<HealthEvent> healthTimeline = [];
     private readonly IObservationEmbeddingStore embeddingStore = Substitute.For<IObservationEmbeddingStore>();
     private readonly IEmbeddingClient embeddingClient = Substitute.For<IEmbeddingClient>();
@@ -268,7 +269,7 @@ public sealed class ReflectionServiceTests
             .Returns(AsHealthAsync(this.healthTimeline));
 
         return new ReflectionService(
-            this.observationCorpus, this.conclusionLedger, this.healthStore, this.embeddingStore,
+            this.observationCorpus, this.conclusionLedger, this.healthStore, this.domainStore, this.embeddingStore,
             this.embeddingClient, this.chatClient, Options.Create(new ReflectionOptions()),
             new FakeTimeProvider(now), NullLogger<ReflectionService>.Instance);
     }

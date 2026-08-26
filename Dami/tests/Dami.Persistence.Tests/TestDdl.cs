@@ -32,6 +32,7 @@ public static class TestDdl
         "030_task_added_activity.sql",
         "031_criterion_added.sql",
         "032_disclosure_decisions.sql",
+        "033_domain_facts.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",
@@ -67,7 +68,7 @@ public static class TestDdl
     {
         ArgumentNullException.ThrowIfNull(schema);
 
-        return DropTaskBoards(schema) + DropToolStaging(schema) + DropObservationOverlays(schema) + $"""
+        return DropDomainFacts(schema) + DropTaskBoards(schema) + DropToolStaging(schema) + DropObservationOverlays(schema) + $"""
             drop table if exists {schema}.skill_changes cascade;  drop table if exists {schema}.conversation_turns cascade;
             drop table if exists {schema}.conversation_sessions cascade;
             drop table if exists {schema}.file_patch_proposals cascade;
@@ -108,6 +109,15 @@ public static class TestDdl
         return $"""
             drop table if exists {schema}.observation_curations cascade;
             drop table if exists {schema}.observation_date_repairs cascade;
+
+            """;
+    }
+
+    private static string DropDomainFacts(string schema)
+    {
+        return $"""
+            drop table if exists {schema}.domain_fact_rejections cascade;
+            drop table if exists {schema}.domain_facts cascade;
 
             """;
     }
@@ -165,6 +175,7 @@ public static class TestDdl
             + TruncateToolPromotions(schema)
             + TruncateToolProposals(schema) + TruncateSkillChanges(schema)
             + TruncateFilePatchProposals(schema) + TruncateObservationOverlays(schema) + $"""
+            delete from {schema}.domain_fact_rejections;  delete from {schema}.domain_facts;
             delete from {schema}.health_event_rejections;  delete from {schema}.gateway_authority;  delete from {schema}.health_examined;
             delete from {schema}.health_events;  delete from {schema}.egress_briefs;
             delete from {schema}.capability_embeddings;
