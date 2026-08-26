@@ -7856,3 +7856,34 @@ the configured flows. Affected suites then passed: Host **66/66**, Authenticatio
 G5a2 remains in progress: dedicated scope policies and claim-derived task-board actors
 have not yet been implemented or claimed complete. Claude's concurrent TODO/importer,
 status, and work-log changes were preserved.
+
+## 2026-08-25 — Claude — O2e and O2c: criteria on existing tasks; the board is the protocol
+
+### O2e — `dami board needs` (`69afdd5`)
+
+Criteria arrived only with a task's draft, so 8 of 210 imported tasks had any and the
+completion gate had nothing to check on the rest. Migration 031 adds
+`task_board_try_add_criterion`: version-guarded like every mutation (adding a gate changes
+what "done" means), refused on Done/Cancelled work, appended at the next position,
+recorded as `CriterionAdded` with the text as detail. Store, `POST
+/task-boards/tasks/{id}/criteria`, `dami board needs <id8> <text>`. The persistence test
+walks the whole gate: add, stale-version refusal, second criterion at position 1, claim,
+completion refused while unsatisfied, both satisfied, completion passes, a further add
+refused on the Done task. Applied 031 to `dami-data`, none pending, `/health` 200.
+
+Live use waits on the Host redeploy — the running Host has no criteria endpoint. Release
+builds of Host and CLI are staged again in `~/.cache/dami-pub`.
+
+### O2c — the protocol (`8944335`)
+
+Steve's word was "work on the board". `TODO.md`'s Protocol, `CLAUDE.md`, `AGENTS.md`, and
+`docs/onboarding.md` §1 now say where work is found, claimed, gated, and completed, with
+the commands. The file's own text at the top says it is the board rendered in prose and
+trails it. O2c had been imported as Blocked (its `[STEVE: …]` annotation); it was reopened
+with Steve's word as the reason, claimed, and completed on the board.
+
+### Gate
+
+`dotnet build Dami.sln`: 0 warnings, 0 errors. `dotnet test Dami.sln`: nineteen suites,
+**993 passed, 0 failed**. `dotnet format --verify-no-changes`: exit 0. Migration 031
+applied live.

@@ -312,6 +312,16 @@ comments; O2f was re-created under its stable id and completed on the board. The
 `/opt/dami/host` is current; the CLI at `/opt/dami/cli` predates `export`, `[-]`, and the
 reader fix — the hook uses it, so until the rsync the hook imports with the older reader.
 
+Verification on 2026-08-25 for O2e/O2c: adding a criterion after creation, its
+version guard, its gating of completion, and its refusal on finished work passed in the
+persistence suite against migration 031; the Host endpoint and CLI verb passed their
+suites. The solution build completed with 0 warnings and 0 errors, all nineteen suites
+passed 993/993, and format verification exited 0. Migration 031 is applied to
+`dami-data` with none pending. The protocol change (O2c) is in `TODO.md`, `CLAUDE.md`,
+`AGENTS.md`, and onboarding; O2c was reopened, claimed, and completed on the board. The
+criteria endpoint is not yet on the deployed Host; Release builds of Host and CLI are
+staged in `~/.cache/dami-pub` for the rsync and restart.
+
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
 | Item | State | Evidence |
