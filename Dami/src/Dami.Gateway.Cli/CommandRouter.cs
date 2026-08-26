@@ -30,6 +30,8 @@ public static class CommandRouter
           dami chat <message>            one full interactive turn - context, routing, traced
           dami chat --frontier <message> the same turn on your ChatGPT subscription
                                          (codex CLI, no API key); no memories are sent
+          dami chat --augmented <message> frontier answers on local context that passed
+                                         the disclosure gate; decisions land in disclosures
           dami sessions                  list recent durable conversation sessions
           dami session start [id]        start a session (client-generated id when omitted)
           dami session resume <id>       resume an interrupted session
@@ -250,6 +252,9 @@ public static class CommandRouter
             "ask" => await ask.AskAsync(rest, cancellationToken).ConfigureAwait(false),
             "context" => await contextCommands.ShowAsync(rest, cancellationToken).ConfigureAwait(false),
             "caption" => await vision.CaptionAsync(args[1], cancellationToken).ConfigureAwait(false),
+            "chat" when rest.StartsWith("--augmented", StringComparison.Ordinal) =>
+                await chat.FrontierTurnAsync(rest["--augmented".Length..].Trim(), augmented: true, cancellationToken)
+                    .ConfigureAwait(false),
             "chat" => rest.StartsWith("--frontier", StringComparison.Ordinal)
                 ? await chat.FrontierTurnAsync(
                     rest["--frontier".Length..].Trim(), cancellationToken).ConfigureAwait(false)

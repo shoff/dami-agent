@@ -19,13 +19,25 @@ public sealed class ChatCommands
     /// </summary>
     public Task<int> FrontierTurnAsync(string request, CancellationToken cancellationToken)
     {
+        return this.FrontierTurnAsync(request, augmented: false, cancellationToken);
+    }
+
+    /// <summary>
+    /// A frontier turn; <paramref name="augmented"/> retrieves locally first and sends
+    /// only what the disclosure gate passes or disguises (ADR-0019). Each gate decision
+    /// is recorded for `dami disclosures`.
+    /// </summary>
+    public Task<int> FrontierTurnAsync(string request, bool augmented, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(request);
         return ApiCall.RunAsync(async () =>
         {
-            Console.WriteLine("[Frontier · codex subscription · no memories sent]");
+            Console.WriteLine(augmented
+                ? "[Frontier · codex subscription · local context through the disclosure gate]"
+                : "[Frontier · codex subscription · no memories sent]");
             Console.WriteLine();
             using var reply = await this.api.PostAsync(
-                "/turns", new { message = request, frontier = true }, cancellationToken)
+                "/turns", new { message = request, frontier = true, augmented }, cancellationToken)
                 .ConfigureAwait(false);
             var root = reply!.RootElement;
             Console.WriteLine(root.GetProperty("answer").GetString());

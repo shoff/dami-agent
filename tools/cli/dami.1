@@ -109,6 +109,12 @@ Local only \- these rows have no egress path.
 .B dami stats
 Corpus and event-stream counts.
 .TP
+.B dami chat --augmented \fImessage\fR
+The frontier answers, but on context retrieved locally first and passed
+through the disclosure gate (ADR-0019): each item is sent, disguised as an
+unnamed third party, or withheld. Every decision is recorded for
+\fBdami disclosures\fR.
+.TP
 .B dami disclosures
 What the privacy gate decided, per item, on recent augmented frontier
 turns (ADR-0019): pass, disguise, or withhold, with any correction.
