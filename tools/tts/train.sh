@@ -16,6 +16,9 @@ set -euo pipefail
 
 VOICE="${1:?voice name, e.g. steve}"
 EPOCHS="${2:-1500}"
+# The card is shared with the inference sidecars (Ollama alone holds ~5.5 GB), so the
+# batch is sized to train alongside them rather than evict the assistant for hours.
+BATCH="${3:-8}"
 ROOT=/home/steve/Data/piper
 DATA="$ROOT/train/$VOICE"
 BASE="$ROOT/train/base/lj-med_1000.ckpt"
@@ -33,8 +36,9 @@ mkdir -p "$WORK/cache" "$WORK/lightning"
 # Warmstart, not resume: copy every matching-shape parameter out of the LJ Speech
 # checkpoint and start training on this voice at epoch 0. Resuming would drag along a
 # 2022 Lightning trainer config the current CLI does not accept.
-echo "== training $VOICE for $EPOCHS epochs, warmstarted from LJ Speech (GPU)"
+echo "== training $VOICE for $EPOCHS epochs, batch $BATCH, warmstarted from LJ Speech (GPU)"
 cd "$WORK"
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 "$VENV/bin/python" -m piper.train fit \
     --data.voice_name "$VOICE" \
     --data.csv_path "$DATA/metadata.csv" \
@@ -42,7 +46,7 @@ cd "$WORK"
     --data.cache_dir "$WORK/cache" \
     --data.config_path "$WORK/$VOICE.onnx.json" \
     --data.espeak_voice en-us \
-    --data.batch_size 16 \
+    --data.batch_size "$BATCH" \
     --model.sample_rate 22050 \
     --trainer.accelerator gpu --trainer.devices 1 --trainer.precision 32 \
     --trainer.max_epochs "$EPOCHS" \
