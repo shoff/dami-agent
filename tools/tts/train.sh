@@ -14,6 +14,11 @@
 # uploaded anywhere; the recordings never leave this disk.
 set -euo pipefail
 
+# The whole body lives in a function because bash reads a script incrementally: editing
+# this file while a multi-hour run is in flight makes the shell resume at a stale byte
+# offset and execute garbage. A function is parsed in full before it runs.
+main() {
+
 VOICE="${1:?voice name, e.g. steve}"
 EPOCHS="${2:-1500}"
 # The card is shared with the inference sidecars (Ollama alone holds ~5.5 GB), so the
@@ -72,3 +77,6 @@ echo "switch:   sudo systemctl edit dami-tts       -> Environment=DAMI_TTS_VOICE
 echo "          sudo systemctl edit dami-host      -> Environment=Piper__Voice=$VOICE"
 echo "          sudo systemctl restart dami-tts dami-host"
 echo "record:   whose voice, and their consent, in docs/decisions/0022-voice-piper-ljspeech.md"
+}
+
+main "$@"
