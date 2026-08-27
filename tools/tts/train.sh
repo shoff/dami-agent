@@ -20,10 +20,12 @@ ROOT=/home/steve/Data/piper
 DATA="$ROOT/train/$VOICE"
 BASE="$ROOT/train/base/lj-med_1000.ckpt"
 WORK="$DATA/work"
+VENV=/home/steve/Data/piper/train/venv
 
 [[ -f "$DATA/metadata.csv" ]] || { echo "train: $DATA/metadata.csv is missing" >&2; exit 1; }
 [[ -d "$DATA/wav" ]] || { echo "train: $DATA/wav/ is missing" >&2; exit 1; }
 [[ -f "$BASE" ]] || { echo "train: base checkpoint $BASE is missing (see README)" >&2; exit 1; }
+[[ -x "$VENV/bin/python" ]] || { echo "train: run tools/tts/setup-training.sh first" >&2; exit 1; }
 clips=$(wc -l < "$DATA/metadata.csv")
 echo "== $clips clip(s) in $DATA/wav (already 22050 Hz mono; prep.py wrote them)"
 mkdir -p "$WORK/cache" "$WORK/lightning"
@@ -33,7 +35,7 @@ mkdir -p "$WORK/cache" "$WORK/lightning"
 # 2022 Lightning trainer config the current CLI does not accept.
 echo "== training $VOICE for $EPOCHS epochs, warmstarted from LJ Speech (GPU)"
 cd "$WORK"
-uv tool run --from "piper-tts[train]" python -m piper.train fit \
+"$VENV/bin/python" -m piper.train fit \
     --data.voice_name "$VOICE" \
     --data.csv_path "$DATA/metadata.csv" \
     --data.audio_dir "$DATA/wav" \
@@ -50,7 +52,7 @@ uv tool run --from "piper-tts[train]" python -m piper.train fit \
 ckpt=$(ls -t "$WORK"/lightning/lightning_logs/*/checkpoints/*.ckpt 2>/dev/null | head -1)
 [[ -n "$ckpt" ]] || { echo "train: no checkpoint was written" >&2; exit 1; }
 echo "== exporting $ckpt"
-uv tool run --from "piper-tts[train]" python -m piper.train.export_onnx \
+"$VENV/bin/python" -m piper.train.export_onnx \
     --checkpoint "$ckpt" --output-file "$ROOT/$VOICE.onnx"
 cp "$WORK/$VOICE.onnx.json" "$ROOT/$VOICE.onnx.json"
 
