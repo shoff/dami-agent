@@ -18,33 +18,20 @@ VOICE="${1:?voice name, e.g. steve}"
 EPOCHS="${2:-1500}"
 ROOT=/home/steve/Data/piper
 DATA="$ROOT/train/$VOICE"
-BASE="$ROOT/train/base/lj-med_1000.sanitized.ckpt"
-RAW="$ROOT/train/base/lj-med_1000.ckpt"
+BASE="$ROOT/train/base/lj-med_1000.ckpt"
 WORK="$DATA/work"
 
 [[ -f "$DATA/metadata.csv" ]] || { echo "train: $DATA/metadata.csv is missing" >&2; exit 1; }
 [[ -d "$DATA/wav" ]] || { echo "train: $DATA/wav/ is missing" >&2; exit 1; }
-# torch 2.6 loads checkpoints with weights_only=True, which refuses the pathlib paths
-# pickled into the published checkpoint. Rewrite those as strings, once, so the load is
-# a plain tensor load rather than arbitrary unpickling.
-if [[ ! -f "$BASE" ]]; then
-    [[ -f "$RAW" ]] || { echo "train: base checkpoint $RAW is missing (see README)" >&2; exit 1; }
-    echo "== sanitising the base checkpoint for torch 2.6"
-    uv run --with torch python - "$RAW" "$BASE" <<'PY'
-import pathlib, sys, torch
-def clean(o):
-    if isinstance(o, pathlib.PurePath): return str(o)
-    if isinstance(o, dict): return {k: clean(v) for k, v in o.items()}
-    if isinstance(o, (list, tuple)): return type(o)(clean(v) for v in o)
-    return o
-torch.save(clean(torch.load(sys.argv[1], map_location="cpu", weights_only=False)), sys.argv[2])
-PY
-fi
+[[ -f "$BASE" ]] || { echo "train: base checkpoint $BASE is missing (see README)" >&2; exit 1; }
 clips=$(wc -l < "$DATA/metadata.csv")
 echo "== $clips clip(s) in $DATA/wav (already 22050 Hz mono; prep.py wrote them)"
 mkdir -p "$WORK/cache" "$WORK/lightning"
 
-echo "== training $VOICE for $EPOCHS epochs from the LJ Speech checkpoint (GPU)"
+# Warmstart, not resume: copy every matching-shape parameter out of the LJ Speech
+# checkpoint and start training on this voice at epoch 0. Resuming would drag along a
+# 2022 Lightning trainer config the current CLI does not accept.
+echo "== training $VOICE for $EPOCHS epochs, warmstarted from LJ Speech (GPU)"
 cd "$WORK"
 uv tool run --from "piper-tts[train]" python -m piper.train fit \
     --data.voice_name "$VOICE" \
@@ -58,7 +45,7 @@ uv tool run --from "piper-tts[train]" python -m piper.train fit \
     --trainer.accelerator gpu --trainer.devices 1 --trainer.precision 32 \
     --trainer.max_epochs "$EPOCHS" \
     --trainer.default_root_dir "$WORK/lightning" \
-    --ckpt_path "$BASE"
+    --model.warmstart_ckpt "$BASE"
 
 ckpt=$(ls -t "$WORK"/lightning/lightning_logs/*/checkpoints/*.ckpt 2>/dev/null | head -1)
 [[ -n "$ckpt" ]] || { echo "train: no checkpoint was written" >&2; exit 1; }
