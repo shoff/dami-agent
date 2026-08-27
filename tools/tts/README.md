@@ -9,7 +9,14 @@ Runtime: `server.py` (loopback `:8091`, unit `../systemd/dami-tts.service`), voi
    mic and distance throughout. Any format ffmpeg reads. Read varied sentences — a
    chapter of a public-domain book works; questions and short replies matter for an
    assistant. More clips beats longer clips.
-2. **Lay it out** under `/home/steve/Data/piper/train/<name>/`:
+   **Long recordings are fine** — drop `<something>.mp3` and `<something>.txt` (the exact
+   words, any length) straight into `/home/steve/Data/piper/train/` and run
+   `uv run --with soundfile --with numpy --with soxr tools/tts/prep.py <voice>`. It cuts
+   clips at the sentence boundaries the local whisper sidecar hears, gives each one the
+   words from your transcript (aligned, because ASR text is close but not exact), and
+   writes the layout below. No ffmpeg needed; nothing leaves the host.
+
+2. **Or lay it out yourself** under `/home/steve/Data/piper/train/<name>/`:
    ```
    metadata.csv        clip001|Good morning. What is on the calendar today?
    wav/clip001.wav     …
