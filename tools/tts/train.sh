@@ -19,6 +19,9 @@ EPOCHS="${2:-1500}"
 # The card is shared with the inference sidecars (Ollama alone holds ~5.5 GB), so the
 # batch is sized to train alongside them rather than evict the assistant for hours.
 BATCH="${3:-8}"
+# A fourth argument continues from an earlier run of your own voice instead of starting
+# again from LJ Speech — the second pass over cleaned audio wants the first pass's weights.
+WARMSTART="${4:-}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT=/home/steve/Data/piper
 DATA="$ROOT/train/$VOICE"
@@ -28,6 +31,7 @@ VENV=/home/steve/Data/piper/train/venv
 
 [[ -f "$DATA/metadata.csv" ]] || { echo "train: $DATA/metadata.csv is missing" >&2; exit 1; }
 [[ -d "$DATA/wav" ]] || { echo "train: $DATA/wav/ is missing" >&2; exit 1; }
+[[ -n "$WARMSTART" ]] && BASE="$WARMSTART"
 [[ -f "$BASE" ]] || { echo "train: base checkpoint $BASE is missing (see README)" >&2; exit 1; }
 [[ -x "$VENV/bin/python" ]] || { echo "train: run tools/tts/setup-training.sh first" >&2; exit 1; }
 clips=$(wc -l < "$DATA/metadata.csv")
