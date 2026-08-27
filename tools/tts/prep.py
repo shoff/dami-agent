@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """Dami — turn long recordings into a Piper training set (L4).
 
-    uv run --with soundfile --with numpy --with soxr tools/tts/prep.py <voice> [names...]
+    uv run --with soundfile --with numpy --with soxr [--with demucs] \\
+        tools/tts/prep.py <voice> [names...] [--clean] [--cuda]
+
+--clean isolates the vocal stem with demucs first; these recordings carry a music bed at
+about -30 dB and VITS learns whatever is under the speech. --cuda puts that on the GPU,
+default CPU so it can run while a training job holds the card.
 
 Reads /home/steve/Data/piper/train/<name>.mp3 (or .wav) and <name>.txt, and writes
 /home/steve/Data/piper/train/<voice>/{wav/*.wav, metadata.csv} — the layout train.sh
@@ -26,6 +31,7 @@ import soundfile as sf
 import soxr
 
 ROOT = Path("/home/steve/Data/piper/train")
+SEPARATED = ROOT / "separated"
 STT = "http://127.0.0.1:8090/v1/audio/transcriptions"
 MODEL = "Systran/faster-whisper-small.en"
 RATE = 22050
@@ -36,6 +42,28 @@ PAD = 0.15  # a breath either side, so words are not clipped
 
 def normalize(word):
     return re.sub(r"[^a-z0-9']", "", word.lower())
+
+
+def isolate(path, device):
+    """The vocal stem, via demucs.
+
+    Narration recorded over a music bed teaches the model the music too: VITS reproduces
+    whatever sits under the speech, which is why a voice trained on these recordings
+    sounds muddy however long it trains.
+    """
+    out = SEPARATED / "htdemucs" / path.stem / "vocals.wav"
+    if out.exists():
+        return out
+
+    import shlex
+
+    import demucs.separate
+    demucs.separate.main(shlex.split(
+        f"-n htdemucs --two-stems=vocals -d {device} "
+        f"-o {shlex.quote(str(SEPARATED))} {shlex.quote(str(path))}"))
+    if not out.exists():
+        raise FileNotFoundError(f"demucs wrote no vocal stem for {path}")
+    return out
 
 
 def transcribe(path):
@@ -89,7 +117,7 @@ def align(segments, transcript):
     return spans
 
 
-def prepare(voice, names):
+def prepare(voice, names, clean=False, device="cpu"):
     out = ROOT / voice
     (out / "wav").mkdir(parents=True, exist_ok=True)
     rows, seconds, dropped = [], 0.0, 0
@@ -100,6 +128,10 @@ def prepare(voice, names):
         if source is None or not text_path.exists():
             print(f"  {name}: no audio or no transcript; skipped", file=sys.stderr)
             continue
+
+        if clean:
+            print(f"  {name}: isolating the vocal stem on {device}")
+            source = isolate(source, device)
 
         audio, rate = sf.read(source, dtype="float32", always_2d=True)
         mono = audio.mean(axis=1)
@@ -133,11 +165,15 @@ def prepare(voice, names):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 2 or sys.argv[1].startswith("--"):
         print(__doc__, file=sys.stderr)
         raise SystemExit(2)
-    voice_name = sys.argv[1]
-    sources = sys.argv[2:] or sorted(
+    arguments = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    voice_name = arguments[0]
+    sources = arguments[1:] or sorted(
         {p.stem for p in ROOT.glob("*.txt")} & {p.stem for ext in ("mp3", "wav", "m4a", "flac")
                                                 for p in ROOT.glob(f"*.{ext}")})
-    raise SystemExit(prepare(voice_name, sources))
+    raise SystemExit(prepare(
+        voice_name, sources, clean="--clean" in flags,
+        device="cuda" if "--cuda" in flags else "cpu"))
