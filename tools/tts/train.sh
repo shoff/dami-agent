@@ -24,24 +24,16 @@ WORK="$DATA/work"
 [[ -f "$DATA/metadata.csv" ]] || { echo "train: $DATA/metadata.csv is missing" >&2; exit 1; }
 [[ -d "$DATA/wav" ]] || { echo "train: $DATA/wav/ is missing" >&2; exit 1; }
 [[ -f "$BASE" ]] || { echo "train: base checkpoint $BASE is missing (see README)" >&2; exit 1; }
-command -v ffmpeg >/dev/null || { echo "train: ffmpeg is required (sudo apt install ffmpeg)" >&2; exit 1; }
-
 clips=$(wc -l < "$DATA/metadata.csv")
-echo "== $clips clip(s); normalising to 22050 Hz mono"
-mkdir -p "$WORK/wav22" "$WORK/cache" "$WORK/lightning"
-while IFS='|' read -r id _; do
-    [[ -n "$id" ]] || continue
-    src="$DATA/wav/$id.wav"
-    [[ -f "$src" ]] || { echo "train: metadata names $id but $src is missing" >&2; exit 1; }
-    ffmpeg -loglevel error -y -i "$src" -ac 1 -ar 22050 -sample_fmt s16 "$WORK/wav22/$id.wav"
-done < "$DATA/metadata.csv"
+echo "== $clips clip(s) in $DATA/wav (already 22050 Hz mono; prep.py wrote them)"
+mkdir -p "$WORK/cache" "$WORK/lightning"
 
 echo "== training $VOICE for $EPOCHS epochs from the LJ Speech checkpoint (GPU)"
 cd "$WORK"
 uv tool run --from "piper-tts[train]" python -m piper.train fit \
     --data.voice_name "$VOICE" \
     --data.csv_path "$DATA/metadata.csv" \
-    --data.audio_dir "$WORK/wav22" \
+    --data.audio_dir "$DATA/wav" \
     --data.cache_dir "$WORK/cache" \
     --data.config_path "$WORK/$VOICE.onnx.json" \
     --data.espeak_voice en-us \
