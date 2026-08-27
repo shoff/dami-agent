@@ -20,7 +20,7 @@ MANAGED=$(uv python find 3.12 --managed-python)
 echo "== venv at $VENV"
 rm -rf "$VENV"
 uv venv "$VENV" --python "$MANAGED"
-uv pip install --python "$VENV/bin/python" "piper-tts[train]" cython setuptools numpy
+uv pip install --python "$VENV/bin/python" "piper-tts[train]" cython setuptools numpy onnx onnxscript
 
 SITE=$("$VENV/bin/python" -c "import piper, os; print(os.path.dirname(piper.__file__))")
 MA="$SITE/train/vits/monotonic_align/monotonic_align"

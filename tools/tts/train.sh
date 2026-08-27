@@ -19,6 +19,7 @@ EPOCHS="${2:-1500}"
 # The card is shared with the inference sidecars (Ollama alone holds ~5.5 GB), so the
 # batch is sized to train alongside them rather than evict the assistant for hours.
 BATCH="${3:-8}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT=/home/steve/Data/piper
 DATA="$ROOT/train/$VOICE"
 BASE="$ROOT/train/base/lj-med_1000.ckpt"
@@ -39,7 +40,8 @@ mkdir -p "$WORK/cache" "$WORK/lightning"
 echo "== training $VOICE for $EPOCHS epochs, batch $BATCH, warmstarted from LJ Speech (GPU)"
 cd "$WORK"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-"$VENV/bin/python" -m piper.train fit \
+"$VENV/bin/python" "$HERE/train_entry.py" fit \
+    --model.mos_metric none \
     --data.voice_name "$VOICE" \
     --data.csv_path "$DATA/metadata.csv" \
     --data.audio_dir "$DATA/wav" \
@@ -56,7 +58,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 ckpt=$(ls -t "$WORK"/lightning/lightning_logs/*/checkpoints/*.ckpt 2>/dev/null | head -1)
 [[ -n "$ckpt" ]] || { echo "train: no checkpoint was written" >&2; exit 1; }
 echo "== exporting $ckpt"
-"$VENV/bin/python" -m piper.train.export_onnx \
+"$VENV/bin/python" "$HERE/export_entry.py" \
     --checkpoint "$ckpt" --output-file "$ROOT/$VOICE.onnx"
 cp "$WORK/$VOICE.onnx.json" "$ROOT/$VOICE.onnx.json"
 
