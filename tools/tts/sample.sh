@@ -12,7 +12,12 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VOICE="${1:?voice name}"
+if [[ $# -lt 1 ]]; then
+    echo "usage: tools/tts/sample.sh <voice> [checkpoint.ckpt] [\"line to say\"]" >&2
+    echo "  e.g. tools/tts/sample.sh steve" >&2
+    exit 2
+fi
+VOICE="$1"
 ROOT=/home/steve/Data/piper
 VENV="$ROOT/train/venv"
 WORK="$ROOT/train/$VOICE/work"
@@ -24,8 +29,14 @@ scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
 echo "== $(basename "$CKPT")"
-"$VENV/bin/python" "$HERE/export_entry.py" --checkpoint "$CKPT" \
-    --output-file "$scratch/$VOICE.onnx" 2>&1 | grep -iE "^INFO:__main__" || true
+echo "== exporting to ONNX (takes about a minute; the trainer keeps running)..."
+if ! "$VENV/bin/python" "$HERE/export_entry.py" --checkpoint "$CKPT" \
+        --output-file "$scratch/$VOICE.onnx" > "$scratch/export.log" 2>&1; then
+    echo "sample: the export failed; last lines:" >&2
+    grep -viE "^\s+File |warning|deprecat" "$scratch/export.log" | tail -5 >&2
+    exit 1
+fi
+echo "== synthesizing..."
 cp "$WORK/$VOICE.onnx.json" "$scratch/$VOICE.onnx.json"
 
 out="$ROOT/sample-$VOICE-$(basename "$CKPT" .ckpt).wav"
