@@ -18,9 +18,27 @@ DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Runs as the schema owner. The schema itself is provisioned administratively;
 # dami_ddl owns objects within dami but intentionally cannot create schemas.
-psql_ddl() { psql --dbname="$DATABASE" --no-psqlrc --quiet --set=ON_ERROR_STOP=1 "$@"; }
+#
+# The role is named explicitly. Without it psql defaults to the login user, and there is
+# no 'steve' role in this cluster: every connection failed, the ledger lookup below
+# swallowed the error, and the script reported "applied: (none)" with all 34 migrations
+# pending against a database that already had every one of them. Running it in that state
+# would have replayed 001 over live data. Never let the ledger read fail quietly.
+DDL_ROLE="${DAMI_DDL_ROLE:-dami_ddl}"
+PASSFILE="${PGPASSFILE:-$HOME/.pgpass}"
+psql_ddl() {
+    psql "host=127.0.0.1 port=5432 dbname=$DATABASE user=$DDL_ROLE passfile=$PASSFILE" \
+        --no-psqlrc --quiet --set=ON_ERROR_STOP=1 "$@"
+}
 
-applied="$(psql_ddl -tAc "select filename from dami.schema_migrations" 2>/dev/null || true)"
+if ! psql_ddl -tAc 'select 1' > /dev/null 2>&1; then
+    echo "apply: cannot connect to '$DATABASE' as '$DDL_ROLE'." >&2
+    echo "       Check $PASSFILE, or set DAMI_DDL_ROLE. Refusing to guess what is applied." >&2
+    exit 1
+fi
+
+# No '|| true' here. A ledger this script cannot read is a ledger it must not act on.
+applied="$(psql_ddl -tAc "select filename from dami.schema_migrations")"
 
 pending=()
 for file in "$DIRECTORY"/[0-9]*.sql; do

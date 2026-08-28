@@ -25,6 +25,7 @@ internal static class TaskBoardEndpoints
         app.MapPost("/task-boards/tasks/{taskId:guid}/criteria", AddCriterionAsync);
         app.MapPost("/task-boards/tasks/{taskId:guid}/complete", CompleteAsync);
         app.MapPut("/task-boards/tasks/{taskId:guid}/status", SetStatusAsync);
+        app.MapPost("/task-boards/{boardId:guid}/tasks/{taskId:guid}/work", WorkAsync);
     }
 
     private static async Task<IResult> ListAsync(
@@ -83,7 +84,9 @@ internal static class TaskBoardEndpoints
     private static async Task<IResult> PlanAsync(
         TaskBoardPlanningRequest request,
         FeaturePlanningService planningService,
+        TaskBoardActorResolver actors,
         TimeProvider clock,
+        HttpContext context,
         CancellationToken cancellationToken)
     {
         var invalid = ValidatePlanning(request);
@@ -92,7 +95,12 @@ internal static class TaskBoardEndpoints
             return invalid;
         }
 
-        var actor = new TaskActor(request.ActorId, request.ActorKind);
+        var actor = ResolveActor(actors, context, request.ActorId, request.ActorKind);
+        if (actor is null)
+        {
+            return InvalidActorResult(actors);
+        }
+
         var planningRequest = new FeaturePlanningRequest(
             request.RequestId, request.FeatureRequest, actor, clock.GetUtcNow(),
             request.Planner, request.Privacy, request.Origin);
@@ -125,7 +133,9 @@ internal static class TaskBoardEndpoints
         Guid boardId,
         TaskBoardAddTaskRequest request,
         ITaskBoardStore store,
+        TaskBoardActorResolver actors,
         TimeProvider clock,
+        HttpContext context,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.ActorId)
@@ -142,7 +152,12 @@ internal static class TaskBoardEndpoints
         var draft = new BoardTaskDraft(
             taskId, request.Title.Trim(), request.Description ?? string.Empty, request.Priority,
             request.Position, TaskOrdering.Ordered, request.PrerequisiteTaskIds ?? [], criteria, []);
-        var actor = new TaskActor(request.ActorId, request.ActorKind);
+        var actor = ResolveActor(actors, context, request.ActorId, request.ActorKind);
+        if (actor is null)
+        {
+            return InvalidActorResult(actors);
+        }
+
         var added = await store.TryAddTaskAsync(
             boardId, request.ParentTaskId, draft, actor, clock.GetUtcNow(), request.Detail, cancellationToken)
             .ConfigureAwait(false);
@@ -155,17 +170,22 @@ internal static class TaskBoardEndpoints
         Guid taskId,
         TaskBoardMutationRequest request,
         ITaskBoardStore store,
+        TaskBoardActorResolver actors,
         TimeProvider clock,
+        HttpContext context,
         CancellationToken cancellationToken)
     {
-        var invalid = ValidateMutation(
-            request.ExpectedVersion, request.ActorId, request.ActorKind);
-        if (invalid is not null)
+        if (request.ExpectedVersion <= 0)
         {
-            return invalid;
+            return Results.BadRequest(new { error = "expectedVersion must be positive" });
         }
 
-        var actor = new TaskActor(request.ActorId, request.ActorKind);
+        var actor = actors.Resolve(context.User, request.ActorId, request.ActorKind);
+        if (actor is null)
+        {
+            return InvalidActorResult(actors);
+        }
+
         var updated = await store.TryClaimAsync(
             taskId, request.ExpectedVersion, actor, clock.GetUtcNow(), request.Detail,
             cancellationToken).ConfigureAwait(false);
@@ -176,7 +196,9 @@ internal static class TaskBoardEndpoints
         Guid taskId,
         TaskBoardAddCriterionRequest request,
         ITaskBoardStore store,
+        TaskBoardActorResolver actors,
         TimeProvider clock,
+        HttpContext context,
         CancellationToken cancellationToken)
     {
         var invalid = ValidateMutation(request.ExpectedVersion, request.ActorId, request.ActorKind);
@@ -190,7 +212,12 @@ internal static class TaskBoardEndpoints
             return Results.BadRequest(new { error = "a criterion needs a description" });
         }
 
-        var actor = new TaskActor(request.ActorId, request.ActorKind);
+        var actor = ResolveActor(actors, context, request.ActorId, request.ActorKind);
+        if (actor is null)
+        {
+            return InvalidActorResult(actors);
+        }
+
         var added = await store.TryAddCriterionAsync(
             taskId, request.ExpectedVersion, request.Description, actor, clock.GetUtcNow(), cancellationToken)
             .ConfigureAwait(false);
@@ -201,7 +228,9 @@ internal static class TaskBoardEndpoints
         Guid criterionId,
         TaskBoardCriterionRequest request,
         ITaskBoardStore store,
+        TaskBoardActorResolver actors,
         TimeProvider clock,
+        HttpContext context,
         CancellationToken cancellationToken)
     {
         var invalid = ValidateMutation(
@@ -211,7 +240,12 @@ internal static class TaskBoardEndpoints
             return invalid;
         }
 
-        var actor = new TaskActor(request.ActorId, request.ActorKind);
+        var actor = ResolveActor(actors, context, request.ActorId, request.ActorKind);
+        if (actor is null)
+        {
+            return InvalidActorResult(actors);
+        }
+
         var updated = await store.TrySetCriterionAsync(
             criterionId, request.ExpectedVersion, request.IsSatisfied,
             actor, clock.GetUtcNow(), cancellationToken).ConfigureAwait(false);
@@ -222,7 +256,9 @@ internal static class TaskBoardEndpoints
         Guid taskId,
         TaskBoardMutationRequest request,
         ITaskBoardStore store,
+        TaskBoardActorResolver actors,
         TimeProvider clock,
+        HttpContext context,
         CancellationToken cancellationToken)
     {
         var invalid = ValidateMutation(
@@ -232,7 +268,12 @@ internal static class TaskBoardEndpoints
             return invalid;
         }
 
-        var actor = new TaskActor(request.ActorId, request.ActorKind);
+        var actor = ResolveActor(actors, context, request.ActorId, request.ActorKind);
+        if (actor is null)
+        {
+            return InvalidActorResult(actors);
+        }
+
         var updated = await store.TryCompleteAsync(
             taskId, request.ExpectedVersion, actor, clock.GetUtcNow(), request.Detail,
             cancellationToken).ConfigureAwait(false);
@@ -243,7 +284,9 @@ internal static class TaskBoardEndpoints
         Guid taskId,
         TaskBoardStatusRequest request,
         ITaskBoardStore store,
+        TaskBoardActorResolver actors,
         TimeProvider clock,
+        HttpContext context,
         CancellationToken cancellationToken)
     {
         var invalid = ValidateMutation(
@@ -261,7 +304,12 @@ internal static class TaskBoardEndpoints
                 new { error = "status must be Open, Blocked, or Cancelled and detail is required" });
         }
 
-        var actor = new TaskActor(request.ActorId, request.ActorKind);
+        var actor = ResolveActor(actors, context, request.ActorId, request.ActorKind);
+        if (actor is null)
+        {
+            return InvalidActorResult(actors);
+        }
+
         var updated = await store.TrySetStatusAsync(
             taskId, request.ExpectedVersion, request.Status, actor,
             request.Detail, clock.GetUtcNow(), cancellationToken).ConfigureAwait(false);
@@ -270,7 +318,7 @@ internal static class TaskBoardEndpoints
 
     private static IResult? ValidateMutation(
         long expectedVersion,
-        string actorId,
+        string? actorId,
         TaskActorKind actorKind)
     {
         if (expectedVersion <= 0)
@@ -286,6 +334,48 @@ internal static class TaskBoardEndpoints
         return null;
     }
 
+    private static TaskActor? ResolveActor(
+        TaskBoardActorResolver actors,
+        HttpContext context,
+        string? actorId,
+        TaskActorKind actorKind) => actors.Resolve(
+            context.User, actorId, actorKind);
+
+    /// <summary>
+    /// "Work this task now": one advisory turn against one task. It takes no expected
+    /// version because it mutates nothing — the run records itself on the board and
+    /// leaves status, claim, and completion exactly where they were. Deliberately
+    /// synchronous: the caller gets the trace id and the answer, and the same run is
+    /// already visible in the execution event stream while it happens.
+    /// </summary>
+    private static async Task<IResult> WorkAsync(
+        Guid boardId,
+        Guid taskId,
+        TaskBoardWorkRequest request,
+        TaskWorkService work,
+        TaskBoardActorResolver actors,
+        HttpContext context,
+        CancellationToken cancellationToken)
+    {
+        var actor = actors.Resolve(context.User, request.ActorId, request.ActorKind);
+        if (actor is null)
+        {
+            return InvalidActorResult(actors);
+        }
+
+        var outcome = await work
+            .RunAsync(boardId, taskId, actor, request.Planner, cancellationToken)
+            .ConfigureAwait(false);
+        return outcome.Ran
+            ? Results.Ok(new { ran = true, traceId = outcome.TraceId, answer = outcome.Answer })
+            : Results.BadRequest(new { ran = false, reason = outcome.Reason });
+    }
+
+    private static IResult InvalidActorResult(TaskBoardActorResolver actors) =>
+        actors.UsesAuthenticatedClaims
+            ? Results.Forbid()
+            : Results.BadRequest(new { error = "a valid actor is required" });
+
     private static IResult MutationResult(bool updated)
     {
         return updated
@@ -294,9 +384,14 @@ internal static class TaskBoardEndpoints
     }
 }
 
+internal sealed record TaskBoardWorkRequest(
+    string? ActorId,
+    TaskActorKind ActorKind,
+    FeaturePlannerKind Planner = FeaturePlannerKind.Local);
+
 internal sealed record TaskBoardMutationRequest(
     long ExpectedVersion,
-    string ActorId,
+    string? ActorId,
     TaskActorKind ActorKind,
     string? Detail = null);
 

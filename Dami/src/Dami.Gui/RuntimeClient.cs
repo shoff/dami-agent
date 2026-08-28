@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Dami.Authentication;
 
 namespace Dami.Gui;
 
@@ -24,7 +25,7 @@ public sealed class RuntimeClient
     /// <summary>Creates the shared loopback HTTP policy for thin desktop clients.</summary>
     internal static HttpClient CreateHttpClient()
     {
-        return new HttpClient(new SocketsHttpHandler
+        var client = new HttpClient(new SocketsHttpHandler
         {
             UseProxy = false,
             ConnectTimeout = TimeSpan.FromSeconds(5),
@@ -33,6 +34,8 @@ public sealed class RuntimeClient
             BaseAddress = new Uri(BASE_URL),
             Timeout = TimeSpan.FromMinutes(10),
         };
+        DamiBearerToken.Apply(client, Environment.GetEnvironmentVariable("DAMI_ACCESS_TOKEN"));
+        return client;
     }
 
     /// <summary>Reads a JSON array from the runtime, or an empty document on failure.</summary>

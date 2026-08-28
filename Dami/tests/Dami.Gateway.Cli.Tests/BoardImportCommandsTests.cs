@@ -145,6 +145,17 @@ public sealed class BoardImportCommandsTests
             return this.RefuseAsync<bool>();
         }
 
+        public Task<bool> TryLogWorkAsync(
+            Guid taskId,
+            TaskBoardActivityKind kind,
+            TaskActor actor,
+            string detail,
+            DateTimeOffset at,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(false);
+        }
+
         public Task<bool> TrySetCriterionAsync(
             Guid criterionId, long expectedTaskVersion, bool isSatisfied, TaskActor actor,
             DateTimeOffset changedAt, CancellationToken cancellationToken)

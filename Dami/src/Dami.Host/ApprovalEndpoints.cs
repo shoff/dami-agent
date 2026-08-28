@@ -1,3 +1,4 @@
+using Dami.Authentication;
 using Dami.Contracts.Approvals;
 using Dami.Core.Approvals;
 
@@ -34,7 +35,7 @@ public static class ApprovalEndpoints
 
             return await ResolveAndExecuteAsync(
                 pending, request, approvals, dispatcher, clock, token).ConfigureAwait(false);
-        });
+        }).RequireAuthorization(DamiAuthorizationPolicies.APPROVALS_RESOLVE);
     }
 
     private static async Task<IResult> ResolveAndExecuteAsync(

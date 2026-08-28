@@ -1,7 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using OpenIddict.Abstractions;
+using OpenIddict.Validation.AspNetCore;
+using static OpenIddict.Server.OpenIddictServerEvents;
 using System.Security.Cryptography.X509Certificates;
 
 namespace Dami.Authentication;
@@ -25,6 +30,7 @@ public static class ServiceCollectionExtensions
             configuration.GetSection(DamiAuthenticationOptions.SECTION_NAME));
         AddPersistence(services, connectionString);
         AddAuthority(services, options);
+        services.AddScoped<DamiClientProvisioner>();
         return services;
     }
 
@@ -55,8 +61,41 @@ public static class ServiceCollectionExtensions
                 options.UseLocalServer();
                 options.UseAspNetCore();
             });
-        services.AddAuthentication();
-        services.AddAuthorization();
+        services.AddAuthentication(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme);
+        services.AddAuthorization(options =>
+        {
+            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .RequireAssertion(HasRuntimeScope)
+                .Build();
+            options.AddPolicy(
+                DamiAuthorizationPolicies.RUNTIME_READ,
+                policy => policy.RequireAuthenticatedUser().RequireAssertion(
+                    context => context.User.HasScope(DamiAuthorizationScopes.RUNTIME_READ)));
+            options.AddPolicy(
+                DamiAuthorizationPolicies.RUNTIME_WRITE,
+                policy => policy.RequireAuthenticatedUser().RequireAssertion(
+                    context => context.User.HasScope(DamiAuthorizationScopes.RUNTIME_WRITE)));
+            options.AddPolicy(
+                DamiAuthorizationPolicies.APPROVALS_RESOLVE,
+                policy => policy.RequireAuthenticatedUser().RequireAssertion(
+                    context => context.User.HasScope(DamiAuthorizationScopes.RUNTIME_WRITE)
+                        && context.User.HasScope(DamiAuthorizationScopes.APPROVALS_RESOLVE)));
+        });
+    }
+
+    private static bool HasRuntimeScope(AuthorizationHandlerContext context)
+    {
+        if (context.Resource is not HttpContext request)
+        {
+            return false;
+        }
+
+        var scope = HttpMethods.IsGet(request.Request.Method)
+            || HttpMethods.IsHead(request.Request.Method)
+                ? DamiAuthorizationScopes.RUNTIME_READ
+                : DamiAuthorizationScopes.RUNTIME_WRITE;
+        return context.User.HasScope(scope);
     }
 
     private static void ConfigureServer(
@@ -68,10 +107,36 @@ public static class ServiceCollectionExtensions
         server.SetTokenEndpointUris("/connect/token");
         server.SetDeviceAuthorizationEndpointUris("/connect/device");
         server.SetEndUserVerificationEndpointUris("/connect/verify");
+        server.AddEventHandler<HandleTokenRequestContext>(builder =>
+            builder.UseScopedHandler<ClientCredentialsTokenHandler>());
+        ConfigureFlows(server);
+        server.RequireProofKeyForCodeExchange();
+        ConfigureKeys(server, configuration);
+        OpenIddictServerAspNetCoreBuilder aspNetCore = server.UseAspNetCore();
+        aspNetCore.EnableAuthorizationEndpointPassthrough();
+        aspNetCore.EnableEndUserVerificationEndpointPassthrough();
+        if (configuration.AllowInsecureLoopback)
+        {
+            aspNetCore.DisableTransportSecurityRequirement();
+        }
+    }
+
+    private static void ConfigureFlows(OpenIddictServerBuilder server)
+    {
+        server.RegisterScopes(
+            DamiAuthorizationScopes.RUNTIME_READ,
+            DamiAuthorizationScopes.RUNTIME_WRITE,
+            DamiAuthorizationScopes.APPROVALS_RESOLVE);
         server.AllowAuthorizationCodeFlow();
+        server.AllowClientCredentialsFlow();
         server.AllowDeviceAuthorizationFlow();
         server.AllowRefreshTokenFlow();
-        server.RequireProofKeyForCodeExchange();
+    }
+
+    private static void ConfigureKeys(
+        OpenIddictServerBuilder server,
+        DamiAuthenticationOptions configuration)
+    {
         if (configuration.UseEphemeralKeys)
         {
             server.AddEphemeralEncryptionKey();
@@ -85,13 +150,6 @@ public static class ServiceCollectionExtensions
             server.AddEncryptionCertificate(LoadCertificate(
                 configuration.EncryptionCertificatePath!,
                 configuration.EncryptionCertificatePassword!));
-        }
-
-        OpenIddictServerAspNetCoreBuilder aspNetCore =
-            server.UseAspNetCore();
-        if (configuration.AllowInsecureLoopback)
-        {
-            aspNetCore.DisableTransportSecurityRequirement();
         }
     }
 

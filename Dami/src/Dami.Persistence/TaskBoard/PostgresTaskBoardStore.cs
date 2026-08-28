@@ -281,6 +281,34 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
     }
 
     /// <inheritdoc />
+    public async Task<bool> TryLogWorkAsync(
+        Guid taskId,
+        TaskBoardActivityKind kind,
+        TaskActor actor,
+        string detail,
+        DateTimeOffset at,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(detail);
+        if (kind is not (TaskBoardActivityKind.TaskWorkStarted or TaskBoardActivityKind.TaskWorkFinished))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(kind), kind, "Only work events are logged through this path.");
+        }
+
+        await using var command = this.dataSource.CreateCommand(this.WorkSql);
+        command.Parameters.AddWithValue("event", Guid.NewGuid());
+        command.Parameters.AddWithValue("task", taskId);
+        command.Parameters.AddWithValue("workkind", kind.ToString());
+        command.Parameters.AddWithValue("actor", actor.ActorId);
+        command.Parameters.AddWithValue("kind", actor.Kind.ToString());
+        command.Parameters.AddWithValue("detail", detail);
+        command.Parameters.AddWithValue("at", at);
+        return await ExecuteBooleanAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<bool> TryCompleteAsync(
         Guid taskId,
         long expectedVersion,
@@ -369,6 +397,9 @@ public sealed class PostgresTaskBoardStore : ITaskBoardStore
 
     private string CriterionSql => $"select {this.schema}.task_board_try_set_criterion("
         + "@event, @criterion, @version, @satisfied, @actor, @kind, @changed);";
+
+    private string WorkSql => $"select {this.schema}.task_board_log_work("
+        + "@event, @task, @workkind, @actor, @kind, @detail, @at);";
 
     private string CompletionSql => $"select {this.schema}.task_board_try_complete("
         + "@event, @task, @version, @actor, @kind, @completed, @detail);";

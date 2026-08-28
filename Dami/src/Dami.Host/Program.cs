@@ -41,6 +41,7 @@ if (authenticationEnabled)
     builder.Services.AddDamiAuthentication(
         builder.Configuration, builder.Environment, connectionString);
 }
+builder.Services.AddSingleton<TaskBoardActorResolver>();
 
 builder.Services.AddSingleton(TimeProvider.System);
 
@@ -90,10 +91,10 @@ builder.Services.AddSingleton<Dami.Contracts.Workers.IWorkerRunner, Dami.Core.Wo
 // L3: local speech to text. Loopback only — spoken input is as personal as the corpus.
 builder.Services.Configure<WhisperOptions>(
     builder.Configuration.GetSection(WhisperOptions.SECTION_NAME));
-builder.Services.AddHttpClient<ITranscriptionClient, WhisperTranscriptionClient>(client =>
 // L4: text to speech through the local Piper sidecar; audio never leaves the host.
 builder.Services.Configure<PiperOptions>(builder.Configuration.GetSection(PiperOptions.SECTION_NAME));
 builder.Services.AddHttpClient<ISpeechClient, PiperSpeechClient>(client => client.Timeout = TimeSpan.FromMinutes(2));
+builder.Services.AddHttpClient<ITranscriptionClient, WhisperTranscriptionClient>(client =>
     client.Timeout = TimeSpan.FromMinutes(5));
 builder.Services.AddDamiNativeTools(builder.Configuration, TimeProvider.System);
 builder.Services.AddDamiMcpTools(builder.Configuration);
@@ -144,6 +145,11 @@ builder.Services.AddSingleton<IFeaturePlanner>(services =>
     services.GetRequiredService<DamiFeaturePlanner>());
 builder.Services.AddSingleton<FeaturePlanningService>();
 
+// "Work this task now" (V1, advisory): runs one turn against one task and records it on
+// the board. It takes ITurnRunner, so it inherits exactly the tool budget the interactive
+// turn has — no wider surface was opened for it.
+builder.Services.AddSingleton<TaskWorkService>();
+
 var app = builder.Build();
 
 // A boundary refusal is an answer, not a server fault. Without this it escapes as an
@@ -182,6 +188,7 @@ if (authenticationEnabled)
 {
     app.UseAuthentication();
     app.UseAuthorization();
+    AuthenticationEndpoints.Map(app);
 }
 
 app.MapDamiRuntime();

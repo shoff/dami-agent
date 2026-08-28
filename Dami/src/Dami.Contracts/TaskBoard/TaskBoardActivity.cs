@@ -26,6 +26,15 @@ public enum TaskBoardActivityKind
 
     /// <summary>A task was blocked, reopened, or cancelled.</summary>
     TaskStatusChanged,
+
+    /// <summary>The runtime was asked to work a task, and a turn began.</summary>
+    TaskWorkStarted,
+
+    /// <summary>
+    /// That turn finished. The detail carries its trace id — advisory only: a run
+    /// proposes, and never moves the task to Done.
+    /// </summary>
+    TaskWorkFinished,
 }
 
 /// <summary>One append-only human or agent change to a board.</summary>

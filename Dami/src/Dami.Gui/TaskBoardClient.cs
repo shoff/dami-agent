@@ -17,6 +17,9 @@ public enum TaskBoardMutationOutcome
     Conflict,
 }
 
+/// <summary>What one advisory "work this task now" run reported back.</summary>
+public sealed record TaskWorkReply(bool Ran, Guid TraceId, string Answer, string? Reason);
+
 /// <summary>Typed thin-client access to the runtime's task-board API.</summary>
 public sealed class TaskBoardClient
 {
@@ -124,6 +127,66 @@ public sealed class TaskBoardClient
         return result?.BoardId
             ?? throw new InvalidOperationException("The planning response had no board id.");
     }
+
+    /// <summary>
+    /// Asks the runtime to work one task now. Advisory: it returns the trace the run left
+    /// behind and what the run said, and changes nothing on the board but its own record.
+    /// </summary>
+    public async Task<TaskWorkReply> WorkAsync(
+        Guid boardId,
+        Guid taskId,
+        TaskActor actor,
+        FeaturePlannerKind planner,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/task-boards/{boardId:D}/tasks/{taskId:D}/work")
+        {
+            Content = JsonContent.Create(
+                new WorkRequest(actor.ActorId, actor.Kind, planner), null, jsonOptions),
+        };
+        using var response = await this.httpClient.SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+
+        return await ReadWorkReplyAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <remarks>
+    /// A runtime that predates this route answers 404 with an empty body, and parsing
+    /// that as JSON produced "the input does not contain any JSON tokens" — a message
+    /// that says nothing about what is actually wrong. Name the real cause instead.
+    /// </remarks>
+    private static async Task<TaskWorkReply> ReadWorkReplyAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return new TaskWorkReply(
+                false, Guid.Empty, string.Empty,
+                "this runtime has no work endpoint — dami-host is older than this client "
+                + "and needs redeploying");
+        }
+
+        try
+        {
+            var body = await response.Content
+                .ReadFromJsonAsync<TaskWorkReply>(jsonOptions, cancellationToken)
+                .ConfigureAwait(false);
+            return body ?? new TaskWorkReply(
+                false, Guid.Empty, string.Empty, "no reply from the runtime");
+        }
+        catch (JsonException)
+        {
+            return new TaskWorkReply(
+                false, Guid.Empty, string.Empty,
+                $"the runtime answered {(int)response.StatusCode} with no usable body");
+        }
+    }
+
+    private sealed record WorkRequest(
+        string ActorId, TaskActorKind ActorKind, FeaturePlannerKind Planner);
 
     private async Task<TaskBoardMutationOutcome> MutateAsync(
         HttpMethod method,

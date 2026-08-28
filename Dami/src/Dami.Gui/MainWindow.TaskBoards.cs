@@ -20,6 +20,7 @@ public sealed partial class MainWindow
     private ComboBox plannerPicker = null!;
     private ComboBox privacyPicker = null!;
     private ComboBox actorKindPicker = null!;
+    private IReadOnlyList<TaskBoardTaskNode> roots = [];
     private Button planButton = null!;
     private Button boardRefresh = null!;
 
@@ -37,8 +38,11 @@ public sealed partial class MainWindow
         this.boardRefresh = Require<Button>(this, "BoardRefresh");
         this.boardPicker.SelectionChanged += this.OnBoardSelected;
         this.taskTree.AddHandler(Button.ClickEvent, this.OnTaskAction);
+        this.taskTree.SelectionChanged += this.OnTaskSelected;
+        Require<Border>(this, "TaskActions").AddHandler(Button.ClickEvent, this.OnTaskAction);
         this.planButton.Click += this.OnPlanFeature;
         this.boardRefresh.Click += this.OnBoardRefresh;
+        Require<StackPanel>(this, "BoardViews").AddHandler(Button.ClickEvent, this.OnBoardView);
         _ = this.FollowBoardsAsync();
     }
 
@@ -109,7 +113,8 @@ public sealed partial class MainWindow
 
             this.state.TaskBoards.Title = board.Title;
             this.state.TaskBoards.Detail = $"{board.Status} · {board.FeatureRequest} · {board.Plan}";
-            Replace(this.state.TaskBoards.Tasks, board.Tasks.Select(TaskBoardTaskNode.From));
+            this.roots = board.Tasks.Select(TaskBoardTaskNode.From).ToList();
+            this.ApplyBoardView();
             Replace(this.state.TaskBoards.Activity, activity.Reverse());
             this.state.TaskBoards.Message = $"live · updated {board.UpdatedAt.ToLocalTime():T}";
         }
@@ -117,6 +122,35 @@ public sealed partial class MainWindow
         {
             this.state.TaskBoards.Message = $"board refresh failed: {exception.Message}";
         }
+    }
+
+    /// <summary>
+    /// Re-lists the tree for the selected view and refreshes the counts. Held separately
+    /// from the fetch so pressing a filter costs nothing but a reconcile.
+    /// </summary>
+    private void ApplyBoardView()
+    {
+        var panel = this.state.TaskBoards;
+        panel.NeedsYouCount = BoardFilter.Count(this.roots, BoardView.NeedsYou);
+        panel.OpenCount = BoardFilter.Count(this.roots, BoardView.Open);
+        panel.BlockedCount = BoardFilter.Count(this.roots, BoardView.Blocked);
+        panel.AllCount = BoardFilter.Count(this.roots, BoardView.All);
+        Replace(panel.Tasks, BoardFilter.Apply(this.roots, panel.View));
+    }
+
+    private void OnBoardView(object? sender, RoutedEventArgs e)
+    {
+        if (e.Source is Button button && button.Tag is string name
+            && Enum.TryParse<BoardView>(name, out var view))
+        {
+            this.state.TaskBoards.View = view;
+            this.ApplyBoardView();
+        }
+    }
+
+    private void OnTaskSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        this.state.TaskBoards.Selected = this.taskTree.SelectedItem as TaskBoardTaskNode;
     }
 
     private void OnTaskAction(object? sender, RoutedEventArgs e)
@@ -127,6 +161,7 @@ public sealed partial class MainWindow
         }
 
         e.Handled = true;
+        Diagnostics.Write($"task action: tag={action} dataContext={button.DataContext?.GetType().Name ?? "null"}");
         try
         {
             _ = button.DataContext switch
@@ -155,8 +190,68 @@ public sealed partial class MainWindow
             "Block" => this.ChangeStatusAsync(task, TaskBoardStatus.Blocked, actor),
             "Reopen" => this.ChangeStatusAsync(task, TaskBoardStatus.Open, actor),
             "Cancel" => this.ChangeStatusAsync(task, TaskBoardStatus.Cancelled, actor),
+            "Work" => this.WorkOnTaskAsync(task, actor),
             _ => Task.CompletedTask,
         };
+    }
+
+    /// <summary>
+    /// Asks the runtime to work this task now. The answer lands in the conversation
+    /// because that is where long prose is already readable and scrollable, and the run
+    /// itself streams into the execution graph on its own — the board only records that
+    /// it happened.
+    /// </summary>
+    private async Task WorkOnTaskAsync(TaskBoardTaskNode task, TaskActor actor)
+    {
+        if (this.boardPicker.SelectedItem is not TaskBoardSummary board)
+        {
+            this.state.TaskBoards.Message = "select a board first";
+            return;
+        }
+
+        var reply = this.OpenWorkExchange(task);
+
+        try
+        {
+            // The same "Plan with" picker the planner uses. Steve's first real run went
+            // to the local 8B by default and was useless; the choice has to be his.
+            var planner = ReadEnum<FeaturePlannerKind>(this.plannerPicker);
+            var outcome = await this.taskBoardClient
+                .WorkAsync(board.BoardId, task.TaskId, actor, planner, this.lifetime.Token)
+                .ConfigureAwait(true);
+            Report(reply, outcome);
+            this.state.TaskBoards.Message = outcome.Ran
+                ? "advisory run finished" : "advisory run refused";
+            await this.RefreshBoardsAsync().ConfigureAwait(true);
+        }
+        catch (Exception exception)
+        {
+            reply.Body = $"the run failed: {exception.Message}";
+            reply.Meta = "advisory run failed";
+            this.state.TaskBoards.Message = $"work failed: {exception.Message}";
+        }
+
+        ScrollLater(this.chatScroll);
+    }
+
+    /// <summary>Puts the request and a placeholder answer into the conversation.</summary>
+    private Message OpenWorkExchange(TaskBoardTaskNode task)
+    {
+        this.state.TaskBoards.Message = $"working \"{task.Title}\"…";
+        this.state.Messages.Add(new Message("you", $"work on this task: {task.Title}"));
+        var reply = new Message("dami", "…");
+        this.state.Messages.Add(reply);
+        ScrollLater(this.chatScroll);
+        return reply;
+    }
+
+    /// <summary>Shows what the run said, and that the task itself did not move.</summary>
+    private static void Report(Message reply, TaskWorkReply outcome)
+    {
+        reply.Body = outcome.Ran ? outcome.Answer : $"the run did not start: {outcome.Reason}";
+        reply.Meta = outcome.Ran
+            ? $"advisory run · trace {outcome.TraceId:N} · the task is unchanged"
+            : "advisory run refused";
     }
 
     private Task MutateCriterionAsync(TaskBoardCriterionNode criterion)
@@ -250,14 +345,15 @@ public sealed partial class MainWindow
         return Enum.Parse<T>(value ?? string.Empty);
     }
 
+    /// <remarks>
+    /// Reconciles rather than clears. The board re-polls every five seconds; clearing
+    /// raised a Reset, which collapsed every expanded task and threw away the scroll
+    /// position mid-read. See <see cref="Reconcile"/>.
+    /// </remarks>
     private static void Replace<T>(
         System.Collections.ObjectModel.ObservableCollection<T> target,
         IEnumerable<T> values)
     {
-        target.Clear();
-        foreach (var value in values)
-        {
-            target.Add(value);
-        }
+        Reconcile.Sync(target, values as IReadOnlyList<T> ?? values.ToList());
     }
 }

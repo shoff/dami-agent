@@ -14,8 +14,16 @@
 
 [Unit]
 Description=Dami Core proactive tier
-After=network-online.target postgresql.service
-Wants=network-online.target
+# time-sync.target is load-bearing, not decoration. This host keeps the RTC flagged
+# local-time while the RTC actually holds UTC, so the kernel sets the clock ~5 h ahead
+# at boot and timesyncd yanks it back ~30 s later. The tier used to start inside that
+# window and run its first RunDueAsync against a clock 5 h in the future, which makes a
+# nightly pass look due early and writes future ranAt/lease timestamps into the durable
+# run log — poisoning due-ness until the real time catches up. Ordering after a synced
+# clock closes the window. Requires systemd-time-wait-sync.service to be enabled;
+# without it time-sync.target never activates and this ordering is a no-op.
+After=time-sync.target network-online.target postgresql.service
+Wants=time-sync.target network-online.target
 
 [Service]
 Type=exec

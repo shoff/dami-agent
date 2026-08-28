@@ -106,10 +106,16 @@ public sealed class ToolLoopRunnerTests
     }
 
     [Fact]
-    public async Task RunAsync_Should_Record_ToolFailed_Before_Propagating_Execution_Failure()
+    public async Task RunAsync_Should_Hand_A_Failed_Tool_Back_To_The_Model_And_Keep_Going()
     {
+        // Regression, and the point of the change. A tool that throws used to end the
+        // whole turn: a local 8B asking to read the literal path "path" took down an
+        // entire advisory run before the model could try anything else. The failure is
+        // now a turn in the conversation — recorded as ToolFailed exactly as before, then
+        // returned so the model can correct itself inside the bound it already has.
         var invocation = CreateInvocation();
-        var model = new RecordingToolCallingClient([ToolModelTurn.ForCall("call-1", invocation)]);
+        var model = new RecordingToolCallingClient(
+            [ToolModelTurn.ForCall("call-1", invocation), ToolModelTurn.ForAnswer("recovered")]);
         var executor = Substitute.For<ICapabilityExecutor>();
         executor.ExecuteAsync(Arg.Any<CapabilityExecutionRequest>(), Arg.Any<CancellationToken>())
             .Returns<Task<CapabilityExecutionResult>>(_ => throw new IOException("read failed"));
@@ -120,14 +126,48 @@ public sealed class ToolLoopRunnerTests
             new FakeTimeProvider(now),
             new ToolLoopOptions { MaxToolCalls = 2 });
 
-        await Assert.ThrowsAsync<IOException>(() => runner.RunAsync(
+        var answer = await runner.RunAsync(
+            Guid.NewGuid(), Guid.NewGuid(), "read my notes",
+            [CreateSchema(invocation.CapabilityId)],
+            PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn, CancellationToken.None);
+
+        Assert.Equal("recovered", answer);
+        Assert.Equal(
+            [ExecutionEventType.ToolRequested, ExecutionEventType.ToolStarted, ExecutionEventType.ToolFailed],
+            this.events.Select(item => item.Type));
+
+        // The model has to be told what went wrong, or it cannot do better next call.
+        var exchange = Assert.Single(model.ExchangesOnCalls[1]);
+        Assert.False(exchange.Succeeded);
+        Assert.Null(exchange.Result);
+        Assert.Contains("read failed", exchange.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Still_Stop_When_Every_Call_In_The_Bound_Fails()
+    {
+        // Recovering from failures must not become an unbounded retry loop; the existing
+        // call bound is what stops it.
+        var invocation = CreateInvocation();
+        var model = new RecordingToolCallingClient(
+            [ToolModelTurn.ForCall("call-1", invocation), ToolModelTurn.ForCall("call-2", invocation),
+             ToolModelTurn.ForCall("call-3", invocation)]);
+        var executor = Substitute.For<ICapabilityExecutor>();
+        executor.ExecuteAsync(Arg.Any<CapabilityExecutionRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Task<CapabilityExecutionResult>>(_ => throw new IOException("read failed"));
+        var runner = new ToolLoopRunner(
+            model,
+            executor,
+            this.eventStore,
+            new FakeTimeProvider(now),
+            new ToolLoopOptions { MaxToolCalls = 2 });
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => runner.RunAsync(
             Guid.NewGuid(), Guid.NewGuid(), "read my notes",
             [CreateSchema(invocation.CapabilityId)],
             PrivacyClass.LocalOnly, ExecutionOrigin.UserTurn, CancellationToken.None));
 
-        Assert.Equal(
-            [ExecutionEventType.ToolRequested, ExecutionEventType.ToolStarted, ExecutionEventType.ToolFailed],
-            this.events.Select(item => item.Type));
+        Assert.Contains("bound of 2", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

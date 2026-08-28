@@ -199,6 +199,114 @@ against a bad update, not against drive failure.
 
 ---
 
+### 4.7 The clock jumps ~5 h on every boot, and services start inside the window
+
+`timedatectl` reports **`RTC in local TZ: yes`** while the RTC actually holds **UTC**
+(`RTC time` and `Universal time` agree to within seconds). The two are inconsistent, so
+every boot runs this sequence:
+
+```
+kernel: rtc_cmos: setting system clock to 2026-08-25T13:47:26 UTC
+systemd: Started dami-proactive.service            <- clock still wrong
+systemd-timesyncd: Initial clock synchronization to Tue 2026-08-25 08:48:02 CDT
+```
+
+Reproducible on all three boots in the journal (`journalctl --list-boots`): 08-25,
+08-22, and 08-22 each show the correction landing 30–60 s in, always ~5 h backwards.
+`journalctl` renders pre-correction entries with the bad offset, which is why a boot's
+first lines look hours later than `systemctl show -p UserspaceTimestamp`.
+
+**Why it matters to the proactive tier.** `ProactiveWorker`'s `PeriodicTimer` is
+monotonic and is *not* affected — the hourly tick neither skips nor doubles. The
+exposure is `ProactiveScheduler`, which is pure wall-clock arithmetic:
+`IsDue` compares `clock.GetUtcNow() - lastRanAt >= interval`, and `RecordAsync` /
+`TryAcquireLeaseAsync` stamp `GetUtcNow()` into the durable run log. A pass that falls
+due on the first tick after boot therefore runs early and writes a `ran_at` and a 4 h
+lease hours in the future, which then suppresses the next legitimate run.
+
+**This has not bitten yet.** On every boot in the journal the first tick logged
+`Proactive tick: 0 pass(es) ran`, so nothing was stamped; `dami.proactive_run_leases` is
+empty and `dami.proactive_runs` intervals are consistent. It is a latent bug, not an
+active one — do not go looking for corrupted rows that are not there.
+
+**Fixed 2026-08-28**, both layers, by Steve at a terminal (sudo needs a TTY here — see
+§4.8):
+
+```bash
+sudo timedatectl set-local-rtc 0                        # root cause, host-wide
+sudo systemctl enable systemd-time-wait-sync.service    # or time-sync.target never activates
+sudo cp tools/systemd/dami-proactive.service /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+Verified after the change: `RTC in local TZ: no`, `/etc/adjtime` reads `UTC` (was
+`LOCAL`), `systemd-time-wait-sync.service` `enabled`, the installed unit byte-identical
+to the repo copy with `time-sync.target` in both `After` and `Wants`, the `override.conf`
+drop-in intact (12 `Environment=` entries), and `dami-proactive`/`dami-host` both still
+active. `time-sync.target` reads `inactive dead` for the rest of *this* boot — that is
+expected, since the wait-sync oneshot was enabled after this boot began.
+
+**Still unproven until the next reboot:** that the correction lands before the tier
+starts. Confirm with
+
+```bash
+journalctl -b -u dami-proactive -u systemd-timesyncd -o short-iso | head
+```
+
+and expect `Initial clock synchronization` *above* `Started dami-proactive.service`.
+
+`systemd-time-wait-sync` **shipped disabled** on this host, which is why
+`time-sync.target` sat `inactive dead`. Without enabling it, an `After=time-sync.target`
+ordering is a silent no-op — that was the trap inside the trap, and it is why the enable
+above is not optional garnish.
+
+**Windows is dual-booted here** (`efibootmgr` shows `Windows Boot Manager`, and there are
+NTFS partitions on `nvme0n1`, `nvme1n1`, and `sdb`). `set-local-rtc 0` is safe only
+because the RTC already holds UTC, implying Windows either has `RealTimeIsUniversal=1`
+or has not booted recently. If Windows is ever booted in its default mode it will
+rewrite the RTC to local time and break Linux the other way; set the registry value
+there to keep both correct:
+
+```
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation" ^
+  /v RealTimeIsUniversal /t REG_DWORD /d 1 /f
+```
+
+---
+
+### 4.8 An agent cannot `sudo` here, and the failure is silent-ish
+
+Agents in this repository run without a controlling terminal. `sudo` therefore fails
+before it ever asks:
+
+```
+sudo: a terminal is required to read the password; either use the -S option to read
+      from standard input or configure an askpass helper
+```
+
+and the auth log records only `pam_unix(sudo:auth): conversation failed`. If you chain
+commands with `&&`, the first one dies and **every later command is skipped** — the host
+is untouched, which is safe but looks like a no-op rather than an error. Verify state
+afterwards; do not trust "I ran it".
+
+There is no askpass helper installed, and installing one needs sudo. `polkitd` runs but
+no session authentication agent does, so dropping `sudo` and letting polkit prompt does
+not raise a dialog either. **Do not use `sudo -S`** — it puts the password in shell
+history and in the agent transcript, against the repository's first hard rule.
+
+The working route is a real terminal on the desktop. An agent can launch one
+(`DISPLAY=:0` is live, `gnome-terminal` is installed):
+
+```bash
+DISPLAY=:0 setsid gnome-terminal --title="..." -- bash /path/to/script.sh
+```
+
+Have the script `set -x`, end with the verification command, and `exec bash` so the
+window does not close before the output can be read. Steve types the password there.
+Used on 2026-08-28 to apply §4.7.
+
+---
+
 
 ### dami-host — the interactive runtime API (G5, D-005)
 

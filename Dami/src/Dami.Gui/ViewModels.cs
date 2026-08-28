@@ -94,7 +94,12 @@ public sealed class GraphRow
 }
 
 /// <summary>One item awaiting Steve's decision, or one thing Dami believes.</summary>
-public sealed class SidebarItem
+/// <remarks>
+/// A record, deliberately: the sidebars rebuild these objects from JSON every two
+/// seconds, and <see cref="Reconcile"/> can only tell "nothing changed" from "everything
+/// changed" if equality is by value.
+/// </remarks>
+public sealed record SidebarItem
 {
     /// <summary>Creates an item.</summary>
     public SidebarItem(string id, string headline, string detail)
@@ -142,7 +147,7 @@ public sealed class TaskBoardCriterionNode
 }
 
 /// <summary>A recursive task presentation node built only from the shared contract.</summary>
-public sealed class TaskBoardTaskNode
+public sealed class TaskBoardTaskNode : IEquatable<TaskBoardTaskNode>
 {
     private TaskBoardTaskNode(BoardTask task)
     {
@@ -208,6 +213,33 @@ public sealed class TaskBoardTaskNode
 
     /// <summary>Whether the task may be cancelled through the general status route.</summary>
     public bool CanCancel => this.Status is TaskBoardStatus.Open or TaskBoardStatus.Blocked;
+
+    /// <summary>
+    /// Whether an advisory run can be asked for. Anything unfinished qualifies —
+    /// including Blocked, where "what is actually blocking this" is often the useful
+    /// question. Distinct from <see cref="CanWork"/>, which means "is InProgress".
+    /// </summary>
+    public bool CanRunWork =>
+        this.Status is not (TaskBoardStatus.Done or TaskBoardStatus.Cancelled);
+
+    /// <summary>
+    /// Value equality over the parts that can actually change, so a re-poll that returned
+    /// the same board does not rebuild the tree and collapse every expander.
+    /// </summary>
+    public bool Equals(TaskBoardTaskNode? other)
+    {
+        return other is not null
+            && this.TaskId == other.TaskId
+            && this.Version == other.Version
+            && this.Status == other.Status
+            && this.SubTasks.SequenceEqual(other.SubTasks);
+    }
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => this.Equals(obj as TaskBoardTaskNode);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(this.TaskId, this.Version, this.Status);
 }
 
 /// <summary>Observable state for the desktop task-board panel.</summary>
@@ -216,6 +248,13 @@ public sealed class TaskBoardPanelState : INotifyPropertyChanged
     private string title = "select a board";
     private string detail = string.Empty;
     private string message = "loading task boards…";
+    private TaskBoardTaskNode? selected;
+    private bool hasSelection;
+    private BoardView view = BoardView.NeedsYou;
+    private int needsYouCount;
+    private int openCount;
+    private int blockedCount;
+    private int allCount;
 
     /// <summary>Recent boards with derived progress.</summary>
     public ObservableCollection<TaskBoardSummary> Boards { get; } = [];
@@ -247,12 +286,65 @@ public sealed class TaskBoardPanelState : INotifyPropertyChanged
         set => this.Set(ref this.message, value);
     }
 
+    /// <summary>The task the action bar acts on, or null when nothing is selected.</summary>
+    public TaskBoardTaskNode? Selected
+    {
+        get => this.selected;
+        set
+        {
+            this.Set(ref this.selected, value);
+            this.HasSelection = value is not null;
+        }
+    }
+
+    /// <summary>Whether the action bar has anything to act on.</summary>
+    public bool HasSelection
+    {
+        get => this.hasSelection;
+        private set => this.Set(ref this.hasSelection, value);
+    }
+
+    /// <summary>Which slice of the board is listed. Opens on Steve's own decisions.</summary>
+    public BoardView View
+    {
+        get => this.view;
+        set => this.Set(ref this.view, value);
+    }
+
+    /// <summary>How many tasks want Steve, shown on the filter button.</summary>
+    public int NeedsYouCount
+    {
+        get => this.needsYouCount;
+        set => this.Set(ref this.needsYouCount, value);
+    }
+
+    /// <summary>How many tasks are open.</summary>
+    public int OpenCount
+    {
+        get => this.openCount;
+        set => this.Set(ref this.openCount, value);
+    }
+
+    /// <summary>How many tasks are blocked.</summary>
+    public int BlockedCount
+    {
+        get => this.blockedCount;
+        set => this.Set(ref this.blockedCount, value);
+    }
+
+    /// <summary>How many tasks the board holds in total.</summary>
+    public int AllCount
+    {
+        get => this.allCount;
+        set => this.Set(ref this.allCount, value);
+    }
+
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private void Set(ref string field, string value, [CallerMemberName] string? name = null)
+    private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
     {
-        if (field == value)
+        if (EqualityComparer<T>.Default.Equals(field, value))
         {
             return;
         }

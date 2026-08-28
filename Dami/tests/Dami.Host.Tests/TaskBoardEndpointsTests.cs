@@ -1,12 +1,20 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using Dami.Authentication;
 using Dami.Contracts.TaskBoard;
 using Dami.Core.TaskBoard;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using OpenIddict.Abstractions;
 using Xunit;
 
 namespace Dami.Host.Tests;
@@ -157,6 +165,64 @@ public sealed class TaskBoardEndpointsTests
             (taskId, 3L, new TaskActor("codex", TaskActorKind.Agent), at),
             (store.LastClaimTaskId, store.LastClaimVersion,
                 store.LastClaimActor, store.LastClaimedAt));
+    }
+
+    [Fact]
+    public async Task Claim_Should_Ignore_The_Submitted_Actor_When_Authentication_Is_Enabled()
+    {
+        var taskId = Guid.NewGuid();
+        var store = new StubStore(new TaskBoardSummary(
+            Guid.NewGuid(), "board", TaskBoardStatus.Open, at, 1, 0, 0));
+        await using var factory = CreateAuthenticatedFactory(store);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            $"/task-boards/tasks/{taskId:D}/claim",
+            new { expectedVersion = 3, actorId = "spoofed", actorKind = "Agent" },
+            CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(new TaskActor("identity-42", TaskActorKind.Human), store.LastClaimActor);
+    }
+
+    [Fact]
+    public async Task Claim_Should_Not_Require_Client_Asserted_Actor_Fields_When_Authenticated()
+    {
+        var taskId = Guid.NewGuid();
+        var store = new StubStore(new TaskBoardSummary(
+            Guid.NewGuid(), "board", TaskBoardStatus.Open, at, 1, 0, 0));
+        await using var factory = CreateAuthenticatedFactory(store);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            $"/task-boards/tasks/{taskId:D}/claim",
+            new { expectedVersion = 3 }, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(new TaskActor("identity-42", TaskActorKind.Human), store.LastClaimActor);
+    }
+
+    [Fact]
+    public async Task Every_Board_Mutation_Should_Use_The_Authenticated_Actor()
+    {
+        var boardId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        var criterionId = Guid.NewGuid();
+        var store = new StubStore(new TaskBoardSummary(
+            boardId, "board", TaskBoardStatus.InProgress, at, 1, 0, 0));
+        await using var factory = CreateAuthenticatedFactory(store);
+        using var client = factory.CreateClient();
+        HttpResponseMessage[] responses = await SendAuthenticatedMutationsAsync(
+            client, boardId, taskId, criterionId);
+
+        Assert.All(responses,
+            response => Assert.True(response.IsSuccessStatusCode));
+        var expected = new TaskActor("identity-42", TaskActorKind.Human);
+        Assert.All(
+            new[] { store.LastAddedActor, store.LastCriterionAddedBy, store.LastCriterionActor,
+                store.LastCompletedActor, store.LastStatusActor },
+            actor => Assert.Equal(expected, actor));
+        Array.ForEach(responses, response => response.Dispose());
     }
 
     [Fact]
@@ -435,6 +501,30 @@ public sealed class TaskBoardEndpointsTests
     }
 
     [Fact]
+    public async Task Plan_Should_Use_The_Authenticated_Actor()
+    {
+        var store = new StubStore(new TaskBoardSummary(
+            Guid.NewGuid(), "unused", TaskBoardStatus.Open, at, 0, 0, 0));
+        await using var factory = CreateAuthenticatedFactory(store, new StubPlanner());
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/task-boards/plan", new
+        {
+            requestId = Guid.NewGuid(),
+            featureRequest = "Build it",
+            actorId = "spoofed",
+            actorKind = "Agent",
+            planner = "Local",
+            privacy = "LocalOnly",
+            origin = "UserTurn",
+        }, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(
+            new TaskActor("identity-42", TaskActorKind.Human), store.CreatedDraft?.CreatedBy);
+    }
+
+    [Fact]
     public async Task Plan_Should_Reject_A_Blank_Request_Before_Calling_The_Planner()
     {
         var store = new StubStore(new TaskBoardSummary(
@@ -461,11 +551,135 @@ public sealed class TaskBoardEndpointsTests
         Assert.Equal(0, planner.CallCount);
     }
 
+    private sealed class StubTurnRunner : Dami.Core.Turns.ITurnRunner
+    {
+        internal Guid TraceId { get; } = Guid.NewGuid();
+
+        internal string? Seen { get; private set; }
+
+        public Task<Dami.Core.Turns.TurnResult> RunAsync(
+            string request,
+            CancellationToken cancellationToken)
+        {
+            this.Seen = request;
+            return Task.FromResult(new Dami.Core.Turns.TurnResult(
+                this.TraceId, "here is the proposal",
+                new Dami.Contracts.Context.AssembledContext([], [], 0),
+                new Dami.Contracts.Models.ModelRoute(
+                    Dami.Contracts.Models.ModelTier.Local,
+                    Dami.Contracts.Context.PrivacyClass.LocalOnly, "test")));
+        }
+
+        public Task<Dami.Core.Turns.TurnStream> BeginStreamingAsync(
+            string request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private static StubStore BoardWith(Guid boardId, Guid taskId, string title)
+    {
+        BoardTask[] tasks = taskId == Guid.Empty
+            ? []
+            : [new BoardTask(
+                taskId, title, "ADR-0016 proposed", TaskBoardStatus.Open, TaskPriority.Normal,
+                0, TaskOrdering.Ordered, null, 1, [], [], [])];
+        var snapshot = new TaskBoardSnapshot(
+            boardId, "Dami Core suite", "request", "plan",
+            new TaskActor("steve", TaskActorKind.Human), at, at,
+            TaskBoardStatus.InProgress, TaskOrdering.Ordered, tasks);
+        return new StubStore(
+            new TaskBoardSummary(
+                boardId, "Dami Core suite", TaskBoardStatus.InProgress, at, tasks.Length, 0, 0),
+            snapshot);
+    }
+
+    [Fact]
+    public async Task Work_Should_Run_An_Advisory_Turn_And_Record_It_Without_Moving_The_Task()
+    {
+        var boardId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        var store = BoardWith(boardId, taskId, "A6 PostgreSQL major version");
+        var runner = new StubTurnRunner();
+        await using var factory = CreateFactory(store, turnRunner: runner);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            $"/task-boards/{boardId:D}/tasks/{taskId:D}/work",
+            new { actorId = "steve", actorKind = "Human" },
+            CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = await response.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.True(body!.RootElement.GetProperty("ran").GetBoolean());
+        Assert.Equal(runner.TraceId, body.RootElement.GetProperty("traceId").GetGuid());
+        Assert.Contains("A6 PostgreSQL major version", runner.Seen!, StringComparison.Ordinal);
+
+        // Bracketed on the board, and nothing else touched: no claim, no completion.
+        Assert.Equal(
+            [TaskBoardActivityKind.TaskWorkStarted, TaskBoardActivityKind.TaskWorkFinished],
+            store.WorkLog);
+        Assert.Equal(Guid.Empty, store.LastClaimTaskId);
+        Assert.Equal(Guid.Empty, store.LastCompletedTaskId);
+    }
+
+    [Fact]
+    public async Task Work_Should_Refuse_A_Task_That_Is_Not_On_The_Board()
+    {
+        var boardId = Guid.NewGuid();
+        var store = BoardWith(boardId, Guid.Empty, "unused");
+        var runner = new StubTurnRunner();
+        await using var factory = CreateFactory(store, turnRunner: runner);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            $"/task-boards/{boardId:D}/tasks/{Guid.NewGuid():D}/work",
+            new { actorId = "steve", actorKind = "Human" },
+            CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Null(runner.Seen);
+        Assert.Empty(store.WorkLog);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory(
+        StubStore store,
+        IFeaturePlanner? planner = null,
+        Dami.Core.Turns.ITurnRunner? turnRunner = null)
+    {
+        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<ITaskBoardStore>();
+                services.RemoveAll<TimeProvider>();
+                services.AddSingleton<ITaskBoardStore>(store);
+                services.AddSingleton<TimeProvider>(new FixedTimeProvider(at));
+                if (turnRunner is not null)
+                {
+                    services.RemoveAll<Dami.Core.Turns.ITurnRunner>();
+                    services.RemoveAll<TaskWorkService>();
+                    services.AddSingleton(turnRunner);
+                    services.AddSingleton<TaskWorkService>();
+                }
+                if (planner is not null)
+                {
+                    services.RemoveAll<IFeaturePlanner>();
+                    services.RemoveAll<FeaturePlanningService>();
+                    services.AddSingleton<IFeaturePlanner>(planner);
+                    services.AddSingleton<FeaturePlanningService>();
+                }
+            }));
+    }
+
+    private static WebApplicationFactory<Program> CreateAuthenticatedFactory(
         StubStore store,
         IFeaturePlanner? planner = null)
     {
         return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.UseSetting("Authentication:Enabled", "true");
+            builder.UseSetting("Authentication:AllowInsecureLoopback", "true");
+            builder.UseSetting("Authentication:UseEphemeralKeys", "true");
+            builder.UseSetting("Authentication:Issuer", "http://localhost");
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<ITaskBoardStore>();
@@ -479,7 +693,61 @@ public sealed class TaskBoardEndpointsTests
                     services.AddSingleton<IFeaturePlanner>(planner);
                     services.AddSingleton<FeaturePlanningService>();
                 }
-            }));
+
+                services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = "Test";
+                    options.DefaultChallengeScheme = "Test";
+                }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("Test", null);
+            });
+        });
+    }
+
+    private static async Task<HttpResponseMessage[]> SendAuthenticatedMutationsAsync(
+        HttpClient client, Guid boardId, Guid taskId, Guid criterionId)
+    {
+        var spoofed = new { actorId = "spoofed", actorKind = "Agent" };
+        var added = await client.PostAsJsonAsync($"/task-boards/{boardId:D}/tasks",
+            new { title = "G5a2x test", spoofed.actorId, spoofed.actorKind }, CancellationToken.None);
+        var criterionAdded = await client.PostAsJsonAsync($"/task-boards/tasks/{taskId:D}/criteria",
+            new { expectedVersion = 1, description = "proven", spoofed.actorId, spoofed.actorKind },
+            CancellationToken.None);
+        var criterionSet = await client.PutAsJsonAsync($"/task-boards/criteria/{criterionId:D}",
+            new { expectedVersion = 1, isSatisfied = true, spoofed.actorId, spoofed.actorKind },
+            CancellationToken.None);
+        var completed = await client.PostAsJsonAsync($"/task-boards/tasks/{taskId:D}/complete",
+            new { expectedVersion = 1, spoofed.actorId, spoofed.actorKind }, CancellationToken.None);
+        var status = await client.PutAsJsonAsync($"/task-boards/tasks/{taskId:D}/status",
+            new
+            {
+                expectedVersion = 1,
+                status = "Blocked",
+                detail = "wait",
+                spoofed.actorId,
+                spoofed.actorKind
+            }, CancellationToken.None);
+        return [added, criterionAdded, criterionSet, completed, status];
+    }
+
+    private sealed class TestAuthenticationHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    {
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var identity = new ClaimsIdentity(
+            [
+                new Claim(OpenIddictConstants.Claims.Subject, "identity-42"),
+                new Claim(DamiAuthorizationClaims.ACTOR_KIND, "Human"),
+            ], this.Scheme.Name);
+            identity.SetScopes(
+                DamiAuthorizationScopes.RUNTIME_READ,
+                DamiAuthorizationScopes.RUNTIME_WRITE);
+            var ticket = new AuthenticationTicket(
+                new ClaimsPrincipal(identity), this.Scheme.Name);
+            return Task.FromResult(AuthenticateResult.Success(ticket));
+        }
     }
 
     private sealed class StubStore(
@@ -624,6 +892,20 @@ public sealed class TaskBoardEndpointsTests
             this.LastClaimActor = actor;
             this.LastClaimedAt = claimedAt;
             return Task.FromResult(this.ClaimResult);
+        }
+
+        internal List<TaskBoardActivityKind> WorkLog { get; } = [];
+
+        public Task<bool> TryLogWorkAsync(
+            Guid taskId,
+            TaskBoardActivityKind kind,
+            TaskActor actor,
+            string detail,
+            DateTimeOffset at,
+            CancellationToken cancellationToken)
+        {
+            this.WorkLog.Add(kind);
+            return Task.FromResult(true);
         }
 
         public Task<bool> TrySetCriterionAsync(

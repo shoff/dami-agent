@@ -13,6 +13,38 @@ public sealed class PostgresAuthPersistenceTests
         "Host=127.0.0.1;Port=5432;Database=dami-data;Username=dami_app;Passfile=/home/steve/.pgpass";
 
     [Fact]
+    public async Task Service_Enrollment_Should_Return_A_Once_Valid_Least_Privilege_Secret()
+    {
+        string clientId = $"service-{Guid.NewGuid():N}";
+        await using ServiceProvider provider = CreateProvider();
+        await using AsyncServiceScope scope = provider.CreateAsyncScope();
+        var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+        var provisioner = new DamiClientProvisioner(applications);
+        object? application = null;
+        try
+        {
+            string secret = await provisioner.EnrollServiceAsync(
+                clientId, "Test service", [DamiAuthorizationScopes.RUNTIME_READ],
+                CancellationToken.None);
+            application = await applications.FindByClientIdAsync(clientId, CancellationToken.None);
+            var descriptor = new OpenIddictApplicationDescriptor();
+            await applications.PopulateAsync(descriptor, application!, CancellationToken.None);
+
+            Assert.True(await applications.ValidateClientSecretAsync(
+                application!, secret, CancellationToken.None));
+            Assert.Contains(Scope(DamiAuthorizationScopes.RUNTIME_READ), descriptor.Permissions);
+            Assert.DoesNotContain(Scope(DamiAuthorizationScopes.RUNTIME_WRITE), descriptor.Permissions);
+        }
+        finally
+        {
+            if (application is not null)
+            {
+                await applications.DeleteAsync(application, CancellationToken.None);
+            }
+        }
+    }
+
+    [Fact]
     public async Task Runtime_Role_Should_Persist_Hashed_Identity_And_Client_Secrets_Async()
     {
         string suffix = Guid.NewGuid().ToString("N");
@@ -75,6 +107,9 @@ public sealed class PostgresAuthPersistenceTests
             attempted,
             (string)(await command.ExecuteScalarAsync(CancellationToken.None))!);
     }
+
+    private static string Scope(string value) =>
+        OpenIddictConstants.Permissions.Prefixes.Scope + value;
 
     private static async Task<object> CreateAndValidateClientAsync(
         IOpenIddictApplicationManager applications,

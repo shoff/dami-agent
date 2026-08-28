@@ -1,10 +1,14 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Security.Claims;
 using System.Runtime.Versioning;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using OpenIddict.Abstractions;
 using Xunit;
 
 namespace Dami.Authentication.Tests;
@@ -12,6 +16,82 @@ namespace Dami.Authentication.Tests;
 [SupportedOSPlatform("linux")]
 public sealed class DamiAuthenticationConfigurationTests
 {
+    [Fact]
+    public async Task Fallback_Policy_Should_Separate_Runtime_Reads_From_Writes()
+    {
+        using var certificates = new CertificateFiles();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDamiAuthentication(
+            Configuration(certificates.Signing, certificates.Encryption, certificates.Password),
+            new TestEnvironment("Production"),
+            "Host=127.0.0.1;Database=unused;Username=unused;Password=unused");
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        var authorization = provider.GetRequiredService<IAuthorizationService>();
+        AuthorizationPolicy fallback = (await provider.GetRequiredService<IAuthorizationPolicyProvider>()
+            .GetFallbackPolicyAsync())!;
+
+        AuthorizationResult read = await authorization.AuthorizeAsync(
+            Principal(DamiAuthorizationScopes.RUNTIME_READ), Request(HttpMethods.Get), fallback);
+        AuthorizationResult readWriting = await authorization.AuthorizeAsync(
+            Principal(DamiAuthorizationScopes.RUNTIME_READ), Request(HttpMethods.Post), fallback);
+        AuthorizationResult write = await authorization.AuthorizeAsync(
+            Principal(DamiAuthorizationScopes.RUNTIME_WRITE), Request(HttpMethods.Post), fallback);
+
+        Assert.True(read.Succeeded);
+        Assert.False(readWriting.Succeeded);
+        Assert.True(write.Succeeded);
+    }
+
+    [Fact]
+    public async Task Runtime_Policies_Should_Require_Their_Matching_Scopes()
+    {
+        using var certificates = new CertificateFiles();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDamiAuthentication(
+            Configuration(certificates.Signing, certificates.Encryption, certificates.Password),
+            new TestEnvironment("Production"),
+            "Host=127.0.0.1;Database=unused;Username=unused;Password=unused");
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        var authorization = provider.GetRequiredService<IAuthorizationService>();
+        ClaimsPrincipal reader = Principal(DamiAuthorizationScopes.RUNTIME_READ);
+        ClaimsPrincipal writer = Principal(DamiAuthorizationScopes.RUNTIME_WRITE);
+
+        Assert.True((await authorization.AuthorizeAsync(
+            reader, null, DamiAuthorizationPolicies.RUNTIME_READ)).Succeeded);
+        Assert.False((await authorization.AuthorizeAsync(
+            reader, null, DamiAuthorizationPolicies.RUNTIME_WRITE)).Succeeded);
+        Assert.True((await authorization.AuthorizeAsync(
+            writer, null, DamiAuthorizationPolicies.RUNTIME_WRITE)).Succeeded);
+    }
+
+    [Fact]
+    public async Task Approval_Resolution_Policy_Should_Require_Its_Dedicated_Scope()
+    {
+        using var certificates = new CertificateFiles();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDamiAuthentication(
+            Configuration(certificates.Signing, certificates.Encryption, certificates.Password),
+            new TestEnvironment("Production"),
+            "Host=127.0.0.1;Database=unused;Username=unused;Password=unused");
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        var authorization = provider.GetRequiredService<IAuthorizationService>();
+        ClaimsPrincipal approvalOnly = Principal(DamiAuthorizationScopes.APPROVALS_RESOLVE);
+        ClaimsPrincipal withBoth = Principal(
+            DamiAuthorizationScopes.RUNTIME_WRITE,
+            DamiAuthorizationScopes.APPROVALS_RESOLVE);
+
+        AuthorizationResult denied = await authorization.AuthorizeAsync(
+            approvalOnly, null, DamiAuthorizationPolicies.APPROVALS_RESOLVE);
+        AuthorizationResult allowed = await authorization.AuthorizeAsync(
+            withBoth, null, DamiAuthorizationPolicies.APPROVALS_RESOLVE);
+
+        Assert.False(denied.Succeeded);
+        Assert.True(allowed.Succeeded);
+    }
+
     [Fact]
     public void Configuration_Should_Reject_Insecure_NonLoopback_Issuer()
     {
@@ -96,6 +176,20 @@ public sealed class DamiAuthenticationConfigurationTests
             new KeyValuePair<string, string?>("Authentication:EncryptionCertificatePath", encryption),
             new KeyValuePair<string, string?>("Authentication:EncryptionCertificatePassword", password),
         ]).Build();
+    }
+
+    private static ClaimsPrincipal Principal(params string[] scopes)
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([], "test"));
+        principal.SetScopes(scopes);
+        return principal;
+    }
+
+    private static HttpContext Request(string method)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Method = method;
+        return context;
     }
 
     private static void WriteCertificate(string path, string subject, string password)

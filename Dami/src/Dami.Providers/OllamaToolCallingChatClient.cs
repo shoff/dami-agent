@@ -146,7 +146,7 @@ public sealed class OllamaToolCallingChatClient : IToolCallingChatClient
             {
                 role = "tool",
                 tool_name = schema.Name,
-                content = exchange.Result.Output,
+                content = exchange.Content,
             };
         }
 

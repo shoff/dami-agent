@@ -114,6 +114,31 @@ public sealed class ToolLoopRunner : IToolLoopRunner
             invocation, callId, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Records a tool that did not produce a result, whatever ended it.</summary>
+    private Task FailAsync(
+        Guid traceId,
+        Guid spanId,
+        Guid parentSpanId,
+        ExecutionOrigin origin,
+        CapabilityInvocation invocation,
+        string callId,
+        ExecutionStatus status)
+    {
+        return this.EmitAsync(
+            traceId, spanId, parentSpanId, origin, invocation, callId,
+            ExecutionEventType.ToolFailed, status, CancellationToken.None);
+    }
+
+    /// <summary>Runs one tool call and returns its outcome, successful or not.</summary>
+    /// <remarks>
+    /// A failed tool is a turn in the conversation, not the end of it. <c>ToolFailed</c>
+    /// is recorded exactly as it always was — the audit trail is unchanged — and the
+    /// reason is then handed back so the model can correct itself inside the call bound it
+    /// already has. Rethrowing here meant one bad argument from a small model killed the
+    /// whole turn: a local 8B asking to read a file at the literal path <c>"path"</c> took
+    /// down an entire advisory run. Cancellation is different and still propagates: that
+    /// is the caller's decision, not something the model can recover from.
+    /// </remarks>
     private async Task<ToolExecutionExchange> ExecuteStartedAsync(
         Guid traceId,
         Guid spanId,
@@ -136,17 +161,17 @@ public sealed class ToolLoopRunner : IToolLoopRunner
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            await this.EmitAsync(
+            await this.FailAsync(
                 traceId, spanId, parentSpanId, origin, invocation, callId,
-                ExecutionEventType.ToolFailed, ExecutionStatus.Cancelled, CancellationToken.None).ConfigureAwait(false);
+                ExecutionStatus.Cancelled).ConfigureAwait(false);
             throw;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            await this.EmitAsync(
+            await this.FailAsync(
                 traceId, spanId, parentSpanId, origin, invocation, callId,
-                ExecutionEventType.ToolFailed, ExecutionStatus.Failed, CancellationToken.None).ConfigureAwait(false);
-            throw;
+                ExecutionStatus.Failed).ConfigureAwait(false);
+            return ToolExecutionExchange.Failed(callId, invocation, exception.Message);
         }
 
         await this.EmitAsync(

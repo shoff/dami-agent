@@ -59,6 +59,19 @@ public interface ITaskBoardStore
         DateTimeOffset changedAt,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Records that the runtime was asked to work a task, and what came back. Advisory:
+    /// it moves no status and takes no expected version, so it cannot conflict and cannot
+    /// finish anything. False when the task no longer exists.
+    /// </summary>
+    Task<bool> TryLogWorkAsync(
+        Guid taskId,
+        TaskBoardActivityKind kind,
+        TaskActor actor,
+        string detail,
+        DateTimeOffset at,
+        CancellationToken cancellationToken);
+
     /// <summary>Completes a claimed task only after its evidence and child work are complete.</summary>
     Task<bool> TryCompleteAsync(
         Guid taskId,

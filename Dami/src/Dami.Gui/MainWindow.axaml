@@ -19,7 +19,7 @@
     <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal"
                 Spacing="12" Margin="4,0,4,10">
       <TextBlock Text="Dami" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
-      <TextBlock Text="rendered from the durable event stream — the display invents nothing"
+      <TextBlock Text="ask on the left · what Dami noticed on the right · plan and claim work below"
                  VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Dim}"/>
       <TextBlock x:Name="StatusLine" VerticalAlignment="Center" FontSize="12"
                  Foreground="{StaticResource Dim}"/>
@@ -42,6 +42,7 @@
           <Button x:Name="SendButton" Grid.Column="2" Content="send" Margin="8,0,0,0"
                   Background="#233041" Foreground="{StaticResource Ink}"/>
         </Grid>
+        <Grid>
         <ScrollViewer x:Name="ChatScroll">
           <ItemsControl ItemsSource="{Binding Messages}">
             <ItemsControl.ItemTemplate>
@@ -57,6 +58,16 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </ScrollViewer>
+        <StackPanel IsHitTestVisible="False" VerticalAlignment="Center" Spacing="6"
+                    Margin="8,0,8,40"
+                    IsVisible="{Binding Messages.Count, Converter={x:Static local:IsEmpty.instance}}">
+          <TextBlock Text="Ask Dami anything." Foreground="{StaticResource Dim}"/>
+          <TextBlock Text="· what's on my board?" FontSize="12" Foreground="{StaticResource Dim}"/>
+          <TextBlock Text="· why did you surface that?" FontSize="12" Foreground="{StaticResource Dim}"/>
+          <TextBlock Text="· what did you learn about me this week?" FontSize="12"
+                     Foreground="{StaticResource Dim}"/>
+        </StackPanel>
+        </Grid>
       </DockPanel>
     </Border>
 
@@ -67,6 +78,7 @@
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" Text="LIVE EXECUTION GRAPH" FontSize="11"
                      Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+          <Grid>
           <ScrollViewer x:Name="GraphScroll">
             <ItemsControl ItemsSource="{Binding Graph}">
               <ItemsControl.ItemTemplate>
@@ -90,6 +102,12 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
           </ScrollViewer>
+          <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                     HorizontalAlignment="Center" FontSize="12"
+                     Foreground="{StaticResource Dim}"
+                     Text="Spans appear here while a turn runs."
+                     IsVisible="{Binding Graph.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+          </Grid>
         </DockPanel>
       </Border>
 
@@ -98,6 +116,7 @@
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" Text="WANTS YOUR ATTENTION" FontSize="11"
                      Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+          <Grid>
           <ScrollViewer>
             <ItemsControl ItemsSource="{Binding Attention}">
               <ItemsControl.ItemTemplate>
@@ -112,6 +131,12 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
           </ScrollViewer>
+          <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                     HorizontalAlignment="Center" FontSize="12"
+                     Foreground="{StaticResource Dim}"
+                     Text="Nothing waiting on you."
+                     IsVisible="{Binding Attention.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+          </Grid>
         </DockPanel>
       </Border>
 
@@ -120,6 +145,7 @@
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" Text="BELIEFS" FontSize="11"
                      Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+          <Grid>
           <ScrollViewer>
             <ItemsControl ItemsSource="{Binding Beliefs}">
               <ItemsControl.ItemTemplate>
@@ -134,6 +160,12 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
           </ScrollViewer>
+          <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                     HorizontalAlignment="Center" FontSize="12"
+                     Foreground="{StaticResource Dim}"
+                     Text="Dami has not concluded anything yet."
+                     IsVisible="{Binding Beliefs.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+          </Grid>
         </DockPanel>
       </Border>
     </Grid>
@@ -141,38 +173,96 @@
     <Border Grid.Row="2" Grid.ColumnSpan="2" Background="{StaticResource Panel}"
             CornerRadius="8" Padding="12" Margin="0,10,0,0">
       <DockPanel>
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,110,110,130,90,Auto,Auto"
-              Margin="0,0,0,8">
-          <TextBox x:Name="FeatureRequest" Grid.Column="0"
+        <!-- Captions are not decoration here. Unlabelled, this row reads "Local /
+             LocalOnly / steve / Human" and tells you nothing about what any of it
+             governs. Column widths are sized to the longest value each control can
+             show ("Egressable", "Frontier"), because a clipped "LocalOnl" reads as a
+             rendering fault rather than a setting. -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,130,140,140,110,Auto,Auto"
+              RowDefinitions="Auto,Auto" Margin="0,0,0,8">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Feature to plan" FontSize="11"
+                     Foreground="{StaticResource Dim}" Margin="2,0,0,3"/>
+          <TextBlock Grid.Row="0" Grid.Column="1" Text="Plan with" FontSize="11"
+                     Foreground="{StaticResource Dim}" Margin="10,0,0,3"/>
+          <TextBlock Grid.Row="0" Grid.Column="2" Text="Visibility" FontSize="11"
+                     Foreground="{StaticResource Dim}" Margin="10,0,0,3"/>
+          <TextBlock Grid.Row="0" Grid.Column="3" Text="Acting as" FontSize="11"
+                     Foreground="{StaticResource Dim}" Margin="10,0,0,3"/>
+          <TextBlock Grid.Row="0" Grid.Column="4" Text="Who" FontSize="11"
+                     Foreground="{StaticResource Dim}" Margin="10,0,0,3"/>
+
+          <TextBox x:Name="FeatureRequest" Grid.Row="1" Grid.Column="0"
                    PlaceholderText="describe a feature to plan…" Background="#0D1116"
                    Foreground="{StaticResource Ink}" BorderBrush="#2A333D"/>
-          <ComboBox x:Name="PlannerPicker" Grid.Column="1" Margin="8,0,0,0"
-                    SelectedIndex="0">
+          <ComboBox x:Name="PlannerPicker" Grid.Row="1" Grid.Column="1" Margin="8,0,0,0"
+                    HorizontalAlignment="Stretch" SelectedIndex="0"
+                    ToolTip.Tip="Which model drafts the plan. Local keeps it on this machine.">
             <ComboBoxItem Content="Local"/><ComboBoxItem Content="Dami"/>
             <ComboBoxItem Content="Frontier"/>
           </ComboBox>
-          <ComboBox x:Name="PrivacyPicker" Grid.Column="2" Margin="8,0,0,0"
-                    SelectedIndex="0">
+          <ComboBox x:Name="PrivacyPicker" Grid.Row="1" Grid.Column="2" Margin="8,0,0,0"
+                    HorizontalAlignment="Stretch" SelectedIndex="0"
+                    ToolTip.Tip="LocalOnly never leaves this host. Egressable may be sent to a remote model.">
             <ComboBoxItem Content="LocalOnly"/><ComboBoxItem Content="Egressable"/>
           </ComboBox>
-          <TextBox x:Name="BoardActor" Grid.Column="3" Text="steve" Margin="8,0,0,0"
-                   Background="#0D1116" Foreground="{StaticResource Ink}"/>
-          <ComboBox x:Name="ActorKindPicker" Grid.Column="4" Margin="8,0,0,0"
-                    SelectedIndex="0">
+          <TextBox x:Name="BoardActor" Grid.Row="1" Grid.Column="3" Text="steve"
+                   Margin="8,0,0,0" Background="#0D1116"
+                   Foreground="{StaticResource Ink}"
+                   ToolTip.Tip="Recorded on the board as whoever claims or completes work."/>
+          <ComboBox x:Name="ActorKindPicker" Grid.Row="1" Grid.Column="4" Margin="8,0,0,0"
+                    HorizontalAlignment="Stretch" SelectedIndex="0"
+                    ToolTip.Tip="Whether that actor is a person or an agent.">
             <ComboBoxItem Content="Human"/><ComboBoxItem Content="Agent"/>
           </ComboBox>
-          <Button x:Name="PlanButton" Grid.Column="5" Content="plan feature"
+          <Button x:Name="PlanButton" Grid.Row="1" Grid.Column="5" Content="plan feature"
                   Margin="8,0,0,0" Background="#233041" Foreground="{StaticResource Ink}"/>
-          <Button x:Name="BoardRefresh" Grid.Column="6" Content="refresh"
+          <Button x:Name="BoardRefresh" Grid.Row="1" Grid.Column="6" Content="refresh"
                   Margin="8,0,0,0" Background="#233041" Foreground="{StaticResource Ink}"/>
         </Grid>
 
         <TextBlock DockPanel.Dock="Top" Text="{Binding TaskBoards.Message}"
                    FontSize="11" Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
 
+        <!-- The suite is 212 tasks of which 170 are finished agent work. Opening on the
+             whole tree buries the handful of decisions that are actually Steve's, so the
+             panel opens on those and the other slices are one click away. -->
+        <StackPanel x:Name="BoardViews" DockPanel.Dock="Top" Orientation="Horizontal"
+                    Spacing="6" Margin="0,0,0,8">
+          <StackPanel.Styles>
+            <!-- A fixed width, because the counts change. "Needs you 11" and
+                 "Needs you 0" are different widths, so without this the whole bar
+                 reflows when you switch boards and the button you were aiming at moves
+                 under the pointer — the same way the per-row task actions used to. -->
+            <Style Selector="StackPanel#BoardViews > Button">
+              <Setter Property="Foreground" Value="#D7DDE4"/>
+              <Setter Property="Padding" Value="10,4"/>
+              <Setter Property="FontSize" Value="12"/>
+              <Setter Property="MinWidth" Value="104"/>
+              <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            </Style>
+          </StackPanel.Styles>
+          <Button Tag="NeedsYou"
+                  Background="{Binding TaskBoards.View, Converter={x:Static local:ViewBrush.instance}, ConverterParameter=NeedsYou}">
+            <TextBlock><Run Text="Needs you"/><Run Text=" "/><Run Text="{Binding TaskBoards.NeedsYouCount}"/></TextBlock>
+          </Button>
+          <Button Tag="Open"
+                  Background="{Binding TaskBoards.View, Converter={x:Static local:ViewBrush.instance}, ConverterParameter=Open}">
+            <TextBlock><Run Text="Open"/><Run Text=" "/><Run Text="{Binding TaskBoards.OpenCount}"/></TextBlock>
+          </Button>
+          <Button Tag="Blocked"
+                  Background="{Binding TaskBoards.View, Converter={x:Static local:ViewBrush.instance}, ConverterParameter=Blocked}">
+            <TextBlock><Run Text="Blocked"/><Run Text=" "/><Run Text="{Binding TaskBoards.BlockedCount}"/></TextBlock>
+          </Button>
+          <Button Tag="All"
+                  Background="{Binding TaskBoards.View, Converter={x:Static local:ViewBrush.instance}, ConverterParameter=All}">
+            <TextBlock><Run Text="All"/><Run Text=" "/><Run Text="{Binding TaskBoards.AllCount}"/></TextBlock>
+          </Button>
+        </StackPanel>
+
         <Grid ColumnDefinitions="250,*,310">
-          <ListBox x:Name="BoardPicker" Grid.Column="0"
-                   ItemsSource="{Binding TaskBoards.Boards}" Margin="0,0,8,0">
+          <Grid Grid.Column="0" Margin="0,0,8,0">
+          <ListBox x:Name="BoardPicker"
+                   ItemsSource="{Binding TaskBoards.Boards}">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="contracts:TaskBoardSummary">
                 <StackPanel Margin="3">
@@ -186,6 +276,13 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+          <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                     HorizontalAlignment="Center" TextAlignment="Center" FontSize="12"
+                     TextWrapping="Wrap" Margin="12,0"
+                     Foreground="{StaticResource Dim}"
+                     Text="No boards yet. Describe a feature above and press “plan feature”."
+                     IsVisible="{Binding TaskBoards.Boards.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+          </Grid>
 
           <DockPanel Grid.Column="1" Margin="0,0,8,0">
             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,6">
@@ -193,25 +290,79 @@
                          Foreground="{StaticResource Ink}"/>
               <TextBlock Text="{Binding TaskBoards.Detail}" TextWrapping="Wrap"
                          FontSize="11" Foreground="{StaticResource Dim}"/>
-              <TextBox x:Name="StatusDetail" PlaceholderText="reason for block/reopen/cancel"
+              <TextBlock Text="Reason — required when you block, reopen, or cancel a task below"
+                         FontSize="11" Foreground="{StaticResource Dim}" Margin="2,6,0,3"/>
+              <TextBox x:Name="StatusDetail" PlaceholderText="why…"
                        Background="#0D1116" Foreground="{StaticResource Ink}"/>
+
+              <!-- One action bar in a fixed place, acting on the selected task, rather
+                   than buttons repeated on every row. Per-row actions were tried twice
+                   and are wrong here for a mechanical reason: this column is the `*` of
+                   250,*,310, so a row's buttons are cramped and clipped, and revealing
+                   them on hover or selection moved the hit target while the pointer was
+                   travelling to it. A bar that never moves cannot be missed. -->
+              <Border x:Name="TaskActions" Background="#141A21" CornerRadius="6"
+                      Padding="8,6" Margin="0,8,0,0"
+                      IsVisible="{Binding TaskBoards.HasSelection}">
+                <!-- The Border keeps the window's own state as DataContext so
+                     HasSelection resolves; only the inner panel switches to the selected
+                     task, which is what the buttons bind against. -->
+                <StackPanel Orientation="Vertical" Spacing="6"
+                            DataContext="{Binding TaskBoards.Selected}">
+                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"
+                             Foreground="{StaticResource Ink}"/>
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <StackPanel.Styles>
+                      <Style Selector="Button">
+                        <Setter Property="Background" Value="#233041"/>
+                        <Setter Property="Foreground" Value="#D7DDE4"/>
+                        <Setter Property="Padding" Value="12,5"/>
+                      </Style>
+                    </StackPanel.Styles>
+                    <Button Content="work on this" Tag="Work" IsVisible="{Binding CanRunWork}"
+                            Background="#2F4A66"
+                            ToolTip.Tip="Run one advisory turn against this task. It proposes and traces; it never marks anything done."/>
+                    <Button Content="claim" Tag="Claim" IsVisible="{Binding CanClaim}"/>
+                    <Button Content="complete" Tag="Complete" IsVisible="{Binding CanWork}"/>
+                    <Button Content="block" Tag="Block" IsVisible="{Binding CanWork}"/>
+                    <Button Content="reopen" Tag="Reopen" IsVisible="{Binding CanReopen}"/>
+                    <Button Content="cancel" Tag="Cancel" IsVisible="{Binding CanCancel}"/>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
             </StackPanel>
+            <Grid>
             <TreeView x:Name="TaskTree" ItemsSource="{Binding TaskBoards.Tasks}">
               <TreeView.ItemTemplate>
                 <TreeDataTemplate x:DataType="local:TaskBoardTaskNode"
                                   ItemsSource="{Binding SubTasks}">
                   <StackPanel Margin="0,3">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
+                    <!-- Background="Transparent" is load-bearing, not styling. A panel
+                         with a null background is not hit-testable in its empty areas, so
+                         :pointerover was driven only by the title TextBlock: moving the
+                         pointer right, toward the buttons, left the last hit-testable
+                         child and the actions vanished before they could be clicked.
+                         A transparent background makes the whole row the hover target. -->
+                    <StackPanel Orientation="Horizontal" Spacing="6" Background="Transparent">
+                      <!-- Actions belong to the row you are pointing at. Rendering five
+                           default-styled buttons on every row of a 212-task board buries
+                           the titles they act on, which is the actual content. Opacity
+                           rather than IsVisible so revealing them never reflows the row
+                           under the pointer; hit-testing follows so an invisible button
+                           cannot be clicked. -->
+                      <StackPanel.Styles>
+                        <Style Selector="StackPanel#TaskActions > Button">
+                          <Setter Property="Background" Value="#233041"/>
+                          <Setter Property="Foreground" Value="#D7DDE4"/>
+                          <Setter Property="Padding" Value="8,2"/>
+                          <Setter Property="FontSize" Value="11"/>
+                        </Style>
+                      </StackPanel.Styles>
                       <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
                                  Foreground="{StaticResource Ink}"/>
                       <TextBlock Text="{Binding Status}" Foreground="{StaticResource Accent}"/>
                       <TextBlock Text="{Binding Priority}" FontSize="11"
                                  Foreground="{StaticResource Dim}"/>
-                      <Button Content="claim" Tag="Claim" IsVisible="{Binding CanClaim}"/>
-                      <Button Content="complete" Tag="Complete" IsVisible="{Binding CanWork}"/>
-                      <Button Content="block" Tag="Block" IsVisible="{Binding CanWork}"/>
-                      <Button Content="reopen" Tag="Reopen" IsVisible="{Binding CanReopen}"/>
-                      <Button Content="cancel" Tag="Cancel" IsVisible="{Binding CanCancel}"/>
                     </StackPanel>
                     <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="11"
                                Foreground="{StaticResource Dim}"/>
@@ -230,11 +381,18 @@
                 </TreeDataTemplate>
               </TreeView.ItemTemplate>
             </TreeView>
+            <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                       HorizontalAlignment="Center" FontSize="12"
+                       Foreground="{StaticResource Dim}"
+                       Text="Nothing in this view — pick a board on the left, or try another filter above."
+                       IsVisible="{Binding TaskBoards.Tasks.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+            </Grid>
           </DockPanel>
 
           <DockPanel Grid.Column="2">
             <TextBlock DockPanel.Dock="Top" Text="ACTIVITY" FontSize="11"
                        Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+            <Grid>
             <ScrollViewer>
               <ItemsControl ItemsSource="{Binding TaskBoards.Activity}">
                 <ItemsControl.ItemTemplate>
@@ -251,6 +409,11 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </ScrollViewer>
+            <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                       HorizontalAlignment="Center" FontSize="12"
+                       Foreground="{StaticResource Dim}" Text="No activity yet."
+                       IsVisible="{Binding TaskBoards.Activity.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+            </Grid>
           </DockPanel>
         </Grid>
       </DockPanel>

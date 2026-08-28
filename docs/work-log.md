@@ -7899,6 +7899,23 @@ leaf tasks on the suite board without a criterion. O2e's own criterion was satis
 it was completed on the board. O2 stays open on one criterion that is not mine to satisfy:
 an agent other than Claude claims and completes a task there.
 
+## 2026-08-25 — Codex — G5a2 dedicated approval-resolution scope checkpoint
+
+Continued the claimed G5a2 lane with ADR-0020's explicit rule that authentication alone
+cannot authorize approval resolution. The first Authentication test failed to compile
+because no Dami scope or policy contract existed. Added `dami.approvals.resolve` and a
+named ASP.NET Core policy using OpenIddict's `HasScope` semantics; the first implementation
+remained red on IDE1006 until its public constants followed the repository's uppercase
+naming rule. The corrected policy denies an authenticated principal without the scope and
+allows one carrying it.
+
+A separate Host endpoint-metadata test then failed because the policy existed but no route
+used it. `POST /approvals/{prefix}/resolve` now requires the dedicated policy; approval
+listing remains protected by the ordinary authenticated fallback. Focused discovery/policy
+tests passed 3/3, Authentication passed 9/9, Host passed 68/68, and `dotnet build Dami.sln
+--no-restore` succeeded with 0 warnings and 0 errors. G5a2 remains in progress for the
+claim-derived actor boundary and broader least-privilege endpoint scope inventory.
+
 ## 2026-08-25 — Claude — G9a: the gate records its decisions and learns from corrections
 
 ADR-0019 said `DisclosureOptions.Examples` would carry Steve's corrections and that
@@ -7945,6 +7962,77 @@ none pending. The attribution fix after them could not be gated on the whole sol
 Codex's in-flight G5a2 edits to `TaskBoardEndpoints` and its tests were red (IDE0009)
 in the shared tree at that moment. The CLI project and its tests built and passed on their
 own and the two changed files pass format verification; the fix is confined to them.
+
+## 2026-08-25 — Codex — G5a2 authenticated task-board attribution checkpoint
+
+Replaced client-asserted task-board attribution at the enabled-auth Host boundary. The
+first resolver test failed to compile on the absent resolver/claim contract; the minimum
+resolver uses OpenIddict's canonical `sub` plus `dami.actor_kind`. It ignores submitted
+actors only when authentication is enabled. The compatibility behavior was initially
+implemented before its own test; that branch was removed, its test observed null instead
+of the submitted actor, and only then was the auth-disabled behavior restored green so
+the work remains strict TDD rather than relabeled coverage.
+
+The HTTP claim test then failed with the store receiving `spoofed/Agent` instead of the
+validated `identity-42/Human`. After the resolver was composed and applied to claim, an
+exhaustive board-write test failed on all five remaining mutation routes for the same
+reason. Add-task, add-criterion, criterion result, completion, and status now share the
+resolver. Planning received a separate red: its created board still named the spoofed
+request actor, then passed after using the same boundary. A final test proved authenticated
+clients can omit actor fields entirely; it failed 400 until raw optional compatibility
+input was separated from claims attribution. During that change, the existing blank-actor
+compatibility test caught an unintended 500 from `Forbid()` without an auth scheme;
+invalid disabled-mode actor input again returns 400, while invalid enabled claims return
+403.
+
+Focused board/auth tests passed 28/28. Full Host passed **75/75**, Authentication passed
+**9/9**, and `dotnet build Dami.sln --no-restore` succeeded with 0 warnings and 0 errors.
+This supersedes the transient IDE0009/red-tree observation in Claude's preceding entry;
+that fixture error was corrected before any behavioral result was accepted. G5a2 remains
+in progress pending the broader endpoint scope inventory and full-solution test/format
+gate.
+
+## 2026-08-25 — Codex — G5a2 endpoint scopes implemented; full gate blocked by concurrent code
+
+Added the remaining least-privilege scope boundary through strict TDD. The first policy
+test failed to compile on absent `dami.runtime.read`/`dami.runtime.write` contracts, then
+passed after the named policies were added using OpenIddict scope semantics. A fallback
+policy test next proved a read token could incorrectly authorize POST; the enabled-auth
+fallback now requires read scope for GET/HEAD and write scope for mutations. Approval
+resolution requires write **and** `dami.approvals.resolve`, so an approval-only token is
+insufficient. Authentication tests pass **11/11**.
+
+The existing authenticated Host fixture then correctly received 403 until its fake token
+was given read/write scopes. Isolated affected verification succeeded: no-dependency Host
+and Host-test builds each completed with 0 warnings/errors, and Host tests passed **75/75**.
+
+The mandatory full solution build and the first full Host-suite attempt did **not** pass:
+concurrent code outside G5a2 has CA2200 at `Dami.Proactive/Network/INetworkProbe.cs:86`
+and VSTHRD103 at `Dami.Persistence/Domains/PostgresDomainFactStore.cs:110,112`. Those
+paths were not modified. G5a2's board criterion is not satisfied and the task remains
+in progress until the shared full gate is green; no interrupted or dependency-blocked
+command is recorded as passing.
+
+Scoped format verification initially failed on whitespace in the new Host test request
+initializers. `dotnet format` was applied only to the three G5a2 Host test files; scoped
+format verification then exited 0. The no-dependency Host-test build remained at 0
+warnings/errors and the rebuilt Host suite passed **76/76**. Authentication and Host
+production scoped format checks had already exited 0.
+
+## 2026-08-25 — Codex — G5a2 completed on PostgreSQL; G5a3 claimed
+
+After concurrent domain/network work settled, the mandatory gate was rerun on the shared
+tree: `dotnet build Dami.sln --no-restore` succeeded with 0 warnings/errors, all nineteen
+suites passed **1,017/1,017**, and solution format verification exited 0. Additional Host
+verification proves an invalid bearer is rejected and `/health` is the sole anonymous
+runtime route (5/5 focused). The G5a2 criterion was satisfied and G5a2 completed on board
+`d621fe5f`. G5a1's previously demonstrated isolated `dami_auth` schema/key boundary was
+also reconciled: its criterion was satisfied and the stale claimed task completed.
+
+Claimed G5a3 on PostgreSQL. The next red-green slices are client enrollment contracts for
+CLI device flow, GUI authorization-code/PKCE, and a confidential narrowly scoped service;
+then protocol endpoints and thin-client token acquisition/storage. No production G5a3
+code changes precede those tests.
 
 ## 2026-08-25 — Claude — K4: one store for the domains after health; network and civic live-ready; `dami today`
 
@@ -8008,6 +8096,25 @@ Steve's sign-off — which is the board doing its job; K4 holds this work.
 Codex's uncommitted G5a2 test on Codex's uncommitted Host edits, in the shared tree.
 Format: exit 0 on my files; the same uncommitted test file has a whitespace finding.
 Migration 033 applied to `dami-data`, none pending.
+
+## 2026-08-25 — Codex — G5a3 GUI authorization-code/PKCE acceptance
+
+Continued claimed board task `394f8f7e`. Added one Host acceptance test for a GUI public
+client using authorization code with S256 PKCE, a PostgreSQL Identity user, token exchange,
+and an authenticated runtime call. Narrow test first failed at compilation while its helpers
+were introduced, then failed as expected with HTTP 500 because `/connect/authorize` had no
+pass-through application handler. Production endpoint work starts from that observed failure.
+
+Enabled authorization-endpoint pass-through and added the minimal Identity-backed handler,
+sharing human-principal construction with device verification. The narrow GUI test passed 1/1;
+Authentication passed 13/13 and Host passed 82/82 after excluding the intentionally anonymous
+OIDC interaction endpoints from the runtime-anonymity assertion. Marked criterion `29ee61ac`
+satisfied, completed G5a3 `394f8f7e`, and claimed G5a4 `f6b0482a` on the PostgreSQL board.
+
+Started G5a4 production cutover. Added red-first tests for applying acquired bearer tokens to
+thin-client HTTP clients (compile failure: helper absent), then added the focused shared helper
+and wired the CLI configuration key `Authentication:AccessToken` plus desktop environment key
+`DAMI_ACCESS_TOKEN`. Narrow tests passed 2/2; both client projects built with 0 warnings/errors.
 
 ## 2026-08-25 — Claude — L4: Dami speaks (Piper, public-domain LJ Speech voice); `dami today`; K4 across CLI, web, and desktop
 
@@ -8080,3 +8187,312 @@ Still to deploy: the proactive build with the event-date fix (`tools/deploy.sh
 --no-build`); until then tomorrow's tick would date new calendar items by pubDate again.
 
 Gate on every commit: 0 warnings, 0 errors; `dotnet test` 1036/1036 at `9d8ce83`.
+
+## 2026-08-28 — Claude — Boot-time clock jump: diagnosed, unit ordered after time-sync
+
+Steve asked why `dami-proactive` was exposed to a clock jump. Root cause is host
+configuration, not the tier: `RTC in local TZ: yes` while the RTC holds UTC, so the
+kernel sets the clock ~5 h ahead at boot and `systemd-timesyncd` corrects it backwards
+30–60 s later. Reproducible on all three boots in the journal. `dami-proactive` starts
+~20 s inside that window.
+
+- **Corrected my own first read.** I had said the jump could skip or duplicate a tick.
+  It cannot: `ProactiveWorker` uses `PeriodicTimer`, which is monotonic. The real
+  exposure is `ProactiveScheduler` — `IsDue`, `RecordAsync`, and `TryAcquireLeaseAsync`
+  are wall-clock, so a pass due on the first post-boot tick would run early and stamp a
+  future `ran_at` and a 4 h lease into the durable run log.
+- **No damage to clean up.** Every boot's first tick logged `0 pass(es) ran`;
+  `dami.proactive_run_leases` is empty and `dami.proactive_runs` intervals are
+  consistent. Latent, not active.
+- `tools/systemd/dami-proactive.service` now carries
+  `After=time-sync.target` / `Wants=time-sync.target`, with the reasoning inline.
+- Runbook §4.7 records the trap, including that `systemd-time-wait-sync.service` ships
+  disabled here so the ordering is a no-op until it is enabled.
+
+Steve chose to fix the root cause as well as the unit, and applied both at 14:41–14:42.
+Two attempts failed first through Claude Code's `!` prefix — no TTY, so sudo never
+prompted and the `&&` chain skipped everything; the host was untouched and the log showed
+only `pam_unix(sudo:auth): conversation failed`. Landed on the third try via a
+`gnome-terminal` window launched onto `DISPLAY=:0` with the commands scripted. Recorded
+as runbook §4.8, because it will catch the next agent too.
+
+Verified after: `RTC in local TZ: no`, `/etc/adjtime` `UTC` (was `LOCAL`),
+`systemd-time-wait-sync.service` enabled, installed unit byte-identical to the repo copy
+with `time-sync.target` in `After` and `Wants`, `override.conf` intact (12 `Environment=`
+entries), `dami-proactive` and `dami-host` both active, `systemd-analyze verify` clean.
+
+Windows is dual-booted; §4.7 records the `RealTimeIsUniversal` counterpart so a Windows
+boot cannot break Linux back.
+
+Not verified until the next reboot: that the correction actually lands before the tier
+starts — `time-sync.target` is `inactive dead` for the rest of this boot, as expected for
+a oneshot enabled mid-boot. No C# changed, so the build/test gate did not apply.
+
+## 2026-08-28 — Claude — Dami.Gui legibility pass
+
+Steve ran the GUI for the first time and said it "looks nice but not user friendly".
+The complaint was accurate and the causes were in the markup, not the styling: the UI was
+built outward from the data model, so it exposed the runtime's vocabulary and left the
+user to infer the rest.
+
+- **The planner control row had no captions at all** (`MainWindow.axaml`). Five controls
+  reading `Local / LocalOnly / steve / Human` with nothing saying what any of them
+  governed. Now captioned Feature to plan · Plan with · Visibility · Acting as · Who,
+  each with a tooltip saying what it changes.
+- **Two of those controls clipped their own values.** `ColumnDefinitions="*,110,110,130,90…"`
+  rendered `LocalOnl` and `Huma`, which reads as a rendering fault rather than a setting.
+  Columns are now sized to the longest value each control can show.
+- **Every panel rendered as a blank rectangle when idle** — the conversation pane, the
+  largest region on screen, worst of all. New `IsEmpty` converter (`IsEmpty.cs`) drives a
+  placeholder in all six: conversation (with three example questions), execution graph,
+  attention, beliefs, board list, task tree, activity.
+- **Debug metadata outranked content.** A surfacing led with `c52239ad`; the id now
+  trails as the actionable `dami read c52239ad`. Beliefs read `1.00 · Correction · 3 obs`
+  and now read `confidence 1.00 · from Correction · 3 supporting observations`.
+- **The reason box was context-free**, sitting mid-pane with no explanation. Captioned.
+- The header spent prime space on `rendered from the durable event stream — the display
+  invents nothing`. That is a note to ourselves; it now orients the user instead.
+
+TDD held for `IsEmpty` (`IsEmptyTests.cs`, 6 cases, written first). The XAML changes are
+not unit-testable and were verified by running the app and reading the screen.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1042 passed, 0 failed, 19/19 projects green** (Gui.Tests 8 → 14).
+
+Deliberately not done — this was a legibility pass, not a redesign. The window is still
+two unrelated apps stacked in one frame, the task rows' inline buttons sit at a different
+x on every row, and the activity pane still prints raw revision hashes.
+
+## 2026-08-28 — Claude — Dami.Gui: the sidebars were unusable, not just ugly
+
+Steve: "the wants attention is flickering and impossible to scroll and what are all these
+claim, cancel buttons". Both were real defects.
+
+**The flicker and the dead scroll had one cause, and it was not confined to that panel.**
+`RefreshSidebarsAsync` opened with `Attention.Clear()` and re-added every item; the board
+did the same through a `Replace<T>` helper. `ObservableCollection.Clear()` raises
+`NotifyCollectionChangedAction.Reset`, which makes the items control tear down and rebuild
+every container and drops the enclosing `ScrollViewer` to offset zero. The sidebars poll
+every **2 s** (`MainWindow.axaml.cs` `pollInterval`) and the board every **5 s**, so the
+lists were being reset on a timer — hence a visible flicker, and a scroll that was undone
+before the pointer could move. Five collections were affected: Attention, Beliefs, Boards,
+Tasks, Activity.
+
+Fixed with `Reconcile.Sync` (`Reconcile.cs`, TDD, 7 cases): compare first, mutate only
+differing positions, append or trim from the tail, and never raise Reset. It needs value
+equality, since every poll builds fresh objects — `SidebarItem` became a `record`, and
+`TaskBoardTaskNode` got `IEquatable` over TaskId + Version + Status + recursive SubTasks.
+The common case (nothing changed) now performs zero mutations and raises no events at all,
+which is what the first test pins.
+
+**The buttons.** Every task row rendered up to five default-styled buttons — on a 212-task
+board that buries the titles they act on. They now reveal on pointer-over, styled to match
+the rest of the window. Opacity rather than `IsVisible` so revealing them does not reflow
+the row under the pointer, with `IsHitTestVisible` following so an invisible button cannot
+be clicked.
+
+`DAMI0003` (30-line method bodies) caught `Sync` at 32 lines. Split into `Overwrite` and
+`Trim` rather than suppressed.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1049 passed, 0 failed, 19/19 green** (Gui.Tests 14 → 21).
+
+Verified by tests and by running the app; a static screenshot cannot show absence of
+flicker, so the perceptual check is Steve's.
+
+## 2026-08-28 — Claude — Dami.Gui: the board panel now opens on Steve's decisions
+
+Steve: "the whole dami core suite thing is confusing and I don't understand HOW to use
+it." The diagnosis is not that the panel was unexplained — it is that it was showing the
+wrong audience's queue. "Dami Core suite" is TODO.md imported as 212 tasks: 170 Done,
+20 Open, 14 Blocked, 7 InProgress, 1 Cancelled. It is the *agents'* claim board, and the
+claim/complete/block protocol it exposes is written in TODO.md §Protocol for Claude and
+Codex. Of those 212, about eleven carry a `[STEVE]` marker and are actually his.
+
+The GUI opened on the full tree with no filter, so his eleven decisions were buried among
+170 finished agent tasks. The one place they could have surfaced —
+`TodayDigest.BoardQuestions` — requires status Blocked *and* a description naming Steve,
+so the open ones appeared nowhere in the UI at all.
+
+- New `BoardFilter` + `BoardView` (`BoardFilter.cs`, TDD, 8 cases): Needs you · Open ·
+  Blocked · All, with counts. Every view except All flattens, because the `[STEVE]` items
+  are leaves several levels down and a root-only filter returns nothing.
+- The panel defaults to **Needs you**, so it opens on the eleven rather than the 212.
+- `ViewBrush` marks the active view; four identical buttons would not say which slice you
+  are looking at.
+- Filtering is applied over a retained `roots` list, so switching views costs a reconcile
+  and no refetch.
+
+**A bug I introduced and caught by looking at the running app, not the tests:** `Count`
+for All returned the number of *roots*, which rendered "All 15" beside "Open 20" — a total
+smaller than one of its own parts. The counts are now all task counts, and "All 212" agrees
+with the board's own "170/212 done". A regression test pins the invariant.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1058 passed, 0 failed, 19/19 green** (Gui.Tests 21 → 30).
+
+Still wrong, and not attempted here: imported descriptions render raw markdown
+(`**encrypted**`) and mostly restate the title; the per-criterion `satisfy` buttons are
+still always visible, unlike the task actions which now reveal on hover.
+
+## 2026-08-28 — Claude — "Work this task now" (V1, advisory)
+
+Steve: "how do I tell the application that I want it to work on a task NOW". He could
+not, and the answer was structural: nothing consumed the board. Verified rather than
+assumed — the only consumers of `ITaskBoardStore` are the importer, the planner, the CLI
+verbs, the GUI, the Host endpoints, and the store, and none of the ten proactive services
+touches the board. The app was showing work it had no way to start.
+
+Built the advisory half. ADR-0023 records the decision and, more importantly, the
+boundary: a run proposes and traces, and may not claim, complete, or restatus anything.
+The V2 executing version — repo write, git, build/test — is a trust-boundary decision on
+this workstation and deliberately has no code yet.
+
+- `tools/ddl/034_task_work_activity.sql` — `TaskWorkStarted` / `TaskWorkFinished` kinds,
+  and `dami.task_board_log_work`, which resolves board from task in one statement so a
+  run against a deleted task writes nothing rather than a dangling row.
+- `Dami.Core/TaskBoard/TaskWorkPrompt.cs` — pure, so the wording is testable; the wording
+  *is* the safety boundary, and a test pins that it states the run is advisory.
+- `Dami.Core/TaskBoard/TaskWorkService.cs` — reads the board's own snapshot rather than
+  trusting the caller, refuses Done/Cancelled, brackets the turn on the board, and
+  records a failed turn instead of leaving a run that never came back.
+- `POST /task-boards/{boardId}/tasks/{taskId}/work` — takes no expected version, because
+  it mutates nothing that can conflict.
+- GUI: hover-revealed "work on this"; the answer lands in the conversation pane where
+  prose is already readable, tagged `advisory run · trace … · the task is unchanged`.
+
+**Migration 034 is applied to `dami-data`** (ledger 39 → 40 rows, both kinds in the
+constraint, `dami_app` has execute). Applied as `dami_ddl` over `.pgpass`, replicating
+apply.sh's own begin/insert/commit, because —
+
+**Trap found: `tools/ddl/apply.sh` cannot read its own ledger.** It connects as role
+`steve`, which does not exist in this cluster, and the lookup is wrapped in
+`2>/dev/null || true` — so it reports `applied: (none)` and lists all 34 migrations as
+pending. Running it would replay migration 001 against a live database. It needs
+`dami_ddl` (or `sudo -u postgres`). Not fixed here: it is shared tooling and the fix
+should be Steve's call.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1075 passed, 0 failed, 19/19 green** (Core 196 → 211, Host 83 → 85).
+
+**Not demonstrated end to end.** `/opt/dami/host` predates the route and returns 404 —
+confirmed by curl. The button is visible and wired, and the endpoint is proven by two
+Host tests through the real pipeline, but the live click needs the Host redeployed
+(runbook §"Rebuilding /opt/dami", requires sudo).
+
+## 2026-08-28 — Claude — The work button was unclickable; per-row actions were the wrong shape
+
+Steve: "you cannot click 'Work on this' it disappears when you move your mouse", then
+"clicking work on this fails with 'the run failed the input does not contain any JSON
+tokens'". Two separate defects, both mine, and the first one my own verification could
+not have caught: a screenshot with a stationary pointer shows the buttons appearing, not
+that they can be reached.
+
+**Hover-reveal was wrong, twice.** First attempt drove it with Opacity +
+IsHitTestVisible on the row. A panel with a null background is not hit-testable in its
+empty areas, so `:pointerover` was really being driven by the title TextBlock: moving
+right toward the buttons left the last hit-testable child and they vanished mid-travel.
+Adding `Background="Transparent"` made them stay painted, but instrumenting the handler
+(`Diagnostics.Write` on every task action, kept) proved clicks still never arrived — the
+pointer was racing the style that made them hit-testable. Binding visibility to row
+selection instead fixed reachability but not the underlying shape problem.
+
+**The shape was the real fault.** The detail pane is the `*` of `250,*,310`, so per-row
+buttons are cramped and clipped, and *any* reveal-on-interaction moves the hit target
+while the pointer travels to it. Replaced with **one action bar in a fixed position**
+above the tree, showing the selected task's title and its available actions at full size.
+A bar that never moves cannot be missed. Verified by driving the pointer with xdotool:
+select a row, click the button, handler fires (`task action: tag=Work
+dataContext=TaskBoardTaskNode`).
+
+**The JSON error was a bad diagnosis of a real condition.** `WorkAsync` parsed the
+response body without checking the status first, so the deployed Host's 404 — it predates
+the route — surfaced as "the input does not contain any JSON tokens". It now names the
+actual cause: *"this runtime has no work endpoint — dami-host is older than this client
+and needs redeploying."* A non-JSON body at any other status reports the status code.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1075 passed, 0 failed, 19/19 green**.
+
+Board still shows **0** `TaskWorkStarted`/`TaskWorkFinished` rows: every attempt so far
+404'd before reaching the service, so nothing was recorded. The end-to-end run remains
+unproven until `dami-host` is redeployed (needs sudo).
+
+## 2026-08-28 — Claude — Advisory runs: a prompt that refused, a model that was not chosen, and a tool loop that gave up
+
+Steve, on the first real run: "it's stuck using the fucking local llm that claims it
+cannot because it doesn't have the authority". Three faults, two of them mine.
+
+**1. The prompt taught the model to refuse.** It ended on prohibitions — *"you cannot
+change the board… you must not claim… say exactly what is missing and stop"* — and
+qwen3:8b read that as licence to decline, answering that it lacked authority and
+producing nothing. The boundary is enforced in code and in SQL; the prompt did not need
+to recite it. It now asks for the artifact, demands a position ("I would do X, because Y"
+beats a survey), and says to state an assumption and reason on rather than stop at a
+missing fact. Two regression tests pin the absence of `You cannot`, `must not`, `and stop`.
+
+**2. The model was not Steve's to choose.** `RunAsync` was hardwired to `ITurnRunner`,
+which is local. It now takes a `FeaturePlannerKind` and the GUI passes the **"Plan with"**
+picker that was already sitting there — `Frontier` routes through `CodexChatClient` on the
+ChatGPT subscription, the same path as the conversation's subscription toggle. Only board
+text egresses (title, scope, criteria); no retrieved memory, which is what keeps it
+Egressable without a disclosure step. The board records which model ran it.
+`DAMI0005` rejected the optional `IFrontierChat`/`IIdentityProvider` constructor
+parameters — correctly, an optional dependency silently disables a feature — so both are
+required.
+
+**3. `ToolLoopRunner` killed the turn on any tool failure** (`ToolLoopRunner.cs`, the
+`catch (Exception) { …; throw; }`). Pre-existing and not confined to this feature: every
+turn in the system went through it, so one bad tool argument ended the whole conversation.
+Observed live — the local model asked to read a file at the literal path `"path"`,
+`DirectoryNotFoundException` propagated, and the advisory run died with three of its four
+tool calls unused.
+
+Fixed by modelling the failure honestly rather than faking a success:
+`CapabilityExecutionResult` still means *"a successful output backed by evidence"* and is
+never fabricated. `ToolExecutionExchange` gained a `Failed` factory, a nullable `Result`,
+a `Failure` reason, `Succeeded`, and a `Content` property giving providers the one string
+they need without branching. `ToolLoopRunner` emits `ToolFailed` exactly as before — the
+audit trail is unchanged — then returns the reason to the model so it can correct itself
+inside its existing call bound. Cancellation still propagates: that is the caller's
+decision, not something a model recovers from. Blast radius was one line in
+`OllamaToolCallingChatClient`. Two tests: one that a failed call is handed back and the
+turn continues, one that an all-failing model still stops at the bound rather than
+retrying forever.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1079 passed, 0 failed, 19/19 green**.
+
+Not yet verified live: `/opt/dami/host` is still the 16:35 build, which predates all
+three fixes. A redeploy is needed before any of this is observable.
+
+## 2026-08-28 — Claude — tools/deploy.sh now gates, checks the schema, and proves it landed
+
+Steve asked for a script that updates the deployed host automatically. One already
+existed — `tools/deploy.sh`, publish → rsync → sidecar unit → restart → verify — so the
+work was closing the three gaps that actually bit today, not writing a second script.
+
+- **It deployed without the gate.** CLAUDE.md makes `dotnet build` (0 warnings) and
+  `dotnet test` (all green) mandatory before C# work is called done, but that lived in
+  habit, not in the tooling, so an untested build could reach `/opt`. The script now runs
+  both first and refuses to deploy on either failure. `TreatWarningsAsErrors` means a
+  warning already fails the build, so the exit code is sufficient. `--no-gate` skips it
+  and says so loudly.
+- **It deployed without checking the schema**, which is how a binary reaches `/opt`
+  expecting a migration the database has not got. It now reads `dami.schema_migrations`
+  and refuses to deploy ahead of the schema, printing the exact `psql` line to apply each
+  pending file as `dami_ddl`. It deliberately does **not** apply DDL itself: schema
+  changes to shared state stay a deliberate act.
+  Note this reads the ledger as `dami_app` rather than calling `tools/ddl/apply.sh`,
+  because apply.sh connects as the role `steve`, which does not exist in this cluster —
+  its lookup fails, the error is swallowed by `2>/dev/null || true`, and it reports all 34
+  migrations as pending. Running it would replay migration 001. apply.sh is still broken
+  and still shared tooling; not fixed here.
+- **It never proved the sync landed.** Today `/opt/dami/host` sat at the 16:35 build
+  through two apparently-successful sessions, and the only symptom was a 404 from a route
+  that exists in the tree. It now compares the deployed `Dami.Host.dll` mtime against the
+  staged one and fails if `/opt` is older.
+
+Verified: `bash -n` clean; unknown flag rejected with exit 2; schema check reports
+`40 applied, 0 pending` against the live ledger; gate abort proven with a forced failure.
+Not verified end to end — a full run needs sudo, which this session does not have.

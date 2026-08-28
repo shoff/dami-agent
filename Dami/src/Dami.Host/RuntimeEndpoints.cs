@@ -8,7 +8,8 @@ public static class RuntimeEndpoints
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+        app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
+            .AllowAnonymous();
         SessionEndpoints.Map(app);
         TurnEndpoints.Map(app);
         SurfacingEndpoints.Map(app);
@@ -19,10 +20,9 @@ public static class RuntimeEndpoints
         FrontierEndpoints.Map(app);
         HealthDomainEndpoints.Map(app);
         TranscriptionEndpoints.Map(app);
-        ToolProposalEndpoints.Map(app);
         SpeechEndpoints.Map(app);
+        ToolProposalEndpoints.Map(app);
         TaskBoardEndpoints.Map(app);
-    }
         DisclosureEndpoints.Map(app);
         DomainEndpoints.Map(app);
     }
