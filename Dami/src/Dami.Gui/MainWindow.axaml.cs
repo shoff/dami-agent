@@ -33,6 +33,7 @@ public sealed partial class MainWindow : Window
     private readonly TextBox input;
     private readonly Button sendButton;
     private readonly ToggleButton frontierToggle;
+    private readonly ToggleButton speakToggle;
     private readonly TextBlock statusLine;
     private readonly ScrollViewer chatScroll;
 
@@ -43,6 +44,7 @@ public sealed partial class MainWindow : Window
         this.input = Require<TextBox>(this, "Input");
         this.sendButton = Require<Button>(this, "SendButton");
         this.frontierToggle = Require<ToggleButton>(this, "FrontierToggle");
+        this.speakToggle = Require<ToggleButton>(this, "SpeakToggle");
         this.statusLine = Require<TextBlock>(this, "StatusLine");
         this.chatScroll = Require<ScrollViewer>(this, "ChatScroll");
         this.DataContext = this.state;

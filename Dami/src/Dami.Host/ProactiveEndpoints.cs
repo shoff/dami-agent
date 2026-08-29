@@ -36,16 +36,31 @@ internal static class ProactiveEndpoints
 
         var services = await history.ReadAsync(requested, cancellationToken).ConfigureAwait(false);
         var now = clock.GetUtcNow();
-        return Results.Ok(services.Select(service => new
+        return Results.Ok(services.Select(service => Describe(service, now)));
+    }
+
+    /// <remarks>
+    /// Staleness and due-ness are answered here, from one clock. A client computing them
+    /// from its own gets a different answer the moment the two disagree — which on this
+    /// host they have. Staleness is also only meaningful against a cadence: four services
+    /// reading "1 run, 5 days ago" looked stuck and were simply Weekly and Quarterly.
+    /// Cadence is null for runs recorded before migration 035 — unknown, never a guess —
+    /// and dueInHours goes negative once a service is overdue.
+    /// </remarks>
+    private static object Describe(ProactiveServiceHistory service, DateTimeOffset now)
+    {
+        return new
         {
             serviceName = service.ServiceName,
             runs = service.Runs,
             lastRanAt = service.LastRanAt,
             lastStatus = service.LastStatus.ToString(),
-
-            // The panel's whole job is "is this stale?", and a client computing that from
-            // two clocks gets it wrong the moment they disagree. Answer it here.
             sinceLastRunHours = Math.Round((now - service.LastRanAt).TotalHours, 1),
+            cadence = service.Cadence?.ToString(),
+            nextDueAt = service.NextDueAt,
+            dueInHours = service.NextDueAt is { } due
+                ? Math.Round((due - now).TotalHours, 1)
+                : (double?)null,
             recent = service.Recent.Select(run => new
             {
                 runId = run.RunId,
@@ -53,6 +68,6 @@ internal static class ProactiveEndpoints
                 ranAt = run.RanAt,
                 status = run.Status.ToString(),
             }),
-        }));
+        };
     }
 }

@@ -13,7 +13,22 @@ public sealed record ProactiveServiceHistory(
     int Runs,
     DateTimeOffset LastRanAt,
     ProactiveStatus LastStatus,
-    IReadOnlyList<ProactiveRun> Recent);
+    ProactiveCadence? Cadence,
+    IReadOnlyList<ProactiveRun> Recent)
+{
+    /// <summary>
+    /// When this service is next due, or null when nothing has recorded its cadence yet.
+    /// Derived rather than stored: the scheduler decides due-ness from the last run and
+    /// the interval, and a second copy of that arithmetic would be a second answer.
+    /// </summary>
+    public DateTimeOffset? NextDueAt => this.Cadence switch
+    {
+        ProactiveCadence.Nightly => this.LastRanAt.AddDays(1),
+        ProactiveCadence.Weekly => this.LastRanAt.AddDays(7),
+        ProactiveCadence.Quarterly => this.LastRanAt.AddDays(91),
+        _ => null,
+    };
+}
 
 /// <summary>Reads back what the proactive tier has been doing.</summary>
 /// <remarks>

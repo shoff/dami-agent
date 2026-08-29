@@ -13,7 +13,11 @@ User=steve
 Group=steve
 WorkingDirectory=/home/steve/dev/dami-agent
 Environment=DAMI_TTS_VOICES=/home/steve/Data/piper
-Environment=DAMI_TTS_VOICE=en_US-ljspeech-medium
+# steve-clean: Steve's own voice, trained on this host from his own recordings with the
+# vocal stem isolated first (tools/tts/prep.py --clean). Supersedes the LJ Speech default
+# ADR-0022 chose for legal cleanliness — that reasoning was about using someone else's
+# voice, and does not apply to his. ljspeech stays installed and selectable per request.
+Environment=DAMI_TTS_VOICE=steve-clean
 Environment=DAMI_TTS_PORT=8091
 ExecStart=/usr/local/bin/uv run --with piper-tts /home/steve/dev/dami-agent/tools/tts/server.py
 Restart=on-failure

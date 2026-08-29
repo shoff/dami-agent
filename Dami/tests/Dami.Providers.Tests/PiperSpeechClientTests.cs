@@ -25,9 +25,12 @@ public sealed class PiperSpeechClientTests
         var audio = await client.SpeakAsync("hello", CancellationToken.None);
 
         Assert.Equal("http://127.0.0.1:8091/speak", target!.AbsoluteUri);
-        Assert.Equal(("hello", "en_US-ljspeech-medium"), (sent.GetProperty("text").GetString(), sent.GetProperty("voice").GetString()));
+        // The voice is sent explicitly on every request, which is why the sidecar's own
+        // DAMI_TTS_VOICE never governs what Dami sounds like — a distinction that cost an
+        // attempt to "fix" the voice by editing the systemd unit alone.
+        Assert.Equal(("hello", "steve-clean"), (sent.GetProperty("text").GetString(), sent.GetProperty("voice").GetString()));
         Assert.Equal([82, 73, 70, 70], audio);
-        Assert.Equal("en_US-ljspeech-medium", client.VoiceId);
+        Assert.Equal("steve-clean", client.VoiceId);
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> response) : HttpMessageHandler

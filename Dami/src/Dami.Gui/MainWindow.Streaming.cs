@@ -82,6 +82,7 @@ public sealed partial class MainWindow
         reply.Meta = $"frontier · subscription · trace "
             + $"{root.GetProperty("traceId").GetGuid().ToString("N")[..8]}";
         ScrollLater(this.chatScroll);
+        await this.SpeakAsync(reply).ConfigureAwait(true);
     }
 
     private async Task StreamIntoAsync(Message reply, string text)
@@ -99,6 +100,46 @@ public sealed partial class MainWindow
         if (!any)
         {
             reply.Meta = "the runtime returned nothing";
+            return;
+        }
+
+        await this.SpeakAsync(reply).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Reads a finished reply aloud, when asked to. Off by default: a machine that starts
+    /// talking unbidden is a machine you turn off. Failures land in the reply's own meta
+    /// line rather than anywhere louder — the answer already succeeded, and not being able
+    /// to say it out loud does not undo that.
+    /// </summary>
+    private async Task SpeakAsync(Message reply)
+    {
+        if (this.speakToggle.IsChecked != true || string.IsNullOrWhiteSpace(reply.Body))
+        {
+            return;
+        }
+
+        try
+        {
+            using var spoken = await this.runtime.PostAsync(
+                "/speak", new { text = reply.Body }, this.lifetime.Token).ConfigureAwait(true);
+            if (spoken?.RootElement.TryGetProperty("audioBase64", out var encoded) is not true)
+            {
+                reply.Meta = $"{reply.Meta} · could not be spoken".TrimStart(' ', '·');
+                return;
+            }
+
+            var failure = await Speech
+                .PlayAsync(Convert.FromBase64String(encoded.GetString() ?? string.Empty), this.lifetime.Token)
+                .ConfigureAwait(true);
+            if (failure is not null)
+            {
+                reply.Meta = $"{reply.Meta} · not spoken: {failure}".TrimStart(' ', '·');
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            reply.Meta = $"{reply.Meta} · not spoken: {exception.Message}".TrimStart(' ', '·');
         }
     }
 

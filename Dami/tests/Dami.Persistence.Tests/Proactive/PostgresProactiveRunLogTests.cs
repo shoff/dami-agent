@@ -41,8 +41,8 @@ public sealed class PostgresProactiveRunLogTests
     {
         await this.fixture.ResetAsync();
         var log = this.CreateLog();
-        await log.RecordAsync(Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt.AddDays(-1), ProactiveStatus.Completed, CancellationToken.None);
-        await log.RecordAsync(Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt, ProactiveStatus.Completed, CancellationToken.None);
+        await log.RecordAsync(Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt.AddDays(-1), ProactiveStatus.Completed, ProactiveCadence.Nightly, CancellationToken.None);
+        await log.RecordAsync(Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt, ProactiveStatus.Completed, ProactiveCadence.Nightly, CancellationToken.None);
 
         Assert.Equal(ranAt, await log.LastRanAtAsync("scout", CancellationToken.None));
     }
@@ -52,7 +52,7 @@ public sealed class PostgresProactiveRunLogTests
     {
         await this.fixture.ResetAsync();
         var log = this.CreateLog();
-        await log.RecordAsync(Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt, ProactiveStatus.Failed, CancellationToken.None);
+        await log.RecordAsync(Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt, ProactiveStatus.Failed, ProactiveCadence.Nightly, CancellationToken.None);
 
         Assert.Equal(ranAt, await log.LastRanAtAsync("scout", CancellationToken.None));
     }
@@ -62,7 +62,7 @@ public sealed class PostgresProactiveRunLogTests
     {
         await this.fixture.ResetAsync();
         var log = this.CreateLog();
-        await log.RecordAsync(Guid.NewGuid(), "reflection", Guid.NewGuid(), ranAt, ProactiveStatus.Completed, CancellationToken.None);
+        await log.RecordAsync(Guid.NewGuid(), "reflection", Guid.NewGuid(), ranAt, ProactiveStatus.Completed, ProactiveCadence.Nightly, CancellationToken.None);
 
         Assert.Null(await log.LastRanAtAsync("scout", CancellationToken.None));
     }
@@ -74,7 +74,7 @@ public sealed class PostgresProactiveRunLogTests
         var log = this.CreateLog();
         var runId = Guid.NewGuid();
         await log.RecordAsync(
-            runId, "scout", Guid.NewGuid(), ranAt, ProactiveStatus.Completed, CancellationToken.None);
+            runId, "scout", Guid.NewGuid(), ranAt, ProactiveStatus.Completed, ProactiveCadence.Nightly, CancellationToken.None);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => log.RecordAsync(
             runId,
@@ -82,6 +82,7 @@ public sealed class PostgresProactiveRunLogTests
             Guid.NewGuid(),
             ranAt.AddMinutes(1),
             ProactiveStatus.Failed,
+            ProactiveCadence.Weekly,
             CancellationToken.None));
 
         Assert.Contains(runId.ToString(), exception.Message, StringComparison.Ordinal);
@@ -95,8 +96,8 @@ public sealed class PostgresProactiveRunLogTests
         var runId = Guid.NewGuid();
         var traceId = Guid.NewGuid();
 
-        await log.RecordAsync(runId, "scout", traceId, ranAt, ProactiveStatus.Completed, CancellationToken.None);
-        await log.RecordAsync(runId, "scout", traceId, ranAt, ProactiveStatus.Completed, CancellationToken.None);
+        await log.RecordAsync(runId, "scout", traceId, ranAt, ProactiveStatus.Completed, ProactiveCadence.Nightly, CancellationToken.None);
+        await log.RecordAsync(runId, "scout", traceId, ranAt, ProactiveStatus.Completed, ProactiveCadence.Nightly, CancellationToken.None);
 
         Assert.Equal(ranAt, await log.LastRanAtAsync("scout", CancellationToken.None));
     }
@@ -124,11 +125,11 @@ public sealed class PostgresProactiveRunLogTests
         await this.fixture.ResetAsync();
         var log = this.CreateLog();
         await log.RecordAsync(
-            Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt.AddDays(-2), ProactiveStatus.Completed, CancellationToken.None);
+            Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt.AddDays(-2), ProactiveStatus.Completed, ProactiveCadence.Nightly, CancellationToken.None);
         await log.RecordAsync(
-            Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt, ProactiveStatus.Failed, CancellationToken.None);
+            Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt, ProactiveStatus.Failed, ProactiveCadence.Nightly, CancellationToken.None);
         await log.RecordAsync(
-            Guid.NewGuid(), "curator", Guid.NewGuid(), ranAt.AddDays(-1), ProactiveStatus.Completed, CancellationToken.None);
+            Guid.NewGuid(), "curator", Guid.NewGuid(), ranAt.AddDays(-1), ProactiveStatus.Completed, ProactiveCadence.Nightly, CancellationToken.None);
 
         var history = await log.ReadAsync(10, CancellationToken.None);
 
@@ -150,7 +151,7 @@ public sealed class PostgresProactiveRunLogTests
         {
             await log.RecordAsync(
                 Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt.AddDays(-day),
-                ProactiveStatus.Completed, CancellationToken.None);
+                ProactiveStatus.Completed, ProactiveCadence.Nightly, CancellationToken.None);
         }
 
         var history = await log.ReadAsync(2, CancellationToken.None);

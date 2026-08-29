@@ -33,15 +33,19 @@
       <DockPanel>
         <TextBlock DockPanel.Dock="Top" Text="CONVERSATION" FontSize="11"
                    Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
-        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,0">
+        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,8,0,0">
           <TextBox x:Name="Input" Grid.Column="0" PlaceholderText="say something…"
                    Background="#0D1116" Foreground="{StaticResource Ink}"
                    BorderBrush="#2A333D"/>
-          <ToggleButton x:Name="FrontierToggle" Grid.Column="1" Content="subscription"
+          <ToggleButton x:Name="SpeakToggle" Grid.Column="1" Content="speak"
+                        Margin="8,0,0,0" Background="#233041"
+                        Foreground="{StaticResource Ink}"
+                        ToolTip.Tip="Read Dami's replies aloud in its own voice. Off by default so it never surprises you."/>
+          <ToggleButton x:Name="FrontierToggle" Grid.Column="2" Content="subscription"
                         Margin="8,0,0,0" Background="#233041"
                         Foreground="{StaticResource Ink}"
                         ToolTip.Tip="Answer on your ChatGPT subscription (codex CLI, no API key). No memories are sent."/>
-          <Button x:Name="SendButton" Grid.Column="2" Content="send" Margin="8,0,0,0"
+          <Button x:Name="SendButton" Grid.Column="3" Content="send" Margin="8,0,0,0"
                   Background="#233041" Foreground="{StaticResource Ink}"/>
         </Grid>
         <Grid>
@@ -445,7 +449,60 @@
          what it surfaced — and that is a trace, not a line. Read-only: starting a pass is
          an operator's act at the CLI. -->
     <TabItem Header="Workers">
-      <Grid ColumnDefinitions="300,340,*" Margin="10">
+      <Grid RowDefinitions="Auto,*" Margin="10">
+
+      <!-- Everything the runtime does is already in the event stream; nothing showed it
+           as a shape. A rolling chart answers what a list cannot: whether anything is
+           happening right now, and whether egress spikes when the scout wakes. All the
+           series share one vertical scale, because per-series scaling would make a single
+           tool call look as dramatic as forty trace events. -->
+      <Border Grid.Row="0" Background="{StaticResource Panel}" CornerRadius="8"
+              Padding="12" Margin="0,0,0,10">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="RUNTIME ACTIVITY" FontSize="11"
+                     Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+          <TextBlock DockPanel.Dock="Bottom" Text="{Binding ActivityMessage}" FontSize="11"
+                     Foreground="{StaticResource Dim}" Margin="0,6,0,0"/>
+          <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding Activity}"
+                        Margin="16,0,0,0" Width="150">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="local:ActivitySeries">
+                <Grid ColumnDefinitions="10,*,Auto" Margin="0,3">
+                  <Rectangle Grid.Column="0" Width="8" Height="8" RadiusX="2" RadiusY="2"
+                             VerticalAlignment="Center" Fill="{Binding Stroke}"/>
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="11" Margin="6,0,0,0"
+                             Foreground="{StaticResource Dim}"/>
+                  <TextBlock Grid.Column="2" Text="{Binding Now}" FontSize="12"
+                             FontFamily="monospace" Foreground="{Binding Stroke}"/>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="190">
+            <Viewbox Stretch="Fill">
+              <Canvas Width="1000" Height="200">
+                <ItemsControl ItemsSource="{Binding Activity}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><Canvas Width="1000" Height="200"/></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="local:ActivitySeries">
+                      <Canvas Width="1000" Height="200">
+                        <Polygon Points="{Binding Area}" Fill="{Binding Fill}"/>
+                        <Polyline Points="{Binding Line}" Stroke="{Binding Stroke}"
+                                  StrokeThickness="2" StrokeLineCap="Round"
+                                  StrokeJoin="Round"/>
+                      </Canvas>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Canvas>
+            </Viewbox>
+          </Border>
+        </DockPanel>
+      </Border>
+
+      <Grid Grid.Row="1" ColumnDefinitions="300,340,*">
 
         <Border Grid.Column="0" Background="{StaticResource Panel}" CornerRadius="8"
                 Padding="12" Margin="0,0,5,0">
@@ -459,10 +516,14 @@
                      Background="Transparent">
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="local:WorkerRow">
-                  <StackPanel Margin="2,4">
+                  <StackPanel Margin="2,5">
                     <TextBlock Text="{Binding ServiceName}" Foreground="{StaticResource Ink}"/>
                     <TextBlock Text="{Binding Detail}" FontSize="11"
                                Foreground="{Binding LastStatus, Converter={x:Static local:StatusBrush.instance}}"/>
+                    <!-- Age alone cannot say whether a service is late. Weekly and five
+                         days ago is healthy; nightly and five days ago is not. -->
+                    <TextBlock Text="{Binding Schedule}" FontSize="11"
+                               Foreground="{Binding IsOverdue, Converter={x:Static local:OverdueBrush.instance}}"/>
                   </StackPanel>
                 </DataTemplate>
               </ListBox.ItemTemplate>
@@ -509,7 +570,8 @@
                  should not have to count rows to learn that a scout pass surfaced three
                  items and hit one rate limit. -->
             <Border DockPanel.Dock="Top" Background="#0D1116" CornerRadius="6"
-                    Padding="12,10" Margin="0,0,0,10">
+                    Padding="12,10" Margin="0,0,0,10"
+                    IsVisible="{Binding PassSummary.HasRun}">
               <StackPanel Orientation="Horizontal" Spacing="28">
                 <StackPanel>
                   <TextBlock Text="{Binding PassSummary.Duration}" FontSize="20"
@@ -578,6 +640,7 @@
             </Grid>
           </DockPanel>
         </Border>
+      </Grid>
       </Grid>
     </TabItem>
   </TabControl>

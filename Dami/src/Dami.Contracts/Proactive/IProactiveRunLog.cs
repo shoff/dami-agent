@@ -20,6 +20,7 @@ public interface IProactiveRunLog
         Guid traceId,
         DateTimeOffset ranAt,
         ProactiveStatus status,
+        ProactiveCadence cadence,
         CancellationToken cancellationToken);
 
     /// <summary>When the service last ran, or null if it never has.</summary>

@@ -33,6 +33,8 @@ public static class TestDdl
         "031_criterion_added.sql",
         "032_disclosure_decisions.sql",
         "033_domain_facts.sql",
+        "034_task_work_activity.sql",
+        "035_proactive_run_cadence.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",
@@ -142,6 +144,7 @@ public static class TestDdl
             drop function if exists {schema}.task_board_try_set_status cascade;
             drop function if exists {schema}.task_board_reopen_for_child cascade;
             drop function if exists {schema}.task_board_try_add_criterion cascade;
+            drop function if exists {schema}.task_board_log_work cascade;
 
             """;
     }

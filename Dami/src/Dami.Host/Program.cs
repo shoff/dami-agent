@@ -195,6 +195,7 @@ if (authenticationEnabled)
 
 app.MapDamiRuntime();
 app.MapDamiProactive();
+app.MapDamiActivity();
 app.Run();
 
 /// <summary>Web entry point exposed for in-memory composition tests.</summary>

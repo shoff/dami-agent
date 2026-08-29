@@ -223,6 +223,7 @@ public sealed partial class MainWindow
                 .WorkAsync(board.BoardId, task.TaskId, actor, planner, this.lifetime.Token)
                 .ConfigureAwait(true);
             Report(reply, outcome);
+            await this.SpeakAsync(reply).ConfigureAwait(true);
             this.state.TaskBoards.Message = outcome.Ran
                 ? "advisory run finished" : "advisory run refused";
             await this.RefreshBoardsAsync().ConfigureAwait(true);

@@ -69,7 +69,7 @@ public sealed class ProactiveSchedulerTests
 
         await this.runLog.Received(1).RecordAsync(
             Arg.Any<Guid>(), "scout", Arg.Any<Guid>(), now,
-            ProactiveStatus.Completed, Arg.Any<CancellationToken>());
+            ProactiveStatus.Completed, Arg.Any<ProactiveCadence>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class ProactiveSchedulerTests
 
         await this.runLog.Received(1).RecordAsync(
             Arg.Any<Guid>(), "scout", emittedTraceId, now,
-            ProactiveStatus.Completed, Arg.Any<CancellationToken>());
+            ProactiveStatus.Completed, Arg.Any<ProactiveCadence>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class ProactiveSchedulerTests
 
         await this.runLog.Received(1).RecordAsync(
             Arg.Any<Guid>(), "broken", Arg.Any<Guid>(), Arg.Any<DateTimeOffset>(),
-            ProactiveStatus.Failed, Arg.Any<CancellationToken>());
+            ProactiveStatus.Failed, Arg.Any<ProactiveCadence>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -192,6 +192,6 @@ public sealed class ProactiveSchedulerTests
         Assert.True(ran);
         Assert.False(unknown);
         await this.runLog.Received(1).RecordAsync(
-            Arg.Any<Guid>(), "scout", Arg.Any<Guid>(), Arg.Any<DateTimeOffset>(), Arg.Any<ProactiveStatus>(), Arg.Any<CancellationToken>());
+            Arg.Any<Guid>(), "scout", Arg.Any<Guid>(), Arg.Any<DateTimeOffset>(), Arg.Any<ProactiveStatus>(), Arg.Any<ProactiveCadence>(), Arg.Any<CancellationToken>());
     }
 }

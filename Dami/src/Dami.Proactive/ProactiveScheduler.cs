@@ -136,7 +136,8 @@ public sealed class ProactiveScheduler
             .RunAsync(service, lastRanAt, cancellationToken).ConfigureAwait(false);
 
         await this.runLog.RecordAsync(
-            Guid.NewGuid(), service.ServiceName, outcome.TraceId, ranAt, outcome.Status, cancellationToken)
+            Guid.NewGuid(), service.ServiceName, outcome.TraceId, ranAt, outcome.Status,
+            service.Cadence, cancellationToken)
             .ConfigureAwait(false);
 
         this.logger.LogInformation(

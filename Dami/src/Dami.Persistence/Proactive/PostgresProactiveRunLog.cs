@@ -67,13 +67,16 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog, IProactiveRunHis
         Guid traceId,
         DateTimeOffset ranAt,
         ProactiveStatus status,
+        ProactiveCadence cadence,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(serviceName);
 
         await using var command = this.dataSource.CreateCommand(
-            $"insert into {this.Table} (run_id, service_name, trace_id, ran_at, status) "
-            + "values (@run_id, @service_name, @trace_id, @ran_at, @status) on conflict do nothing;");
+            $"insert into {this.Table} (run_id, service_name, trace_id, ran_at, status, cadence) "
+            + "values (@run_id, @service_name, @trace_id, @ran_at, @status, @cadence) "
+            + "on conflict do nothing;");
+        command.Parameters.AddWithValue("cadence", cadence.ToString());
         command.Parameters.AddWithValue("run_id", runId);
         command.Parameters.AddWithValue("service_name", serviceName);
         command.Parameters.AddWithValue("trace_id", traceId);
@@ -144,17 +147,34 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog, IProactiveRunHis
 
         await using var command = this.dataSource.CreateCommand(
             "with ranked as ("
-            + "  select run_id, service_name, trace_id, ran_at, status,"
+            + "  select run_id, service_name, trace_id, ran_at, status, cadence,"
             + "         row_number() over (partition by service_name order by ran_at desc) as rank,"
             + "         count(*) over (partition by service_name) as runs,"
             + "         max(ran_at) over (partition by service_name) as last_ran_at"
             + $"    from {this.Table}"
-            + ") select service_name, run_id, trace_id, ran_at, status, runs, last_ran_at"
+            + ") select service_name, run_id, trace_id, ran_at, status, runs, last_ran_at, cadence"
             + "  from ranked where rank <= @recent"
             + "  order by last_ran_at desc, service_name, ran_at desc;");
         command.Parameters.AddWithValue("recent", recentPerService);
 
         return await ReadHistoriesAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <remarks>
+    /// Cadence is nullable because runs recorded before migration 035 predate the column;
+    /// they read back as "unknown" rather than as a guess.
+    /// </remarks>
+    private static async Task<(int Runs, DateTimeOffset LastRanAt, ProactiveCadence? Cadence)> TotalsAsync(
+        NpgsqlDataReader reader,
+        CancellationToken cancellationToken)
+    {
+        var lastRanAt = await reader
+            .GetFieldValueAsync<DateTimeOffset>(6, cancellationToken).ConfigureAwait(false);
+        var unknown = await reader.IsDBNullAsync(7, cancellationToken).ConfigureAwait(false);
+        return (
+            reader.GetInt32(5),
+            lastRanAt,
+            unknown ? null : Enum.Parse<ProactiveCadence>(reader.GetString(7)));
     }
 
     private static async Task<IReadOnlyList<ProactiveServiceHistory>> ReadHistoriesAsync(
@@ -163,7 +183,9 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog, IProactiveRunHis
     {
         var order = new List<string>();
         var runs = new Dictionary<string, List<ProactiveRun>>(StringComparer.Ordinal);
-        var totals = new Dictionary<string, (int Runs, DateTimeOffset LastRanAt)>(StringComparer.Ordinal);
+        var totals =
+            new Dictionary<string, (int Runs, DateTimeOffset LastRanAt, ProactiveCadence? Cadence)>(
+                StringComparer.Ordinal);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -174,9 +196,7 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog, IProactiveRunHis
                 list = [];
                 runs[service] = list;
                 order.Add(service);
-                totals[service] = (
-                    reader.GetInt32(5),
-                    await reader.GetFieldValueAsync<DateTimeOffset>(6, cancellationToken).ConfigureAwait(false));
+                totals[service] = await TotalsAsync(reader, cancellationToken).ConfigureAwait(false);
             }
 
             list.Add(new ProactiveRun(
@@ -188,7 +208,7 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog, IProactiveRunHis
         return order
             .Select(service => new ProactiveServiceHistory(
                 service, totals[service].Runs, totals[service].LastRanAt,
-                runs[service][0].Status, runs[service]))
+                runs[service][0].Status, totals[service].Cadence, runs[service]))
             .ToList();
     }
 }

@@ -393,10 +393,22 @@ public sealed record WorkerRow(
     string LastStatus,
     string Age,
     int Runs,
-    IReadOnlyList<WorkerRun> Recent)
+    IReadOnlyList<WorkerRun> Recent,
+    string Cadence,
+    string Due,
+    bool IsOverdue)
 {
     /// <summary>The summary line under the service name.</summary>
     public string Detail => $"{this.LastStatus} · {this.Age} · {this.Runs} run{(this.Runs == 1 ? string.Empty : "s")}";
+
+    /// <summary>
+    /// Cadence and when it is next expected. Without this the panel could say a service
+    /// last ran five days ago but not whether that was its schedule — which is the entire
+    /// judgement it exists to support.
+    /// </summary>
+    public string Schedule => string.IsNullOrEmpty(this.Cadence)
+        ? "cadence unknown"
+        : $"{this.Cadence} · {this.Due}";
 
     /// <inheritdoc />
     /// <remarks>
@@ -444,6 +456,13 @@ public sealed record PassSummary(
     /// <summary>Empty state, before a pass is chosen.</summary>
     public static readonly PassSummary none = new("—", 0, 0, 0);
 
+    /// <summary>Whether a pass is actually being shown, rather than the empty state.</summary>
+    /// <remarks>
+    /// Without this the headline reads "— elapsed · 0 produced · 0 reached out" over a
+    /// pane that is telling you to pick a pass: three zeros that look like a finding.
+    /// </remarks>
+    public bool HasRun => !ReferenceEquals(this, none);
+
     /// <summary>Whether anything in the pass wants attention.</summary>
     public bool HasAlerts => this.Alerts > 0;
 
@@ -456,6 +475,7 @@ public sealed record PassSummary(
 public sealed class WindowState : INotifyPropertyChanged
 {
     private string workerTraceMessage = string.Empty;
+    private string activityMessage = string.Empty;
     private PassSummary passSummary = PassSummary.none;
 
     /// <summary>What the trace pane is showing, or why it is showing nothing.</summary>
@@ -471,6 +491,17 @@ public sealed class WindowState : INotifyPropertyChanged
 
             this.workerTraceMessage = value;
             this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.WorkerTraceMessage)));
+        }
+    }
+
+    /// <summary>The chart's window and resolution, said plainly under it.</summary>
+    public string ActivityMessage
+    {
+        get => this.activityMessage;
+        set
+        {
+            this.activityMessage = value;
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.ActivityMessage)));
         }
     }
 
@@ -499,6 +530,9 @@ public sealed class WindowState : INotifyPropertyChanged
 
     /// <summary>Live collaborative task-board state.</summary>
     public TaskBoardPanelState TaskBoards { get; } = new();
+
+    /// <summary>The rolling activity chart's plotted series.</summary>
+    public ObservableCollection<ActivitySeries> Activity { get; } = [];
 
     /// <summary>What the proactive tier has been doing, most recently active first.</summary>
     public ObservableCollection<WorkerRow> Workers { get; } = [];

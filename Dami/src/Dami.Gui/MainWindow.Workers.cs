@@ -141,6 +141,7 @@ public sealed partial class MainWindow
         while (!this.lifetime.IsCancellationRequested)
         {
             await this.RefreshWorkersAsync().ConfigureAwait(true);
+            await this.RefreshActivityAsync().ConfigureAwait(true);
             try
             {
                 await Task.Delay(workerPollInterval, this.lifetime.Token).ConfigureAwait(true);
@@ -150,6 +151,32 @@ public sealed partial class MainWindow
                 return;
             }
         }
+    }
+
+    /// <summary>
+    /// Redraws the rolling activity chart. Counts come from the runtime bucketed against
+    /// its own clock — a client bucketing on its own would draw a chart that disagrees
+    /// with the ledger it is showing.
+    /// </summary>
+    private async Task RefreshActivityAsync()
+    {
+        using var activity = await this.runtime
+            .GetAsync("/activity?minutes=120&buckets=60", this.lifetime.Token).ConfigureAwait(true);
+        if (activity is null)
+        {
+            return;
+        }
+
+        var root = activity.RootElement;
+        var counts = root.GetProperty("series").EnumerateArray().ToDictionary(
+            item => item.GetProperty("name").GetString() ?? string.Empty,
+            item => (IReadOnlyList<int>)item.GetProperty("values")
+                .EnumerateArray().Select(value => value.GetInt32()).ToList());
+
+        Reconcile.Sync(this.state.Activity, ActivityChart.Build(counts));
+        var seconds = root.GetProperty("secondsPerBucket").GetDouble();
+        this.state.ActivityMessage =
+            $"last {root.GetProperty("minutes").GetInt32()} minutes · one bar per {seconds:0} s";
     }
 
     private async Task RefreshWorkersAsync()
@@ -188,7 +215,28 @@ public sealed partial class MainWindow
             })
             .ToList();
 
-        return new WorkerRow(name, status, Age(hours), runs, recent);
+        var cadence = service.GetProperty("cadence").GetString() ?? string.Empty;
+        var due = service.GetProperty("dueInHours");
+        return new WorkerRow(
+            name, status, Age(hours), runs, recent, cadence,
+            due.ValueKind == JsonValueKind.Null ? string.Empty : Due(due.GetDouble()),
+            due.ValueKind != JsonValueKind.Null && due.GetDouble() < 0);
+    }
+
+    /// <remarks>
+    /// Negative means overdue, which is the only case worth alarming about — and the one
+    /// the panel could not previously distinguish from a long cadence.
+    /// </remarks>
+    private static string Due(double hours)
+    {
+        return hours switch
+        {
+            < -24 => $"overdue by {-hours / 24:0} days",
+            < 0 => $"overdue by {-hours:0} h",
+            < 1 => "due now",
+            < 48 => $"due in {hours:0} h",
+            _ => $"due in {hours / 24:0} days",
+        };
     }
 
     private static string Age(double hours)
