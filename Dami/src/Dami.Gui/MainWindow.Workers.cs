@@ -67,58 +67,14 @@ public sealed partial class MainWindow
     }
 
     /// <summary>Turns the raw event stream into a waterfall.</summary>
-    /// <remarks>
-    /// The bar is the gap since the previous event, scaled against the longest gap in the
-    /// pass, so the slow step is the wide one. A bar of elapsed-since-start would grow
-    /// monotonically and say nothing.
-    /// </remarks>
-    private static List<PassEvent> Replay(List<JsonElement> raw)
+    /// <remarks>Geometry lives in <see cref="PassWaterfall"/>, where it is tested.</remarks>
+    private static IReadOnlyList<PassEvent> Replay(List<JsonElement> raw)
     {
-        if (raw.Count == 0)
-        {
-            return [];
-        }
-
-        var times = raw.Select(item => item.GetProperty("occurredAt").GetDateTimeOffset()).ToList();
-        var start = times[0];
-        var gaps = times.Select((at, index) =>
-            index == 0 ? TimeSpan.Zero : at - times[index - 1]).ToList();
-        var widest = gaps.Max(gap => gap.TotalSeconds);
-
-        return raw.Select((item, index) =>
-        {
-            var label = item.GetProperty("label").GetString() ?? string.Empty;
-            var type = item.GetProperty("type").GetString() ?? string.Empty;
-            var status = item.GetProperty("status").GetString() ?? string.Empty;
-            return new PassEvent(
-                times[index].ToLocalTime().ToString("HH:mm:ss"),
-                index == 0 ? "start" : $"+{(times[index] - start).TotalSeconds:0.0}s",
-                type,
-                label,
-                status,
-                widest <= 0 ? 2 : Math.Max(2, gaps[index].TotalSeconds / widest * MAX_BAR),
-                IsAlert(type, status, label));
-        }).ToList();
-    }
-
-    private const double MAX_BAR = 120;
-
-    /// <remarks>
-    /// A non-2xx answer is the case this view exists for: the scout's second feed came
-    /// back 429 and lost half its sources, and every surface in the system reported the
-    /// pass as Completed. Status alone would never have shown it.
-    /// </remarks>
-    private static bool IsAlert(string type, string status, string label)
-    {
-        if (status is "Failed" or "Cancelled")
-        {
-            return true;
-        }
-
-        var answered = label.IndexOf("answered ", StringComparison.Ordinal);
-        return answered >= 0
-            && int.TryParse(label.AsSpan(answered + 9).Trim(), out var code)
-            && code is < 200 or >= 300;
+        return PassWaterfall.Build(raw.Select(item => new PassMoment(
+            item.GetProperty("occurredAt").GetDateTimeOffset(),
+            item.GetProperty("type").GetString() ?? string.Empty,
+            item.GetProperty("label").GetString() ?? string.Empty,
+            item.GetProperty("status").GetString() ?? string.Empty)).ToList());
     }
 
     private static PassSummary Summarise(IReadOnlyCollection<PassEvent> pass)

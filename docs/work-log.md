@@ -8620,3 +8620,39 @@ to hand around at all. A temporary password was disclosed in the session and he 
 told to rotate it rather than wait for its stated expiry.
 
 Still a coloured log: "what that pass did". Next.
+
+## 2026-08-29 — Claude — The pass replay is a waterfall, not a coloured log
+
+Steve, twice: "the WHAT THIS PASS DID is still JUST a colored log, not terribly
+compelling." He was right both times. Rows space every event equally whether one followed
+the last instantly or four seconds later, so the most interesting fact about the scout's
+rate-limited pass — that it spent four of its 4.3 seconds waiting on a single feed — was
+invisible in a view whose entire purpose was showing what the pass did.
+
+Each event is now placed on a shared track by *when* it happened and sized by the wait
+that followed it. That is the browser-devtools waterfall, and it works here for the same
+reason it works there: the gaps carry the information. A time ruler runs above the track so
+the positions mean something.
+
+Geometry lives in `PassWaterfall`, pure and in fixed pixels, because a chart that can only
+be checked by looking at it is a chart whose mistakes ship. Fourteen tests, and one of them
+earned itself immediately: the last event of a pass lands exactly on the end of the track,
+so the clamp squeezed its bar to zero width and `TraceCompleted` — the line that says what
+the pass concluded — disappeared. Bars are now held back by one minimum width.
+
+`IsAlert` moved with it and kept its reason: the 429 that cost the scout half its feeds is
+recorded as a `Succeeded` event on a `Completed` run of a service showing green, so the
+HTTP code is read out of the label rather than trusting any status in the system.
+
+Also gave the activity chart the empty state it was missing. It said nothing at all when
+`/activity` was absent; it now names the cause rather than showing a void.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1107 passed, 0 failed, 19/19 green**.
+
+Still not deployed, and still needing sudo this session cannot use: `/activity` and the
+`steve-clean` voice default. Both are committed and green; both take one `tools/deploy.sh`.
+
+Known rough edges, deliberately left: the label column is cramped against the 300px track,
+and the run list does not mark which passes had alerts, so a bad pass cannot be spotted
+without opening each one.

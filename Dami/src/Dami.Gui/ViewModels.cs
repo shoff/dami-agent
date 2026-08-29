@@ -443,8 +443,18 @@ public sealed record PassEvent(
     string Type,
     string Label,
     string Status,
+    double BarLeft,
     double BarWidth,
-    bool IsAlert);
+    bool IsAlert)
+{
+    /// <summary>
+    /// Where the bar sits on the track, so the row reads as a waterfall rather than a
+    /// list. A bar that always starts at the left edge encodes duration and throws away
+    /// when it happened, which is the half that shows a pass spending four seconds
+    /// waiting on one feed.
+    /// </summary>
+    public Avalonia.Thickness BarMargin => new(this.BarLeft, 0, 0, 0);
+}
 
 /// <summary>The headline for a pass: what it cost and what it produced.</summary>
 public sealed record PassSummary(
