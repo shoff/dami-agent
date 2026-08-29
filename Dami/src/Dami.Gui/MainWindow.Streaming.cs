@@ -147,13 +147,10 @@ public sealed partial class MainWindow
         // layout pass per row, quadratic, and it froze the window solid. "Live" means
         // recent activity, not the entire history replayed at startup.
         var batch = events.RootElement.EnumerateArray().ToList();
-        this.RenderTail(batch);
-        this.TrimGraph();
-        ScrollLater(this.graphScroll);
         this.AdvanceSequence(batch);
 
         this.statusLine.Text = $"live · seq {this.lastSequence}";
-        Diagnostics.Write($"poll ok: {this.state.Graph.Count} rows, seq {this.lastSequence}");
+        Diagnostics.Write($"poll ok: {batch.Count} event(s), seq {this.lastSequence}");
         await this.RefreshSidebarsAsync().ConfigureAwait(true);
     }
 
@@ -168,15 +165,6 @@ public sealed partial class MainWindow
             viewer.ScrollToEnd, Avalonia.Threading.DispatcherPriority.Background);
     }
 
-    private void RenderTail(List<JsonElement> batch)
-    {
-        foreach (var item in batch.Skip(Math.Max(0, batch.Count - MAX_ROWS_PER_POLL)))
-        {
-            this.AddGraphRow(item);
-        }
-
-    }
-
     /// <summary>Keeps the sequence honest even for rows the tail-window skipped.</summary>
     private void AdvanceSequence(List<JsonElement> batch)
     {
@@ -186,49 +174,4 @@ public sealed partial class MainWindow
         }
     }
 
-    /// <summary>Bounds the graph so a long-running window does not grow without limit.</summary>
-    private void TrimGraph()
-    {
-        while (this.state.Graph.Count > MAX_GRAPH_ROWS)
-        {
-            this.state.Graph.RemoveAt(0);
-        }
-    }
-
-    private void AddGraphRow(JsonElement item)
-    {
-        var spanId = item.GetProperty("spanId").GetGuid();
-        var parent = item.GetProperty("parentSpanId");
-        this.spanParents.TryAdd(spanId, parent.ValueKind == JsonValueKind.Null ? null : parent.GetGuid());
-
-        var traceId = item.GetProperty("traceId").GetGuid();
-        if (this.seenTraces.Add(traceId))
-        {
-            this.state.Graph.Add(new GraphRow(
-                string.Empty, "Trace", 0, $"── trace {traceId.ToString("N")[..8]}",
-                item.GetProperty("origin").GetString() ?? string.Empty, string.Empty));
-        }
-
-        this.state.Graph.Add(new GraphRow(
-            item.GetProperty("occurredAt").GetDateTimeOffset().ToLocalTime().ToString("HH:mm:ss"),
-            item.GetProperty("status").GetString() ?? string.Empty,
-            this.DepthOf(spanId),
-            item.GetProperty("type").GetString() ?? string.Empty,
-            item.GetProperty("actorId").GetString() ?? string.Empty,
-            item.GetProperty("label").GetString() ?? string.Empty));
-    }
-
-    /// <summary>Depth in the span tree, walked from the parent links the runtime recorded.</summary>
-    private int DepthOf(Guid spanId)
-    {
-        var depth = 0;
-        var current = this.spanParents.GetValueOrDefault(spanId);
-        while (current is not null && depth < 16 && this.spanParents.ContainsKey(current.Value))
-        {
-            depth++;
-            current = this.spanParents.GetValueOrDefault(current.Value);
-        }
-
-        return this.spanParents.GetValueOrDefault(spanId) is null ? 0 : depth + 1;
-    }
 }

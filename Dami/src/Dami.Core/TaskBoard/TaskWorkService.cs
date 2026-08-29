@@ -1,7 +1,6 @@
-using Dami.Contracts.Context;
-using Dami.Contracts.Events;
-using Dami.Contracts.Models;
+using Dami.Contracts.Privacy;
 using Dami.Contracts.TaskBoard;
+using Dami.Core.Frontier;
 using Dami.Core.Turns;
 
 namespace Dami.Core.TaskBoard;
@@ -27,8 +26,7 @@ public sealed class TaskWorkService
 {
     private readonly ITaskBoardStore store;
     private readonly ITurnRunner runner;
-    private readonly IFrontierChat frontier;
-    private readonly IIdentityProvider identity;
+    private readonly IAugmentedTurn augmented;
     private readonly TimeProvider clock;
 
     /// <summary>Creates the service.</summary>
@@ -36,20 +34,17 @@ public sealed class TaskWorkService
         ITaskBoardStore store,
         ITurnRunner runner,
         TimeProvider clock,
-        IFrontierChat frontier,
-        IIdentityProvider identity)
+        IAugmentedTurn augmented)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(runner);
         ArgumentNullException.ThrowIfNull(clock);
-        ArgumentNullException.ThrowIfNull(frontier);
-        ArgumentNullException.ThrowIfNull(identity);
+        ArgumentNullException.ThrowIfNull(augmented);
 
         this.store = store;
         this.runner = runner;
         this.clock = clock;
-        this.frontier = frontier;
-        this.identity = identity;
+        this.augmented = augmented;
     }
 
     /// <summary>Works one task, or explains why it did not.</summary>
@@ -97,14 +92,15 @@ public sealed class TaskWorkService
         try
         {
             var prompt = TaskWorkPrompt.Build(board.Title, task);
-            var (traceId, answer) = planner == FeaturePlannerKind.Frontier
-                ? await this.AskFrontierAsync(prompt, cancellationToken).ConfigureAwait(false)
+            var run = planner == FeaturePlannerKind.Frontier
+                ? await this.AskFrontierWithLocalSupportAsync(prompt, cancellationToken)
+                    .ConfigureAwait(false)
                 : await this.AskLocalAsync(prompt, cancellationToken).ConfigureAwait(false);
             await this.LogAsync(
                 task.TaskId, TaskBoardActivityKind.TaskWorkFinished, actor,
-                $"advisory run finished on {planner} · trace {traceId:N}",
+                $"advisory run finished · {run.How} · trace {run.TraceId:N}",
                 cancellationToken).ConfigureAwait(false);
-            return new TaskWorkOutcome(true, traceId, answer, string.Empty);
+            return new TaskWorkOutcome(true, run.TraceId, run.Answer, string.Empty);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -118,31 +114,56 @@ public sealed class TaskWorkService
         }
     }
 
-    private async Task<(Guid TraceId, string Answer)> AskLocalAsync(
-        string prompt,
-        CancellationToken cancellationToken)
+    private async Task<RunOutcome> AskLocalAsync(string prompt, CancellationToken cancellationToken)
     {
         var result = await this.runner.RunAsync(prompt, cancellationToken).ConfigureAwait(false);
-        return (result.TraceId, result.Answer);
+        var items = result.Context.Memories.Count + result.Context.Beliefs.Count;
+        return new RunOutcome(
+            result.TraceId, result.Answer, $"answered locally on {items} retrieved item(s)");
     }
 
+    /// <summary>The local sidecar does the legwork; the frontier writes the answer.</summary>
     /// <remarks>
-    /// The board's own text only — task title, scope, and acceptance criteria. No
-    /// retrieved memory joins it, which is what keeps this Egressable without a
-    /// disclosure step, exactly as the frontier chat turn is.
+    /// The two models are used together, not chosen between. Retrieval, reranking, and
+    /// the D-012 redaction all run on this host, and what the frontier receives is what
+    /// the local model prepared — stored hash-pinned, so the egress is auditable after
+    /// the fact rather than merely promised. That is why this routes through
+    /// <see cref="AugmentedFrontierTurn"/> instead of calling <c>IFrontierChat</c>: a
+    /// bare call would send the board text with none of Dami's own knowledge behind it
+    /// and leave no disclosure record.
+    ///
+    /// If the subscription is not there — not signed in, the CLI missing, the process
+    /// failing — the local model takes over rather than the run being lost, and the board
+    /// says which happened. An <see cref="EgressRefusedException"/> is deliberately not
+    /// caught: a privacy boundary refusing is an answer, not an outage to route around.
     /// </remarks>
-    private async Task<(Guid TraceId, string Answer)> AskFrontierAsync(
+    private async Task<RunOutcome> AskFrontierWithLocalSupportAsync(
         string prompt,
         CancellationToken cancellationToken)
     {
-        var traceId = Guid.NewGuid();
-        var answer = await this.frontier.CompleteAsync(
-            new FrontierPrompt(
-                $"{this.identity.FrontierVoice}\n\n{prompt}", "task board advisory run",
-                PrivacyClass.Egressable, traceId, ExecutionOrigin.UserTurn),
-            cancellationToken).ConfigureAwait(false);
-        return (traceId, answer);
+        try
+        {
+            var result = await this.augmented.RunAsync(prompt, cancellationToken)
+                .ConfigureAwait(false);
+            return new RunOutcome(
+                result.TraceId, result.Answer,
+                $"locally retrieved {result.ContextItems} item(s), answered at the frontier");
+        }
+        catch (EgressRefusedException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            var local = await this.AskLocalAsync(prompt, cancellationToken).ConfigureAwait(false);
+            return local with
+            {
+                How = $"frontier unavailable ({exception.Message}); answered locally instead",
+            };
+        }
     }
+
+    private sealed record RunOutcome(Guid TraceId, string Answer, string How);
 
     private Task LogAsync(
         Guid taskId,

@@ -19,12 +19,9 @@ public sealed partial class MainWindow : Window
     private const int MAX_ROWS_PER_POLL = 25;
 
     /// <summary>Rows kept on screen, so an all-day window stays responsive.</summary>
-    private const int MAX_GRAPH_ROWS = 400;
 
     private readonly RuntimeClient runtime = new();
     private readonly WindowState state = new();
-    private readonly Dictionary<Guid, Guid?> spanParents = [];
-    private readonly HashSet<Guid> seenTraces = [];
     private readonly CancellationTokenSource lifetime = new();
 
     private long lastSequence;
@@ -38,7 +35,6 @@ public sealed partial class MainWindow : Window
     private readonly ToggleButton frontierToggle;
     private readonly TextBlock statusLine;
     private readonly ScrollViewer chatScroll;
-    private readonly ScrollViewer graphScroll;
 
     /// <summary>Creates the window and starts following the event stream.</summary>
     public MainWindow()
@@ -49,7 +45,6 @@ public sealed partial class MainWindow : Window
         this.frontierToggle = Require<ToggleButton>(this, "FrontierToggle");
         this.statusLine = Require<TextBlock>(this, "StatusLine");
         this.chatScroll = Require<ScrollViewer>(this, "ChatScroll");
-        this.graphScroll = Require<ScrollViewer>(this, "GraphScroll");
         this.DataContext = this.state;
         this.Closed += this.OnClosed;
 

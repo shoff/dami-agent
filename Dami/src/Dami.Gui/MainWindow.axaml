@@ -14,6 +14,8 @@
     <SolidColorBrush x:Key="Accent">#5AA9E6</SolidColorBrush>
   </Window.Resources>
 
+  <TabControl Margin="6">
+    <TabItem Header="Console">
   <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,*,*" Margin="10">
 
     <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal"
@@ -72,60 +74,73 @@
     </Border>
 
     <!-- Graph + sidebar -->
-    <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="*,Auto,Auto" Margin="5,0,0,0">
+    <!-- A scrolling stack, not a four-row grid. Four panels wanted ~660px of a ~420px
+         column: the star-sized graph collapsed to nothing and WORKERS was squeezed to a
+         sliver you could not read. Each panel now keeps a usable height and the column
+         scrolls, which is honest about there being more here than fits. -->
+    <ScrollViewer Grid.Row="1" Grid.Column="1" Margin="5,0,0,0"
+                  HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Spacing="10">
 
-      <Border Grid.Row="0" Background="{StaticResource Panel}" CornerRadius="8" Padding="12">
-        <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="LIVE EXECUTION GRAPH" FontSize="11"
-                     Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
-          <Grid>
-          <ScrollViewer x:Name="GraphScroll">
-            <ItemsControl ItemsSource="{Binding Graph}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="local:GraphRow">
-                  <!-- A Grid with real column widths, not a horizontal StackPanel. A
-                       StackPanel hands children infinite width, and a trimming TextBlock
-                       measured against infinity sends Avalonia into a layout loop that
-                       pins a core and never settles. -->
-                  <Grid ColumnDefinitions="64,190,120,*" Margin="0,1">
-                    <TextBlock Grid.Column="0" Text="{Binding Time}" FontFamily="monospace"
-                               FontSize="11" Foreground="{StaticResource Dim}"/>
-                    <TextBlock Grid.Column="1" Text="{Binding Type}" Margin="{Binding Indent}"
-                               FontFamily="monospace" FontSize="11" FontWeight="SemiBold"
-                               Foreground="{Binding Status, Converter={x:Static local:StatusBrush.instance}}"/>
-                    <TextBlock Grid.Column="2" Text="{Binding Actor}" FontFamily="monospace"
-                               FontSize="11" Foreground="{StaticResource Dim}"/>
-                    <TextBlock Grid.Column="3" Text="{Binding Label}" FontSize="11"
-                               Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis"/>
-                  </Grid>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-          <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
-                     HorizontalAlignment="Center" FontSize="12"
-                     Foreground="{StaticResource Dim}"
-                     Text="Spans appear here while a turn runs."
-                     IsVisible="{Binding Graph.Count, Converter={x:Static local:IsEmpty.instance}}"/>
-          </Grid>
-        </DockPanel>
-      </Border>
-
-      <Border Grid.Row="1" Background="{StaticResource Panel}" CornerRadius="8"
-              Padding="12" Margin="0,10,0,0" MaxHeight="220">
+      <Border MinHeight="140" MaxHeight="220"
+              Background="{StaticResource Panel}" CornerRadius="8" Padding="12">
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" Text="WANTS YOUR ATTENTION" FontSize="11"
                      Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
           <Grid>
           <ScrollViewer>
-            <ItemsControl ItemsSource="{Binding Attention}">
+            <ItemsControl x:Name="AttentionList" ItemsSource="{Binding Attention}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="local:SidebarItem">
-                  <StackPanel Margin="0,4">
+                  <StackPanel Margin="0,8">
                     <TextBlock Text="{Binding Headline}" TextWrapping="Wrap"
                                Foreground="{StaticResource Ink}"/>
-                    <TextBlock Text="{Binding Detail}" FontSize="11"
-                               Foreground="{StaticResource Dim}"/>
+
+                    <!-- The host first, then the link. A verdict on a headline is a
+                         verdict on nothing: the panel showed a scouted title and hid the
+                         one field that says what it is. -->
+                    <TextBlock Text="{Binding Source}" FontSize="11" FontWeight="SemiBold"
+                               IsVisible="{Binding CanOpen}" Foreground="#5AA9E6"/>
+                    <TextBlock Text="{Binding Preview}" FontSize="11" TextWrapping="Wrap"
+                               MaxLines="2" TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource Dim}" Margin="0,1,0,3"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="{Binding Detail}" FontSize="11"
+                                 VerticalAlignment="Center"
+                                 Foreground="{StaticResource Dim}"/>
+                      <Button Content="read it" Tag="open" IsVisible="{Binding CanOpen}"
+                              Padding="8,1" FontSize="11" Background="#2F4A66"
+                              Foreground="#D7DDE4"
+                              ToolTip.Tip="Open in the browser. Rate it after you have read it."/>
+
+                      <!-- The actions live on the row. Every item here used to end in a
+                           CLI incantation to type somewhere else, which is why nothing
+                           got acted on and the panel read as a log. Always visible: a
+                           control you have to discover is a control you do not use. -->
+                      <StackPanel Orientation="Horizontal" Spacing="4"
+                                  IsVisible="{Binding CanRate}">
+                        <StackPanel.Styles>
+                          <Style Selector="Button">
+                            <Setter Property="Padding" Value="8,1"/>
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="Foreground" Value="#D7DDE4"/>
+                            <Setter Property="Background" Value="#233041"/>
+                          </Style>
+                        </StackPanel.Styles>
+                        <Button Content="good" Tag="good"
+                                ToolTip.Tip="More like this. Trains the taste model."/>
+                        <Button Content="meh" Tag="meh"/>
+                        <Button Content="bad" Tag="bad"
+                                ToolTip.Tip="Less like this. Trains the taste model."/>
+                      </StackPanel>
+                      <StackPanel Orientation="Horizontal" Spacing="4"
+                                  IsVisible="{Binding CanApprove}">
+                        <Button Content="approve" Tag="approve" Padding="10,1" FontSize="11"
+                                Background="#2F4A66" Foreground="#D7DDE4"/>
+                        <Button Content="deny" Tag="deny" Padding="10,1" FontSize="11"
+                                Background="#233041" Foreground="#D7DDE4"/>
+                      </StackPanel>
+                    </StackPanel>
                   </StackPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
@@ -140,8 +155,8 @@
         </DockPanel>
       </Border>
 
-      <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="8"
-              Padding="12" Margin="0,10,0,0" MaxHeight="200">
+      <Border MinHeight="140" MaxHeight="220"
+              Background="{StaticResource Panel}" CornerRadius="8" Padding="12">
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" Text="BELIEFS" FontSize="11"
                      Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
@@ -168,7 +183,9 @@
           </Grid>
         </DockPanel>
       </Border>
-    </Grid>
+
+    </StackPanel>
+    </ScrollViewer>
 
     <Border Grid.Row="2" Grid.ColumnSpan="2" Background="{StaticResource Panel}"
             CornerRadius="8" Padding="12" Margin="0,10,0,0">
@@ -419,4 +436,149 @@
       </DockPanel>
     </Border>
   </Grid>
+    </TabItem>
+
+    <!-- The proactive tier is what Dami does when Steve is not here, and it had no
+         surface at all: three of eleven services had not run in five days and nothing
+         said whether that was cadence or a fault. Full width because the useful part is
+         not that a pass ran, it is what the pass did — the egress it made, what answered,
+         what it surfaced — and that is a trace, not a line. Read-only: starting a pass is
+         an operator's act at the CLI. -->
+    <TabItem Header="Workers">
+      <Grid ColumnDefinitions="300,340,*" Margin="10">
+
+        <Border Grid.Column="0" Background="{StaticResource Panel}" CornerRadius="8"
+                Padding="12" Margin="0,0,5,0">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="PROACTIVE SERVICES" FontSize="11"
+                       Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+            <TextBlock DockPanel.Dock="Bottom" TextWrapping="Wrap" FontSize="11"
+                       Margin="0,8,0,0" Foreground="{StaticResource Dim}"
+                       Text="Read-only. A pass is started by the tier's own schedule, or by hand at the CLI."/>
+            <ListBox x:Name="WorkerList" ItemsSource="{Binding Workers}"
+                     Background="Transparent">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="local:WorkerRow">
+                  <StackPanel Margin="2,4">
+                    <TextBlock Text="{Binding ServiceName}" Foreground="{StaticResource Ink}"/>
+                    <TextBlock Text="{Binding Detail}" FontSize="11"
+                               Foreground="{Binding LastStatus, Converter={x:Static local:StatusBrush.instance}}"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </DockPanel>
+        </Border>
+
+        <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="8"
+                Padding="12" Margin="5,0,5,0">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="RUNS" FontSize="11"
+                       Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+            <Grid>
+              <ListBox x:Name="WorkerRunList" ItemsSource="{Binding SelectedWorkerRuns}"
+                       Background="Transparent">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:WorkerRun">
+                    <StackPanel Margin="2,3">
+                      <TextBlock Text="{Binding When}" Foreground="{StaticResource Ink}"/>
+                      <TextBlock FontSize="11" FontFamily="monospace"
+                                 Foreground="{Binding Status, Converter={x:Static local:StatusBrush.instance}}">
+                        <Run Text="{Binding Status}"/><Run Text=" · trace "/><Run Text="{Binding Trace}"/>
+                      </TextBlock>
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                         HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                         FontSize="12" Margin="12,0" Foreground="{StaticResource Dim}"
+                         Text="Pick a service to see its passes."
+                         IsVisible="{Binding SelectedWorkerRuns.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+            </Grid>
+          </DockPanel>
+        </Border>
+
+        <Border Grid.Column="2" Background="{StaticResource Panel}" CornerRadius="8"
+                Padding="12" Margin="5,0,0,0">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="WHAT THAT PASS DID" FontSize="11"
+                       Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+
+            <!-- The headline first: what the pass cost and what it produced. A reader
+                 should not have to count rows to learn that a scout pass surfaced three
+                 items and hit one rate limit. -->
+            <Border DockPanel.Dock="Top" Background="#0D1116" CornerRadius="6"
+                    Padding="12,10" Margin="0,0,0,10">
+              <StackPanel Orientation="Horizontal" Spacing="28">
+                <StackPanel>
+                  <TextBlock Text="{Binding PassSummary.Duration}" FontSize="20"
+                             Foreground="{StaticResource Ink}"/>
+                  <TextBlock Text="elapsed" FontSize="11" Foreground="{StaticResource Dim}"/>
+                </StackPanel>
+                <StackPanel>
+                  <TextBlock Text="{Binding PassSummary.Produced}" FontSize="20"
+                             Foreground="#4CB782"/>
+                  <TextBlock Text="produced" FontSize="11" Foreground="{StaticResource Dim}"/>
+                </StackPanel>
+                <StackPanel>
+                  <TextBlock Text="{Binding PassSummary.Egress}" FontSize="20"
+                             Foreground="#5AA9E6"/>
+                  <TextBlock Text="reached out" FontSize="11" Foreground="{StaticResource Dim}"/>
+                </StackPanel>
+                <StackPanel IsVisible="{Binding PassSummary.HasAlerts}">
+                  <TextBlock Text="{Binding PassSummary.Alerts}" FontSize="20" Foreground="#E0604F"/>
+                  <TextBlock Text="{Binding PassSummary.AlertLine}" FontSize="11"
+                             Foreground="#E0604F"/>
+                </StackPanel>
+                <TextBlock Text="{Binding WorkerTraceMessage}" FontSize="11" FontFamily="monospace"
+                           VerticalAlignment="Bottom" Foreground="{StaticResource Dim}"/>
+              </StackPanel>
+            </Border>
+
+            <Grid>
+              <ScrollViewer>
+                <ItemsControl ItemsSource="{Binding WorkerTrace}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="local:PassEvent">
+                      <Grid ColumnDefinitions="62,58,4,130,Auto,*" Margin="0,3">
+                        <TextBlock Grid.Column="0" Text="{Binding Time}" FontFamily="monospace"
+                                   FontSize="11" Foreground="{StaticResource Dim}"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Offset}" FontFamily="monospace"
+                                   FontSize="11" TextAlignment="Right"
+                                   Foreground="{StaticResource Dim}"/>
+
+                        <!-- A spine down the pass, coloured by what the step was. -->
+                        <Rectangle Grid.Column="2" Width="3" Margin="6,0" RadiusX="1.5" RadiusY="1.5"
+                                   Fill="{Binding Converter={x:Static local:PassAccent.instance}}"/>
+
+                        <TextBlock Grid.Column="3" Text="{Binding Type}" FontFamily="monospace"
+                                   FontSize="11" FontWeight="SemiBold" Margin="8,0,0,0"
+                                   Foreground="{Binding Converter={x:Static local:PassAccent.instance}}"/>
+
+                        <!-- Width is the gap since the previous event against the pass's
+                             longest gap: the slow step is the wide one. -->
+                        <Rectangle Grid.Column="4" Height="6" VerticalAlignment="Center"
+                                   RadiusX="3" RadiusY="3" Margin="0,0,10,0"
+                                   Width="{Binding BarWidth}" Opacity="0.55"
+                                   Fill="{Binding Converter={x:Static local:PassAccent.instance}}"/>
+
+                        <TextBlock Grid.Column="5" Text="{Binding Label}" FontSize="12"
+                                   TextWrapping="Wrap" Foreground="{StaticResource Ink}"/>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                         HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                         FontSize="12" Margin="12,0" Foreground="{StaticResource Dim}"
+                         Text="Pick a pass to replay exactly what it did."
+                         IsVisible="{Binding WorkerTrace.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+            </Grid>
+          </DockPanel>
+        </Border>
+      </Grid>
+    </TabItem>
+  </TabControl>
 </Window>

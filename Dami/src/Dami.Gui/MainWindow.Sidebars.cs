@@ -1,9 +1,81 @@
 
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+
 namespace Dami.Gui;
 
 /// <summary>What Dami wants Steve to notice, and what it currently believes.</summary>
 public sealed partial class MainWindow
 {
+    /// <summary>
+    /// Acts on an attention row in place. A verdict trains the taste model; an approval
+    /// resolves and the runtime executes what it authorised. Either way the list is
+    /// re-read afterwards, so a row that is no longer waiting stops being shown.
+    /// </summary>
+    private void OnAttentionAction(object? sender, RoutedEventArgs e)
+    {
+        if (e.Source is not Button button || button.Tag is not string action
+            || button.DataContext is not SidebarItem item)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (action == "open")
+        {
+            this.OpenLink(item);
+            return;
+        }
+
+        _ = this.ApplyAttentionAsync(item, action);
+    }
+
+    /// <summary>
+    /// Hands the link to the desktop. Deliberately the only outbound thing this panel
+    /// does: reading is the step that has to happen before a verdict means anything.
+    /// </summary>
+    private void OpenLink(SidebarItem item)
+    {
+        if (item.Link is not { } link)
+        {
+            return;
+        }
+
+        try
+        {
+            using var opened = System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(link) { UseShellExecute = true });
+            this.statusLine.Text = $"opened {item.Source}";
+        }
+        catch (Exception exception)
+        {
+            this.statusLine.Text = $"could not open {item.Source}: {exception.Message}";
+        }
+    }
+
+    private async Task ApplyAttentionAsync(SidebarItem item, string action)
+    {
+        try
+        {
+            var (path, body) = action switch
+            {
+                "approve" => ($"/approvals/{item.Id}/resolve", (object)new { approve = true, note = (string?)null }),
+                "deny" => ($"/approvals/{item.Id}/resolve", new { approve = false, note = (string?)null }),
+                _ => ($"/surfacings/{item.Id}/feedback", new { verdict = action, note = (string?)null }),
+            };
+            using var reply = await this.runtime
+                .PostAsync(path, body, this.lifetime.Token).ConfigureAwait(true);
+            this.statusLine.Text = reply is null
+                ? $"{action} failed on {item.Id}"
+                : $"{action} recorded on {item.Id}";
+            await this.RefreshSidebarsAsync().ConfigureAwait(true);
+        }
+        catch (Exception exception)
+        {
+            this.statusLine.Text = $"{action} failed: {exception.Message}";
+        }
+    }
+
     private async Task RefreshSidebarsAsync()
     {
         var attention = new List<SidebarItem>();
@@ -59,7 +131,8 @@ public sealed partial class MainWindow
                 id,
                 "APPROVAL · " + (item.GetProperty("action").GetString() ?? string.Empty),
                 $"requested by {item.GetProperty("requestedBy").GetString()} · "
-                + $"scope {item.GetProperty("scope").GetString()} · dami approve {id}"));
+                + $"scope {item.GetProperty("scope").GetString()}",
+                SidebarKind.Approval));
         }
     }
 
@@ -79,8 +152,9 @@ public sealed partial class MainWindow
                 id,
                 item.GetProperty("title").GetString() ?? string.Empty,
                 $"{item.GetProperty("serviceName").GetString()} · "
-                + $"confidence {item.GetProperty("confidence").GetDouble():0.00} · "
-                + $"dami read {id}"));
+                + $"confidence {item.GetProperty("confidence").GetDouble():0.00}",
+                SidebarKind.Surfacing,
+                item.GetProperty("body").GetString() ?? string.Empty));
         }
     }
 

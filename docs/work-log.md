@@ -8496,3 +8496,65 @@ work was closing the three gaps that actually bit today, not writing a second sc
 Verified: `bash -n` clean; unknown flag rejected with exit 2; schema check reports
 `40 applied, 0 pending` against the live ledger; gate abort proven with a forced failure.
 Not verified end to end — a full run needs sudo, which this session does not have.
+
+## 2026-08-29 — Claude — Local feeds the frontier; a Workers tab; an inbox you can act on
+
+Three rounds of Steve's correction, each one right.
+
+**"I want the LOCAL model to support the calls to the subscription model, not be an
+either or."** The `Frontier` option called `IFrontierChat` directly — bare board text, none
+of Dami's knowledge behind it, no disclosure record. It now routes through
+`AugmentedFrontierTurn`, which already existed for exactly this: retrieval, reranking and
+the D-012 redaction run locally and the frontier answers on what the local model prepared,
+hash-pinned so the egress is auditable. The board records
+`locally retrieved 7 item(s), answered at the frontier`.
+
+Fallback per his follow-up: if the subscription is not there, local takes over and the
+board says so. An `EgressRefusedException` is deliberately *not* caught — a privacy
+boundary refusing is an answer, not an outage to route around. `AugmentedFrontierTurn` is
+sealed with ten dependencies, so it gained an `IAugmentedTurn` interface; the alternative
+was a ten-mock test proving nothing.
+
+**"I want a workers view … full gui size."** First attempt was a side panel, and it was
+wrong twice over: crushed to ~25px because four panels wanted 660px of a 420px column, and
+then still showing only *that* a pass ran. Now a `Console | Workers` tab pair, and the
+Workers tab is service → pass → **what that pass did**, replayed from `/traces/{id}`:
+a headline (elapsed, produced, reached out, needs-a-look), a spine coloured by what each
+step was, and gap bars sized by time since the previous event so the slow step is the wide
+one. A scout pass reads as its feeds, what each host answered, and every item surfaced.
+
+That view earns itself immediately: `EgressCompleted — hnrss.org answered 429` is flagged
+red, and its event status is `Succeeded`, its run `Completed`, its service green. Every
+other surface in the system called that pass a success while it silently lost half its
+feeds. The alert rule reads the HTTP code out of the label rather than trusting status.
+
+New `GET /proactive` and `IProactiveRunHistory`, separate from `IProactiveRunLog` so the
+scheduler's write contract stays free of a query it never makes. One ranked query, not
+twelve round trips. Five live-database tests.
+
+**"there is nothing actionable there, its just a scrolling log"** and then **"how am I
+suppose to rate it when there's NO INFORMATION but some click-bait-ish title".** Both
+right, and the second was the worse bug: every surfacing already carried a `body` holding
+its URL, and the panel dropped it. Rows now show the host, the link, a `read it` button
+that hands it to the browser, and `good`/`meh`/`bad` posting to the same feedback endpoint
+the CLI uses. Approvals get `approve`/`deny`. Context rows get nothing, because there is
+nothing to do about them.
+
+The live execution graph came out of the Console tab at Steve's request, and its dead code
+with it — `RenderTail`, `TrimGraph`, `AddGraphRow`, `DepthOf`, `GraphRow`, and the span
+depth tracking. The event poll stays: it drives the sequence counter and the sidebars.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1086 passed, 0 failed, 19/19 green**. One run of that gate reported 18 projects / 1076
+before two clean runs at 19/1086; the persistence fixture serialises on a Postgres
+advisory lock and this looks like the contention it documents, not a real failure.
+
+Not verified: the `good`/`meh`/`bad` and criterion `satisfy`/`reopen` buttons. The former
+because the click *is* the verdict and inventing Steve's taste is worse than leaving it
+untested; the latter because a clean trial kept eluding synthetic clicks. Both use the
+handler pattern proven on the task action bar.
+
+Answered while writing this: the four services showing "1 run, 5 days ago" are not stuck.
+`reflection`, `codebase-audit`, `media-librarian` are Weekly (due 08-30) and
+`pushback-audit` is Quarterly. Establishing that needed the C# source, because the Workers
+view shows age but not cadence — the next thing to fix.

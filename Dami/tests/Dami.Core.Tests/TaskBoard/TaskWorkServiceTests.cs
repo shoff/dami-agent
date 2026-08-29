@@ -85,24 +85,25 @@ public sealed class TaskWorkServiceTests
             TaskBoardStatus.InProgress, TaskOrdering.Ordered, tasks);
     }
 
-    private sealed class Frontier : Dami.Contracts.Models.IFrontierChat
+    private sealed class Frontier : Dami.Core.Frontier.IAugmentedTurn
     {
         internal string? Seen { get; private set; }
 
-        public Task<string> CompleteAsync(
-            Dami.Contracts.Models.FrontierPrompt prompt,
+        internal Exception? Throw { get; set; }
+
+        public Task<Dami.Core.Frontier.AugmentedTurnResult> RunAsync(
+            string question,
             CancellationToken cancellationToken)
         {
-            this.Seen = prompt.Prompt;
-            return Task.FromResult("the frontier's proposal");
+            this.Seen = question;
+            if (this.Throw is not null)
+            {
+                throw this.Throw;
+            }
+
+            return Task.FromResult(new Dami.Core.Frontier.AugmentedTurnResult(
+                Guid.NewGuid(), "the frontier's proposal", 7, 900));
         }
-    }
-
-    private sealed class Identity : Dami.Contracts.Models.IIdentityProvider
-    {
-        public string Preamble => "preamble";
-
-        public string FrontierVoice => "frontier voice";
     }
 
     private static (TaskWorkService Service, Store Store, Runner Runner, Frontier Frontier) Create(
@@ -112,7 +113,7 @@ public sealed class TaskWorkServiceTests
         var runner = new Runner();
         var frontier = new Frontier();
         return (
-            new TaskWorkService(store, runner, new FakeTimeProvider(at), frontier, new Identity()),
+            new TaskWorkService(store, runner, new FakeTimeProvider(at), frontier),
             store, runner, frontier);
     }
 
@@ -237,7 +238,7 @@ public sealed class TaskWorkServiceTests
     }
 
     [Fact]
-    public async Task RunAsync_Should_Record_Which_Model_Ran_It()
+    public async Task RunAsync_Should_Record_That_Local_Retrieval_Fed_The_Frontier()
     {
         var taskId = Guid.NewGuid();
         var (service, store, _, _) = Create(Board(BoardTaskOf(taskId, "task")));
@@ -245,7 +246,45 @@ public sealed class TaskWorkServiceTests
         await service.RunAsync(
             boardId, taskId, steve, FeaturePlannerKind.Frontier, CancellationToken.None);
 
-        Assert.Contains("Frontier", store.Logged[1].Detail, StringComparison.Ordinal);
+        Assert.Contains("locally retrieved 7 item(s)", store.Logged[1].Detail, StringComparison.Ordinal);
+        Assert.Contains("answered at the frontier", store.Logged[1].Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Fall_Back_To_Local_When_The_Subscription_Is_Unavailable()
+    {
+        // The two models are not alternatives: local feeds the frontier. But if the
+        // subscription is not there — not signed in, CLI missing, process failing — the
+        // run should be answered locally rather than lost.
+        var taskId = Guid.NewGuid();
+        var (service, store, runner, frontier) = Create(Board(BoardTaskOf(taskId, "task")));
+        frontier.Throw = new InvalidOperationException("codex: not signed in");
+
+        var outcome = await service.RunAsync(
+            boardId, taskId, steve, FeaturePlannerKind.Frontier, CancellationToken.None);
+
+        Assert.True(outcome.Ran);
+        Assert.Equal("here is what I would do", outcome.Answer);
+        Assert.NotNull(runner.Seen);
+        Assert.Contains("frontier unavailable", store.Logged[1].Detail, StringComparison.Ordinal);
+        Assert.Contains("not signed in", store.Logged[1].Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Not_Route_Around_A_Privacy_Refusal()
+    {
+        // An egress refusal is an answer, not an outage. Falling back to local would
+        // quietly turn a boundary decision into a different one.
+        var taskId = Guid.NewGuid();
+        var (service, store, runner, frontier) = Create(Board(BoardTaskOf(taskId, "task")));
+        frontier.Throw = new Dami.Contracts.Privacy.EgressRefusedException("not egressable");
+
+        var outcome = await service.RunAsync(
+            boardId, taskId, steve, FeaturePlannerKind.Frontier, CancellationToken.None);
+
+        Assert.False(outcome.Ran);
+        Assert.Null(runner.Seen);
+        Assert.Contains("not egressable", store.Logged[1].Detail, StringComparison.Ordinal);
     }
 
     [Fact]

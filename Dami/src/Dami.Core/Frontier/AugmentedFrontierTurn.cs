@@ -8,6 +8,18 @@ using Microsoft.Extensions.Options;
 
 namespace Dami.Core.Frontier;
 
+/// <summary>Asks the frontier a question the local sidecar has prepared.</summary>
+/// <remarks>
+/// An interface so callers can be tested without standing up retrieval, the disclosure
+/// gate, a brief store, and a frontier process. <see cref="AugmentedFrontierTurn"/> is
+/// the only implementation.
+/// </remarks>
+public interface IAugmentedTurn
+{
+    /// <summary>Retrieves locally, redacts locally, and answers at the frontier.</summary>
+    Task<AugmentedTurnResult> RunAsync(string question, CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// The frontier answers; the local sidecar does the mundane work that feeds it.
 /// </summary>
@@ -23,7 +35,7 @@ namespace Dami.Core.Frontier;
 /// promised. Redaction is a default, not a guarantee — <see cref="AugmentedTurnOptions.Gate"/>
 /// can disable it, and that is deliberately Steve's decision to make and no one else's.
 /// </remarks>
-public sealed class AugmentedFrontierTurn
+public sealed class AugmentedFrontierTurn : IAugmentedTurn
 {
     private readonly IContextBuilder contextBuilder;
     private readonly IContextDisclosureGate gate;

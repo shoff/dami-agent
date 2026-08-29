@@ -57,40 +57,22 @@ public sealed class Message : INotifyPropertyChanged
     }
 }
 
-/// <summary>One event in the live execution graph, already positioned in its span tree.</summary>
-public sealed class GraphRow
+/// <summary>What an attention row is, and therefore what can be done about it.</summary>
+/// <remarks>
+/// The panel used to be one undifferentiated list, which made it a scrolling log: every
+/// row needed a trip to the CLI to act on, so none of them got acted on. A surfacing wants
+/// a verdict, an approval wants a decision, and the rest is context that wants nothing.
+/// </remarks>
+public enum SidebarKind
 {
-    /// <summary>Creates a row.</summary>
-    public GraphRow(string time, string status, int depth, string type, string actor, string label)
-    {
-        this.Time = time;
-        this.Status = status;
-        this.Depth = depth;
-        this.Type = type;
-        this.Actor = actor;
-        this.Label = label;
-    }
+    /// <summary>Context. Nothing to do about it here.</summary>
+    Note,
 
-    /// <summary>When it happened.</summary>
-    public string Time { get; }
+    /// <summary>Something the proactive tier surfaced; a verdict trains the taste model.</summary>
+    Surfacing,
 
-    /// <summary>Running, Succeeded, Failed — drives the colour.</summary>
-    public string Status { get; }
-
-    /// <summary>Depth in the span tree; a child sits under its parent.</summary>
-    public int Depth { get; }
-
-    /// <summary>Indentation derived from <see cref="Depth"/>.</summary>
-    public Avalonia.Thickness Indent => new(this.Depth * 16, 0, 0, 0);
-
-    /// <summary>The event type.</summary>
-    public string Type { get; }
-
-    /// <summary>Which component acted.</summary>
-    public string Actor { get; }
-
-    /// <summary>The human-readable label. Never invented — it is what was persisted.</summary>
-    public string Label { get; }
+    /// <summary>A consequential action waiting on a decision.</summary>
+    Approval,
 }
 
 /// <summary>One item awaiting Steve's decision, or one thing Dami believes.</summary>
@@ -102,12 +84,55 @@ public sealed class GraphRow
 public sealed record SidebarItem
 {
     /// <summary>Creates an item.</summary>
-    public SidebarItem(string id, string headline, string detail)
+    public SidebarItem(
+        string id,
+        string headline,
+        string detail,
+        SidebarKind kind = SidebarKind.Note,
+        string body = "")
     {
         this.Id = id;
         this.Headline = headline;
         this.Detail = detail;
+        this.Kind = kind;
+        this.Body = body;
     }
+
+    /// <summary>
+    /// What the item actually is — the link for a scouted item, the prose for anything
+    /// else. Dropping this was why the panel could not be acted on: a verdict on a
+    /// headline is a verdict on nothing.
+    /// </summary>
+    public string Body { get; }
+
+    /// <summary>What this is, and therefore what can be done about it.</summary>
+    public SidebarKind Kind { get; }
+
+    /// <summary>Whether a verdict trains the taste model on this row.</summary>
+    public bool CanRate => this.Kind == SidebarKind.Surfacing;
+
+    /// <summary>Whether this row is a decision waiting on Steve.</summary>
+    public bool CanApprove => this.Kind == SidebarKind.Approval;
+
+    /// <summary>The link, when the body is one.</summary>
+    public string? Link =>
+        Uri.TryCreate(this.Body, UriKind.Absolute, out var uri)
+        && uri.Scheme is "http" or "https"
+            ? this.Body
+            : null;
+
+    /// <summary>Whether there is something to open.</summary>
+    public bool CanOpen => this.Link is not null;
+
+    /// <summary>
+    /// The host, which is most of the signal a link carries before you read it: a
+    /// personal blog and a GitHub repo want different scepticism.
+    /// </summary>
+    public string Source =>
+        Uri.TryCreate(this.Body, UriKind.Absolute, out var uri) ? uri.Host : string.Empty;
+
+    /// <summary>The body shown inline — the prose, or the link's path.</summary>
+    public string Preview => this.Link is null ? this.Body : this.Body;
 
     /// <summary>Short id, for acting on it.</summary>
     public string Id { get; }
@@ -354,14 +379,117 @@ public sealed class TaskBoardPanelState : INotifyPropertyChanged
     }
 }
 
-/// <summary>Everything the window binds to.</summary>
-public sealed class WindowState
+/// <summary>One recorded pass of a proactive service.</summary>
+public sealed record WorkerRun(DateTimeOffset RanAt, string Status, string Trace, Guid TraceId)
 {
+    /// <summary>When it ran, in local time.</summary>
+    public string When => $"{this.RanAt:ddd dd MMM · HH:mm}";
+}
+
+/// <summary>One proactive service and what it has been doing.</summary>
+/// <remarks>A record so <see cref="Reconcile"/> can tell an unchanged poll from a change.</remarks>
+public sealed record WorkerRow(
+    string ServiceName,
+    string LastStatus,
+    string Age,
+    int Runs,
+    IReadOnlyList<WorkerRun> Recent)
+{
+    /// <summary>The summary line under the service name.</summary>
+    public string Detail => $"{this.LastStatus} · {this.Age} · {this.Runs} run{(this.Runs == 1 ? string.Empty : "s")}";
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A record's synthesised equality would compare <see cref="Recent"/> by reference and
+    /// call every poll a change, which is the flicker this exists to avoid.
+    /// </remarks>
+    public bool Equals(WorkerRow? other)
+    {
+        return other is not null
+            && this.ServiceName == other.ServiceName
+            && this.LastStatus == other.LastStatus
+            && this.Age == other.Age
+            && this.Runs == other.Runs
+            && this.Recent.SequenceEqual(other.Recent);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode() =>
+        HashCode.Combine(this.ServiceName, this.LastStatus, this.Age, this.Runs);
+}
+
+/// <summary>One event in a replayed proactive pass, positioned in time.</summary>
+/// <remarks>
+/// A pass is read after the fact, so the question is not "what happened" but "where did
+/// the time go and what went wrong". Each row therefore carries its offset from the start
+/// of the pass, the gap since the previous event as a proportional bar, and whether it is
+/// the thing worth noticing.
+/// </remarks>
+public sealed record PassEvent(
+    string Time,
+    string Offset,
+    string Type,
+    string Label,
+    string Status,
+    double BarWidth,
+    bool IsAlert);
+
+/// <summary>The headline for a pass: what it cost and what it produced.</summary>
+public sealed record PassSummary(
+    string Duration,
+    int Egress,
+    int Produced,
+    int Alerts)
+{
+    /// <summary>Empty state, before a pass is chosen.</summary>
+    public static readonly PassSummary none = new("—", 0, 0, 0);
+
+    /// <summary>Whether anything in the pass wants attention.</summary>
+    public bool HasAlerts => this.Alerts > 0;
+
+    /// <summary>How the alert count reads.</summary>
+    public string AlertLine =>
+        this.Alerts == 1 ? "1 needs a look" : $"{this.Alerts} need a look";
+}
+
+/// <summary>Everything the window binds to.</summary>
+public sealed class WindowState : INotifyPropertyChanged
+{
+    private string workerTraceMessage = string.Empty;
+    private PassSummary passSummary = PassSummary.none;
+
+    /// <summary>What the trace pane is showing, or why it is showing nothing.</summary>
+    public string WorkerTraceMessage
+    {
+        get => this.workerTraceMessage;
+        set
+        {
+            if (this.workerTraceMessage == value)
+            {
+                return;
+            }
+
+            this.workerTraceMessage = value;
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.WorkerTraceMessage)));
+        }
+    }
+
+    /// <summary>What the selected pass cost and produced.</summary>
+    public PassSummary PassSummary
+    {
+        get => this.passSummary;
+        set
+        {
+            this.passSummary = value;
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.PassSummary)));
+        }
+    }
+
+    /// <inheritdoc />
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     /// <summary>The conversation, oldest first.</summary>
     public ObservableCollection<Message> Messages { get; } = [];
-
-    /// <summary>The live execution graph.</summary>
-    public ObservableCollection<GraphRow> Graph { get; } = [];
 
     /// <summary>Pending surfacings and approvals.</summary>
     public ObservableCollection<SidebarItem> Attention { get; } = [];
@@ -371,4 +499,16 @@ public sealed class WindowState
 
     /// <summary>Live collaborative task-board state.</summary>
     public TaskBoardPanelState TaskBoards { get; } = new();
+
+    /// <summary>What the proactive tier has been doing, most recently active first.</summary>
+    public ObservableCollection<WorkerRow> Workers { get; } = [];
+
+    /// <summary>Passes of the selected service, newest first.</summary>
+    public ObservableCollection<WorkerRun> SelectedWorkerRuns { get; } = [];
+
+    /// <summary>
+    /// The selected pass replayed from the durable event stream — what it actually did,
+    /// not a summary of it.
+    /// </summary>
+    public ObservableCollection<PassEvent> WorkerTrace { get; } = [];
 }

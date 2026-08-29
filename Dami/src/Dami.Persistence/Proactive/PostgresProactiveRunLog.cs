@@ -6,7 +6,7 @@ using Npgsql;
 namespace Dami.Persistence.Proactive;
 
 /// <summary>The scheduler's durable memory over PostgreSQL.</summary>
-public sealed class PostgresProactiveRunLog : IProactiveRunLog
+public sealed class PostgresProactiveRunLog : IProactiveRunLog, IProactiveRunHistory
 {
     private readonly NpgsqlDataSource dataSource;
     private readonly PostgresOptions storeOptions;
@@ -129,5 +129,66 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog
         return scalar is DateTime or DateTimeOffset
             ? (DateTimeOffset?)((scalar as DateTimeOffset?) ?? (DateTime)scalar)
             : null;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// One query, ranked per service, rather than list-then-N-queries: the tier has eleven
+    /// services and a panel that polls should not cost twelve round trips.
+    /// </remarks>
+    public async Task<IReadOnlyList<ProactiveServiceHistory>> ReadAsync(
+        int recentPerService,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(recentPerService);
+
+        await using var command = this.dataSource.CreateCommand(
+            "with ranked as ("
+            + "  select run_id, service_name, trace_id, ran_at, status,"
+            + "         row_number() over (partition by service_name order by ran_at desc) as rank,"
+            + "         count(*) over (partition by service_name) as runs,"
+            + "         max(ran_at) over (partition by service_name) as last_ran_at"
+            + $"    from {this.Table}"
+            + ") select service_name, run_id, trace_id, ran_at, status, runs, last_ran_at"
+            + "  from ranked where rank <= @recent"
+            + "  order by last_ran_at desc, service_name, ran_at desc;");
+        command.Parameters.AddWithValue("recent", recentPerService);
+
+        return await ReadHistoriesAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<IReadOnlyList<ProactiveServiceHistory>> ReadHistoriesAsync(
+        NpgsqlCommand command,
+        CancellationToken cancellationToken)
+    {
+        var order = new List<string>();
+        var runs = new Dictionary<string, List<ProactiveRun>>(StringComparer.Ordinal);
+        var totals = new Dictionary<string, (int Runs, DateTimeOffset LastRanAt)>(StringComparer.Ordinal);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var service = reader.GetString(0);
+            if (!runs.TryGetValue(service, out var list))
+            {
+                list = [];
+                runs[service] = list;
+                order.Add(service);
+                totals[service] = (
+                    reader.GetInt32(5),
+                    await reader.GetFieldValueAsync<DateTimeOffset>(6, cancellationToken).ConfigureAwait(false));
+            }
+
+            list.Add(new ProactiveRun(
+                reader.GetGuid(1), reader.GetGuid(2),
+                await reader.GetFieldValueAsync<DateTimeOffset>(3, cancellationToken).ConfigureAwait(false),
+                Enum.Parse<ProactiveStatus>(reader.GetString(4))));
+        }
+
+        return order
+            .Select(service => new ProactiveServiceHistory(
+                service, totals[service].Runs, totals[service].LastRanAt,
+                runs[service][0].Status, runs[service]))
+            .ToList();
     }
 }

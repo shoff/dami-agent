@@ -116,6 +116,68 @@ public sealed class PostgresProactiveRunLogTests
         Assert.Null(second);
     }
 
+    [Fact]
+    public async Task ReadAsync_Should_Report_Each_Service_Newest_Active_First()
+    {
+        // The panel this feeds exists to answer "has that service run lately, and did it
+        // work" without anyone opening psql.
+        await this.fixture.ResetAsync();
+        var log = this.CreateLog();
+        await log.RecordAsync(
+            Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt.AddDays(-2), ProactiveStatus.Completed, CancellationToken.None);
+        await log.RecordAsync(
+            Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt, ProactiveStatus.Failed, CancellationToken.None);
+        await log.RecordAsync(
+            Guid.NewGuid(), "curator", Guid.NewGuid(), ranAt.AddDays(-1), ProactiveStatus.Completed, CancellationToken.None);
+
+        var history = await log.ReadAsync(10, CancellationToken.None);
+
+        Assert.Equal(["scout", "curator"], history.Select(item => item.ServiceName));
+        var scout = history[0];
+        Assert.Equal(2, scout.Runs);
+        Assert.Equal(ranAt, scout.LastRanAt);
+        Assert.Equal(ProactiveStatus.Failed, scout.LastStatus);
+        Assert.Equal([ranAt, ranAt.AddDays(-2)], scout.Recent.Select(run => run.RanAt));
+    }
+
+    [Fact]
+    public async Task ReadAsync_Should_Bound_The_Runs_It_Returns_Per_Service()
+    {
+        // A service with months of history must not drag its whole log into a panel.
+        await this.fixture.ResetAsync();
+        var log = this.CreateLog();
+        for (var day = 0; day < 6; day++)
+        {
+            await log.RecordAsync(
+                Guid.NewGuid(), "scout", Guid.NewGuid(), ranAt.AddDays(-day),
+                ProactiveStatus.Completed, CancellationToken.None);
+        }
+
+        var history = await log.ReadAsync(2, CancellationToken.None);
+
+        var scout = Assert.Single(history);
+        Assert.Equal(6, scout.Runs);
+        Assert.Equal(2, scout.Recent.Count);
+        Assert.Equal(ranAt, scout.Recent[0].RanAt);
+    }
+
+    [Fact]
+    public async Task ReadAsync_Should_Return_Nothing_When_No_Service_Has_Run()
+    {
+        await this.fixture.ResetAsync();
+
+        Assert.Empty(await this.CreateLog().ReadAsync(5, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task ReadAsync_Should_Reject_A_Meaningless_Bound(int recent)
+    {
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => this.CreateLog().ReadAsync(recent, CancellationToken.None));
+    }
+
     private PostgresProactiveRunLog CreateLog()
     {
         return new PostgresProactiveRunLog(

@@ -119,6 +119,8 @@ builder.Services.AddSingleton<Dami.Contracts.Privacy.IContextDisclosureGate, Loc
 builder.Services.Configure<AugmentedTurnOptions>(
     builder.Configuration.GetSection(AugmentedTurnOptions.SECTION_NAME));
 builder.Services.AddSingleton<AugmentedFrontierTurn>();
+builder.Services.AddSingleton<IAugmentedTurn>(services =>
+    services.GetRequiredService<AugmentedFrontierTurn>());
 
 // Frontier: subscription door (ADR-0011) behind the C5 egress budget.
 builder.Services.Configure<CodexOptions>(builder.Configuration.GetSection(CodexOptions.SECTION_NAME));
@@ -192,6 +194,7 @@ if (authenticationEnabled)
 }
 
 app.MapDamiRuntime();
+app.MapDamiProactive();
 app.Run();
 
 /// <summary>Web entry point exposed for in-memory composition tests.</summary>

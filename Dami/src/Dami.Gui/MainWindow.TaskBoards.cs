@@ -44,6 +44,9 @@ public sealed partial class MainWindow
         this.boardRefresh.Click += this.OnBoardRefresh;
         Require<StackPanel>(this, "BoardViews").AddHandler(Button.ClickEvent, this.OnBoardView);
         _ = this.FollowBoardsAsync();
+        this.InitialiseWorkers();
+        Require<ItemsControl>(this, "AttentionList")
+            .AddHandler(Button.ClickEvent, this.OnAttentionAction);
     }
 
     private async Task FollowBoardsAsync()
