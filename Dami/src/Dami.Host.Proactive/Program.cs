@@ -77,6 +77,7 @@ builder.Services.AddSingleton<IProactiveService, HealthCollectorService>();
 builder.Services.Configure<NetworkCollectorOptions>(
     builder.Configuration.GetSection(NetworkCollectorOptions.SECTION_NAME));
 builder.Services.AddSingleton<INetworkProbe, SystemNetworkProbe>();
+builder.Services.AddSingleton<LanScanner>();
 builder.Services.AddSingleton<IProactiveService, NetworkCollectorService>();
 
 // K4: the civic domain from public feeds through the egress boundary. Defaults are
