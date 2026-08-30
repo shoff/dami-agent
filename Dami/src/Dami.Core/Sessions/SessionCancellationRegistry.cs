@@ -16,11 +16,12 @@ public sealed class SessionCancellationRegistry : ISessionCancellationRegistry
     }
 
     /// <inheritdoc />
-    public Task InterruptAsync(Guid sessionId)
+    public async Task InterruptAsync(Guid sessionId, CancellationToken cancellationToken)
     {
         EnsureSessionId(sessionId);
-        return this.sources.GetOrAdd(
-            sessionId, static _ => new CancellationTokenSource()).CancelAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+        await this.sources.GetOrAdd(
+            sessionId, static _ => new CancellationTokenSource()).CancelAsync().ConfigureAwait(false);
     }
 
     /// <inheritdoc />

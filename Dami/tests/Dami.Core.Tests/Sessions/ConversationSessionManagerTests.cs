@@ -97,7 +97,7 @@ public sealed class ConversationSessionManagerTests
 
         await this.CreateManager().InterruptAsync(sessionId, CancellationToken.None);
 
-        await this.cancellationRegistry.Received(1).InterruptAsync(sessionId);
+        await this.cancellationRegistry.Received(1).InterruptAsync(sessionId, Arg.Any<CancellationToken>());
     }
 
     [Fact]

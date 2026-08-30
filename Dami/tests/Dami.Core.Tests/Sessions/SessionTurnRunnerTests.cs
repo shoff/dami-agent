@@ -187,7 +187,7 @@ public sealed class SessionTurnRunnerTests
         var interruption = Task.Run(async () =>
         {
             await executionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-            await this.cancellationRegistry.InterruptAsync(request.SessionId).ConfigureAwait(false);
+            await this.cancellationRegistry.InterruptAsync(request.SessionId, CancellationToken.None).ConfigureAwait(false);
         });
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(

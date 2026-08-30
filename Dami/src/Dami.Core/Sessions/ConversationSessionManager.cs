@@ -72,7 +72,7 @@ public sealed class ConversationSessionManager : IConversationSessionManager
             ConversationSessionState.Interrupted, cancellationToken).ConfigureAwait(false);
         if (session?.State == ConversationSessionState.Interrupted)
         {
-            await this.cancellationRegistry.InterruptAsync(sessionId).ConfigureAwait(false);
+            await this.cancellationRegistry.InterruptAsync(sessionId, cancellationToken).ConfigureAwait(false);
         }
 
         return session;

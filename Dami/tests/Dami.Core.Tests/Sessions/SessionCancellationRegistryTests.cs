@@ -12,7 +12,7 @@ public sealed class SessionCancellationRegistryTests
         var sessionId = Guid.NewGuid();
         var interrupted = registry.TokenFor(sessionId);
 
-        await registry.InterruptAsync(sessionId);
+        await registry.InterruptAsync(sessionId, CancellationToken.None);
         registry.Resume(sessionId);
         var resumed = registry.TokenFor(sessionId);
 

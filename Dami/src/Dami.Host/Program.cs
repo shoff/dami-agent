@@ -9,6 +9,7 @@ using Dami.Core.Sessions;
 using Dami.Core.TaskBoard;
 using Dami.Core.Turns;
 using Dami.Host;
+using Dami.Host.Discord;
 using Dami.Persistence;
 using Dami.Privacy;
 using Dami.Proactive.Librarian;
@@ -151,6 +152,11 @@ builder.Services.AddSingleton<FeaturePlanningService>();
 // the board. It takes ITurnRunner, so it inherits exactly the tool budget the interactive
 // turn has — no wider surface was opened for it.
 builder.Services.AddSingleton<TaskWorkService>();
+
+// Discord (ADR-0024, M1). Dormant unless Discord__Token and Discord__OwnerUserId are set,
+// which the systemd drop-in supplies; the registration is here rather than inside the
+// gateway so that what can reach off the host stays readable in one place.
+builder.Services.AddDamiDiscordGateway(builder.Configuration);
 
 var app = builder.Build();
 

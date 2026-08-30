@@ -12,7 +12,14 @@ namespace Dami.Persistence.Tests.Gateways;
 [Collection(DatabaseCollection.NAME)]
 public sealed class PostgresGatewayAuthorityTests
 {
-    private const string GATEWAY = "discord";
+    /// <summary>
+    /// A name unique to this test run. It used to be the literal "discord", which took a
+    /// Postgres advisory lock on the same name the live gateway holds — so these tests
+    /// passed only for as long as nothing had ever actually run the Discord gateway, and
+    /// began failing deterministically the moment one did (2026-08-30, dami-host pid
+    /// 875180 holding it). A test must not contend with production for a lock.
+    /// </summary>
+    private static readonly string gateway = $"discord-test-{Guid.NewGuid():N}";
 
     private readonly DatabaseFixture fixture;
 
@@ -28,7 +35,7 @@ public sealed class PostgresGatewayAuthorityTests
         await this.fixture.ResetAsync();
         var authority = this.CreateAuthority();
 
-        await using var lease = await authority.TryAcquireAsync(GATEWAY, CancellationToken.None);
+        await using var lease = await authority.TryAcquireAsync(gateway, CancellationToken.None);
 
         Assert.NotNull(lease);
     }
@@ -38,9 +45,9 @@ public sealed class PostgresGatewayAuthorityTests
     {
         await this.fixture.ResetAsync();
         var authority = this.CreateAuthority();
-        await using var first = await authority.TryAcquireAsync(GATEWAY, CancellationToken.None);
+        await using var first = await authority.TryAcquireAsync(gateway, CancellationToken.None);
 
-        var second = await authority.TryAcquireAsync(GATEWAY, CancellationToken.None);
+        var second = await authority.TryAcquireAsync(gateway, CancellationToken.None);
 
         Assert.Null(second);
     }
@@ -50,10 +57,10 @@ public sealed class PostgresGatewayAuthorityTests
     {
         await this.fixture.ResetAsync();
         var authority = this.CreateAuthority();
-        var first = await authority.TryAcquireAsync(GATEWAY, CancellationToken.None);
+        var first = await authority.TryAcquireAsync(gateway, CancellationToken.None);
         await first!.DisposeAsync();
 
-        await using var second = await authority.TryAcquireAsync(GATEWAY, CancellationToken.None);
+        await using var second = await authority.TryAcquireAsync(gateway, CancellationToken.None);
 
         Assert.NotNull(second);
     }
@@ -63,7 +70,7 @@ public sealed class PostgresGatewayAuthorityTests
     {
         await this.fixture.ResetAsync();
         var authority = this.CreateAuthority();
-        await using var discord = await authority.TryAcquireAsync(GATEWAY, CancellationToken.None);
+        await using var discord = await authority.TryAcquireAsync(gateway, CancellationToken.None);
 
         await using var other = await authority.TryAcquireAsync("signal", CancellationToken.None);
 
@@ -75,10 +82,11 @@ public sealed class PostgresGatewayAuthorityTests
     {
         await this.fixture.ResetAsync();
         var authority = this.CreateAuthority();
-        await using var lease = await authority.TryAcquireAsync(GATEWAY, CancellationToken.None);
+        await using var lease = await authority.TryAcquireAsync(gateway, CancellationToken.None);
 
         await using var command = this.fixture.DataSource.CreateCommand(
-            $"select holder_pid from {DatabaseFixture.SCHEMA}.gateway_authority where gateway_name = 'discord';");
+            $"select holder_pid from {DatabaseFixture.SCHEMA}.gateway_authority where gateway_name = $1;");
+        command.Parameters.AddWithValue(gateway);
         var pid = await command.ExecuteScalarAsync();
 
         Assert.Equal(Environment.ProcessId, pid);
