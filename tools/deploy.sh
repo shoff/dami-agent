@@ -12,6 +12,18 @@
 # appends an Environment= line that is missing, never rewrites the drop-in.
 set -euo pipefail
 
+# Run as steve, never under sudo. This script asks for sudo itself, which makes
+# `sudo tools/deploy.sh` the natural thing to type - and then the gate runs as root, HOME
+# is /root, and every test that touches the database fails looking for /root/.pgpass. The
+# failures read as six unrelated defects (a 500 from /speak, a missing JSON property in a
+# frontier turn) and are one wrong user.
+if [[ ${EUID} -eq 0 ]]; then
+    echo "deploy: run this as steve, not with sudo." >&2
+    echo "        It asks for sudo where it needs it. As root the test gate cannot read" >&2
+    echo "        ~/.pgpass and the database-backed tests fail for no real reason." >&2
+    exit 2
+fi
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE="$HOME/.cache/dami-pub"
 CIVIC_HOST="www.lakevillemn.gov"
