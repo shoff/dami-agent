@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Dami.Proactive/Dami.Proactive.csproj" />
+    <ProjectReference Include="../../src/Dami.Host.Proactive/Dami.Host.Proactive.csproj" />
   </ItemGroup>
 
 </Project>
