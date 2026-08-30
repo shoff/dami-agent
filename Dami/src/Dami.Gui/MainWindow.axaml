@@ -14,6 +14,10 @@
     <SolidColorBrush x:Key="Accent">#5AA9E6</SolidColorBrush>
   </Window.Resources>
 
+  <Panel>
+  <!-- Right-click anything to ask about it. The popup is a child of the window rather
+       than of whatever was clicked, because the thing under the pointer is often inside a
+       virtualising list that will recycle the container out from under it mid-question. -->
   <TabControl Margin="6">
     <TabItem Header="Console">
   <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,*,*" Margin="10">
@@ -696,4 +700,36 @@
       </Grid>
     </TabItem>
   </TabControl>
+
+  <!-- An overlay in the visual tree, not a Popup. A Popup is an OS-level window that
+       needs a placement target and silently renders nothing without one — it opened
+       correctly here and was invisible. This cannot fail to show, and "floating" never
+       required a real window. -->
+  <Border x:Name="AskPopup" IsVisible="False"
+          HorizontalAlignment="Left" VerticalAlignment="Top"
+          Background="#141A21" BorderBrush="#3A4757" BorderThickness="1"
+          CornerRadius="8" Padding="14" Width="460" BoxShadow="0 8 24 0 #99000000">
+    <DockPanel>
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+        <TextBlock Grid.Column="0" Text="ASK ABOUT THIS" FontSize="11"
+                   Foreground="{StaticResource Dim}"/>
+        <Button Grid.Column="1" x:Name="AskClose" Content="✕" Padding="6,0" FontSize="11"
+                Background="Transparent" Foreground="{StaticResource Dim}"/>
+      </Grid>
+      <TextBlock DockPanel.Dock="Top" x:Name="AskSubject" TextWrapping="Wrap"
+                 MaxLines="3" TextTrimming="CharacterEllipsis" FontSize="11"
+                 Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+        <TextBox x:Name="AskInput" Grid.Column="0" PlaceholderText="what do you want to know?"
+                 Background="#0D1116" Foreground="{StaticResource Ink}" BorderBrush="#2A333D"/>
+        <Button x:Name="AskButton" Grid.Column="1" Content="ask" Margin="8,0,0,0"
+                Background="#2F4A66" Foreground="{StaticResource Ink}" Padding="12,4"/>
+      </Grid>
+      <ScrollViewer MaxHeight="300">
+        <TextBlock x:Name="AskAnswer" TextWrapping="Wrap" FontSize="12"
+                   Foreground="{StaticResource Ink}"/>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+  </Panel>
 </Window>

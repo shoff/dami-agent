@@ -45,6 +45,7 @@ public sealed partial class MainWindow
         Require<StackPanel>(this, "BoardViews").AddHandler(Button.ClickEvent, this.OnBoardView);
         _ = this.FollowBoardsAsync();
         this.InitialiseWorkers();
+        this.InitialiseAsk();
         Require<ItemsControl>(this, "AttentionList")
             .AddHandler(Button.ClickEvent, this.OnAttentionAction);
     }
