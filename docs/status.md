@@ -353,6 +353,30 @@ meetings surfaced into the inbox. `dami today` is populated on the deployed buil
 H9's "one collector beyond health runs unattended" is observed; its board task stays
 behind K1's sign-off prerequisite.
 
+**Fitness domain — phase 1 of the Hermes cutover · done 2026-08-30.** Fitness was never
+built here, and `dami.health_events` could not hold it: that table is medical, CHECK-bound
+to six categories, and fed by an LLM extracting facts from narrative. A set of 8 reps at
+135 lb is a row, not a sentence. Hermes on the Mac mini (`sbadmin`) has been logging it
+daily since 2026-04-04 with a better schema than anything here — watts, METs, HR avg/max,
+per-set RPE — so migration 036 ports that shape rather than inventing one, keeping the
+Hermes id on every row (`source_event_id`, `source_set_id`).
+
+Imported: **234 events** (140 cardio, 73 resistance, 21 weight), **318 sets**, 22
+exercises. Every excluded row is accounted for — Hermes soft-deletes with `deleted_at`,
+covering the 10 events and 8 sets that did not come across; nothing is orphaned. The
+import is idempotent and re-running it is a no-op.
+
+`tools/reconcile-hermes-fitness.sh` compares the two databases on counts, summed reps,
+volume, distance, seconds, latest instant, and the full set of event ids, and exits
+non-zero on any drift. **Verified by deleting an imported row and watching three checks
+fail**, then restoring — this repository's characteristic defect is the silent one, and a
+green reconciler nobody has seen go red is worth nothing.
+
+**Hermes remains the writer.** Dami is read-only on fitness. Phase 2 (parallel write plus
+nightly reconciliation) and phase 3 (cutover) are not started, deliberately: Steve's
+position on 2026-08-30 was that Dami has not yet earned the system-of-record role, and
+this session's evidence supports him.
+
 ### Phase 4 — Privacy boundary and first proactive service · **largely done**
 
 | Item | State | Evidence |
