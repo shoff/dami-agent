@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Dami.Authentication;
 using Dami.Contracts.Context;
 using Dami.Contracts.Events;
 using Dami.Contracts.TaskBoard;
@@ -36,6 +37,10 @@ public sealed class TaskBoardClient
         ArgumentNullException.ThrowIfNull(httpClient);
         this.httpClient = httpClient;
     }
+
+    /// <summary>Sends future requests with a freshly acquired token.</summary>
+    public void Authenticate(string accessToken) =>
+        DamiBearerToken.Apply(this.httpClient, accessToken);
 
     /// <summary>Reads a bounded recent-board list with durable progress.</summary>
     public async Task<IReadOnlyList<TaskBoardSummary>> ListAsync(

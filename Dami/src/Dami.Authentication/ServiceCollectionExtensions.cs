@@ -31,10 +31,15 @@ public static class ServiceCollectionExtensions
         AddPersistence(services, connectionString);
         AddAuthority(services, options);
         services.AddScoped<DamiClientProvisioner>();
+        services.AddScoped<DamiIdentityProvisioner>();
 
         // Nothing can authenticate until dami-cli and dami-gui exist as registrations.
         // They never did outside a test fixture (G5a).
         services.AddHostedService<FirstPartyClientSeeder>();
+
+        // And nothing can log in until a human account exists. That had the same hole:
+        // the endpoints check passwords against a user table nothing ever wrote to.
+        services.AddHostedService<BootstrapIdentitySeeder>();
         return services;
     }
 

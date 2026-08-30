@@ -34,8 +34,36 @@ public sealed class RuntimeClient
             BaseAddress = new Uri(BASE_URL),
             Timeout = TimeSpan.FromMinutes(10),
         };
-        DamiBearerToken.Apply(client, Environment.GetEnvironmentVariable("DAMI_ACCESS_TOKEN"));
+        DamiBearerToken.Apply(client, GuiTokens.Access());
         return client;
+    }
+
+    /// <summary>Sends future requests with a freshly acquired token.</summary>
+    public void Authenticate(string accessToken) =>
+        DamiBearerToken.Apply(this.httpClient, accessToken);
+
+    /// <summary>Whether the runtime is turning this client away for want of a token.</summary>
+    /// <remarks>
+    /// Probes the same endpoint the window polls, past the end of the stream so the
+    /// answer is cheap. Unreachable is not unauthorized: a host that is down gets the
+    /// normal empty window, not a login prompt it cannot satisfy.
+    /// </remarks>
+    public async Task<bool> IsUnauthorizedAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await this.httpClient
+                .GetAsync(
+                    new Uri(BASE_URL + "/events?after="
+                        + long.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return response.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Reads a JSON array from the runtime, or an empty document on failure.</summary>

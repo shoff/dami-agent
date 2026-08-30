@@ -8701,3 +8701,42 @@ Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
 **21/21 assemblies green**. One caveat recorded rather than smoothed over: an earlier
 full-solution run showed a single failure in `Dami.Host.Tests` that did not reproduce in
 five subsequent runs and whose name was not captured. Unexplained, not resolved.
+
+## 2026-08-30 — Claude — G5a continued: GUI PKCE flow (planned)
+
+Continuing from HANDOFF.md. Planned: (1) wire the CLI's `login`/`logout`/`whoami` verbs
+into the dispatch switch — `DispatchAuthAsync` exists in the uncommitted tree but nothing
+calls it, so all three verbs currently fall through to usage; the handoff's claim that
+they were routed is wrong. (2) The GUI's authorization-code + PKCE flow: pure
+verifier/challenge/callback parsing in `Dami.Authentication` with tests, a login driver
+against `/connect/authorize` and `/connect/token`, a token store at
+`~/.config/dami/gui-token.json`, and a minimal login window in `Dami.Gui` shown when the
+host answers 401. No flag flip, no deploy — `Authentication:Enabled` stays off per the
+handoff's ordering.
+
+**Done, with evidence.** All planned items landed, plus one the plan missed:
+
+- The CLI verbs are now actually routed (`CommandRouter.RunAsync` tries
+  `DispatchAuthAsync` first). Smoke-tested without the flag: `dami whoami` → "Not logged
+  in. Run `dami login`."; `dami login` → "http://127.0.0.1:5810/ did not start a device
+  authorization. Is authentication enabled on the host?" — the right message for a host
+  with the flag off.
+- `PkceFlow` (pure RFC 7636, 8 tests incl. the Appendix B vector) and `PkceLogin` (6
+  tests against a scripted authority: state mismatch ends the flow before the exchange,
+  and the verifier presented must be the preimage of the challenge sent).
+- GUI: `GuiTokens` (`~/.config/dami/gui-token.json`), `LoginWindow`, `MainWindow.Login`
+  — probes `/events` past the stream end on open; only a 401 raises the modal. Untested
+  against a live 401, since the flag is off everywhere.
+- **The hole the plan missed:** `dami_auth."AspNetUsers"` is empty and nothing ever
+  creates a user — the same green-around-a-hole shape as the client registrations, one
+  layer down. `DamiIdentityProvisioner` + `BootstrapIdentitySeeder` close it (4 tests on
+  real Postgres, including "re-running with a different configured password must not
+  reset the real one"). Password arrives only via `Authentication__BootstrapPassword`.
+- Verified live: `dami_auth."OpenIddictApplications"` holds `dami-cli` and `dami-gui`;
+  `AspNetUsers` returns zero rows.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1295 passed, 0 failed, 21/21 assemblies green** (was 1276 at handoff; +15 PKCE,
++4 bootstrap identity). Committed and pushed at Steve's explicit ask.
+HANDOFF.md updated, including a correction: the previous handoff claimed the CLI verbs
+were routed, and they were not.

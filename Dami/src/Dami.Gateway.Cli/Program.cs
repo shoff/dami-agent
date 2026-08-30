@@ -23,12 +23,30 @@ var connectionString =
     ?? "Host=127.0.0.1;Port=5432;Database=dami-data;Username=dami_app;Passfile="
        + Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "/.pgpass";
 
+var runtimeHost = new Uri(configuration["Runtime:BaseAddress"] ?? "http://127.0.0.1:5810/");
+
+// A token from `dami login` beats one pinned in configuration. The static
+// Authentication:AccessToken stays as an override for a service account that cannot run a
+// device flow, but a human's login should not be silently ignored because a stale config
+// key exists.
+var clock = TimeProvider.System;
+var tokenStore = new DamiTokenStore(clock);
+var storedToken = tokenStore.Read();
+var accessToken = storedToken is not null && !storedToken.IsExpiredAt(clock.GetUtcNow())
+    ? storedToken.AccessToken
+    : configuration["Authentication:AccessToken"];
+
 var services = new ServiceCollection();
 services.AddLogging(logging => logging.AddFilter(_ => false));
+services.AddSingleton(tokenStore);
+services.AddSingleton(runtimeHost);
+services.AddHttpClient<DeviceLogin>();
+services.AddSingleton<LoginCommands>(provider => new LoginCommands(
+    provider.GetRequiredService<DeviceLogin>(), tokenStore, runtimeHost, clock));
 services.AddHttpClient<DamiApiClient>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(15);
-    DamiBearerToken.Apply(client, configuration["Authentication:AccessToken"]);
+    DamiBearerToken.Apply(client, accessToken);
 });
 
 // The two direct-access exceptions.
@@ -91,7 +109,8 @@ try
         provider.GetRequiredService<HealthLogCommands>(),
         provider.GetRequiredService<VoiceVerbs>(),
         provider.GetRequiredService<ReviewVerbs>(),
-        provider.GetRequiredService<BoardVerbs>());
+        provider.GetRequiredService<BoardVerbs>(),
+        provider.GetRequiredService<LoginCommands>());
 }
 catch (Dami.Contracts.Privacy.EgressRefusedException exception)
 {

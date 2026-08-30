@@ -62,6 +62,10 @@ public static class CommandRouter
           dami board                     the task board: list, show, claim, complete, block
           dami board-import <TODO.md> --revision <sha> --actor <id> [--agent] [--dry-run]
                                          write the blueprint onto the task board; rerun-safe
+
+          dami login                     approve this terminal in a browser (device flow)
+          dami logout                    forget the stored token
+          dami whoami                    whether this terminal is logged in
         """;
 
     /// <summary>Runs one command. Returns the process exit code.</summary>
@@ -84,9 +88,11 @@ public static class CommandRouter
         HealthLogCommands healthLog,
         VoiceVerbs voice,
         ReviewVerbs review,
-        BoardVerbs board)
+        BoardVerbs board,
+        LoginCommands login)
     {
         ArgumentNullException.ThrowIfNull(args);
+        ArgumentNullException.ThrowIfNull(login);
         ArgumentNullException.ThrowIfNull(inbox);
         ArgumentNullException.ThrowIfNull(traces);
         ArgumentNullException.ThrowIfNull(beliefs);
@@ -107,12 +113,27 @@ public static class CommandRouter
         ArgumentNullException.ThrowIfNull(board);
 
         using var cancellation = ConsoleCancellation();
-        return await DispatchAsync(
-            args.Length == 0 ? "inbox" : args[0].ToLowerInvariant(),
-            args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision, stats,
-            chat, sessions, frontier, approvals, briefs, healthLog, voice, review, board,
-            cancellation.Token).ConfigureAwait(false);
+
+        var verb = args.Length == 0 ? "inbox" : args[0].ToLowerInvariant();
+        return await DispatchAuthAsync(verb, login, cancellation.Token).ConfigureAwait(false)
+            ?? await DispatchAsync(
+                verb, args, inbox, traces, beliefs, health, recall, ask, contextCommands, vision,
+                stats, chat, sessions, frontier, approvals, briefs, healthLog, voice, review, board,
+                cancellation.Token).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// The verbs that must work when every other one is returning 401, because the
+    /// terminal is not logged in yet. Null when the verb is not one of them.
+    /// </summary>
+    private static async Task<int?> DispatchAuthAsync(
+        string verb, LoginCommands login, CancellationToken cancellationToken) => verb switch
+    {
+        "login" => await login.LogInAsync(cancellationToken).ConfigureAwait(false),
+        "logout" => login.LogOut(),
+        "whoami" => login.WhoAmI(),
+        _ => null,
+    };
 
     private static CancellationTokenSource ConsoleCancellation()
     {

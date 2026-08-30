@@ -15,12 +15,21 @@ public sealed class DamiAuthenticationOptions
     /// <summary>Gets or sets whether loopback HTTP is permitted before the TLS cutover.</summary>
     public bool AllowInsecureLoopback { get; set; }
 
+    /// <summary>The registered desktop redirect, mirrored by the GUI's login client.</summary>
+    public const string DEFAULT_GUI_REDIRECT_URI = "http://127.0.0.1:5899/connect/callback";
+
     /// <summary>
     /// Where the desktop client's PKCE redirect lands. A fixed loopback port, because a
     /// redirect URI has to be registered ahead of time and cannot be a port chosen at
     /// launch.
     /// </summary>
-    public string GuiRedirectUri { get; set; } = "http://127.0.0.1:5899/connect/callback";
+    public string GuiRedirectUri { get; set; } = DEFAULT_GUI_REDIRECT_URI;
+
+    /// <summary>Gets or sets the account to create at startup when it does not exist.</summary>
+    public string? BootstrapUsername { get; set; }
+
+    /// <summary>Gets or sets that account's password, supplied by secret configuration only.</summary>
+    public string? BootstrapPassword { get; set; }
 
     /// <summary>Gets or sets whether process-local keys may be used in isolated tests.</summary>
     public bool UseEphemeralKeys { get; set; }
