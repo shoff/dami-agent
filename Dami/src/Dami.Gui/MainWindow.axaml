@@ -548,7 +548,7 @@
                                   ToolTip.Tip="{Binding Outcome}">
                             <Rectangle Width="7" VerticalAlignment="Bottom" RadiusX="2" RadiusY="2"
                                        Height="{Binding BarHeight}"
-                                       Fill="{Binding HasAlerts, Converter={x:Static local:OverdueBrush.instance}}"/>
+                                       Fill="{Binding Converter={x:Static local:RunBrush.instance}}"/>
                           </Border>
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
@@ -582,7 +582,7 @@
                       <StackPanel Grid.Column="1" Margin="8,0,0,0">
                         <TextBlock Text="{Binding When}" Foreground="{StaticResource Ink}"/>
                         <TextBlock Text="{Binding Outcome}" FontSize="11" FontFamily="monospace"
-                                   Foreground="{Binding HasAlerts, Converter={x:Static local:OverdueBrush.instance}}"/>
+                                   Foreground="{Binding Converter={x:Static local:RunBrush.instance}}"/>
                         <TextBlock FontSize="11" FontFamily="monospace"
                                    Foreground="{StaticResource Dim}">
                           <Run Text="trace "/><Run Text="{Binding Trace}"/>
