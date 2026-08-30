@@ -8656,3 +8656,48 @@ Still not deployed, and still needing sudo this session cannot use: `/activity` 
 Known rough edges, deliberately left: the label column is cramped against the 300px track,
 and the run list does not mark which passes had alerts, so a bad pass cannot be spotted
 without opening each one.
+
+## 2026-08-30 — Claude — Picking up G5a, and a collision I caused
+
+Steve: "please pick up all of codex's work and let's get it completed."
+
+**First, a disclosure.** Commit `5c0e1ff` — mine, titled "Advisory task-work runs, GUI
+legibility, and a tool loop that no longer gives up" — swept up Codex's entire OIDC slice:
+`ClientCredentialsTokenHandler`, `DamiAuthorization`, `DamiBearerToken`,
+`DamiClientProfiles`, `DamiClientProvisioner`, `AuthenticationEndpoints`, and the auth half
+of `ServiceCollectionExtensions`. Runbook §7 warns about exactly this and names `7d3b508`
+as the prior instance. I did it again, and Codex's work now sits in the history under an
+unrelated heading with no entry here until this one. Both of today's commits stage
+explicitly by path.
+
+**What G5a actually is.** Better than a first read suggested. The server side is close to
+finished: OpenIddict with authorize/token/device/verify endpoints, Postgres-backed
+identities, and — the part worth crediting — an authorization `FallbackPolicy` that denies
+by default and maps method to scope, GET/HEAD to `runtime.read` and everything else to
+`runtime.write`. `/health` and `/connect/*` are the only anonymous endpoints, which is
+right. I initially read "RUNTIME_READ is referenced by no endpoint" as a gap; it is not,
+because the fallback covers them. That correction is worth recording because the mistake is
+easy to repeat.
+
+**Where it actually stops.** Nothing ever created the `dami-cli` or `dami-gui`
+registrations outside a test fixture. `DamiClientProvisioner` only enrolled *confidential
+services*, and only tests called it. Every flow would have failed at the first request with
+an unknown client — the profiles, endpoints, policies and tests were all green around a
+hole where the registrations should be.
+
+`EnsureFirstPartyClientsAsync` plus `FirstPartyClientSeeder` close it: idempotent, hosted,
+and it says what it created rather than provisioning in silence — the silence is what let
+this sit unnoticed. Neither client gets a secret; a public client on a machine its user
+controls cannot keep one, which is what the device and PKCE flows are for. Five tests,
+including "create nothing when both already exist", because a restarting host must not mint
+a duplicate.
+
+**Still open, and the reason this is not finished:** the CLI has no device flow (it reads a
+static `Authentication:AccessToken`), the GUI sends no token at all, and
+`Authentication:Enabled` is off on the deployed host. Turning the flag on before those two
+exist breaks both clients, so the order is clients first, flag last.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**21/21 assemblies green**. One caveat recorded rather than smoothed over: an earlier
+full-solution run showed a single failure in `Dami.Host.Tests` that did not reproduce in
+five subsequent runs and whose name was not captured. Unexplained, not resolved.

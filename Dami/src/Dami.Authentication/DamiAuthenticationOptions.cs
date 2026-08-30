@@ -15,6 +15,13 @@ public sealed class DamiAuthenticationOptions
     /// <summary>Gets or sets whether loopback HTTP is permitted before the TLS cutover.</summary>
     public bool AllowInsecureLoopback { get; set; }
 
+    /// <summary>
+    /// Where the desktop client's PKCE redirect lands. A fixed loopback port, because a
+    /// redirect URI has to be registered ahead of time and cannot be a port chosen at
+    /// launch.
+    /// </summary>
+    public string GuiRedirectUri { get; set; } = "http://127.0.0.1:5899/connect/callback";
+
     /// <summary>Gets or sets whether process-local keys may be used in isolated tests.</summary>
     public bool UseEphemeralKeys { get; set; }
 

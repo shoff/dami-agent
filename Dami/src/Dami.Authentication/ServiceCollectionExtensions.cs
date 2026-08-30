@@ -31,6 +31,10 @@ public static class ServiceCollectionExtensions
         AddPersistence(services, connectionString);
         AddAuthority(services, options);
         services.AddScoped<DamiClientProvisioner>();
+
+        // Nothing can authenticate until dami-cli and dami-gui exist as registrations.
+        // They never did outside a test fixture (G5a).
+        services.AddHostedService<FirstPartyClientSeeder>();
         return services;
     }
 
