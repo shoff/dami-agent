@@ -16,9 +16,12 @@ public sealed class NetworkCollectorService : IProactiveService
 {
     private const string DOMAIN = "network";
     private const string SOURCE = "network-collector";
+    private const string DEVICE = "device";
+    private const int MAX_HISTORY = 5000;
 
     private readonly IDomainFactStore store;
     private readonly INetworkProbe probe;
+    private readonly LanScanner scanner;
     private readonly NetworkCollectorOptions collectorOptions;
     private readonly TimeProvider clock;
     private readonly ILogger<NetworkCollectorService> logger;
@@ -27,17 +30,20 @@ public sealed class NetworkCollectorService : IProactiveService
     public NetworkCollectorService(
         IDomainFactStore store,
         INetworkProbe probe,
+        LanScanner scanner,
         IOptions<NetworkCollectorOptions> collectorOptions,
         TimeProvider clock,
         ILogger<NetworkCollectorService> logger)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(probe);
+        ArgumentNullException.ThrowIfNull(scanner);
         ArgumentNullException.ThrowIfNull(collectorOptions);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
         this.store = store;
         this.probe = probe;
+        this.scanner = scanner;
         this.collectorOptions = collectorOptions.Value;
         this.clock = clock;
         this.logger = logger;
@@ -58,6 +64,9 @@ public sealed class NetworkCollectorService : IProactiveService
         facts.AddRange(await this.ReachabilityFactsAsync(cancellationToken).ConfigureAwait(false));
         facts.AddRange(await this.ServiceFactsAsync(cancellationToken).ConfigureAwait(false));
 
+        var devices = await this.DiscoverAsync(cancellationToken).ConfigureAwait(false);
+        facts.AddRange(devices.Select(device => (DEVICE, device.Describe())));
+
         var now = this.clock.GetUtcNow();
         var written = 0;
         foreach (var (category, description) in facts)
@@ -68,8 +77,89 @@ public sealed class NetworkCollectorService : IProactiveService
         }
 
         this.logger.LogInformation("Network collector: {Written} new fact(s) of {Observed}", written, facts.Count);
-        return ProactiveResult.quiet;
+
+        var unfamiliar = await this.UnfamiliarAsync(devices, cancellationToken).ConfigureAwait(false);
+        return unfamiliar.Count == 0
+            ? ProactiveResult.quiet
+            : new ProactiveResult([], [this.Surface(unfamiliar)], ProactiveStatus.Completed);
     }
+
+    /// <summary>Sweeps the subnet, unless discovery is switched off.</summary>
+    /// <remarks>
+    /// The range defaults to the subnet of the first interface that is up rather than a
+    /// configured constant, so the answer stays right when DHCP moves this host.
+    /// </remarks>
+    private async Task<IReadOnlyList<LanDevice>> DiscoverAsync(CancellationToken cancellationToken)
+    {
+        if (!this.collectorOptions.DiscoverDevices)
+        {
+            return [];
+        }
+
+        var cidr = this.collectorOptions.Cidr.Length > 0
+            ? this.collectorOptions.Cidr
+            : this.probe.Interfaces()
+                .Where(nic => nic.IsUp)
+                .SelectMany(nic => nic.Addresses)
+                .FirstOrDefault(string.Empty);
+
+        return cidr.Length == 0
+            ? []
+            : await this.scanner
+                .ScanAsync(cidr, this.collectorOptions.ScanParallelism, cancellationToken)
+                .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Devices whose hardware address has not appeared in the domain's recent history.
+    /// </summary>
+    /// <remarks>
+    /// The MAC is the identity, not the address: DHCP moves a device between leases and a
+    /// name is whatever it chooses to advertise, so matching on either would report the
+    /// same laptop as new every time the router reshuffled.
+    /// </remarks>
+    private async Task<IReadOnlyList<LanDevice>> UnfamiliarAsync(
+        IReadOnlyList<LanDevice> devices,
+        CancellationToken cancellationToken)
+    {
+        var candidates = devices.Where(device => device.Mac.Length > 0).ToList();
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        var today = DateOnly.FromDateTime(this.clock.GetUtcNow().UtcDateTime);
+        var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await foreach (var fact in this.store.BetweenAsync(
+            DOMAIN, today.AddDays(-this.collectorOptions.KnownDeviceDays), today.AddDays(-1),
+            MAX_HISTORY, cancellationToken).ConfigureAwait(false))
+        {
+            if (fact.Category == DEVICE)
+            {
+                known.Add(fact.Description.Split(' ')[0]);
+            }
+        }
+
+        return candidates.Where(device => !known.Contains(device.Mac)).ToList();
+    }
+
+    private Surfacing Surface(IReadOnlyList<LanDevice> devices)
+    {
+        var headline = devices.Count == 1
+            ? $"A device you have not seen before is on the network: {Name(devices[0])}"
+            : $"{devices.Count} devices you have not seen before are on the network";
+
+        return new Surfacing(
+            Guid.NewGuid(),
+            SOURCE,
+            headline,
+            string.Join("\n", devices.Select(device => $"· {device.Describe()}")),
+            0.8,
+            this.clock.GetUtcNow());
+    }
+
+    private static string Name(LanDevice device) =>
+        device.Name.Length > 0 ? device.Name : $"{device.Mac} at {device.Address}";
 
     private IEnumerable<(string, string)> InterfaceFacts()
     {

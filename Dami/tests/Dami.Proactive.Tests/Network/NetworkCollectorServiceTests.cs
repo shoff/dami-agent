@@ -21,7 +21,7 @@ public sealed class NetworkCollectorServiceTests
         var written = new List<DomainFact>();
         store.RecordAsync(Arg.Do<DomainFact>(written.Add), Arg.Any<CancellationToken>()).Returns(true);
         var service = new NetworkCollectorService(
-            store, probe, Options.Create(TwoServices()), new FakeTimeProvider(now), NullLogger<NetworkCollectorService>.Instance);
+            store, probe, Scanner(probe), Options.Create(TwoServices()), new FakeTimeProvider(now), NullLogger<NetworkCollectorService>.Instance);
 
         var result = await service.RunPassAsync(new ProactiveContext(Guid.NewGuid(), now, null), CancellationToken.None);
 
@@ -39,6 +39,10 @@ public sealed class NetworkCollectorServiceTests
             ],
             written.Select(fact => fact.Description));
     }
+
+    /// <summary>A scanner over the same fake probe; discovery is switched off per test.</summary>
+    private static LanScanner Scanner(INetworkProbe probe) =>
+        new(probe, NullLogger<LanScanner>.Instance);
 
     private static INetworkProbe Probe()
     {
@@ -58,6 +62,10 @@ public sealed class NetworkCollectorServiceTests
     private static NetworkCollectorOptions TwoServices()
     {
         var options = new NetworkCollectorOptions();
+
+        // These tests predate discovery and assert on the exact fact set the collector
+        // produced then; a sweep would add the whole LAN to it.
+        options.DiscoverDevices = false;
         options.Services.Clear();
         options.Services.Add(new WatchedService { Name = "postgresql", Port = 5432 });
         options.Services.Add(new WatchedService { Name = "ollama", Port = 11434 });

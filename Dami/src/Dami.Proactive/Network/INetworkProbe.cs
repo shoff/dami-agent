@@ -7,9 +7,22 @@ namespace Dami.Proactive.Network;
 /// <summary>One network interface as the collector sees it.</summary>
 public sealed record InterfaceState(string Name, bool IsUp, IReadOnlyList<string> Addresses);
 
+/// <summary>An address the kernel has an ARP entry for.</summary>
+public sealed record Neighbour(string Address, string Mac);
+
 /// <summary>What the host can find out about its own network without leaving it.</summary>
 public interface INetworkProbe
 {
+    /// <summary>The kernel's ARP table: addresses this host has actually talked to.</summary>
+    /// <remarks>
+    /// Read after a sweep, not before. The table only knows what has been spoken to, so on
+    /// a quiet host it holds the gateway and nothing else.
+    /// </remarks>
+    Task<IReadOnlyList<Neighbour>> NeighboursAsync(CancellationToken cancellationToken);
+
+    /// <summary>A name for an address, or null. Resolves mDNS too where nss-mdns is set up.</summary>
+    Task<string?> ResolveAsync(string address, CancellationToken cancellationToken);
+
     /// <summary>Non-loopback interfaces and their addresses.</summary>
     IReadOnlyList<InterfaceState> Interfaces();
 
@@ -73,6 +86,75 @@ public sealed class SystemNetworkProbe : INetworkProbe
             return reply.Status == IPStatus.Success ? reply.RoundtripTime : null;
         }
         catch (PingException)
+        {
+            return null;
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Shells out to <c>ip</c> because .NET exposes no ARP table. Read-only, and a
+    /// non-zero exit is treated as "nothing known" rather than a fault: an empty table is
+    /// a legitimate answer on a host that has not spoken to anyone.
+    /// </remarks>
+    public async Task<IReadOnlyList<Neighbour>> NeighboursAsync(CancellationToken cancellationToken)
+    {
+        using var process = new System.Diagnostics.Process();
+        process.StartInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "ip",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        process.StartInfo.ArgumentList.Add("neigh");
+        process.StartInfo.ArgumentList.Add("show");
+
+        process.Start();
+        var output = await process.StandardOutput.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        return process.ExitCode == 0 ? ParseNeighbours(output) : [];
+    }
+
+    /// <summary>Parses <c>ip neigh show</c>: "ADDR dev IF lladdr MAC STATE".</summary>
+    public static IReadOnlyList<Neighbour> ParseNeighbours(string output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+        var found = new List<Neighbour>();
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var lladdr = Array.IndexOf(fields, "lladdr");
+
+            // IPv6 link-local entries duplicate the same hardware behind a different
+            // address; the IPv4 view is the one the rest of the collector speaks.
+            if (lladdr < 0 || lladdr + 1 >= fields.Length || fields[0].Contains(':', StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            found.Add(new Neighbour(fields[0], fields[lladdr + 1]));
+        }
+
+        return found;
+    }
+
+    /// <inheritdoc />
+    public async Task<string?> ResolveAsync(string address, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        try
+        {
+            var entry = await Dns.GetHostEntryAsync(address, cancellationToken).ConfigureAwait(false);
+            return string.IsNullOrWhiteSpace(entry.HostName) || entry.HostName == address
+                ? null
+                : entry.HostName;
+        }
+        catch (SocketException)
+        {
+            return null;
+        }
+        catch (ArgumentException)
         {
             return null;
         }

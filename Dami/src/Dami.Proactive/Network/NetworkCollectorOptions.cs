@@ -26,6 +26,31 @@ public sealed class NetworkCollectorOptions
     /// <summary>Configuration section.</summary>
     public const string SECTION_NAME = "NetworkCollector";
 
+    /// <summary>Sweep the local subnet to find what is actually on it.</summary>
+    /// <remarks>
+    /// On by default. Without it the collector reports only the hosts it was told about,
+    /// which on this network meant two devices out of seventeen. The sweep is ICMP inside
+    /// this host's own subnet and nothing else.
+    /// </remarks>
+    public bool DiscoverDevices { get; set; } = true;
+
+    /// <summary>
+    /// The range to sweep. Empty means the subnet of the first up interface, which is the
+    /// answer that stays right when DHCP moves the host.
+    /// </summary>
+    public string Cidr { get; set; } = string.Empty;
+
+    /// <summary>Concurrent pings. Enough to finish a /22 in seconds, few enough not to drown the NIC.</summary>
+    public int ScanParallelism { get; set; } = 128;
+
+    /// <summary>How far back to look before calling a device new.</summary>
+    /// <remarks>
+    /// A device seen last month and absent since is not news when it comes back; a device
+    /// never seen before is. Too short a window makes every laptop that went on holiday a
+    /// surfacing, which is how an inbox gets ignored.
+    /// </remarks>
+    public int KnownDeviceDays { get; set; } = 60;
+
     /// <summary>LAN hosts to reach. Default: the Mac mini the corpus keeps mentioning.</summary>
     public IList<WatchedHost> Hosts { get; } =
     [
