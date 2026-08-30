@@ -119,4 +119,35 @@ public sealed class LanDeviceTests
 
         Assert.Equal("04:7c:16:80:fb:76 at 192.168.4.43", device.Describe());
     }
+
+    [Fact]
+    public void Describe_Should_Name_This_Host_Rather_Than_Lead_With_An_Empty_Address()
+    {
+        // A host has no ARP entry for itself, and the first live run recorded its own row
+        // as " at 192.168.4.45 (dami)" - a fact beginning with a space.
+        var self = new LanDevice("192.168.4.45", string.Empty, "dami");
+
+        Assert.Equal("this host at 192.168.4.45 (dami)", self.Describe());
+    }
+}
+
+public sealed class ResolvedNameTests
+{
+    [Fact]
+    public void ParseResolved_Should_Read_The_Name_From_An_Avahi_Answer()
+    {
+        // DNS answers for almost nothing on this network; mDNS answers for the television,
+        // the console and the Macs. Relying on DNS alone named two devices out of eighteen.
+        Assert.Equal(
+            "LGwebOSTV-qQUU-1.local",
+            SystemNetworkProbe.ParseResolved("192.168.4.26\tLGwebOSTV-qQUU-1.local\n"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("192.168.4.99\n")]
+    public void ParseResolved_Should_Return_Null_When_Nothing_Answered(string output)
+    {
+        Assert.Null(SystemNetworkProbe.ParseResolved(output));
+    }
 }

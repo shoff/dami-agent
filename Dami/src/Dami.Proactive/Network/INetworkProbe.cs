@@ -140,24 +140,71 @@ public sealed class SystemNetworkProbe : INetworkProbe
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// DNS first, then mDNS. On this network DNS answers for almost nothing — the router
+    /// serves no reverse zone — while the interesting devices all announce themselves over
+    /// mDNS: the television, the console, the Macs, the access point. Relying on
+    /// <see cref="Dns"/> alone recorded eighteen devices and named two of them, and a bare
+    /// hardware address cannot answer "is this thing meant to be here".
+    ///
+    /// nss-mdns is not a substitute: it is installed here and <c>getent hosts</c> still
+    /// returns nothing for these addresses, so the resolver has to be asked directly.
+    /// </remarks>
     public async Task<string?> ResolveAsync(string address, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(address);
         try
         {
             var entry = await Dns.GetHostEntryAsync(address, cancellationToken).ConfigureAwait(false);
-            return string.IsNullOrWhiteSpace(entry.HostName) || entry.HostName == address
-                ? null
-                : entry.HostName;
+            if (!string.IsNullOrWhiteSpace(entry.HostName) && entry.HostName != address)
+            {
+                return entry.HostName;
+            }
         }
-        catch (SocketException)
+        catch (Exception exception) when (exception is SocketException or ArgumentException)
         {
+            // No reverse record; mDNS is the more likely answer on a home network anyway.
+        }
+
+        return await MulticastNameAsync(address, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Asks avahi, which is the only thing on this host that answers.</summary>
+    private static async Task<string?> MulticastNameAsync(
+        string address,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var process = new System.Diagnostics.Process();
+            process.StartInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "avahi-resolve",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            process.StartInfo.ArgumentList.Add("-a");
+            process.StartInfo.ArgumentList.Add(address);
+
+            process.Start();
+            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            return ParseResolved(process.ExitCode == 0 ? output : string.Empty);
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // avahi-utils is not installed; an unnamed device is still a device found.
             return null;
         }
-        catch (ArgumentException)
-        {
-            return null;
-        }
+    }
+
+    /// <summary>Parses avahi-resolve's "ADDRESS\tNAME" line.</summary>
+    public static string? ParseResolved(string output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+        var fields = output.Split(['\t', ' ', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        return fields.Length >= 2 ? fields[1] : null;
     }
 
     /// <inheritdoc />

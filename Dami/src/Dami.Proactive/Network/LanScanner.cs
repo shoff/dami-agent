@@ -10,8 +10,16 @@ public sealed record LanDevice(string Address, string Mac, string Name)
     /// stable identity — an address is a lease and a name is a courtesy, but the hardware
     /// address is what makes a device the same device tomorrow.
     /// </summary>
-    public string Describe() =>
-        $"{this.Mac} at {this.Address}{(this.Name.Length > 0 ? $" ({this.Name})" : string.Empty)}";
+    public string Describe()
+    {
+        // This host has no ARP entry for itself, so its own row has no hardware address.
+        // Leading with an empty one produced a fact beginning with a space, and the MAC is
+        // also what identity is matched on — so say plainly that there is not one.
+        var named = this.Name.Length > 0 ? $" ({this.Name})" : string.Empty;
+        return this.Mac.Length > 0
+            ? $"{this.Mac} at {this.Address}{named}"
+            : $"this host at {this.Address}{named}";
+    }
 }
 
 /// <summary>Finds what is actually on the local network.</summary>
