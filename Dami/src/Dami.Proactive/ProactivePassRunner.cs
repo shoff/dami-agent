@@ -105,7 +105,9 @@ public sealed class ProactivePassRunner
 
         await this.EmitAsync(
             context.TraceId, service.ServiceName, ExecutionEventType.TraceCompleted, ExecutionStatus.Succeeded,
-            $"{service.ServiceName}: {result.Conclusions.Count} concluded, {result.Surfacings.Count} surfaced",
+            result.Note.Length > 0
+                ? $"{service.ServiceName}: {result.Note}"
+                : $"{service.ServiceName}: {result.Conclusions.Count} concluded, {result.Surfacings.Count} surfaced",
             cancellationToken).ConfigureAwait(false);
 
         return new ProactivePassOutcome(context.TraceId, result.Status);

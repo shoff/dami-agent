@@ -79,9 +79,14 @@ public sealed class NetworkCollectorService : IProactiveService
         this.logger.LogInformation("Network collector: {Written} new fact(s) of {Observed}", written, facts.Count);
 
         var unfamiliar = await this.UnfamiliarAsync(devices, cancellationToken).ConfigureAwait(false);
+        var note = $"{written} new fact(s) of {facts.Count}"
+            + (devices.Count > 0 ? $", {devices.Count} device(s) on the network" : string.Empty);
+
         return unfamiliar.Count == 0
-            ? ProactiveResult.quiet
-            : new ProactiveResult([], [this.Surface(unfamiliar)], ProactiveStatus.Completed);
+            ? ProactiveResult.Did(note)
+            : new ProactiveResult(
+                [], [this.Surface(unfamiliar)], ProactiveStatus.Completed,
+                $"{note}, {unfamiliar.Count} not seen before");
     }
 
     /// <summary>Sweeps the subnet, unless discovery is switched off.</summary>

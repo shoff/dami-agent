@@ -94,7 +94,13 @@ public sealed class HealthCollectorService : IProactiveService
                 extracted, pending.Count);
         }
 
-        return ProactiveResult.quiet;
+        // One local-model call per observation, sequentially, up to the batch size — which
+        // is why this pass takes minutes where every other one takes seconds. That cost
+        // was invisible: the trace said "0 concluded, 0 surfaced" after ten minutes of it.
+        return pending.Count == 0
+            ? ProactiveResult.Did("nothing new to examine")
+            : ProactiveResult.Did(
+                $"examined {pending.Count} observation(s), extracted {extracted} fact(s)");
     }
 
     private async Task<int> ExamineAllAsync(
