@@ -380,10 +380,54 @@ public sealed class TaskBoardPanelState : INotifyPropertyChanged
 }
 
 /// <summary>One recorded pass of a proactive service.</summary>
-public sealed record WorkerRun(DateTimeOffset RanAt, string Status, string Trace, Guid TraceId)
+public sealed record WorkerRun(
+    DateTimeOffset RanAt,
+    string Status,
+    string Trace,
+    Guid TraceId,
+    int Produced,
+    int Egress,
+    int Alerts,
+    double Seconds,
+    double BarHeight)
 {
     /// <summary>When it ran, in local time.</summary>
     public string When => $"{this.RanAt:ddd dd MMM · HH:mm}";
+
+    /// <summary>How long it took, said the way a person would.</summary>
+    public string Elapsed => this.Seconds switch
+    {
+        < 1 => "instant",
+        < 90 => $"{this.Seconds:0.0}s",
+        _ => $"{this.Seconds / 60:0} min",
+    };
+
+    /// <summary>Whether this pass wants a look.</summary>
+    /// <remarks>
+    /// Status cannot answer this: a rate-limited scout pass is Completed and still the one
+    /// worth opening. Without it you have to open every pass to find the bad one.
+    /// </remarks>
+    public bool HasAlerts => this.Alerts > 0;
+
+    /// <summary>The outcome line under the timestamp.</summary>
+    public string Outcome
+    {
+        get
+        {
+            var parts = new List<string> { this.Status, this.Elapsed };
+            if (this.Produced > 0)
+            {
+                parts.Add($"{this.Produced} produced");
+            }
+
+            if (this.Alerts > 0)
+            {
+                parts.Add(this.Alerts == 1 ? "1 alert" : $"{this.Alerts} alerts");
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
 }
 
 /// <summary>One proactive service and what it has been doing.</summary>
@@ -396,7 +440,10 @@ public sealed record WorkerRow(
     IReadOnlyList<WorkerRun> Recent,
     string Cadence,
     string Due,
-    bool IsOverdue)
+    bool IsOverdue,
+    int TotalProduced,
+    int TotalEgress,
+    int TotalAlerts)
 {
     /// <summary>The summary line under the service name.</summary>
     public string Detail => $"{this.LastStatus} · {this.Age} · {this.Runs} run{(this.Runs == 1 ? string.Empty : "s")}";
@@ -409,6 +456,42 @@ public sealed record WorkerRow(
     public string Schedule => string.IsNullOrEmpty(this.Cadence)
         ? "cadence unknown"
         : $"{this.Cadence} · {this.Due}";
+
+    /// <summary>What this service has actually done, over its whole history.</summary>
+    /// <remarks>
+    /// A collector that has run forty times and produced nothing is a different thing from
+    /// one that has produced two hundred facts, and the run count alone cannot tell them
+    /// apart.
+    /// </remarks>
+    public string Totals
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (this.TotalProduced > 0)
+            {
+                parts.Add($"{this.TotalProduced} produced");
+            }
+
+            if (this.TotalEgress > 0)
+            {
+                parts.Add($"{this.TotalEgress} reached out");
+            }
+
+            if (this.TotalAlerts > 0)
+            {
+                parts.Add(this.TotalAlerts == 1 ? "1 alert" : $"{this.TotalAlerts} alerts");
+            }
+
+            return parts.Count == 0 ? "nothing produced yet" : string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>Whether any recorded pass alerted.</summary>
+    public bool HasAlerts => this.TotalAlerts > 0;
+
+    /// <summary>Oldest first, so the strip reads left to right like a timeline.</summary>
+    public IReadOnlyList<WorkerRun> Strip => this.Recent.Reverse().ToList();
 
     /// <inheritdoc />
     /// <remarks>

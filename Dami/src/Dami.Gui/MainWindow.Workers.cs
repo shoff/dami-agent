@@ -160,15 +160,15 @@ public sealed partial class MainWindow
         var hours = service.GetProperty("sinceLastRunHours").GetDouble();
         var runs = service.GetProperty("runs").GetInt32();
         var recent = service.GetProperty("recent").EnumerateArray()
-            .Select(run =>
-            {
-                var traceId = run.GetProperty("traceId").GetGuid();
-                return new WorkerRun(
-                    run.GetProperty("ranAt").GetDateTimeOffset().ToLocalTime(),
-                    run.GetProperty("status").GetString() ?? string.Empty,
-                    traceId.ToString("N")[..8],
-                    traceId);
-            })
+            .Select(Run)
+            .ToList();
+
+        // One scale across the strip, from the slowest pass this service has on record, so
+        // a service that suddenly takes ten times as long shows it. Per-run scaling would
+        // make every service's worst pass look identical.
+        var slowest = recent.Count == 0 ? 0 : recent.Max(run => run.Seconds);
+        recent = recent
+            .Select(run => run with { BarHeight = BlockHeight(run.Seconds, slowest) })
             .ToList();
 
         var cadence = service.GetProperty("cadence").GetString() ?? string.Empty;
@@ -176,8 +176,36 @@ public sealed partial class MainWindow
         return new WorkerRow(
             name, status, Age(hours), runs, recent, cadence,
             due.ValueKind == JsonValueKind.Null ? string.Empty : Due(due.GetDouble()),
-            due.ValueKind != JsonValueKind.Null && due.GetDouble() < 0);
+            due.ValueKind != JsonValueKind.Null && due.GetDouble() < 0,
+            service.GetProperty("totalProduced").GetInt32(),
+            service.GetProperty("totalEgress").GetInt32(),
+            service.GetProperty("totalAlerts").GetInt32());
     }
+
+    private static WorkerRun Run(JsonElement run)
+    {
+        var traceId = run.GetProperty("traceId").GetGuid();
+        return new WorkerRun(
+            run.GetProperty("ranAt").GetDateTimeOffset().ToLocalTime(),
+            run.GetProperty("status").GetString() ?? string.Empty,
+            traceId.ToString("N")[..8],
+            traceId,
+            run.GetProperty("produced").GetInt32(),
+            run.GetProperty("egress").GetInt32(),
+            run.GetProperty("alerts").GetInt32(),
+            run.GetProperty("seconds").GetDouble(),
+            0);
+    }
+
+    /// <remarks>
+    /// A floor rather than a proportion at the bottom: a pass that took no measurable time
+    /// still ran, and a zero-height block reads as "did not happen".
+    /// </remarks>
+    private static double BlockHeight(double seconds, double slowest) =>
+        slowest <= 0 ? MIN_BLOCK : Math.Max(MIN_BLOCK, seconds / slowest * MAX_BLOCK);
+
+    private const double MIN_BLOCK = 4;
+    private const double MAX_BLOCK = 22;
 
     /// <remarks>
     /// Negative means overdue, which is the only case worth alarming about — and the one

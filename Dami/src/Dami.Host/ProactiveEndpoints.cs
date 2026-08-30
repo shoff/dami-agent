@@ -61,12 +61,20 @@ internal static class ProactiveEndpoints
             dueInHours = service.NextDueAt is { } due
                 ? Math.Round((due - now).TotalHours, 1)
                 : (double?)null,
+            totalProduced = service.TotalProduced,
+            totalEgress = service.TotalEgress,
+            totalAlerts = service.TotalAlerts,
             recent = service.Recent.Select(run => new
             {
                 runId = run.RunId,
                 traceId = run.TraceId,
                 ranAt = run.RanAt,
                 status = run.Status.ToString(),
+                produced = run.Produced,
+                egress = run.Egress,
+                alerts = run.Alerts,
+                seconds = Math.Round(run.Seconds, 1),
+                events = run.Events,
             }),
         };
     }

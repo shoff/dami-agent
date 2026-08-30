@@ -134,6 +134,49 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog, IProactiveRunHis
             : null;
     }
 
+    /// <summary>
+    /// One query for the whole panel. Per-run counts come from the event stream joined on
+    /// trace id; service totals come from the entire history rather than the recent slice,
+    /// because "what has this thing done for me" is not a question about the last eight
+    /// passes. Alerts match the answered code in the label, never status: the scout's 429
+    /// is a Succeeded event on a Completed run.
+    /// </summary>
+    private string HistorySql =>
+        "with ranked as ("
+            + "  select run_id, service_name, trace_id, ran_at, status, cadence,"
+            + "         row_number() over (partition by service_name order by ran_at desc) as rank,"
+            + "         count(*) over (partition by service_name) as runs,"
+            + "         max(ran_at) over (partition by service_name) as last_ran_at"
+            + $"    from {this.Table}"
+            + "), tallied as ("
+            + "  select r.run_id, r.service_name, r.trace_id, r.ran_at, r.status, r.cadence,"
+            + "         r.rank, r.runs, r.last_ran_at,"
+            + "         count(*) filter (where e.type in "
+            + "             ('Surfaced','Concluded','Observed','FactRecorded')) as produced,"
+            + "         count(*) filter (where e.type like 'Egress%') as egress,"
+
+            // A non-2xx answer is the case this view exists for, and it never shows up in a
+            // status: the scout's 429 is a Succeeded event on a Completed run.
+            + "         count(*) filter (where e.label ~ 'answered [45][0-9][0-9]') as alerts,"
+            + "         coalesce(extract(epoch from"
+            + "             (max(e.occurred_at) - min(e.occurred_at))), 0) as seconds,"
+            + "         count(e.event_id) as events"
+            + "    from ranked r"
+            + $"    left join {this.storeOptions.SchemaName}.execution_events e"
+            + "      on e.trace_id = r.trace_id"
+            + "   group by r.run_id, r.service_name, r.trace_id, r.ran_at, r.status,"
+            + "            r.cadence, r.rank, r.runs, r.last_ran_at"
+            + "), totals as ("
+            + "  select service_name, sum(produced) as all_produced,"
+            + "         sum(egress) as all_egress, sum(alerts) as all_alerts"
+            + "    from tallied group by service_name"
+            + ") select t.service_name, t.run_id, t.trace_id, t.ran_at, t.status, t.runs,"
+            + "         t.last_ran_at, t.cadence, t.produced, t.egress, t.alerts, t.seconds,"
+            + "         t.events, o.all_produced, o.all_egress, o.all_alerts"
+            + "    from tallied t join totals o on o.service_name = t.service_name"
+            + "   where t.rank <= @recent"
+            + "   order by t.last_ran_at desc, t.service_name, t.ran_at desc;";
+
     /// <inheritdoc />
     /// <remarks>
     /// One query, ranked per service, rather than list-then-N-queries: the tier has eleven
@@ -145,16 +188,7 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog, IProactiveRunHis
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(recentPerService);
 
-        await using var command = this.dataSource.CreateCommand(
-            "with ranked as ("
-            + "  select run_id, service_name, trace_id, ran_at, status, cadence,"
-            + "         row_number() over (partition by service_name order by ran_at desc) as rank,"
-            + "         count(*) over (partition by service_name) as runs,"
-            + "         max(ran_at) over (partition by service_name) as last_ran_at"
-            + $"    from {this.Table}"
-            + ") select service_name, run_id, trace_id, ran_at, status, runs, last_ran_at, cadence"
-            + "  from ranked where rank <= @recent"
-            + "  order by last_ran_at desc, service_name, ran_at desc;");
+        await using var command = this.dataSource.CreateCommand(this.HistorySql);
         command.Parameters.AddWithValue("recent", recentPerService);
 
         return await ReadHistoriesAsync(command, cancellationToken).ConfigureAwait(false);
@@ -164,18 +198,45 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog, IProactiveRunHis
     /// Cadence is nullable because runs recorded before migration 035 predate the column;
     /// they read back as "unknown" rather than as a guess.
     /// </remarks>
-    private static async Task<(int Runs, DateTimeOffset LastRanAt, ProactiveCadence? Cadence)> TotalsAsync(
+    private static async Task<ProactiveRun> RunAsync(
+        NpgsqlDataReader reader,
+        CancellationToken cancellationToken)
+    {
+        return new ProactiveRun(
+            reader.GetGuid(1),
+            reader.GetGuid(2),
+            await reader.GetFieldValueAsync<DateTimeOffset>(3, cancellationToken).ConfigureAwait(false),
+            Enum.Parse<ProactiveStatus>(reader.GetString(4)),
+            (int)reader.GetInt64(8),
+            (int)reader.GetInt64(9),
+            (int)reader.GetInt64(10),
+            reader.GetDouble(11),
+            (int)reader.GetInt64(12));
+    }
+
+    private static async Task<ServiceTotals> TotalsAsync(
         NpgsqlDataReader reader,
         CancellationToken cancellationToken)
     {
         var lastRanAt = await reader
             .GetFieldValueAsync<DateTimeOffset>(6, cancellationToken).ConfigureAwait(false);
         var unknown = await reader.IsDBNullAsync(7, cancellationToken).ConfigureAwait(false);
-        return (
+        return new ServiceTotals(
             reader.GetInt32(5),
             lastRanAt,
-            unknown ? null : Enum.Parse<ProactiveCadence>(reader.GetString(7)));
+            unknown ? null : Enum.Parse<ProactiveCadence>(reader.GetString(7)),
+            (int)reader.GetInt64(13),
+            (int)reader.GetInt64(14),
+            (int)reader.GetInt64(15));
     }
+
+    private sealed record ServiceTotals(
+        int Runs,
+        DateTimeOffset LastRanAt,
+        ProactiveCadence? Cadence,
+        int Produced,
+        int Egress,
+        int Alerts);
 
     private static async Task<IReadOnlyList<ProactiveServiceHistory>> ReadHistoriesAsync(
         NpgsqlCommand command,
@@ -183,9 +244,7 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog, IProactiveRunHis
     {
         var order = new List<string>();
         var runs = new Dictionary<string, List<ProactiveRun>>(StringComparer.Ordinal);
-        var totals =
-            new Dictionary<string, (int Runs, DateTimeOffset LastRanAt, ProactiveCadence? Cadence)>(
-                StringComparer.Ordinal);
+        var totals = new Dictionary<string, ServiceTotals>(StringComparer.Ordinal);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -199,16 +258,15 @@ public sealed class PostgresProactiveRunLog : IProactiveRunLog, IProactiveRunHis
                 totals[service] = await TotalsAsync(reader, cancellationToken).ConfigureAwait(false);
             }
 
-            list.Add(new ProactiveRun(
-                reader.GetGuid(1), reader.GetGuid(2),
-                await reader.GetFieldValueAsync<DateTimeOffset>(3, cancellationToken).ConfigureAwait(false),
-                Enum.Parse<ProactiveStatus>(reader.GetString(4))));
+            list.Add(await RunAsync(reader, cancellationToken).ConfigureAwait(false));
         }
 
         return order
             .Select(service => new ProactiveServiceHistory(
                 service, totals[service].Runs, totals[service].LastRanAt,
-                runs[service][0].Status, totals[service].Cadence, runs[service]))
+                runs[service][0].Status, totals[service].Cadence,
+                totals[service].Produced, totals[service].Egress, totals[service].Alerts,
+                runs[service]))
             .ToList();
     }
 }

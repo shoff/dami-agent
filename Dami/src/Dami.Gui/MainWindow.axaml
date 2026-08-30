@@ -523,7 +523,7 @@
                      Background="Transparent">
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="local:WorkerRow">
-                  <StackPanel Margin="2,5">
+                  <StackPanel Margin="2,6">
                     <TextBlock Text="{Binding ServiceName}" Foreground="{StaticResource Ink}"/>
                     <TextBlock Text="{Binding Detail}" FontSize="11"
                                Foreground="{Binding LastStatus, Converter={x:Static local:StatusBrush.instance}}"/>
@@ -531,6 +531,31 @@
                          days ago is healthy; nightly and five days ago is not. -->
                     <TextBlock Text="{Binding Schedule}" FontSize="11"
                                Foreground="{Binding IsOverdue, Converter={x:Static local:OverdueBrush.instance}}"/>
+
+                    <!-- One block per pass, oldest left, height by duration and colour by
+                         outcome. A service that has been alerting or slowing down shows it
+                         here without opening anything, which is the difference between a
+                         list you browse and one you monitor. -->
+                    <ItemsControl ItemsSource="{Binding Strip}" Margin="0,5,0,2">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Orientation="Horizontal" Spacing="2"/>
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="local:WorkerRun">
+                          <Border Width="7" Height="24" Background="#0B0F14" CornerRadius="2"
+                                  ToolTip.Tip="{Binding Outcome}">
+                            <Rectangle Width="7" VerticalAlignment="Bottom" RadiusX="2" RadiusY="2"
+                                       Height="{Binding BarHeight}"
+                                       Fill="{Binding HasAlerts, Converter={x:Static local:OverdueBrush.instance}}"/>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="{Binding Totals}" FontSize="11"
+                               Foreground="{StaticResource Dim}"/>
                   </StackPanel>
                 </DataTemplate>
               </ListBox.ItemTemplate>
@@ -548,13 +573,22 @@
                        Background="Transparent">
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="local:WorkerRun">
-                    <StackPanel Margin="2,3">
-                      <TextBlock Text="{Binding When}" Foreground="{StaticResource Ink}"/>
-                      <TextBlock FontSize="11" FontFamily="monospace"
-                                 Foreground="{Binding Status, Converter={x:Static local:StatusBrush.instance}}">
-                        <Run Text="{Binding Status}"/><Run Text=" · trace "/><Run Text="{Binding Trace}"/>
-                      </TextBlock>
-                    </StackPanel>
+                    <Grid ColumnDefinitions="4,*" Margin="0,4">
+                      <!-- A pass can alert and still be Completed, so the mark is driven by
+                           the alert count rather than the status. Without it the bad pass
+                           can only be found by opening every one. -->
+                      <Rectangle Grid.Column="0" Width="3" RadiusX="1.5" RadiusY="1.5"
+                                 IsVisible="{Binding HasAlerts}" Fill="#E0604F"/>
+                      <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                        <TextBlock Text="{Binding When}" Foreground="{StaticResource Ink}"/>
+                        <TextBlock Text="{Binding Outcome}" FontSize="11" FontFamily="monospace"
+                                   Foreground="{Binding HasAlerts, Converter={x:Static local:OverdueBrush.instance}}"/>
+                        <TextBlock FontSize="11" FontFamily="monospace"
+                                   Foreground="{StaticResource Dim}">
+                          <Run Text="trace "/><Run Text="{Binding Trace}"/>
+                        </TextBlock>
+                      </StackPanel>
+                    </Grid>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
               </ListBox>

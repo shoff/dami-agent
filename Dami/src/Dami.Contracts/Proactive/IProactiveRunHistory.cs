@@ -5,7 +5,20 @@ public sealed record ProactiveRun(
     Guid RunId,
     Guid TraceId,
     DateTimeOffset RanAt,
-    ProactiveStatus Status);
+    ProactiveStatus Status,
+    int Produced,
+    int Egress,
+    int Alerts,
+    double Seconds,
+    int Events)
+{
+    /// <summary>Whether anything in this pass wants a look.</summary>
+    /// <remarks>
+    /// A pass can alert and still be <see cref="ProactiveStatus.Completed"/> — the scout's
+    /// rate-limited feeds are exactly that — so status alone cannot answer this.
+    /// </remarks>
+    public bool HasAlerts => this.Alerts > 0;
+}
 
 /// <summary>What one proactive service has done, newest first.</summary>
 public sealed record ProactiveServiceHistory(
@@ -14,8 +27,14 @@ public sealed record ProactiveServiceHistory(
     DateTimeOffset LastRanAt,
     ProactiveStatus LastStatus,
     ProactiveCadence? Cadence,
+    int TotalProduced,
+    int TotalEgress,
+    int TotalAlerts,
     IReadOnlyList<ProactiveRun> Recent)
 {
+    /// <summary>Whether any pass in the recorded history alerted.</summary>
+    public bool HasAlerts => this.TotalAlerts > 0;
+
     /// <summary>
     /// When this service is next due, or null when nothing has recorded its cadence yet.
     /// Derived rather than stored: the scheduler decides due-ness from the last run and
