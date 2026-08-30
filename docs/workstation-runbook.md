@@ -274,6 +274,27 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation" ^
 
 ---
 
+### 4.7b The trained voice models exist only on this disk
+
+`/home/steve/Data/piper/steve.onnx` and `steve-clean.onnx` are ~63 MB each, trained on
+this host from Steve's own recordings, and **they are in no repository and no backup**.
+`steve-clean` is what Dami speaks with (`PiperOptions.Voice`), so losing the disk loses
+Dami's voice until it is retrained.
+
+**The checkpoints are not reproducible either.** `/home/steve/Data/piper/train` is **19 GB**
+of source recordings and transcripts, on the same disk, in no repository. So the fallback
+of "retrain it" does not exist: losing this disk loses the voice, the data it was trained
+on, and the ability to make it again.
+
+Steve's position (2026-08-29) is that nothing on this machine is critical provided the
+repository is committed and pushed. That is true of the code and false of this: the code
+is safe on GitHub and the voice is not, and 19 GB does not belong in git with or without
+LFS. Recorded here as a known, accepted exposure rather than a solved problem — the fix,
+whenever it is wanted, is an off-host copy of `train/` and the two `.onnx` files, which is
+the same destination question A4 has been open on.
+
+---
+
 ### 4.8 An agent cannot `sudo` here, and the failure is silent-ish
 
 Agents in this repository run without a controlling terminal. `sudo` therefore fails
