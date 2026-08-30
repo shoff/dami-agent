@@ -7,6 +7,7 @@ using Dami.Privacy;
 using Dami.Proactive;
 using Dami.Proactive.Audit;
 using Dami.Proactive.CodeAudit;
+using Dami.Proactive.Hygiene;
 using Dami.Proactive.Curation;
 using Dami.Proactive.Health;
 using Dami.Proactive.Civic;
@@ -95,6 +96,16 @@ builder.Services.Configure<CodebaseAuditOptions>(
     builder.Configuration.GetSection(CodebaseAuditOptions.SECTION_NAME));
 builder.Services.AddSingleton<IGitLog, GitProcessLog>();
 builder.Services.AddSingleton<IProactiveService, CodebaseAuditService>();
+
+// Repo hygiene: notices when work is stranded on this disk. Steve's stated safety net is
+// that nothing here matters provided the repository is committed and pushed; on
+// 2026-08-29 that had been false for four days and nothing could say so. Read-only — it
+// never commits, pushes, or stages, because a nightly job with write authority over a
+// working copy eventually uses it at the wrong moment.
+builder.Services.Configure<RepoHygieneOptions>(
+    builder.Configuration.GetSection(RepoHygieneOptions.SECTION_NAME));
+builder.Services.AddSingleton<IRepoState, GitRepoState>();
+builder.Services.AddSingleton<IProactiveService, RepoHygieneService>();
 
 // The weekly reflection pass: observations -> at most one belief, via the loopback
 // sidecar. The most personal pass in the system, and deliberately egress-free.

@@ -62,6 +62,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ISurfacingQueue, PostgresSurfacingQueue>();
         services.TryAddSingleton<IProactiveRunLog, PostgresProactiveRunLog>();
         services.TryAddSingleton<IProactiveRunHistory, PostgresProactiveRunLog>();
+        services.TryAddSingleton<ISchemaLedger, PostgresSchemaLedger>();
         services.TryAddSingleton<IObservationCorpus, PostgresObservationCorpus>();
         services.TryAddSingleton<IConclusionLedger, PostgresConclusionLedger>();
         services.TryAddSingleton<IPushbackLedger, PostgresPushbackLedger>();
