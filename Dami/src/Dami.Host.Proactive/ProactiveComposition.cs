@@ -11,12 +11,17 @@ using Dami.Proactive.Curation;
 using Dami.Proactive.Health;
 using Dami.Proactive.Civic;
 using Dami.Proactive.Network;
+using Dami.Proactive.Releases;
+using Dami.Proactive.Recalls;
+using Dami.Proactive.Security;
+using Dami.Proactive.Weather;
 using Dami.Proactive.Embedder;
 using Dami.Proactive.Librarian;
 using Dami.Proactive.Reflection;
 using Dami.Proactive.Scout;
 using Dami.Vision;
 using Dami.Providers;
+using Microsoft.Extensions.Options;
 
 namespace Dami.Host.Proactive;
 
@@ -122,6 +127,8 @@ public static class ProactiveComposition
         services.AddSingleton<IProactiveService, CivicFeedCollectorService>();
         services.AddSingleton<IProactiveService, CivicAgendaService>();
 
+        AddInternetWatchers(services, configuration);
+
         // Rewrites imported transcript voice into usable knowledge. Derived, reversible.
         services.Configure<CuratorOptions>(
             configuration.GetSection(CuratorOptions.SECTION_NAME));
@@ -134,6 +141,46 @@ public static class ProactiveComposition
         services.AddSingleton<IProactiveService, CodebaseAuditService>();
 
         // Repo hygiene: notices when work is stranded on this disk. Steve's stated safety net is
+    }
+
+    /// <summary>The watchers that scour the internet and join what they find locally.</summary>
+    /// <remarks>
+    /// Both are dark until their hosts join Egress:AllowedHosts — H13 needs
+    /// download.nvidia.com, github.com and www.postgresql.org; H11 needs ubuntu.com and
+    /// api.github.com. A refused host is a loud per-source warning, not a dead pass.
+    /// </remarks>
+    private static void AddInternetWatchers(IServiceCollection services, IConfiguration configuration)
+    {
+        // H13: fixes for what this host runs. Baselines stay in configuration and are
+        // compared locally; only GETs of public URLs leave; a release surfaces once.
+        services.Configure<ReleaseWatchOptions>(
+            configuration.GetSection(ReleaseWatchOptions.SECTION_NAME));
+        services.AddSingleton<IProactiveService, ReleaseWatchService>();
+
+        // H11: public vulnerability data joined locally against what this host runs.
+        // The inventory never leaves; the advisories query carries public package
+        // names only, never versions.
+        services.Configure<CveWatchOptions>(
+            configuration.GetSection(CveWatchOptions.SECTION_NAME));
+        services.AddSingleton<IInstalledInventory>(provider => new LocalInstalledInventory(
+            provider.GetRequiredService<IOptions<CveWatchOptions>>().Value.RepositoryRoot));
+        services.AddSingleton<IProactiveService, CveWatchService>();
+
+        // H12, split on the D-012 rule: the collector holds egress and never reads
+        // health; the matcher reads health and holds no egress client at all. New
+        // hosts: api.fda.gov, www.saferproducts.gov.
+        services.Configure<RecallSentinelOptions>(
+            configuration.GetSection(RecallSentinelOptions.SECTION_NAME));
+        services.AddSingleton<IProactiveService, RecallCollectorService>();
+        services.AddSingleton<IProactiveService, RecallMatchService>();
+
+        // H14, the same split for the same reason: the collector holds egress and reads
+        // nothing personal; the window scorer reads the fitness domain and holds no
+        // egress client. New host: api.weather.gov.
+        services.Configure<WeatherOptions>(
+            configuration.GetSection(WeatherOptions.SECTION_NAME));
+        services.AddSingleton<IProactiveService, WeatherCollectorService>();
+        services.AddSingleton<IProactiveService, WeatherWindowService>();
     }
 
     private static void AddModelBacked(

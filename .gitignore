@@ -24,6 +24,10 @@ mono_crash.*
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
+# The pattern above is for build output; these are source. Without the negations
+# git add silently skips H13's release-watch service and its tests.
+!Dami/src/Dami.Proactive/Releases/
+!Dami/tests/Dami.Proactive.Tests/Releases/
 x64/
 x86/
 [Ww][Ii][Nn]32/

@@ -8828,3 +8828,147 @@ Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
 alongside the G14 slice. Board-sync note: the G14 commit's TODO.md import ran with the
 default actor (steve) rather than DAMI_ACTOR=claude — the claim text in the task still
 names Claude; the next import as claude will not regress anything.
+
+## 2026-08-30 — Claude — G15: the Network tab (planned mid-flight, built)
+
+Steve, mid-session: "another tab for Network activity … It should be dashboardish, real
+time, and highlight data mined information by using an llm to analyze and even
+speculate."
+
+Built against what already exists — 89 `domain='network'` facts from the network
+collector, served at `/domains/network`, plus the `/activity` egress buckets:
+
+- `NetworkActivity` (pure, JSON in, 12 tests): latest sweep faults-first, appeared/gone
+  diff between the last two sweeps, tiles, faults-per-sweep points, and the analysis
+  prompt. `FaultBrush` for the red/green row markers.
+- The tab polls every 20 s (facts + a 30-minute egress chart bucketed by the runtime's
+  own clock — that is the honestly real-time part; sweeps land daily). Right-click ask
+  works on sweep rows and changes.
+- **The LLM panel goes through a normal local turn** (`POST /turns`): traced, LocalOnly
+  (D-012 — topology never leaves the host), run once on load and on the analyze button,
+  never on the poll timer. The panel header says the output is the model speculating.
+- Gate: `dotnet build` **0 warnings, 0 errors**; `dotnet test` **1338 passed, 0 failed,
+  21/21 assemblies**. Smoke-launched on the live display and stopped by PID; one stray
+  Debug child from `dotnet run` was killed by PID after the wrapper kill missed it.
+  `tools/install-gui.sh` re-run, so the menu launcher now carries Health + Network; the
+  instance Steve already had open predates it and needs a relaunch. Committed at
+  Steve's ask (2026-08-31).
+
+## 2026-08-30 — Claude — New internet-facing collectors: four accepted, recorded
+
+Steve asked for creative data-gathering services and accepted all four proposed:
+homelab CVE watch, recall sentinel, fix-release watch, weather windows — now H11–H14
+in TODO.md with acceptance criteria, unclaimed. Shared design constraint recorded in
+each: broad public data comes down through the egress client, the profile and local
+inventory never leave, the join happens on-host, and no-match means silence (D-012,
+D-021). Every new source also needs its host added to Egress__AllowedHosts in the
+dami-proactive drop-in — sudo, so each service can land tested but dark until Steve
+allowlists its host.
+
+## 2026-08-30 — Claude — H13 fix-release watch (planned)
+
+Steve accepted H11–H14 and set the order: H13 → H11 → H12 → H14; also accepted the
+serendipity scout, public-exposure sentinel, aurora alerts, and NuGet deprecation watch
+(now H15–H18). Building H13: `ReleaseWatchService` in `Dami.Proactive/Releases/` on the
+civic-collector pattern — egress GET of public release sources, `ReleaseVersions` pure
+comparison, facts into domain `release`, a surfacing only for a version newer than the
+configured baseline, each release surfacing once (known-set from the domain timeline).
+Watches: NVIDIA `latest.txt` (baseline 595.84 — the segfault), dotnet/sdk, PostgreSQL
+versions.rss, Ollama, Avalonia. Baseline-less watches learn silently on first sight.
+New egress hosts needed later: download.nvidia.com, github.com, www.postgresql.org.
+echo logged
+
+**H13 done, with evidence.** `ReleaseWatchService` (nightly): five watches — NVIDIA
+`latest.txt` (kind `nvidia-latest`), dotnet/sdk, PostgreSQL `versions.rss`, Ollama,
+Avalonia (Atom via the existing `FeedParser`). `ReleaseVersions` compares numerically
+per segment (595.9 loses to 595.84 as it should). A release surfaces once — the
+`release` domain timeline is the memory; baseline-less watches learn silently first;
+pre-releases (`-rc`/beta/preview/alpha) are skipped; surfacings cap at 3 a pass while
+facts keep recording. 22 tests. **Real payloads verified with curl**: NVIDIA latest.txt
+reads `595.99.02` — already newer than the segfaulting 595.84, so the first live pass
+will surface exactly the fix H13 exists for; postgres item titles are bare versions
+(and 16.15 is the current 16-series latest); ollama's feed carries the rc entries the
+filter exists for. Registered in `ProactiveComposition`; dark until
+`download.nvidia.com`, `github.com`, `www.postgresql.org` join `Egress__AllowedHosts`
+(sudo) and dami-proactive redeploys. Gate at this point: 0 warnings, 0 errors,
+**1360 passed, 21/21 assemblies**.
+
+## 2026-08-30 — Claude — H11 homelab CVE watch (planned)
+
+Two prongs, both GET-only because `EgressRequest` carries no body by design (ADR-0024):
+Ubuntu Security Notices RSS pulled whole — zero query — and joined locally against
+`dpkg-query -W`; and GitHub's advisory database (`/advisories?ecosystem=nuget&affects=…`)
+for the NuGet closure parsed locally from the repo's `project.assets.json` files.
+Recorded cost: public OSS package names ride the affects parameter — dependency names,
+not profile. Matching is local; a fetch with no local match records and surfaces
+nothing. Domain `security`, surface-once via the timeline known-set, cap 3 a pass,
+same as H13. New egress hosts: ubuntu.com, api.github.com.
+
+**H11 done, with evidence.** `CveWatchService` (nightly): USN RSS pulled whole and
+word-matched locally against `dpkg-query -W` (kernel notices deliberately in the
+boilerplate stoplist — the update manager owns those and alerting on each teaches the
+reader to ignore the rest); GitHub `/advisories?ecosystem=nuget&affects=…` against the
+NuGet closure read from `project.assets.json` (deliberately NOT
+`dotnet list package --vulnerable`, which would phone the registry from outside the
+egress boundary). `VersionRanges` evaluates multi-clause ranges and fails safe-side
+false on ones it cannot read. One test proves package names but never versions ride
+the query. 23 tests. Real payloads verified: USN titles parse (kernel-dominated, as
+expected), and a real Npgsql advisory (GHSA-x9vc-6hfv-hg8c, ">= 8.0.0, < 8.0.3")
+parses exactly — Dami's own Npgsql is 10.0.3, outside the range, so the live service
+will correctly stay quiet about it. Registered; dark until ubuntu.com and
+api.github.com are allowlisted. Gate: 0 warnings, 0 errors, **1383 passed, 21/21**.
+
+## 2026-08-30 — Claude — H12 recall sentinel (planned)
+
+The one-service design violates the recorded D-012 rule ("no collector that holds an
+egress client may read these tables" — migration 036's header, and the health tables'
+standing posture). Split instead: `RecallCollectorService` (egress; FDA drug + device
+enforcement Class I/II and CPSC pulled by date window only — no query carries
+anything; CPSC matched against configured household terms, which are not health data)
+writes domain `recall` facts, and `RecallMatchService` (health store + domain store,
+NO egress client) joins recalls against medication descriptions and configured watch
+terms locally and surfaces. The egress-capable half never sees a health row; the
+health-reading half cannot transmit. New hosts: api.fda.gov, www.saferproducts.gov.
+
+**H12 done, with evidence.** Split as planned: `RecallCollectorService` (egress; openFDA
+drug + device enforcement by date window — Class III skipped as labeling noise — and
+CPSC matched against configured household terms only) writes domain `recall` facts and
+surfaces nothing medical; `RecallMatchService` (health + domain stores, no egress
+client) derives drug-name terms from medication events at runtime, adds the configured
+watch terms (valve), matches locally, records each match as a fact and surfaces it
+once. 16 tests, including "a collector pass never surfaces FDA rows itself" — the
+D-012 split expressed as a test. openFDA verified live (fields parse; my date-window
+probe returned empty, handled); CPSC was 503 during the session — parser written to
+their documented shape, and a dead agency is a warned skip by design. New hosts:
+api.fda.gov, www.saferproducts.gov.
+
+## 2026-08-30 — Claude — H14 weather windows (planned)
+
+Same split, same reason (the scorer reads `dami.fitness_*`, which no egress-holding
+collector may touch): `WeatherCollectorService` (egress; NWS gridpoint MPX/109,57
+forecast + zone MNZ070 alerts, resolved live for Lakeville) records daytime forecast
+facts and surfaces Severe/Extreme alerts; `WeatherWindowService` (fitness + domain
+stores, no egress) reads usual cardio hours from the fitness domain and surfaces a
+good outdoor window for tomorrow, once. Recorded miss to own: the gridpoint probe went
+out with Steve's email in the User-Agent (NWS's contact convention) — it should not
+have, and the service uses no such header. New host: api.weather.gov.
+
+**H14 done, with evidence.** `WeatherCollectorService` (egress): NWS gridpoint forecast
+— daytime periods for the next 3 days as facts — and zone alerts, with Severe/Extreme
+surfacing once (known-set). `WeatherWindowService` (fitness + domain stores, no
+egress): parses the collector's own fact wording back into numbers, judges tomorrow
+with stated thresholds (38–85 F, ≤20 mph, ≤30% precip), derives the usual cardio hour
+from the fitness domain's session times, and surfaces a good window once per day. Real
+NWS payloads verified (gridpoint MPX/109,57 answers; wind "5 to 10 mph" and null
+precipitation both handled). 20 tests.
+
+**The four-service batch, closed.** H13 → H11 → H12 → H14 built in Steve's stated
+order: six new `IProactiveService`s (two are local-only matcher halves), all nightly,
+all surface-once via domain timelines, all quiet by default (D-021), every egress GET
+purpose-labeled and allowlist-gated. Final gate: `dotnet build Dami.sln` **0 warnings,
+0 errors**; `dotnet test Dami.sln` **1419 passed, 0 failed, 21/21 assemblies** (+93
+this batch). Everything is dark until Steve adds the hosts to `Egress__AllowedHosts`
+in the dami-proactive drop-in and redeploys: download.nvidia.com, github.com,
+www.postgresql.org (H13); ubuntu.com, api.github.com (H11); api.fda.gov,
+www.saferproducts.gov (H12); api.weather.gov (H14). Committed and pushed at Steve's
+ask (2026-08-31).

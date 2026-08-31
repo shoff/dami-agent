@@ -162,6 +162,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] G12 **`dami chat --frontier`** (Claude 2026-08-24) — the ChatGPT subscription as a turn mode: identity + question, no retrieved memory, fully traced. No API key anywhere (`auth_mode: chatgpt`)
 - [~ Claude 2026-08-30] G14 **Health tab in the GUI**: interactive fitness dashboard over the H9 data — weight trend, weekly volume, per-exercise progression, and deterministic suggestions — served by a new `/fitness` endpoint reading the `dami.fitness_*` tables (LocalOnly, loopback). Steve's ask 2026-08-30. `dami board add` was refused by the deployed host (`{"updated":false}`, predates O2d's endpoint); claimed here for the next import
   - criterion: the Health tab renders the imported fitness data live from `/fitness`, and every insight heuristic is unit-tested
+- [~ Claude 2026-08-30] G15 **Network tab in the GUI**: the collector's sweeps as a live dashboard — 20 s poll, latest sweep faults-first, appeared/gone between sweeps, faults-per-sweep trend, the runtime's own egress over 30 minutes, and an analysis panel that runs the sweep record through a normal local turn (traced, LocalOnly) with speculation labeled as such. Steve's ask 2026-08-30
+  - criterion: the Network tab renders live sweep data and the analysis panel returns a local-model reading of it, demonstrated on the deployed host
 - [x] G13 **Multi-turn frontier through the durable sessions** (Claude 2026-08-24) — `FrontierTracedTurnRunner` implements Codex's `ITracedTurnRunner` seam, so a subscription turn inherits reservation/interruption/replay/durable-completion unchanged; selected per turn by a keyed `ISessionTurnRunner`, so **one session can mix models**. D-012 preserved: a frontier turn carries only exchanges whose own trace shows a completed egress; local memory-rich answers are withheld and the withholding is logged. Demonstrated live in a mixed session
   - `dami session turn <id> --frontier <message>`
   - [x] G6a Source-neutral invocation/result contract + native implementation registry and timeout boundary
@@ -204,6 +206,22 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] H8 Confidence threshold self-tuning from recorded reactions, without gaming itself (register open item)
 - [ ] H9 Domain collectors (health, civic, network, estate) — needs K1 first
 - [x] H10 Codebase-audit proactive service (reads repo, proposes patches, commits nothing — D-016)
+- [~ Claude 2026-08-30] H11 **Homelab CVE watch** (built and tested; dark until ubuntu.com + api.github.com are allowlisted and dami-proactive redeploys): pull OSV/NVD vulnerability data via the egress client, join locally against what this host actually runs (Postgres 16, .NET 10, NVIDIA 595.84, Docker, the NuGet closure of Dami.sln, the services the network collector inventories). The inventory never leaves; only matches surface. Steve accepted 2026-08-30
+  - criterion: a vulnerability affecting installed software produces a surfacing naming package, version, and advisory; a feed pull with no local match produces none
+- [~ Claude 2026-08-30] H12 **Recall sentinel** (built as a D-012 split — egress collector + local-only matcher; dark until api.fda.gov + www.saferproducts.gov are allowlisted): openFDA drug/device recall feeds and CPSC product recalls pulled wholesale — no query, zero profile egress — matched locally against the medication list, the mechanical valve, and workshop/household gear. Steve accepted 2026-08-30
+  - criterion: a recall matching a local health or workshop fact surfaces with the source record linked; unmatched recalls stay silent
+- [~ Claude 2026-08-30] H13 **Fix-release watch**: release feeds for the exact software whose defects bite this machine — first the NVIDIA driver past 595.84 (the libnvidia-glcore segfault that crashes the GUI), then .NET SDK, PostgreSQL point releases, Ollama, Avalonia. Steve accepted 2026-08-30; built (22 tests) — the live NVIDIA latest.txt already reads 595.99.02, newer than the segfaulting 595.84, so the first live pass surfaces the fix; dark until download.nvidia.com + github.com + www.postgresql.org are allowlisted
+  - criterion: a new release of a watched component surfaces once with its changelog link, and the 595.84 successor is the demonstrated case
+- [~ Claude 2026-08-30] H14 **Weather windows** (built as the same split; dark until api.weather.gov is allowlisted): api.weather.gov for Lakeville — cardio-outdoors windows scored against the fitness domain's actual training habits, severe weather, first/last frost for the estate and workshop domains. City-level query only. Steve accepted 2026-08-30
+  - criterion: a day with a good outdoor-cardio window per his usual training hours surfaces it; severe-weather watches surface same-day
+- [ ] H15 **Serendipity scout**: weekly, take one active conclusion from the ledger, form an anonymized public query, bring back exactly one thing Steve did not ask for, and record his reaction — the Phase-4 exit criterion as a standing service. Steve accepted 2026-08-30. Build after H11–H14
+  - criterion: one unprompted surfacing traceable to the conclusion that motivated it, with Steve's reaction recorded
+- [ ] H16 **Public-exposure sentinel**: check the public IP, then look at this network from outside (Shodan lookup of that IP). Egress is one IP; surfaces only when the outside view changed. Steve accepted 2026-08-30
+  - criterion: a newly visible port or service surfaces naming what changed; an unchanged outside view stays silent
+- [ ] H17 **Aurora alerts**: NOAA space-weather Kp warnings (swpc.noaa.gov); a clear-night aurora chance at this latitude surfaces same-evening. Zero profile egress. Steve accepted 2026-08-30
+  - criterion: a Kp threshold crossing surfaces once with the forecast window; quiet space weather produces nothing
+- [ ] H18 **NuGet deprecation watch**: api.nuget.org against Dami.sln's own dependency closure — deprecations and unlisted packages surface with the replacement named. Pairs with H11. Steve accepted 2026-08-30
+  - criterion: a deprecated dependency of Dami.sln surfaces once, naming the package and the registry's stated alternative
 
 ## I · CLI (18 verbs, on PATH)
 
