@@ -8794,3 +8794,37 @@ Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
 **1326 passed, 0 failed, 21/21 assemblies green** (+31 this slice). Committed at Steve's ask. **Not yet visible in the running app**: `/opt/dami` still runs
 the pre-ADR-0025 build, so the deployed host has no `/fitness`; the tab will say so in
 its status line until `tools/deploy.sh` + a `dami-host` restart (sudo, Steve).
+
+## 2026-08-30 — Claude — GUI icon and start-menu launcher (planned)
+
+Steve: "please create a icon for the gui and 'install' it so that I can click the icon
+in the start menu here on my Mint Cinnamon workstation."
+
+Planned: an SVG icon in `Dami/src/Dami.Gui/Assets/` (source of truth, also wired as the
+Avalonia window icon), rasterized into `~/.local/share/icons/hicolor`, a Release publish
+of the GUI to `~/.local/opt/dami-gui`, and `~/.local/share/applications/dami.desktop`
+pointing at it — all user-local, no sudo. A `tools/install-gui.sh` so the install is
+repeatable rather than a one-off.
+
+**Done, with evidence.**
+
+- `Assets/dami.svg` — the mark: a "D" drawn as an execution trace (accent-blue path,
+  three nodes in the chart palette) on a dark tile. Rasterized with pycairo, not
+  librsvg: **this host's gdk-pixbuf has no SVG loader** (`gdk-pixbuf-query-loaders`
+  finds none), so a scalable SVG icon would silently not render in the menu — PNGs at
+  16/24/32/48/64/128/256 are committed beside the SVG and installed.
+- `tools/install-gui.sh` — Release publish to `~/.local/opt/dami-gui`, icons into
+  `~/.local/share/icons/hicolor`, `~/.local/share/applications/dami.desktop`. All
+  user-local, refuses to run as root. `desktop-file-validate` passes.
+- The window/taskbar icon matches: `Assets/dami.png` as an `AvaloniaResource`,
+  `Icon="/Assets/dami.png"` on the window.
+- Demonstrated, not assumed: launched `~/.local/opt/dami-gui/Dami.Gui` on the live
+  display — it stayed up, `wmctrl` shows `WM_CLASS = Dami.Gui.Dami.Gui`, which is what
+  the entry's `StartupWMClass=Dami.Gui` matches — then stopped it by PID (not pkill,
+  per the recorded trap).
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1326 passed, 0 failed, 21/21 assemblies green**. Committed at Steve's ask,
+alongside the G14 slice. Board-sync note: the G14 commit's TODO.md import ran with the
+default actor (steve) rather than DAMI_ACTOR=claude — the claim text in the task still
+names Claude; the next import as claude will not regress anything.

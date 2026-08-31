@@ -10,6 +10,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The icon set: dami.svg is the drawing, the PNGs are its rendered forms
+         (tools/install-gui.sh copies them into hicolor; dami.png is the window icon). -->
+    <AvaloniaResource Include="Assets/dami.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Dami.Authentication/Dami.Authentication.csproj" />
     <PackageReference Include="Avalonia" Version="12.1.1" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dami's mark: a "D" drawn as an execution trace - a stem, an arc, and three
+     nodes in the chart palette the client already uses (accent blue for the path,
+     amber/green/violet for the nodes). Dark tile so it sits beside the app's own
+     panels; everything stroked with round caps so it survives 16 px. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1D2731"/>
+      <stop offset="1" stop-color="#0E1216"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="236" height="236" rx="52" fill="url(#tile)"
+        stroke="#33404E" stroke-width="4"/>
+  <path d="M92 66 v124" stroke="#5AA9E6" stroke-width="26"
+        stroke-linecap="round" fill="none"/>
+  <path d="M92 66 h26 a62 62 0 0 1 0 124 h-26" stroke="#5AA9E6" stroke-width="26"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="180" cy="128" r="15" fill="#4CB782" stroke="#0E1216" stroke-width="6"/>
+  <circle cx="92" cy="66" r="15" fill="#D9A441" stroke="#0E1216" stroke-width="6"/>
+  <circle cx="92" cy="190" r="15" fill="#B98CE0" stroke="#0E1216" stroke-width="6"/>
+</svg>

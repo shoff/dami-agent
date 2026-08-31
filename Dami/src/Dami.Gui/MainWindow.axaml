@@ -5,6 +5,7 @@
         x:Class="Dami.Gui.MainWindow"
         x:DataType="local:WindowState"
         Title="Dami" Width="1400" Height="900"
+        Icon="/Assets/dami.png"
         Background="#101418">
 
   <Window.Resources>
