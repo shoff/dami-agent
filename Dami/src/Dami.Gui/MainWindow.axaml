@@ -1021,6 +1021,181 @@
         </Grid>
       </Grid>
     </TabItem>
+
+    <TabItem Header="Network">
+      <Grid RowDefinitions="Auto,Auto,*" Margin="10">
+
+        <!-- The deterministic panels poll every 20 s; only the analysis costs a model
+             call, so it runs on load and on the button, never on the timer. -->
+        <Border Grid.Row="0" Background="{StaticResource Panel}" CornerRadius="8"
+                Padding="12" Margin="0,0,0,10">
+          <DockPanel>
+            <Button x:Name="NetworkAnalyze" DockPanel.Dock="Right" Content="analyze"
+                    Padding="12,4" Background="#2F4A66" Foreground="{StaticResource Ink}"
+                    VerticalAlignment="Center"/>
+            <TextBlock DockPanel.Dock="Right" Text="{Binding NetworkMessage}" FontSize="11"
+                       Foreground="{StaticResource Dim}" VerticalAlignment="Center"
+                       Margin="0,0,12,0" TextWrapping="Wrap" MaxWidth="380"/>
+            <ItemsControl ItemsSource="{Binding NetworkTiles}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="28"/></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="local:NetworkTile">
+                  <StackPanel>
+                    <TextBlock Text="{Binding Label}" FontSize="10"
+                               Foreground="{StaticResource Dim}"/>
+                    <TextBlock Text="{Binding Value}" FontSize="20" FontFamily="monospace"
+                               Foreground="{StaticResource Ink}"/>
+                    <TextBlock Text="{Binding Detail}" FontSize="10"
+                               Foreground="{StaticResource Dim}"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="0,0,0,10">
+          <Border Grid.Column="0" Background="{StaticResource Panel}" CornerRadius="8"
+                  Padding="12" Margin="0,0,8,0">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="RUNTIME EGRESS · LAST 30 MIN"
+                         FontSize="11" Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+              <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="130">
+                <Grid>
+                  <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                             HorizontalAlignment="Center" FontSize="12"
+                             Foreground="{StaticResource Dim}" Text="no egress data"
+                             IsVisible="{Binding NetworkEgress.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+                  <Viewbox Stretch="Fill">
+                    <Canvas Width="1000" Height="200">
+                      <ItemsControl ItemsSource="{Binding NetworkEgress}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><Canvas Width="1000" Height="200"/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="local:ActivitySeries">
+                            <Canvas Width="1000" Height="200">
+                              <Polygon Points="{Binding Area}" Fill="{Binding Fill}"/>
+                              <Polyline Points="{Binding Line}" Stroke="{Binding Stroke}"
+                                        StrokeThickness="2" StrokeLineCap="Round"
+                                        StrokeJoin="Round"/>
+                            </Canvas>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Canvas>
+                  </Viewbox>
+                </Grid>
+              </Border>
+            </DockPanel>
+          </Border>
+
+          <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="8"
+                  Padding="12">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="FAULTS BY SWEEP" FontSize="11"
+                         Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+              <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="130">
+                <Grid>
+                  <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                             HorizontalAlignment="Center" FontSize="12"
+                             Foreground="{StaticResource Dim}" Text="no sweeps recorded"
+                             IsVisible="{Binding NetworkProblemChart.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+                  <Viewbox Stretch="Fill">
+                    <Canvas Width="1000" Height="200">
+                      <ItemsControl ItemsSource="{Binding NetworkProblemChart}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><Canvas Width="1000" Height="200"/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="local:FitnessSeries">
+                            <Canvas Width="1000" Height="200">
+                              <Polygon Points="{Binding Area}" Fill="{Binding Fill}"/>
+                              <Polyline Points="{Binding Line}" Stroke="{Binding Stroke}"
+                                        StrokeThickness="2" StrokeLineCap="Round"
+                                        StrokeJoin="Round"/>
+                            </Canvas>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Canvas>
+                  </Viewbox>
+                </Grid>
+              </Border>
+            </DockPanel>
+          </Border>
+        </Grid>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,300,360">
+          <Border Grid.Column="0" Background="{StaticResource Panel}" CornerRadius="8"
+                  Padding="12" Margin="0,0,8,0">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="LATEST SWEEP" FontSize="11"
+                         Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+              <ScrollViewer>
+                <ItemsControl ItemsSource="{Binding NetworkLatest}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="local:NetworkFactRow">
+                      <Grid ColumnDefinitions="10,88,*" Margin="0,2">
+                        <Rectangle Grid.Column="0" Width="8" Height="8" RadiusX="2" RadiusY="2"
+                                   VerticalAlignment="Center"
+                                   Fill="{Binding IsProblem, Converter={x:Static local:FaultBrush.instance}}"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Category}" FontSize="11"
+                                   FontFamily="monospace" Foreground="{StaticResource Dim}"
+                                   Margin="6,0,0,0"/>
+                        <TextBlock Grid.Column="2" Text="{Binding Description}" FontSize="12"
+                                   Foreground="{StaticResource Ink}" TextWrapping="Wrap"/>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </DockPanel>
+          </Border>
+
+          <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="8"
+                  Padding="12" Margin="0,0,8,0">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="SINCE LAST SWEEP" FontSize="11"
+                         Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+              <ScrollViewer>
+                <Grid>
+                  <TextBlock FontSize="12" Foreground="{StaticResource Dim}"
+                             Text="nothing changed"
+                             IsVisible="{Binding NetworkChanges.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+                  <ItemsControl ItemsSource="{Binding NetworkChanges}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="local:NetworkChange">
+                        <Grid ColumnDefinitions="66,*" Margin="0,2">
+                          <TextBlock Grid.Column="0" Text="{Binding Kind}" FontSize="11"
+                                     FontFamily="monospace" Foreground="{StaticResource Dim}"/>
+                          <TextBlock Grid.Column="1" Text="{Binding Description}" FontSize="12"
+                                     Foreground="{StaticResource Ink}" TextWrapping="Wrap"/>
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Grid>
+              </ScrollViewer>
+            </DockPanel>
+          </Border>
+
+          <Border Grid.Column="2" Background="{StaticResource Panel}" CornerRadius="8"
+                  Padding="12">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="ANALYSIS · LOCAL MODEL, SPECULATION LABELED"
+                         FontSize="11" Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+              <ScrollViewer>
+                <TextBlock Text="{Binding NetworkAnalysis}" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{StaticResource Ink}"/>
+              </ScrollViewer>
+            </DockPanel>
+          </Border>
+        </Grid>
+      </Grid>
+    </TabItem>
   </TabControl>
 
   <!-- An overlay in the visual tree, not a Popup. A Popup is an OS-level window that

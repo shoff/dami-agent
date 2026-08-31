@@ -98,7 +98,8 @@ public sealed partial class MainWindow
     private static bool IsOwnModel(object model) =>
         model is WorkerRow or WorkerRun or PassEvent or SidebarItem or ActivitySeries or Message
             or TaskBoardTaskNode or TaskBoardCriterionNode
-            or FitnessInsight or FitnessSeries or FitnessSessionRow;
+            or FitnessInsight or FitnessSeries or FitnessSessionRow
+            or NetworkFactRow or NetworkChange;
 
     private static string VisibleText(object? source) =>
         source is TextBlock { Text: { } text } ? text : string.Empty;

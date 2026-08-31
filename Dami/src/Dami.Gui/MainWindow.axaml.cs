@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window
         this.input.KeyDown += this.OnInputKeyDown;
         this.InitializeTaskBoards();
         this.InitializeFitness();
+        this.InitializeNetwork();
         this.Opened += (_, _) => _ = this.EnsureLoggedInAsync();
         _ = this.FollowAsync();
     }

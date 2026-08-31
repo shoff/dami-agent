@@ -31,6 +31,11 @@ public static class AskContext
             FitnessSeries fitness => Fitness(fitness),
             FitnessSessionRow session => $"a recent session on the health dashboard: "
                 + $"{session.When}, {session.Title}, {session.Detail}.",
+            NetworkFactRow fact => $"a fact from the latest network sweep "
+                + $"({fact.Category}{(fact.IsProblem ? ", flagged as a fault" : string.Empty)}): "
+                + fact.Description,
+            NetworkChange change => $"a between-sweeps change on the network tab: "
+                + $"{change.Description} ({change.Kind}).",
             Message message => $"a line in the conversation, from {message.Who}: {message.Body}",
             _ => visibleText.Trim(),
         };

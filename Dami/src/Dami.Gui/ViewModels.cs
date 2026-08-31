@@ -570,6 +570,8 @@ public sealed class WindowState : INotifyPropertyChanged
     private string workerTraceMessage = string.Empty;
     private string activityMessage = string.Empty;
     private string fitnessMessage = string.Empty;
+    private string networkMessage = string.Empty;
+    private string networkAnalysis = string.Empty;
     private PassSummary passSummary = PassSummary.none;
 
     /// <summary>What the trace pane is showing, or why it is showing nothing.</summary>
@@ -607,6 +609,28 @@ public sealed class WindowState : INotifyPropertyChanged
         {
             this.fitnessMessage = value;
             this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.FitnessMessage)));
+        }
+    }
+
+    /// <summary>What the Network tab is polling, or why it is showing nothing.</summary>
+    public string NetworkMessage
+    {
+        get => this.networkMessage;
+        set
+        {
+            this.networkMessage = value;
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.NetworkMessage)));
+        }
+    }
+
+    /// <summary>The local model's read of the sweeps. Labeled speculation, never silent fact.</summary>
+    public string NetworkAnalysis
+    {
+        get => this.networkAnalysis;
+        set
+        {
+            this.networkAnalysis = value;
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.NetworkAnalysis)));
         }
     }
 
@@ -674,4 +698,19 @@ public sealed class WindowState : INotifyPropertyChanged
 
     /// <summary>Recent sessions of every kind, newest first.</summary>
     public ObservableCollection<FitnessSessionRow> FitnessSessions { get; } = [];
+
+    /// <summary>The Network tab's headline numbers.</summary>
+    public ObservableCollection<NetworkTile> NetworkTiles { get; } = [];
+
+    /// <summary>The newest sweep's facts, faults first.</summary>
+    public ObservableCollection<NetworkFactRow> NetworkLatest { get; } = [];
+
+    /// <summary>What appeared or vanished between the last two sweeps.</summary>
+    public ObservableCollection<NetworkChange> NetworkChanges { get; } = [];
+
+    /// <summary>Faults per sweep (zero or one series).</summary>
+    public ObservableCollection<FitnessSeries> NetworkProblemChart { get; } = [];
+
+    /// <summary>The runtime's own live egress, from the same buckets the Workers tab draws.</summary>
+    public ObservableCollection<ActivitySeries> NetworkEgress { get; } = [];
 }
