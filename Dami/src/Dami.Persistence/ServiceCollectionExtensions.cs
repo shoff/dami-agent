@@ -84,6 +84,7 @@ public static class ServiceCollectionExtensions
     private static void RegisterDomainAndSessionStores(IServiceCollection services)
     {
         services.TryAddSingleton<IHealthEventStore, PostgresHealthEventStore>();
+        services.TryAddSingleton<IFitnessStore, PostgresFitnessStore>();
         services.TryAddSingleton<IDomainFactStore, PostgresDomainFactStore>();
         foreach (var domain in new[] { "network", "civic", "estate", "workshop" })
         {

@@ -35,6 +35,7 @@ public static class TestDdl
         "033_domain_facts.sql",
         "034_task_work_activity.sql",
         "035_proactive_run_cadence.sql",
+        "036_fitness_domain.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",
@@ -70,7 +71,7 @@ public static class TestDdl
     {
         ArgumentNullException.ThrowIfNull(schema);
 
-        return DropDomainFacts(schema) + DropTaskBoards(schema) + DropToolStaging(schema) + DropObservationOverlays(schema) + $"""
+        return DropFitness(schema) + DropDomainFacts(schema) + DropTaskBoards(schema) + DropToolStaging(schema) + DropObservationOverlays(schema) + $"""
             drop table if exists {schema}.skill_changes cascade;  drop table if exists {schema}.conversation_turns cascade;
             drop table if exists {schema}.conversation_sessions cascade;
             drop table if exists {schema}.file_patch_proposals cascade;
@@ -111,6 +112,19 @@ public static class TestDdl
         return $"""
             drop table if exists {schema}.observation_curations cascade;
             drop table if exists {schema}.observation_date_repairs cascade;
+
+            """;
+    }
+
+    private static string DropFitness(string schema)
+    {
+        return $"""
+            drop table if exists {schema}.fitness_resistance_set cascade;
+            drop table if exists {schema}.fitness_resistance cascade;
+            drop table if exists {schema}.fitness_cardio cascade;
+            drop table if exists {schema}.fitness_weight cascade;
+            drop table if exists {schema}.fitness_event cascade;
+            drop table if exists {schema}.fitness_exercise cascade;
 
             """;
     }
@@ -173,7 +187,7 @@ public static class TestDdl
 
         // Order matters: children before parents, and the append-only tables need their
         // guard dropped deliberately; that friction is the guarantee working.
-        return TruncateDisclosures(schema) + TruncateTaskBoards(schema) + TruncateSessions(schema) + TruncateToolActivationOutcomes(schema)
+        return TruncateFitness(schema) + TruncateDisclosures(schema) + TruncateTaskBoards(schema) + TruncateSessions(schema) + TruncateToolActivationOutcomes(schema)
             + TruncateToolVerifications(schema)
             + TruncateToolPromotions(schema)
             + TruncateToolProposals(schema) + TruncateSkillChanges(schema)
@@ -197,6 +211,19 @@ public static class TestDdl
             alter table {schema}.execution_events disable trigger execution_events_append_only;
             delete from {schema}.execution_events;
             alter table {schema}.execution_events enable trigger execution_events_append_only;
+            """;
+    }
+
+    private static string TruncateFitness(string schema)
+    {
+        return $"""
+            delete from {schema}.fitness_resistance_set;
+            delete from {schema}.fitness_resistance;
+            delete from {schema}.fitness_cardio;
+            delete from {schema}.fitness_weight;
+            delete from {schema}.fitness_event;
+            delete from {schema}.fitness_exercise;
+
             """;
     }
 

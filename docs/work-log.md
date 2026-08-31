@@ -8740,3 +8740,57 @@ Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
 +4 bootstrap identity). Committed and pushed at Steve's explicit ask.
 HANDOFF.md updated, including a correction: the previous handoff claimed the CLI verbs
 were routed, and they were not.
+
+## 2026-08-30 — Claude — G14: Health tab, fitness dashboard (planned)
+
+Steve: "now we need another tab on the gui app for health that should be a interactive
+and suggestive dashboard on all of my fitness data that we added to the database."
+
+Planned, as one vertical slice over the H9 phase-1 tables (`dami.fitness_*`, migration
+036, 234 events / 318 sets / 22 exercises):
+
+- `IFitnessStore` + `FitnessSnapshot` contracts; `PostgresFitnessStore` (three reads —
+  cardio, sets joined to exercises, weigh-ins). LocalOnly per the migration header;
+  served only on loopback like `/health-log`.
+- `GET /fitness` on the Host returning the whole snapshot — at this volume the GUI can
+  compute everything client-side, which is what makes the dashboard interactive without
+  round trips.
+- GUI: a Health tab with stat tiles, weight-trend / weekly-tonnage / weekly-cardio
+  charts (the fixed 1000×200 Viewbox idiom ActivityChart established), a per-exercise
+  progression panel driven by a picker, and a suggestions pane from pure, unit-tested
+  heuristics (`FitnessInsights`) — habit-relative gap detection, weight trend slope,
+  neglected muscle groups, flat/moving lifts, weekly streak. Deterministic display
+  logic, not model output, so nothing here claims to be Dami's judgment.
+- `TestDdl` gains 036 (the fixture never applies it today, so the new store tests would
+  otherwise hit a missing table — the exact hole G2b2 recorded for 019/020).
+
+Board: `dami board add` against the deployed host returned `{"updated":false}` — the
+running Host predates O2d's add endpoint (still waiting on redeploy). Recorded the task
+as G14 in TODO.md instead, claimed, for the next import.
+
+**Done, with evidence.** The slice as planned, plus a Host endpoint test the plan
+did not list:
+
+- `Fitness.cs`/`IFitnessStore` contracts; `PostgresFitnessStore` (5 tests on the real
+  036 DDL — `TestDdl` now applies 036 and drops/truncates the six fitness tables).
+- `GET /fitness` mapped in `RuntimeEndpoints`; `FitnessEndpointTests` boots the real
+  composition through `WebApplicationFactory` and gets a 200 snapshot back — that run
+  reads the live `dami` schema, so the endpoint is demonstrated against the real data,
+  not a fixture. Live joins checked by hand too: 140 cardio, 318 sets (0 with a
+  missing exercise), 21 weigh-ins, latest 217.4 lb on 2026-08-30 — matching the H9
+  import counts exactly.
+- GUI: Health tab (tiles, weight/tonnage/cardio charts, exercise-progression panel
+  with picker, suggestions, recent sessions), all shaped by pure classes —
+  `FitnessCharts` (7 tests), `ExerciseTrend` (4), `FitnessInsights` (9),
+  `FitnessDashboard` (5). One fetch, every view recomputed locally; right-click ask
+  works on insights, charts, and session rows. The endpoint test was written after the
+  endpoint (coverage, not TDD) — noted rather than smoothed over.
+- Insight heuristics are deterministic and habit-relative (gap vs median gap, slope
+  over 35 days, 28-day muscle balance against ≥10-set history, est-1RM delta of last
+  3 training days vs prior 3, week streak). "Stay quiet on an ordinary rest day" is
+  itself a test, per D-021's scarcity intent.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1326 passed, 0 failed, 21/21 assemblies green** (+31 this slice). Committed at Steve's ask. **Not yet visible in the running app**: `/opt/dami` still runs
+the pre-ADR-0025 build, so the deployed host has no `/fitness`; the tab will say so in
+its status line until `tools/deploy.sh` + a `dami-host` restart (sudo, Steve).

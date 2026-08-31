@@ -699,6 +699,327 @@
       </Grid>
       </Grid>
     </TabItem>
+
+    <TabItem Header="Health">
+      <Grid RowDefinitions="Auto,Auto,*" Margin="10">
+
+        <!-- Headline numbers, with the load status and a manual refresh beside them.
+             One snapshot feeds everything below; refresh is the only round trip. -->
+        <Border Grid.Row="0" Background="{StaticResource Panel}" CornerRadius="8"
+                Padding="12" Margin="0,0,0,10">
+          <DockPanel>
+            <Button x:Name="FitnessRefresh" DockPanel.Dock="Right" Content="refresh"
+                    Padding="12,4" Background="#2F4A66" Foreground="{StaticResource Ink}"
+                    VerticalAlignment="Center"/>
+            <TextBlock DockPanel.Dock="Right" Text="{Binding FitnessMessage}" FontSize="11"
+                       Foreground="{StaticResource Dim}" VerticalAlignment="Center"
+                       Margin="0,0,12,0" TextWrapping="Wrap" MaxWidth="360"/>
+            <ItemsControl ItemsSource="{Binding FitnessTiles}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="28"/></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="local:FitnessTile">
+                  <StackPanel>
+                    <TextBlock Text="{Binding Label}" FontSize="10"
+                               Foreground="{StaticResource Dim}"/>
+                    <TextBlock Text="{Binding Value}" FontSize="20" FontFamily="monospace"
+                               Foreground="{StaticResource Ink}"/>
+                    <TextBlock Text="{Binding Detail}" FontSize="10"
+                               Foreground="{StaticResource Dim}"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </DockPanel>
+        </Border>
+
+        <!-- Three trends. Weight is min–max scaled; the weekly totals start at zero. -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,*,*" Margin="0,0,0,10">
+          <Border Grid.Column="0" Background="{StaticResource Panel}" CornerRadius="8"
+                  Padding="12" Margin="0,0,8,0">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="BODY WEIGHT" FontSize="11"
+                         Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+              <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding WeightChart}"
+                            Margin="0,6,0,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="local:FitnessSeries">
+                    <DockPanel>
+                      <TextBlock Text="{Binding Now}" FontSize="11" FontFamily="monospace"
+                                 Foreground="{Binding Stroke}"/>
+                      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                  HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding Floor}" FontSize="10"
+                                   Foreground="{StaticResource Dim}"/>
+                        <TextBlock Text=" – " FontSize="10" Foreground="{StaticResource Dim}"/>
+                        <TextBlock Text="{Binding Ceiling}" FontSize="10"
+                                   Foreground="{StaticResource Dim}"/>
+                      </StackPanel>
+                    </DockPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="150">
+                <Grid>
+                  <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                             HorizontalAlignment="Center" FontSize="12"
+                             Foreground="{StaticResource Dim}" Text="no weigh-ins"
+                             IsVisible="{Binding WeightChart.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+                  <Viewbox Stretch="Fill">
+                    <Canvas Width="1000" Height="200">
+                      <ItemsControl ItemsSource="{Binding WeightChart}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><Canvas Width="1000" Height="200"/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="local:FitnessSeries">
+                            <Canvas Width="1000" Height="200">
+                              <Polygon Points="{Binding Area}" Fill="{Binding Fill}"/>
+                              <Polyline Points="{Binding Line}" Stroke="{Binding Stroke}"
+                                        StrokeThickness="2" StrokeLineCap="Round"
+                                        StrokeJoin="Round"/>
+                            </Canvas>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Canvas>
+                  </Viewbox>
+                </Grid>
+              </Border>
+            </DockPanel>
+          </Border>
+
+          <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="8"
+                  Padding="12" Margin="0,0,8,0">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="WEEKLY TONNAGE" FontSize="11"
+                         Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+              <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding TonnageChart}"
+                            Margin="0,6,0,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="local:FitnessSeries">
+                    <DockPanel>
+                      <TextBlock Text="{Binding Now}" FontSize="11" FontFamily="monospace"
+                                 Foreground="{Binding Stroke}"/>
+                      <TextBlock DockPanel.Dock="Right" Text="{Binding Ceiling}" FontSize="10"
+                                 Foreground="{StaticResource Dim}" HorizontalAlignment="Right"/>
+                    </DockPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="150">
+                <Grid>
+                  <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                             HorizontalAlignment="Center" FontSize="12"
+                             Foreground="{StaticResource Dim}" Text="no resistance work"
+                             IsVisible="{Binding TonnageChart.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+                  <Viewbox Stretch="Fill">
+                    <Canvas Width="1000" Height="200">
+                      <ItemsControl ItemsSource="{Binding TonnageChart}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><Canvas Width="1000" Height="200"/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="local:FitnessSeries">
+                            <Canvas Width="1000" Height="200">
+                              <Polygon Points="{Binding Area}" Fill="{Binding Fill}"/>
+                              <Polyline Points="{Binding Line}" Stroke="{Binding Stroke}"
+                                        StrokeThickness="2" StrokeLineCap="Round"
+                                        StrokeJoin="Round"/>
+                            </Canvas>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Canvas>
+                  </Viewbox>
+                </Grid>
+              </Border>
+            </DockPanel>
+          </Border>
+
+          <Border Grid.Column="2" Background="{StaticResource Panel}" CornerRadius="8"
+                  Padding="12">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="WEEKLY CARDIO" FontSize="11"
+                         Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+              <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding CardioChart}"
+                            Margin="0,6,0,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="local:FitnessSeries">
+                    <DockPanel>
+                      <TextBlock Text="{Binding Now}" FontSize="11" FontFamily="monospace"
+                                 Foreground="{Binding Stroke}"/>
+                      <TextBlock DockPanel.Dock="Right" Text="{Binding Ceiling}" FontSize="10"
+                                 Foreground="{StaticResource Dim}" HorizontalAlignment="Right"/>
+                    </DockPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="150">
+                <Grid>
+                  <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                             HorizontalAlignment="Center" FontSize="12"
+                             Foreground="{StaticResource Dim}" Text="no cardio"
+                             IsVisible="{Binding CardioChart.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+                  <Viewbox Stretch="Fill">
+                    <Canvas Width="1000" Height="200">
+                      <ItemsControl ItemsSource="{Binding CardioChart}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><Canvas Width="1000" Height="200"/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="local:FitnessSeries">
+                            <Canvas Width="1000" Height="200">
+                              <Polygon Points="{Binding Area}" Fill="{Binding Fill}"/>
+                              <Polyline Points="{Binding Line}" Stroke="{Binding Stroke}"
+                                        StrokeThickness="2" StrokeLineCap="Round"
+                                        StrokeJoin="Round"/>
+                            </Canvas>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Canvas>
+                  </Viewbox>
+                </Grid>
+              </Border>
+            </DockPanel>
+          </Border>
+        </Grid>
+
+        <!-- Pick a lift, see its progression; suggestions and the recent log beside it. -->
+        <Grid Grid.Row="2" ColumnDefinitions="260,*,340">
+          <Border Grid.Column="0" Background="{StaticResource Panel}" CornerRadius="8"
+                  Padding="12" Margin="0,0,8,0">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="EXERCISES" FontSize="11"
+                         Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+              <ListBox x:Name="FitnessExerciseList" ItemsSource="{Binding FitnessExercises}"
+                       Background="Transparent">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:FitnessExerciseChoice">
+                    <TextBlock Text="{Binding Label}" FontSize="12"
+                               Foreground="{StaticResource Ink}"/>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
+          </Border>
+
+          <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="8"
+                  Padding="12" Margin="0,0,8,0">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="PROGRESSION · ESTIMATED 1RM" FontSize="11"
+                         Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+              <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding ExerciseChart}"
+                            Margin="0,6,0,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="local:FitnessSeries">
+                    <DockPanel>
+                      <TextBlock Text="{Binding Name}" FontSize="11"
+                                 Foreground="{StaticResource Dim}"/>
+                      <TextBlock Text="  " FontSize="11"/>
+                      <TextBlock Text="{Binding Now}" FontSize="11" FontFamily="monospace"
+                                 Foreground="{Binding Stroke}"/>
+                      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                  HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding Floor}" FontSize="10"
+                                   Foreground="{StaticResource Dim}"/>
+                        <TextBlock Text=" – " FontSize="10" Foreground="{StaticResource Dim}"/>
+                        <TextBlock Text="{Binding Ceiling}" FontSize="10"
+                                   Foreground="{StaticResource Dim}"/>
+                      </StackPanel>
+                    </DockPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Background="#0D1116" CornerRadius="6" Padding="6">
+                <Grid>
+                  <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                             HorizontalAlignment="Center" FontSize="12"
+                             Foreground="{StaticResource Dim}"
+                             Text="pick an exercise with logged working sets"
+                             IsVisible="{Binding ExerciseChart.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+                  <Viewbox Stretch="Fill">
+                    <Canvas Width="1000" Height="200">
+                      <ItemsControl ItemsSource="{Binding ExerciseChart}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><Canvas Width="1000" Height="200"/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="local:FitnessSeries">
+                            <Canvas Width="1000" Height="200">
+                              <Polygon Points="{Binding Area}" Fill="{Binding Fill}"/>
+                              <Polyline Points="{Binding Line}" Stroke="{Binding Stroke}"
+                                        StrokeThickness="2" StrokeLineCap="Round"
+                                        StrokeJoin="Round"/>
+                            </Canvas>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Canvas>
+                  </Viewbox>
+                </Grid>
+              </Border>
+            </DockPanel>
+          </Border>
+
+          <Grid Grid.Column="2" RowDefinitions="*,*">
+            <Border Grid.Row="0" Background="{StaticResource Panel}" CornerRadius="8"
+                    Padding="12" Margin="0,0,0,8">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="SUGGESTIONS" FontSize="11"
+                           Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+                <ScrollViewer>
+                  <Grid>
+                    <TextBlock FontSize="12" Foreground="{StaticResource Dim}"
+                               Text="nothing to say — which is the point"
+                               IsVisible="{Binding FitnessSuggestions.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+                    <ItemsControl ItemsSource="{Binding FitnessSuggestions}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="local:FitnessInsight">
+                          <StackPanel Margin="0,0,0,8">
+                            <TextBlock Text="{Binding Text}" FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{StaticResource Ink}"/>
+                            <TextBlock Text="{Binding Detail}" FontSize="10" TextWrapping="Wrap"
+                                       Foreground="{StaticResource Dim}"/>
+                          </StackPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </Grid>
+                </ScrollViewer>
+              </DockPanel>
+            </Border>
+
+            <Border Grid.Row="1" Background="{StaticResource Panel}" CornerRadius="8"
+                    Padding="12">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="RECENT SESSIONS" FontSize="11"
+                           Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+                <ScrollViewer>
+                  <ItemsControl ItemsSource="{Binding FitnessSessions}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="local:FitnessSessionRow">
+                        <Grid ColumnDefinitions="52,90,*" Margin="0,2">
+                          <TextBlock Grid.Column="0" Text="{Binding When}" FontSize="11"
+                                     FontFamily="monospace" Foreground="{StaticResource Dim}"/>
+                          <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="11"
+                                     Foreground="{StaticResource Ink}"/>
+                          <TextBlock Grid.Column="2" Text="{Binding Detail}" FontSize="11"
+                                     Foreground="{StaticResource Dim}"
+                                     TextTrimming="CharacterEllipsis"/>
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </DockPanel>
+            </Border>
+          </Grid>
+        </Grid>
+      </Grid>
+    </TabItem>
   </TabControl>
 
   <!-- An overlay in the visual tree, not a Popup. A Popup is an OS-level window that

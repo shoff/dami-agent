@@ -30,6 +30,7 @@ public sealed partial class MainWindow
             GuiTokens.Store().Write(token);
             this.runtime.Authenticate(token.AccessToken);
             this.taskBoardClient.Authenticate(token.AccessToken);
+            this.fitnessClient.Authenticate(token.AccessToken);
         }
     }
 }

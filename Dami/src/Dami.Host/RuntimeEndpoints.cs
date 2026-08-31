@@ -19,6 +19,7 @@ public static class RuntimeEndpoints
         CorpusEndpoints.Map(app);
         FrontierEndpoints.Map(app);
         HealthDomainEndpoints.Map(app);
+        FitnessEndpoints.Map(app);
         TranscriptionEndpoints.Map(app);
         SpeechEndpoints.Map(app);
         ToolProposalEndpoints.Map(app);

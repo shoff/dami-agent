@@ -569,6 +569,7 @@ public sealed class WindowState : INotifyPropertyChanged
 {
     private string workerTraceMessage = string.Empty;
     private string activityMessage = string.Empty;
+    private string fitnessMessage = string.Empty;
     private PassSummary passSummary = PassSummary.none;
 
     /// <summary>What the trace pane is showing, or why it is showing nothing.</summary>
@@ -595,6 +596,17 @@ public sealed class WindowState : INotifyPropertyChanged
         {
             this.activityMessage = value;
             this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.ActivityMessage)));
+        }
+    }
+
+    /// <summary>What the Health tab is showing, or why it is showing nothing.</summary>
+    public string FitnessMessage
+    {
+        get => this.fitnessMessage;
+        set
+        {
+            this.fitnessMessage = value;
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.FitnessMessage)));
         }
     }
 
@@ -638,4 +650,28 @@ public sealed class WindowState : INotifyPropertyChanged
     /// not a summary of it.
     /// </summary>
     public ObservableCollection<PassEvent> WorkerTrace { get; } = [];
+
+    /// <summary>The Health tab's headline numbers.</summary>
+    public ObservableCollection<FitnessTile> FitnessTiles { get; } = [];
+
+    /// <summary>Body-weight trend (zero or one series).</summary>
+    public ObservableCollection<FitnessSeries> WeightChart { get; } = [];
+
+    /// <summary>Weekly working-set tonnage (zero or one series).</summary>
+    public ObservableCollection<FitnessSeries> TonnageChart { get; } = [];
+
+    /// <summary>Weekly cardio minutes (zero or one series).</summary>
+    public ObservableCollection<FitnessSeries> CardioChart { get; } = [];
+
+    /// <summary>The picked exercise's estimated-1RM trend (zero or one series).</summary>
+    public ObservableCollection<FitnessSeries> ExerciseChart { get; } = [];
+
+    /// <summary>Deterministic observations about the training data.</summary>
+    public ObservableCollection<FitnessInsight> FitnessSuggestions { get; } = [];
+
+    /// <summary>Exercises to pick from, most-trained first.</summary>
+    public ObservableCollection<FitnessExerciseChoice> FitnessExercises { get; } = [];
+
+    /// <summary>Recent sessions of every kind, newest first.</summary>
+    public ObservableCollection<FitnessSessionRow> FitnessSessions { get; } = [];
 }

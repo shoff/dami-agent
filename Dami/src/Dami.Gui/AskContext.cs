@@ -27,6 +27,10 @@ public static class AskContext
             PassEvent moment => Moment(moment),
             SidebarItem item => Item(item),
             ActivitySeries series => Series(series),
+            FitnessInsight insight => Insight(insight),
+            FitnessSeries fitness => Fitness(fitness),
+            FitnessSessionRow session => $"a recent session on the health dashboard: "
+                + $"{session.When}, {session.Title}, {session.Detail}.",
             Message message => $"a line in the conversation, from {message.Who}: {message.Body}",
             _ => visibleText.Trim(),
         };
@@ -90,4 +94,12 @@ public static class AskContext
             CultureInfo.InvariantCulture,
             $"a series on the runtime activity chart: {series.Name}, currently {series.Now} "
             + $"per interval, peaking at {series.Peak} over the window shown.");
+
+    private static string Insight(FitnessInsight insight) =>
+        $"a suggestion on the health dashboard ({insight.Kind}), computed from the "
+        + $"fitness log, not by a model: {insight.Text}. Basis: {insight.Detail}.";
+
+    private static string Fitness(FitnessSeries series) =>
+        $"a chart on the health dashboard: {series.Name}, latest {series.Now}, "
+        + $"plotted between {series.Floor} and {series.Ceiling}.";
 }
