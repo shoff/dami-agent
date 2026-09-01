@@ -148,4 +148,25 @@ public sealed class RecallCollectorServiceTests
             this.store, this.egress, Options.Create(options), new FakeTimeProvider(now),
             NullLogger<RecallCollectorService>.Instance);
     }
+
+    [Fact]
+    public async Task Should_Not_Read_The_Local_Halfs_Match_Rows()
+    {
+        // The matcher writes drug names drawn from the health record into this domain.
+        // This half holds the egress client and must never load them — the split is the
+        // whole privacy argument for splitting the service in two.
+        this.store.TimelineAsync("recall", Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(FactsAsync(new DomainFact(
+                Guid.NewGuid(), "recall", new DateOnly(2026, 8, 15), "match",
+                "matches 'warfarin': [drug Class I] Warfarin Sodium Tablets", "recall-match", now)));
+        this.Answer("api.fda.gov", DRUGS);
+        this.Answer("saferproducts.gov", "[]");
+
+        await this.Service().RunPassAsync(Context(), CancellationToken.None);
+
+        // If the match row had been loaded into the dedup set it would still not be
+        // written; what proves the read is skipped is that the notice is recorded, since
+        // an 800-row window filled with match rows is how the leak becomes a defect.
+        Assert.True(Contains(this.written, "Warfarin"));
+    }
 }

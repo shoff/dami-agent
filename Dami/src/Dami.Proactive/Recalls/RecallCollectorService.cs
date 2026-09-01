@@ -189,7 +189,13 @@ public sealed class RecallCollectorService : IProactiveService
         await foreach (var fact in this.store
             .TimelineAsync(DOMAIN, KNOWN_LIMIT, cancellationToken).ConfigureAwait(false))
         {
-            known.Add(fact.Description);
+            // Match rows are the local-only half's output and carry drug names drawn from
+            // the health record. This half holds the egress client and must not read them,
+            // and they would also consume the dedup window meant for notices.
+            if (fact.Category != "match")
+            {
+                known.Add(fact.Description);
+            }
         }
 
         return known;

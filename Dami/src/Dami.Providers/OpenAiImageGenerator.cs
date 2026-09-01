@@ -31,6 +31,7 @@ public sealed class OpenAiImageGenerator : IImageGenerator
     private readonly HttpClient httpClient;
     private readonly OpenAiImageOptions imageOptions;
     private readonly EgressOptions egressOptions;
+    private readonly IEgressBudget egressBudget;
     private readonly IExecutionEventStore eventStore;
     private readonly TimeProvider clock;
     private readonly ILogger<OpenAiImageGenerator> logger;
@@ -40,6 +41,7 @@ public sealed class OpenAiImageGenerator : IImageGenerator
         HttpClient httpClient,
         IOptions<OpenAiImageOptions> imageOptions,
         IOptions<EgressOptions> egressOptions,
+        IEgressBudget egressBudget,
         IExecutionEventStore eventStore,
         TimeProvider clock,
         ILogger<OpenAiImageGenerator> logger)
@@ -47,6 +49,7 @@ public sealed class OpenAiImageGenerator : IImageGenerator
         ArgumentNullException.ThrowIfNull(httpClient);
         ArgumentNullException.ThrowIfNull(imageOptions);
         ArgumentNullException.ThrowIfNull(egressOptions);
+        ArgumentNullException.ThrowIfNull(egressBudget);
         ArgumentNullException.ThrowIfNull(eventStore);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
@@ -54,6 +57,7 @@ public sealed class OpenAiImageGenerator : IImageGenerator
         this.httpClient = httpClient;
         this.imageOptions = imageOptions.Value;
         this.egressOptions = egressOptions.Value;
+        this.egressBudget = egressBudget;
         this.eventStore = eventStore;
         this.clock = clock;
         this.logger = logger;
@@ -70,7 +74,8 @@ public sealed class OpenAiImageGenerator : IImageGenerator
             request, ExecutionEventType.EgressRequested, ExecutionStatus.Running,
             $"{request.Purpose} -> {host}", cancellationToken).ConfigureAwait(false);
 
-        var refusal = this.FindRefusal(host, request);
+        var refusal = this.FindRefusal(host, request)
+            ?? await this.egressBudget.FindRefusalAsync(cancellationToken).ConfigureAwait(false);
         if (refusal is not null)
         {
             await this.EmitAsync(
@@ -80,7 +85,8 @@ public sealed class OpenAiImageGenerator : IImageGenerator
             throw new EgressRefusedException(refusal);
         }
 
-        var image = await this.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        var image = await this.SendOrRecordFailureAsync(request, cancellationToken)
+            .ConfigureAwait(false);
 
         await this.EmitAsync(
             request, ExecutionEventType.EgressCompleted, ExecutionStatus.Succeeded,
@@ -112,6 +118,29 @@ public sealed class OpenAiImageGenerator : IImageGenerator
         }
 
         return null;
+    }
+
+    /// <summary>Sends, recording a failure rather than leaving a dangling request.</summary>
+    /// <remarks>
+    /// By the time this throws the prompt is already on the wire. An `EgressRequested`
+    /// with no outcome is indistinguishable from a call that never happened, which is the
+    /// worst possible state for the one ledger that is supposed to say what left.
+    /// </remarks>
+    private async Task<GeneratedImage> SendOrRecordFailureAsync(
+        ImageRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await this.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            await this.EmitAsync(
+                request, ExecutionEventType.EgressFailed, ExecutionStatus.Failed,
+                $"{request.Purpose}: {exception.GetType().Name}", cancellationToken)
+                .ConfigureAwait(false);
+            throw;
+        }
     }
 
     private async Task<GeneratedImage> SendAsync(

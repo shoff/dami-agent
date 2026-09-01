@@ -72,7 +72,8 @@ public sealed class AnthropicChatClient : IFrontierChat
             throw new EgressRefusedException(refusal);
         }
 
-        var answer = await this.SendAsync(prompt, cancellationToken).ConfigureAwait(false);
+        var answer = await this.SendOrRecordFailureAsync(prompt, cancellationToken)
+            .ConfigureAwait(false);
 
         await this.EmitAsync(
             prompt, ExecutionEventType.EgressCompleted, ExecutionStatus.Succeeded,
@@ -103,6 +104,28 @@ public sealed class AnthropicChatClient : IFrontierChat
         }
 
         return null;
+    }
+
+    /// <summary>Sends, recording a failure rather than leaving a dangling request.</summary>
+    /// <remarks>
+    /// By the time this throws the prompt is already on the wire. An `EgressRequested`
+    /// with no outcome is indistinguishable from a call that never happened.
+    /// </remarks>
+    private async Task<string> SendOrRecordFailureAsync(
+        FrontierPrompt prompt, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await this.SendAsync(prompt, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            await this.EmitAsync(
+                prompt, ExecutionEventType.EgressFailed, ExecutionStatus.Failed,
+                $"{prompt.Purpose}: {exception.GetType().Name}", cancellationToken)
+                .ConfigureAwait(false);
+            throw;
+        }
     }
 
     private async Task<string> SendAsync(FrontierPrompt prompt, CancellationToken cancellationToken)

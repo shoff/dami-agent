@@ -91,7 +91,8 @@ public sealed class DiscordRestTests
         var (rest, handler) = Create();
         handler.Payload = Encoding.UTF8.GetBytes("not really a png");
 
-        var bytes = await rest.DownloadAsync("https://cdn/bolt.png", CancellationToken.None);
+        var bytes = await rest.DownloadAsync(
+            "https://cdn.discordapp.com/bolt.png", CancellationToken.None);
 
         Assert.Equal("not really a png", Encoding.UTF8.GetString(bytes.ToArray()));
     }
@@ -103,7 +104,7 @@ public sealed class DiscordRestTests
         // ask for them is how they leak.
         var (rest, handler) = Create();
 
-        await rest.DownloadAsync("https://cdn/bolt.png", CancellationToken.None);
+        await rest.DownloadAsync("https://cdn.discordapp.com/bolt.png", CancellationToken.None);
 
         Assert.Null(handler.Request!.Headers.Authorization);
     }
@@ -130,5 +131,34 @@ public sealed class DiscordRestTests
             CancellationToken.None);
 
         Assert.Equal("Bot", handler.Request!.Headers.Authorization!.Scheme);
+    }
+    [Theory]
+    [InlineData("http://127.0.0.1:11434/api/tags")]
+    [InlineData("https://evil.example.com/x.png")]
+    [InlineData("http://cdn.discordapp.com/x.png")]
+    [InlineData("file:///etc/passwd")]
+    public async Task DownloadAsync_Should_Refuse_Anything_That_Is_Not_A_Discord_Cdn_Url(string url)
+    {
+        // The URL arrives inside a gateway frame and is remote input. Fetching whatever it
+        // names would make this a request forwarder inside the host, terminating in a
+        // local model whose caption is then egressed.
+        var (rest, handler) = Create();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await rest.DownloadAsync(url, CancellationToken.None));
+
+        Assert.Null(handler.Request);
+    }
+
+    [Fact]
+    public async Task DownloadAsync_Should_Accept_A_Discord_Cdn_Url()
+    {
+        var (rest, handler) = Create();
+        handler.Payload = Encoding.UTF8.GetBytes("png");
+
+        var bytes = await rest.DownloadAsync(
+            "https://cdn.discordapp.com/attachments/1/2/x.png", CancellationToken.None);
+
+        Assert.Equal("png", Encoding.UTF8.GetString(bytes.ToArray()));
     }
 }

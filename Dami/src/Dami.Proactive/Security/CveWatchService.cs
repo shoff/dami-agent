@@ -1,3 +1,4 @@
+using System.Globalization;
 using Dami.Contracts.Domains;
 using Dami.Contracts.Events;
 using Dami.Contracts.Memory;
@@ -11,11 +12,16 @@ namespace Dami.Proactive.Security;
 
 /// <summary>Joins public vulnerability data against what this host runs (H11).</summary>
 /// <remarks>
-/// The join is the privacy design: the USN feed comes down whole with no query at all,
-/// and the advisories query carries public OSS package names — never versions, never
-/// anything about this host. What is installed is read locally and stays local; a fetch
-/// with no local match records nothing and says nothing (D-021). An advisory surfaces
-/// once — the security domain timeline is the memory.
+/// The join is the privacy design, and both halves of it pull broad and match at home:
+/// the USN feed comes down whole, and the advisory feed comes down by publication date.
+/// Neither query says anything about this machine.
+///
+/// An earlier version passed the resolved NuGet closure as `affects=` — public package
+/// names, no versions, but in aggregate the dependency manifest of a private repository,
+/// sent nightly in stable order. An audit called that a durable fingerprint and it was
+/// right. Pulling recent advisories and filtering locally costs a few more rows over the
+/// wire and discloses nothing, which is the trade every other collector here already
+/// makes (the recall sentinel pulls openFDA wholesale with no query at all).
 /// </remarks>
 public sealed class CveWatchService : IProactiveService
 {
@@ -153,10 +159,10 @@ public sealed class CveWatchService : IProactiveService
             var packages = await this.inventory.NugetPackagesAsync(cancellationToken)
                 .ConfigureAwait(false);
             var written = 0;
-            for (var start = 0; start < packages.Count; start += Math.Max(1, this.cveOptions.QueryChunk))
+            for (var page = 1; page <= Math.Max(1, this.cveOptions.MaxPages); page++)
             {
-                written += await this.QueryChunkAsync(
-                    packages, start, known, surfacings, context, cancellationToken)
+                written += await this.QueryPageAsync(
+                    packages, page, known, surfacings, context, cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -169,21 +175,21 @@ public sealed class CveWatchService : IProactiveService
         }
     }
 
-    private async Task<int> QueryChunkAsync(
+    /// <summary>One page of recent advisories, matched locally against the closure.</summary>
+    private async Task<int> QueryPageAsync(
         IReadOnlyList<(string Name, string Version)> packages,
-        int start,
+        int page,
         HashSet<string> known,
         List<Surfacing> surfacings,
         ProactiveContext context,
         CancellationToken cancellationToken)
     {
-        var names = new List<string>();
-        for (var index = start; index < packages.Count && names.Count < Math.Max(1, this.cveOptions.QueryChunk); index++)
-        {
-            names.Add(Uri.EscapeDataString(packages[index].Name));
-        }
-
-        var url = $"{this.cveOptions.AdvisoriesUrl}?ecosystem=nuget&affects={string.Join(",", names)}";
+        // ecosystem and a publication window only. Nothing here names anything installed.
+        var since = this.clock.GetUtcNow()
+            .AddDays(-Math.Max(1, this.cveOptions.LookbackDays))
+            .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var url = $"{this.cveOptions.AdvisoriesUrl}?ecosystem=nuget&published=%3E{since}"
+            + $"&per_page={this.cveOptions.PageSize}&page={page}";
         var response = await this.FetchAsync(url, "NuGet advisories", context, cancellationToken)
             .ConfigureAwait(false);
 

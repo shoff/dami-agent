@@ -119,7 +119,26 @@ public sealed class CveWatchServiceTests
     }
 
     [Fact]
-    public async Task Should_Send_Package_Names_But_Never_Versions_In_The_Query()
+    public async Task Should_Not_Name_Any_Installed_Package_In_The_Query()
+    {
+        // This used to pass the resolved NuGet closure as `affects=`. Public package
+        // names, no versions — but in aggregate the dependency manifest of a private
+        // repository, sent nightly in stable order. Pull broad, match at home.
+        var requests = new List<Uri>();
+        this.egress.SendAsync(
+                Arg.Do<EgressRequest>(request => requests.Add(request.Destination)),
+                Arg.Any<CancellationToken>())
+            .Returns(new EgressResponse(200, "[]"));
+
+        await this.Service().RunPassAsync(Context(), CancellationToken.None);
+
+        var advisories = requests.FindAll(uri => uri.Host == "api.github.com");
+        Assert.All(advisories, uri => Assert.DoesNotContain(
+            "Npgsql", uri.Query, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Should_Not_Send_Versions_In_The_Query()
     {
         var requests = new List<Uri>();
         this.egress.SendAsync(
@@ -129,11 +148,25 @@ public sealed class CveWatchServiceTests
 
         await this.Service().RunPassAsync(Context(), CancellationToken.None);
 
-        var query = requests.Find(uri => uri.Host == "api.github.com")!.Query;
-        Assert.Equal(
-            (true, false),
-            (query.Contains("Npgsql", StringComparison.Ordinal),
-                query.Contains("8.0.5", StringComparison.Ordinal)));
+        Assert.All(
+            requests.FindAll(uri => uri.Host == "api.github.com"),
+            uri => Assert.DoesNotContain("8.0.5", uri.Query, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Should_Query_By_Ecosystem_And_Publication_Window_Only()
+    {
+        var requests = new List<Uri>();
+        this.egress.SendAsync(
+                Arg.Do<EgressRequest>(request => requests.Add(request.Destination)),
+                Arg.Any<CancellationToken>())
+            .Returns(new EgressResponse(200, "[]"));
+
+        await this.Service().RunPassAsync(Context(), CancellationToken.None);
+
+        var advisories = requests.Find(uri => uri.Host == "api.github.com")!;
+        Assert.Contains("ecosystem=nuget", advisories.Query, StringComparison.Ordinal);
+        Assert.DoesNotContain("affects=", advisories.Query, StringComparison.Ordinal);
     }
 
     private static ProactiveContext Context() => new(Guid.NewGuid(), now, null);

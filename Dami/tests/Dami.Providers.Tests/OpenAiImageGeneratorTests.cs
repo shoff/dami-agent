@@ -23,6 +23,8 @@ public sealed class OpenAiImageGeneratorTests
 
         public string Body { get; set; } = string.Empty;
 
+        public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
+
         /// <summary>What the caller actually put on the wire.</summary>
         public string Sent { get; private set; } = string.Empty;
 
@@ -35,7 +37,7 @@ public sealed class OpenAiImageGeneratorTests
                 this.Sent = await request.Content.ReadAsStringAsync(cancellationToken);
             }
 
-            return new HttpResponseMessage(HttpStatusCode.OK)
+            return new HttpResponseMessage(this.Status)
             {
                 Content = new StringContent(this.Body),
             };
@@ -47,7 +49,8 @@ public sealed class OpenAiImageGeneratorTests
             ExecutionOrigin.ScheduledService);
 
     private static (OpenAiImageGenerator Generator, Canned Handler, IExecutionEventStore Events)
-        Create(string? apiKey = "sk-test", string allowedHost = "api.openai.com")
+        Create(string? apiKey = "sk-test", string allowedHost = "api.openai.com",
+               string? budgetRefusal = null)
     {
         var handler = new Canned
         {
@@ -60,11 +63,14 @@ public sealed class OpenAiImageGeneratorTests
         }
 
         var events = Substitute.For<IExecutionEventStore>();
+        var budget = Substitute.For<IEgressBudget>();
+        budget.FindRefusalAsync(Arg.Any<CancellationToken>()).Returns(budgetRefusal);
         return (
             new OpenAiImageGenerator(
                 new HttpClient(handler),
                 Options.Create(new OpenAiImageOptions { ApiKey = apiKey ?? string.Empty }),
                 Options.Create(egress),
+                budget,
                 events,
                 TimeProvider.System,
                 NullLogger<OpenAiImageGenerator>.Instance),
@@ -192,5 +198,43 @@ public sealed class OpenAiImageGeneratorTests
         await generator.GenerateAsync(Request(), CancellationToken.None);
 
         Assert.Contains("\"prompt\":\"a portrait\"", handler.Sent, StringComparison.Ordinal);
+    }
+    [Fact]
+    public async Task Should_Refuse_When_The_Egress_Budget_Is_Spent()
+    {
+        // C5. This is the only door with a per-call bill and it was the only
+        // frontier-class door not behind the budget — the subscription door, whose
+        // marginal cost is zero, was.
+        var (generator, _, _) = Create(budgetRefusal: "egress budget exhausted");
+
+        await Assert.ThrowsAsync<EgressRefusedException>(
+            () => generator.GenerateAsync(Request(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Should_Not_Spend_Money_When_The_Budget_Refuses()
+    {
+        var (generator, handler, _) = Create(budgetRefusal: "egress budget exhausted");
+
+        await Assert.ThrowsAsync<EgressRefusedException>(
+            () => generator.GenerateAsync(Request(), CancellationToken.None));
+
+        Assert.Null(handler.Request);
+    }
+
+    [Fact]
+    public async Task Should_Record_EgressFailed_When_The_Provider_Errors()
+    {
+        // The prompt is already on the wire by then; a dangling EgressRequested with no
+        // outcome is indistinguishable from a call that never happened.
+        var (generator, handler, events) = Create();
+        handler.Status = HttpStatusCode.InternalServerError;
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => generator.GenerateAsync(Request(), CancellationToken.None));
+
+        await events.Received().AppendAsync(
+            Arg.Is<ExecutionEvent>(e => e.Type == ExecutionEventType.EgressFailed),
+            Arg.Any<CancellationToken>());
     }
 }

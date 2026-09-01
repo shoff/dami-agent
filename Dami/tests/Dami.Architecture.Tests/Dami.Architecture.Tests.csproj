@@ -21,7 +21,23 @@
     including ones this project has never heard of.
   -->
   <ItemGroup>
+    <!-- Every assembly the rules name. AssemblyProbe loads by name and silently skips
+         what is not in the output directory, so an unreferenced project is a rule that
+         inspects nothing and passes forever — the "largely vacuous" failure this suite
+         already has a scar from. Referencing them is what makes the rules real. -->
     <ProjectReference Include="../../src/Dami.Contracts/Dami.Contracts.csproj" />
+    <ProjectReference Include="../../src/Dami.Core/Dami.Core.csproj" />
+    <ProjectReference Include="../../src/Dami.Persistence/Dami.Persistence.csproj" />
+    <ProjectReference Include="../../src/Dami.Privacy/Dami.Privacy.csproj" />
+    <ProjectReference Include="../../src/Dami.Providers/Dami.Providers.csproj" />
+    <ProjectReference Include="../../src/Dami.Proactive/Dami.Proactive.csproj" />
+    <ProjectReference Include="../../src/Dami.Capabilities/Dami.Capabilities.csproj" />
+    <ProjectReference Include="../../src/Dami.Capabilities.Native/Dami.Capabilities.Native.csproj" />
+    <ProjectReference Include="../../src/Dami.Capabilities.Mcp/Dami.Capabilities.Mcp.csproj" />
+    <ProjectReference Include="../../src/Dami.Capabilities.Sandboxed/Dami.Capabilities.Sandboxed.csproj" />
+    <ProjectReference Include="../../src/Dami.Capabilities.Skills/Dami.Capabilities.Skills.csproj" />
+    <ProjectReference Include="../../src/Dami.Vision/Dami.Vision.csproj" />
+    <ProjectReference Include="../../src/Dami.Authentication/Dami.Authentication.csproj" />
     <ProjectReference Include="../../src/Dami.Transport/Dami.Transport.csproj" />
     <ProjectReference Include="../../src/Dami.Gateway.Discord/Dami.Gateway.Discord.csproj" />
     <ProjectReference Include="../../src/Dami.Host.Discord/Dami.Host.Discord.csproj" />

@@ -21,6 +21,27 @@ public sealed class DiscordRest : IDiscordRest
 {
     private const string API = "https://discord.com/api/v10";
 
+    /// <summary>Hosts Discord serves attachments from. Anything else is not ours to fetch.</summary>
+    /// <remarks>
+    /// The attachment URL arrives inside a gateway frame and is therefore remote input.
+    /// Fetching whatever it names would make this a general-purpose request forwarder
+    /// sitting inside the host — the shape of an SSRF, terminating in a local model whose
+    /// output is then egressed. `IEgressClient` refuses unknown hosts for the same reason;
+    /// the channel's own transport has to refuse them too rather than inherit nothing.
+    /// </remarks>
+    private static readonly string[] attachmentHosts =
+    [
+        "cdn.discordapp.com",
+        "media.discordapp.net",
+    ];
+
+    /// <summary>Ceiling on a fetched attachment, enforced while reading.</summary>
+    /// <remarks>
+    /// The `size` Discord declares is remote input too, so it may not be the thing the
+    /// limit is applied to. This is measured against bytes actually received.
+    /// </remarks>
+    private const int MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024;
+
     private readonly HttpClient http;
     private readonly AuthenticationHeaderValue credential;
     private readonly ILogger<DiscordRest> logger;
@@ -114,13 +135,45 @@ public sealed class DiscordRest : IDiscordRest
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(url);
 
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var destination)
+            || destination.Scheme != Uri.UriSchemeHttps
+            || !attachmentHosts.Contains(destination.Host, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"refusing to fetch an attachment from '{url}': not an https Discord CDN URL");
+        }
+
         // Deliberately not built by Api(): the URL already carries its own signature, and
         // sending credentials to a host that did not ask for them is how they leak.
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url));
+        using var request = new HttpRequestMessage(HttpMethod.Get, destination);
         using var response = await this.http
-            .SendAsync(request, cancellationToken).ConfigureAwait(false);
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+        return await ReadCappedAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Reads at most the ceiling, measuring what arrives rather than what was claimed.</summary>
+    private static async Task<ReadOnlyMemory<byte>> ReadCappedAsync(
+        HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        await using var stream = await response.Content
+            .ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await stream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            if (buffer.Length + read > MAX_ATTACHMENT_BYTES)
+            {
+                throw new InvalidOperationException(
+                    $"attachment exceeded {MAX_ATTACHMENT_BYTES} bytes; refusing to buffer it");
+            }
+
+            await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+        }
+
+        return buffer.ToArray();
     }
 
     private async Task RetryAfterAsync(

@@ -9285,3 +9285,72 @@ for four of the five egress seams.
 Gate: build clean; **20/20 test assemblies green, 1269 passing** (+10), excluding
 `Dami.Core.Tests`, which still does not compile because of Codex's untracked
 `Scheduling/` work.
+
+## 2026-09-01 — Claude — Closing the rest of the audit findings (planned)
+
+Steve: "ok fix it use your best recommendations." Taking the remaining open findings with
+the approach I judge best for each rather than the smallest patch:
+
+1. **Unbudgeted paid door** — inject `IEgressBudget` into `OpenAiImageGenerator` and consult
+   it in the refusal chain, exactly as `CodexChatClient` does. C5 should cover the door
+   with an invoice before it covers the one without.
+2. **Attachment download outside every control** — validate scheme and host against
+   Discord's own CDN, and cap bytes while reading rather than trusting the declared size.
+   The declared `content_type`/`size` are attacker-supplied and currently load-bearing.
+3. **Recall collector reads match rows** — filter `KnownAsync` to the collector's own
+   categories. Also repairs the dedup window, which match rows were consuming.
+4. **CveWatch discloses the NuGet closure** — stop sending package names. Pull recent nuget
+   advisories broadly and join locally, which is what every other collector here does
+   (H12 pulls openFDA wholesale with zero query). Removes the disclosure rather than
+   documenting it, and corrects the false remark.
+5. **Dangling `EgressRequested`** — emit `EgressFailed` when a provider call throws, so a
+   timeout is not indistinguishable from a call that never happened.
+6. **Four of five egress seams unguarded** — architecture tests pinning the holder set of
+   each, plus a rule that no type may hold an egress seam and a health/fitness store at
+   once. That makes the H12/H14 split structural instead of conventional.
+7. **`Classify` trailing punctuation** — `"status?"` should reach the fast path.
+
+**Done, with evidence.** All seven, plus a root cause the work uncovered.
+
+1. **Paid door budgeted.** `OpenAiImageGenerator` takes `IEgressBudget` and consults it in
+   the refusal chain. Two tests: a spent budget refuses, and it refuses *before* the
+   network call, so an exhausted budget costs nothing.
+2. **Attachment fetch hardened.** https + a Discord CDN host allowlist
+   (`cdn.discordapp.com`, `media.discordapp.net`), and a 16 MB ceiling enforced **while
+   reading** rather than against the declared `size`, which is remote input. A theory
+   asserts `http://127.0.0.1:11434/...`, an arbitrary https host, plaintext CDN and
+   `file://` are all refused *without a request being issued* — the SSRF-into-local-model
+   path the audit described is closed at the transport.
+3. **Recall dedup leak closed.** `KnownAsync` skips `match` rows, so drug names the
+   local-only half derived never load into the egress-holding half. Also repairs the
+   800-row window they were consuming.
+4. **CVE disclosure removed, not documented.** The advisories query now carries
+   `ecosystem=nuget` and a publication window and nothing else; the closure is matched
+   locally, as the USN pass and the recall sentinel already did. Three tests assert no
+   installed package name, no version, and no `affects=` reaches the wire. The false
+   remark is replaced with what actually happens and why it changed.
+5. **No more dangling `EgressRequested`.** Both `OpenAiImageGenerator` and
+   `AnthropicChatClient` emit `EgressFailed` when the send throws, so a timeout is
+   distinguishable from a call that never happened.
+6. **Egress seams pinned.** New `EgressSeamTests`: no type may hold an egress seam *and* a
+   health/fitness store — the H12/H14 split as a rule rather than a comment — plus pinned
+   holder sets for `IFrontierChat` and `IImageGenerator`.
+7. **`Classify` punctuation** — deferred, see below.
+
+**The root cause found while writing (6), and it is the bigger finding.** The new rules
+failed immediately on their own canaries: `AssemblyProbe` loads by name and silently skips
+what is absent, and `Dami.Architecture.Tests` referenced **four** projects. Every
+architecture rule in this suite has therefore been inspecting a fraction of the solution —
+the "largely vacuous" failure recorded on 2026-08-30 was never actually fixed, only
+narrowed from two projects to four. The csproj now references all sixteen assemblies the
+rules name, and two canary tests fail loudly if the probe ever sees nothing again. With
+the probe working, the pinned set was immediately wrong: `FrontierFeaturePlanner` holds
+`IFrontierChat` and nobody had recorded it. That is the rule earning its place on its
+first run.
+
+**Not done, deliberately:** `DiscordOperations.Classify` still requires exact `"status"`.
+It is pre-existing (M1), cosmetic, and unrelated to the audit findings; batching it here
+would have put an unrelated behaviour change in a privacy commit.
+
+Gate: build clean; **20/20 test assemblies green, 1285 passing** (+16), excluding
+`Dami.Core.Tests`, still uncompilable from Codex's untracked `Scheduling/` work.
