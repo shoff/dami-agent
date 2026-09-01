@@ -50,9 +50,10 @@ public sealed partial class MainWindow
     /// <summary>Routes the turn to the subscription or the local sidecar.</summary>
     private Task AnswerAsync(Message reply, string text, bool frontier)
     {
-        return frontier
-            ? this.AskFrontierAsync(reply, text)
-            : this.StreamIntoAsync(reply, text);
+        // Both modes stream now. The augmented one waits for retrieval and the gate
+        // before the first token, because nothing may leave until the gate has judged it —
+        // but the answer itself arrives as the frontier writes it.
+        return this.StreamIntoAsync(reply, text, frontier);
     }
 
     /// <summary>
@@ -94,11 +95,11 @@ public sealed partial class MainWindow
         await this.SpeakAsync(reply).ConfigureAwait(true);
     }
 
-    private async Task StreamIntoAsync(Message reply, string text)
+    private async Task StreamIntoAsync(Message reply, string text, bool augmented)
     {
         var any = false;
         await foreach (var fragment in this.runtime
-            .StreamTurnAsync(text, this.lifetime.Token).ConfigureAwait(true))
+            .StreamTurnAsync(text, augmented, this.lifetime.Token).ConfigureAwait(true))
         {
             any = true;
             reply.Body += fragment;

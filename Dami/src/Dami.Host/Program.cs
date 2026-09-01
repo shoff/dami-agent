@@ -131,6 +131,11 @@ builder.Services.AddSingleton<IAugmentedTurn>(services =>
 // Frontier: subscription door (ADR-0011) behind the C5 egress budget.
 builder.Services.Configure<CodexOptions>(builder.Configuration.GetSection(CodexOptions.SECTION_NAME));
 builder.Services.AddSingleton<ICodexProcess, CodexProcess>();
+// The streaming half of the subscription door: a persistent codex app-server,
+// which emits item/agentMessage/delta token by token where `codex exec` cannot.
+builder.Services.AddSingleton<ICodexAppServer>(services => new CodexAppServer(
+    services.GetRequiredService<Microsoft.Extensions.Options.IOptions<CodexOptions>>().Value,
+    services.GetRequiredService<ILogger<CodexAppServer>>()));
 builder.Services.AddSingleton<IFrontierChat, CodexChatClient>();
 builder.Services.Configure<EgressBudgetOptions>(
     builder.Configuration.GetSection(EgressBudgetOptions.SECTION_NAME));

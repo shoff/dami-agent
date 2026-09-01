@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Dami.Contracts.Context;
 using Dami.Contracts.Events;
 using Dami.Contracts.Models;
@@ -21,6 +22,7 @@ public sealed class CodexChatClient : IFrontierChat
     private const string ACTOR = "frontier-codex";
 
     private readonly ICodexProcess codexProcess;
+    private readonly ICodexAppServer appServer;
     private readonly CodexOptions codexOptions;
     private readonly IExecutionEventStore eventStore;
     private readonly IEgressBudget egressBudget;
@@ -30,6 +32,7 @@ public sealed class CodexChatClient : IFrontierChat
     /// <summary>Creates the client.</summary>
     public CodexChatClient(
         ICodexProcess codexProcess,
+        ICodexAppServer appServer,
         IOptions<CodexOptions> codexOptions,
         IExecutionEventStore eventStore,
         IEgressBudget egressBudget,
@@ -37,6 +40,7 @@ public sealed class CodexChatClient : IFrontierChat
         ILogger<CodexChatClient> logger)
     {
         ArgumentNullException.ThrowIfNull(codexProcess);
+        ArgumentNullException.ThrowIfNull(appServer);
         ArgumentNullException.ThrowIfNull(codexOptions);
         ArgumentNullException.ThrowIfNull(eventStore);
         ArgumentNullException.ThrowIfNull(egressBudget);
@@ -44,6 +48,7 @@ public sealed class CodexChatClient : IFrontierChat
         ArgumentNullException.ThrowIfNull(logger);
 
         this.codexProcess = codexProcess;
+        this.appServer = appServer;
         this.codexOptions = codexOptions.Value;
         this.eventStore = eventStore;
         this.egressBudget = egressBudget;
@@ -82,6 +87,60 @@ public sealed class CodexChatClient : IFrontierChat
             $"{prompt.Purpose}: {answer.Length} chars returned", cancellationToken).ConfigureAwait(false);
 
         return answer;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Streams over <c>codex app-server</c> rather than <c>codex exec</c>. Same
+    /// subscription, same account, no API key — `exec` writes its answer to a file that
+    /// is readable only once the process has exited, which is why the batch path cannot
+    /// stream and this one can.
+    /// </remarks>
+    public async IAsyncEnumerable<string> StreamAsync(
+        FrontierPrompt prompt,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+
+        await this.EmitAsync(
+            prompt, ExecutionEventType.EgressRequested, ExecutionStatus.Running,
+            $"{prompt.Purpose} -> codex subscription (streaming)", cancellationToken)
+            .ConfigureAwait(false);
+
+        await this.RefuseIfNeededAsync(prompt, cancellationToken).ConfigureAwait(false);
+
+        var characters = 0;
+        await foreach (var fragment in this.appServer.StreamAsync(
+                prompt.Prompt,
+                this.codexOptions.WorkingDirectory,
+                TimeSpan.FromSeconds(this.codexOptions.TimeoutSeconds),
+                cancellationToken).ConfigureAwait(false))
+        {
+            characters += fragment.Length;
+            yield return fragment;
+        }
+
+        await this.EmitAsync(
+            prompt, ExecutionEventType.EgressCompleted, ExecutionStatus.Succeeded,
+            $"{prompt.Purpose}: {characters} chars streamed", cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Throws if this prompt or this moment may not reach the frontier.</summary>
+    private async Task RefuseIfNeededAsync(
+        FrontierPrompt prompt, CancellationToken cancellationToken)
+    {
+        var refusal = this.FindRefusal(prompt)
+            ?? await this.egressBudget.FindRefusalAsync(cancellationToken).ConfigureAwait(false);
+        if (refusal is null)
+        {
+            return;
+        }
+
+        await this.EmitAsync(
+            prompt, ExecutionEventType.EgressRefused, ExecutionStatus.Failed, refusal,
+            cancellationToken).ConfigureAwait(false);
+        this.logger.LogWarning("Subscription frontier refused: {Reason}", refusal);
+        throw new EgressRefusedException(refusal);
     }
 
     private string? FindRefusal(FrontierPrompt prompt)

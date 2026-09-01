@@ -105,6 +105,22 @@ public sealed class TaskWorkServiceTests
             return Task.FromResult(new Dami.Core.Frontier.AugmentedTurnResult(
                 Guid.NewGuid(), "the frontier's proposal", 7, 900));
         }
+
+        public Task<Dami.Core.Frontier.AugmentedTurnStream> StreamAsync(
+            string question,
+            IReadOnlyList<string> localContext,
+            CancellationToken cancellationToken)
+        {
+            this.Seen = question;
+            return Task.FromResult(new Dami.Core.Frontier.AugmentedTurnStream(
+                Guid.NewGuid(), 7, 900, OneAsync("the frontier's proposal")));
+        }
+
+        private static async IAsyncEnumerable<string> OneAsync(string text)
+        {
+            yield return text;
+            await Task.CompletedTask;
+        }
     }
 
     private static (TaskWorkService Service, Store Store, Runner Runner, Frontier Frontier) Create(

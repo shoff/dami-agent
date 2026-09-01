@@ -138,6 +138,7 @@ public sealed class CodexChatClientTests
     {
         return new CodexChatClient(
             this.codexProcess,
+            NSubstitute.Substitute.For<ICodexAppServer>(),
             Options.Create(new CodexOptions { Enabled = enabled }),
             this.eventStore,
             this.egressBudget,

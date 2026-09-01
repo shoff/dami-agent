@@ -32,7 +32,25 @@ public interface IAugmentedTurn
         string question,
         IReadOnlyList<string> localContext,
         CancellationToken cancellationToken);
+
+    /// <summary>The same turn, with the answer streamed as the frontier writes it.</summary>
+    /// <remarks>
+    /// Retrieval and the gate still complete first — nothing may leave until the gate has
+    /// judged all of it — so the caller waits for those, then watches the answer arrive.
+    /// The brief is written once the stream drains, so what left is still recorded.
+    /// </remarks>
+    Task<AugmentedTurnStream> StreamAsync(
+        string question,
+        IReadOnlyList<string> localContext,
+        CancellationToken cancellationToken);
 }
+
+/// <summary>A streaming augmented turn: what was assembled, and the answer as it arrives.</summary>
+public sealed record AugmentedTurnStream(
+    Guid TraceId,
+    int ContextItems,
+    int EstimatedTokens,
+    IAsyncEnumerable<string> Tokens);
 
 /// <summary>
 /// The frontier answers; the local sidecar does the mundane work that feeds it.
@@ -131,6 +149,51 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
         await this.RecordAsync(traceId, question, prepared, answer, cancellationToken)
             .ConfigureAwait(false);
         return new AugmentedTurnResult(traceId, answer, lines.Count, context.EstimatedTokens);
+    }
+
+    /// <inheritdoc />
+    public async Task<AugmentedTurnStream> StreamAsync(
+        string question,
+        IReadOnlyList<string> localContext,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(question);
+        ArgumentNullException.ThrowIfNull(localContext);
+
+        var traceId = Guid.NewGuid();
+        var context = await this.RetrieveAsync(traceId, question, cancellationToken)
+            .ConfigureAwait(false);
+        var lines = localContext
+            .Concat(context.Beliefs.Concat(context.Memories).Select(item => item.Content))
+            .ToList();
+        var prepared = await this.PrepareAsync(traceId, question, lines, cancellationToken)
+            .ConfigureAwait(false);
+
+        return new AugmentedTurnStream(
+            traceId, lines.Count, context.EstimatedTokens,
+            this.StreamAnswerAsync(traceId, question, prepared, cancellationToken));
+    }
+
+    /// <summary>Streams the frontier's answer, recording what left once it has all arrived.</summary>
+    private async IAsyncEnumerable<string> StreamAnswerAsync(
+        Guid traceId,
+        string question,
+        string prepared,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var answer = new System.Text.StringBuilder();
+        await foreach (var fragment in this.frontierChat.StreamAsync(
+                new FrontierPrompt(
+                    prepared, "augmented frontier turn", PrivacyClass.Egressable,
+                    traceId, ExecutionOrigin.UserTurn),
+                cancellationToken).ConfigureAwait(false))
+        {
+            answer.Append(fragment);
+            yield return fragment;
+        }
+
+        await this.RecordAsync(traceId, question, prepared, answer.ToString(), cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task<AssembledContext> RetrieveAsync(

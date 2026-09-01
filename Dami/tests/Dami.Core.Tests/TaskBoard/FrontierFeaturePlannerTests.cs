@@ -65,5 +65,13 @@ public sealed class FrontierFeaturePlannerTests
                  "tasks":[]}
                 """);
         }
+
+        public async IAsyncEnumerable<string> StreamAsync(
+            FrontierPrompt prompt,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            yield return await this.CompleteAsync(prompt, cancellationToken);
+        }
+
     }
 }

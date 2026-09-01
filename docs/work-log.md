@@ -9392,3 +9392,73 @@ Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
 **1518 passed, 0 failed, 21/21** — the whole solution, now that Codex's Scheduling slice
 has landed and `Dami.Core.Tests` compiles again. `tools/install-gui.sh` re-run; the
 instance Steve has open predates it and needs a relaunch.
+
+## 2026-09-01 — Claude — I was wrong about streaming; codex app-server does it
+
+Steve: "you don't need a fucking api key for streaming." Correct, and my claim that an API
+key was required was wrong twice over.
+
+**What I got wrong.** I tested `codex exec --json`, saw only `thread.started`,
+`turn.started`, `item.completed`, `turn.completed`, and concluded "the subscription
+transport is batch by construction." I generalised from one subcommand — the batch one our
+client happens to use — to the whole CLI, and then reported a blocker and asked Steve to
+pay for an API key to work around a limitation that does not exist. The interactive `codex`
+UI visibly streams; that alone should have told me the protocol underneath supports it.
+
+**What is actually true.** `codex app-server` is a JSON-RPC-over-stdio protocol whose
+schema (`codex app-server generate-json-schema`) declares `item/agentMessage/delta` —
+`AgentMessageDeltaNotification` — plus deltas for command output, file changes and plans.
+
+Proven end to end rather than inferred, after two failed probes that were my bugs (the
+thread id is at `result.thread.id`, not `result.threadId`):
+
+- `initialize` → `{clientInfo:{name,title,version}}`
+- `thread/start` → `{cwd}` → `result.thread.id`
+- `turn/start` → `{threadId, input:[{type:"text", text:"…"}]}`
+- then `item/agentMessage/delta` notifications carrying `params.delta` **token by token**,
+  followed by `item/completed`, `thread/tokenUsage/updated`, `turn/completed`.
+- `turn/interrupt` exists, which maps onto the session-interruption machinery G4 already
+  has.
+
+**Why this is better than the API key I proposed.** No key, no per-token bill, keeps
+ADR-0011's subscription decision intact, and it is a *persistent* process — so it also
+removes the per-turn `codex exec` spawn, which is part of the 4.8s frontier leg measured
+earlier tonight.
+
+**Measured cost of a turn as it stands** (trace `9bcf89cd`): retrieval 0.55s, disclosure
+gate 3.30s, frontier 4.83s, total 8.7s. Streaming does not shrink that total but moves
+first-token to roughly the 3.9s mark, and the gate is the remaining local cost in the
+conversation loop.
+
+Next: a streaming frontier client over app-server, an augmented streaming path, and the
+console consuming it. Planned before writing code, per AGENTS.md.
+
+**Built and proven.** Streaming over the subscription, no API key.
+
+- `CodexAppServer` — a persistent `codex app-server` process spoken to over stdio
+  JSON-RPC. One sequential read loop, not a reader task beside the request calls: the
+  protocol is strictly ordered and two readers on one pipe race for lines, losing the
+  first fragments of the answer. Fresh thread per turn on purpose — reusing one would
+  leave the previous turn's gated context in codex's own history, so turn two would
+  disclose what the gate approved for turn one.
+- `IFrontierChat.StreamAsync` — same door, same refusals, different reply shape.
+  `CodexChatClient` streams over app-server; `AnthropicChatClient` completes and yields
+  once rather than pretending to a granularity it does not have.
+- `AugmentedFrontierTurn.StreamAsync` — retrieval and the gate still finish first, because
+  nothing may leave until the gate has judged all of it; the answer then arrives as it is
+  written. The `EgressBrief` is recorded once the stream drains, so what left is still
+  auditable.
+- `/turns/stream` honours `augmented: true`; the GUI console now streams in **both** modes.
+
+**Proven against the real binary, not asserted.** A harness driving the actual
+`CodexAppServer` class: **93 fragments, first at 3.33s, last at 5.70s, spread 2.37s.**
+Token by token, not one blob. Three protocol details are pinned as tests because each one
+produced an empty stream and no error: the fragment is at `params.delta`, the thread id is
+at `result.thread.id` (not `result.threadId`), and the reader must stop on
+`turn/completed`/`turn/failed` or block on a live process forever.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1522 passed, 0 failed, 21/21 assemblies**.
+
+**Not deployed** — `tools/deploy.sh` needs sudo for the `/opt/dami` sync and this agent has
+had none since 08-27. Steve runs it. Until then the console still uses the batch path.

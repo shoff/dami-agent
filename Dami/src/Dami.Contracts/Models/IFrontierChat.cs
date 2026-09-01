@@ -14,4 +14,15 @@ public interface IFrontierChat
     /// The prompt is not Egressable, or the provider host is not allowlisted.
     /// </exception>
     Task<string> CompleteAsync(FrontierPrompt prompt, CancellationToken cancellationToken);
+
+    /// <summary>Completes, yielding the answer as it arrives.</summary>
+    /// <remarks>
+    /// The same door and the same refusals; only the shape of the reply differs. A
+    /// provider whose transport cannot stream implements this by completing and yielding
+    /// once, which keeps callers from having to ask which kind they hold.
+    /// </remarks>
+    /// <exception cref="Privacy.EgressRefusedException">
+    /// The prompt is not Egressable, or the provider host is not allowlisted.
+    /// </exception>
+    IAsyncEnumerable<string> StreamAsync(FrontierPrompt prompt, CancellationToken cancellationToken);
 }

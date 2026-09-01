@@ -50,6 +50,35 @@ public static class TurnEndpoints
     }
 
     /// <summary>
+    /// The augmented turn, streamed: the gate finishes before anything leaves, then the
+    /// frontier's answer arrives token by token.
+    /// </summary>
+    private static async Task StreamAugmentedAsync(
+        string message,
+        Dami.Core.Frontier.AugmentedFrontierTurn augmentedTurn,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        var stream = await augmentedTurn.StreamAsync(message, [], cancellationToken)
+            .ConfigureAwait(false);
+        http.Response.ContentType = "text/event-stream";
+        http.Response.Headers.Append("X-Dami-Trace", stream.TraceId.ToString("N"));
+        http.Response.Headers.Append("X-Dami-Route", "Frontier (locally augmented)");
+        http.Response.Headers.Append("X-Dami-Ctx-Tokens", stream.EstimatedTokens.ToString());
+        http.Response.Headers.Append("X-Dami-Memories", stream.ContextItems.ToString());
+        http.Response.Headers.Append("X-Dami-Beliefs", "0");
+
+        await foreach (var fragment in stream.Tokens
+            .WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            await http.Response
+                .WriteAsync($"data: {fragment.Replace("\n", "\ndata: ")}\n\n", cancellationToken)
+                .ConfigureAwait(false);
+            await http.Response.Body.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     /// Retrieval happens locally; the frontier answers on what the sidecar found. The
     /// local model is infrastructure here, not the brain.
     /// </summary>
@@ -132,8 +161,17 @@ public static class TurnEndpoints
     private static void MapStream(WebApplication app)
     {
         app.MapPost("/turns/stream", async (
-            TurnRequest request, ITurnRunner runner, HttpContext http, CancellationToken token) =>
+            TurnRequest request, ITurnRunner runner,
+            Dami.Core.Frontier.AugmentedFrontierTurn augmentedTurn,
+            HttpContext http, CancellationToken token) =>
         {
+            if (request.Augmented)
+            {
+                await StreamAugmentedAsync(request.Message, augmentedTurn, http, token)
+                    .ConfigureAwait(false);
+                return;
+            }
+
             var stream = await runner.BeginStreamingAsync(request.Message, token).ConfigureAwait(false);
             http.Response.ContentType = "text/event-stream";
             http.Response.Headers.Append("X-Dami-Trace", stream.TraceId.ToString("N"));

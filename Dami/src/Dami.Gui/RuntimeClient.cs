@@ -112,11 +112,12 @@ public sealed class RuntimeClient
     /// <summary>Opens the stream, raising a named failure rather than yielding silence.</summary>
     private async Task<HttpResponseMessage> OpenStreamAsync(
         string message,
+        bool augmented,
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(BASE_URL + "/turns/stream"))
         {
-            Content = JsonContent.Create(new { message }),
+            Content = JsonContent.Create(new { message, augmented }),
         };
         var response = await this.httpClient
             .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
@@ -135,9 +136,10 @@ public sealed class RuntimeClient
     /// <summary>Streams one turn's answer fragment by fragment as the model produces it.</summary>
     public async IAsyncEnumerable<string> StreamTurnAsync(
         string message,
+        bool augmented,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var response = await this.OpenStreamAsync(message, cancellationToken)
+        using var response = await this.OpenStreamAsync(message, augmented, cancellationToken)
             .ConfigureAwait(false);
         await using var body = await response.Content.ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);

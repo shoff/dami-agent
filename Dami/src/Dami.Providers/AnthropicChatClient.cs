@@ -82,6 +82,19 @@ public sealed class AnthropicChatClient : IFrontierChat
         return answer;
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// The Messages API can stream, but nothing here is wired for it and this client is
+    /// not the configured door. Completing and yielding once keeps the contract honest
+    /// rather than pretending to a granularity it does not have.
+    /// </remarks>
+    public async IAsyncEnumerable<string> StreamAsync(
+        FrontierPrompt prompt,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        yield return await this.CompleteAsync(prompt, cancellationToken).ConfigureAwait(false);
+    }
+
     private string? FindRefusal(FrontierPrompt prompt)
     {
         if (prompt.Privacy != PrivacyClass.Egressable)
