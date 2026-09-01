@@ -153,6 +153,14 @@ builder.Services.AddSingleton<FeaturePlanningService>();
 // turn has — no wider surface was opened for it.
 builder.Services.AddSingleton<TaskWorkService>();
 
+// Local vision, loopback only: the process that runs the Discord gateway needs it to read
+// what Steve sends (ADR-0026). It was registered in the proactive tier and the CLI but not
+// here, so an image had nothing on hand to look at it. Images never leave the host.
+builder.Services.Configure<Dami.Vision.OllamaVisionOptions>(
+    builder.Configuration.GetSection(Dami.Vision.OllamaVisionOptions.SECTION_NAME));
+builder.Services.AddHttpClient<IVisionClient, Dami.Vision.OllamaVisionClient>(client =>
+    client.Timeout = TimeSpan.FromMinutes(10));
+
 // Discord (ADR-0024, M1). Dormant unless Discord__Token and Discord__OwnerUserId are set,
 // which the systemd drop-in supplies; the registration is here rather than inside the
 // gateway so that what can reach off the host stays readable in one place.

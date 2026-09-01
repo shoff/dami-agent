@@ -17,7 +17,19 @@ namespace Dami.Core.Frontier;
 public interface IAugmentedTurn
 {
     /// <summary>Retrieves locally, redacts locally, and answers at the frontier.</summary>
-    Task<AugmentedTurnResult> RunAsync(string question, CancellationToken cancellationToken);
+    Task<AugmentedTurnResult> RunAsync(string question, CancellationToken cancellationToken) =>
+        this.RunAsync(question, [], cancellationToken);
+
+    /// <summary>The same, carrying prior exchanges from an ongoing conversation.</summary>
+    /// <remarks>
+    /// Prior exchanges go through the disclosure gate with retrieved memory rather than
+    /// around it. "What Dami said last message" is profile-derived too, and a history
+    /// that bypassed the gate would be the hole every other part of this class closes.
+    /// </remarks>
+    Task<AugmentedTurnResult> RunAsync(
+        string question,
+        IReadOnlyList<string> priorExchanges,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -85,16 +97,26 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
     }
 
     /// <summary>Retrieves locally, then asks the frontier on that context.</summary>
+    public Task<AugmentedTurnResult> RunAsync(
+        string question,
+        CancellationToken cancellationToken) =>
+        this.RunAsync(question, [], cancellationToken);
+
+    /// <inheritdoc />
     public async Task<AugmentedTurnResult> RunAsync(
         string question,
+        IReadOnlyList<string> priorExchanges,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(question);
+        ArgumentNullException.ThrowIfNull(priorExchanges);
 
         var traceId = Guid.NewGuid();
         var context = await this.RetrieveAsync(traceId, question, cancellationToken)
             .ConfigureAwait(false);
-        var lines = context.Beliefs.Concat(context.Memories).Select(item => item.Content).ToList();
+        var lines = priorExchanges
+            .Concat(context.Beliefs.Concat(context.Memories).Select(item => item.Content))
+            .ToList();
         var prepared = await this.PrepareAsync(traceId, question, lines, cancellationToken)
             .ConfigureAwait(false);
 

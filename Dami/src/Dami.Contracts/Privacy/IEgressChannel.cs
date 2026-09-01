@@ -22,19 +22,50 @@ public enum ContentProvenance
     ProfileDerived,
 }
 
+/// <summary>A file that arrived with a message, not yet fetched.</summary>
+/// <remarks>
+/// The bytes are deliberately absent. A channel yields what it was told about the file;
+/// fetching it is the channel's own transport concern, and a caller that never needs the
+/// content should never cause a download.
+/// </remarks>
+public sealed record InboundAttachment(
+    string FileName,
+    string Url,
+    string ContentType,
+    int SizeBytes)
+{
+    /// <summary>Whether the local vision model can be asked about this.</summary>
+    public bool IsImage =>
+        this.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>A file Dami is sending out, with its bytes.</summary>
+public sealed record OutboundAttachment(
+    string FileName,
+    ReadOnlyMemory<byte> Bytes,
+    string ContentType);
+
 /// <summary>Something a person sent to Dami over a channel.</summary>
 public sealed record InboundMessage(
     string AuthorId,
     string ConversationId,
     string Text,
-    DateTimeOffset ReceivedAt);
+    DateTimeOffset ReceivedAt)
+{
+    /// <summary>Files that came with it. Empty for a plain text message.</summary>
+    public IReadOnlyList<InboundAttachment> Attachments { get; init; } = [];
+}
 
 /// <summary>Something Dami is trying to send out over a channel.</summary>
 public sealed record OutboundContent(
     string ConversationId,
     string Text,
     ContentProvenance Provenance,
-    Guid TraceId);
+    Guid TraceId)
+{
+    /// <summary>Files to send with it. Empty for a plain text reply.</summary>
+    public IReadOnlyList<OutboundAttachment> Attachments { get; init; } = [];
+}
 
 /// <summary>
 /// A persistent, single-destination link that carries content in both directions (ADR-0024).

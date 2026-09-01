@@ -93,6 +93,7 @@ public sealed class TaskWorkServiceTests
 
         public Task<Dami.Core.Frontier.AugmentedTurnResult> RunAsync(
             string question,
+            IReadOnlyList<string> priorExchanges,
             CancellationToken cancellationToken)
         {
             this.Seen = question;

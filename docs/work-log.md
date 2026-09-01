@@ -8972,3 +8972,120 @@ in the dami-proactive drop-in and redeploys: download.nvidia.com, github.com,
 www.postgresql.org (H13); ubuntu.com, api.github.com (H11); api.fda.gov,
 www.saferproducts.gov (H12); api.weather.gov (H14). Committed and pushed at Steve's
 ask (2026-08-31).
+
+## 2026-08-31 — Claude — Discord: the local model stops answering (planned)
+
+Steve: "fix all of them the local model should not be directly answering me it should be
+used to ADD CONTEXT."
+
+That inverts the Discord path onto machinery that already exists and says so in its own
+remarks — `AugmentedFrontierTurn`: *"the frontier answers; the local sidecar does the
+mundane work that feeds it… the local model is infrastructure here, not the brain: it
+never writes the answer."* Built for C4/ADR-0013, wired to `/turns?augmented`, never
+wired to Discord. Discord asks for the unkeyed `ITracedTurnRunner`, which resolves to
+the local `TurnRunner` (`Dami.Host/Program.cs:55`).
+
+Planned, in one slice:
+
+1. **ADR-0026** — Discord answers from the frontier on locally-assembled, gated context.
+   Material change: a new recorded cost (the frontier provider holds redacted
+   profile-derived *context*, where ADR-0025 only recorded Discord holding
+   profile-derived *answers*). Reversal path recorded.
+2. **Conversation memory** — `ConversationWindow.Empty` at
+   `DiscordGatewayWorker.AnswerAsync` line 160 makes every message turn one. A session
+   per channel, its id derived deterministically from the channel id so no mapping
+   table and no schema coordination with Codex is needed; window read through the
+   existing `IConversationWindowBuilder`; turns journalled so it survives restart.
+3. **Images in** — `InboundMessage` has no attachment field and
+   `DiscordGatewayProtocol.ReadMessage` never reads Discord's `attachments` array, so an
+   image is invisible before any policy sees it. Parse them, download through the
+   channel's own transport (ADR-0024 keeps that separate from `IEgressClient`), caption
+   locally with `IVisionClient`, and feed the caption in as context — vision as context,
+   exactly the shape Steve asked for.
+4. **Vision in the Host** — `IVisionClient` is registered in `Dami.Host.Proactive` and
+   the CLI but not in `Dami.Host`, the process that runs the gateway.
+5. **Prior exchanges through the gate** — conversation history is profile-adjacent, so
+   it goes past `LocalDisclosureGate` with retrieved memory rather than around it.
+6. **Images out** — `OutboundContent` is text-only; add attachments and a multipart
+   send. **Generation itself has no backend**: verified this host has only qwen2.5vl
+   (vision input) and qwen3 (text), no diffusion weights, no ComfyUI/SD container. The
+   seam lands; the backend is Steve's call (paid API = egress + a key, or local weights
+   against a 16 GiB VRAM budget already holding TTS + embed + rerank + vision).
+
+Fallback that must hold: if the frontier is unreachable the gateway answers locally
+rather than going silent, and says which model answered.
+
+**Done, with evidence.** All six planned items, plus a defect the tests drove out.
+
+- **ADR-0026** written and accepted. The frontier answers Discord on locally-assembled,
+  gated context; the local models retrieve, caption, and classify. Reversal is one
+  config flag (`Discord:Frontier=false`), and a test asserts that flag actually works.
+- **`AugmentedFrontierTurn`** gained a prior-exchanges overload; history goes *through*
+  `LocalDisclosureGate` with retrieved memory rather than around it, because "what Dami
+  said last message" is profile-derived too. The old 2-arg call site is unchanged.
+- **Conversation memory**: `DiscordConversations.SessionFor` derives a stable session id
+  from the channel id (SHA-256, first 16 bytes, second 16 as the Guid.Empty escape) — no
+  mapping table, so no migration in a schema Codex also works in, and it survives
+  restarts by construction. Turns are journalled through the existing store.
+- **Images in**: `DiscordAttachment` on the protocol record, parsed from Discord's
+  `attachments` array; `InboundAttachment` on the contract; `DiscordVision` downloads and
+  captions with qwen2.5vl (≤4 images, ≤12 MB each), and the caption becomes context.
+  The image itself never leaves the host.
+- **Vision in the Host**: `IVisionClient` + a `Dami.Vision` project reference added to
+  `Dami.Host`, which had neither.
+- **Images out**: `OutboundAttachment` + multipart `PostMessageWithFilesAsync`.
+  Generation has no backend — `IImageGenerator` is declared with no implementation and
+  the ADR states why choosing one is Steve's call.
+
+**The defect the tests caught, worth recording.** `DiscordRest` set the bot token on
+`HttpClient.DefaultRequestHeaders`, which attaches it to *every* request that client
+makes — including the new attachment download, whose host is Discord's CDN and which
+never asked for a credential. Auth is now attached per request, and
+`DownloadAsync_Should_Not_Send_The_Bot_Token_To_A_Cdn` pins it. Written as a test of
+intent, it failed on the first run for the right reason.
+
+Also added `DiscordCompositionTests`: the gateway's dependency graph is now built for
+real with Discord configured. Every other Discord test constructs the worker directly,
+which is precisely what made them blind to the crash-loop class of failure — and
+ADR-0026 added four dependencies at once.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1448 passed, 0 failed, 21/21 assemblies** (+13 this slice).
+
+**Deployed and verified live** (Steve ran `tools/deploy.sh` + the restart, 2026-08-31
+19:53:21 CDT). Evidence rather than assumption:
+
+- `dami-host` and `dami-proactive` both `active (running)`; nothing at error level in
+  either journal since the restart.
+- `GET /fitness` answers `140 cardio / 318 sets / 21 weigh-ins` — the Health tab has a
+  backend on the deployed host for the first time.
+- `Gateway discord: authority acquired` → `Discord gateway has authority; listening` →
+  `identified; heartbeat every 41s`, on the ADR-0026 build.
+- All six new watchers ran and ended `Completed`: release-watch, cve-watch,
+  recall-collector, recall-match, weather-collector, weather-window. Every one was
+  refused at the allowlist and **warned rather than died**, which is the designed
+  failure mode observed rather than asserted. Exactly the eight expected hosts refused:
+  download.nvidia.com, github.com, www.postgresql.org, ubuntu.com, api.github.com,
+  api.fda.gov, www.saferproducts.gov, api.weather.gov.
+
+Still needed to light the watchers: those eight in `Egress__AllowedHosts` on the
+dami-proactive drop-in (indices continue from 2 — hnrss.org and lakevillemn.gov hold 0
+and 1), then `daemon-reload` + restart. Sudo, so Steve's.
+## 2026-08-31 — Codex — LLM-assisted scheduled jobs (discovery and claim)
+
+Steve requested conversational scheduling: Dami interviews him about recurring work,
+forms a plan, creates the schedule after agreement, and exposes description, dates,
+status, and run history in a Jobs dashboard opened from `Tasks > Jobs`; the application
+also gains a top `File`, `Tasks`, `About` menu strip.
+
+Read `docs/onboarding.md`, ADR-0018, the open PostgreSQL task board, the Avalonia shell,
+GUI tests, runtime HTTP client, and Host composition. The live board had no scheduling
+item, so added and claimed `62abdabd` (G16), with acceptance covering conversational
+refinement, explicit confirmation, persisted schedule/run state, and the GUI dashboard.
+Commands included `dami board dami --open`, `dami board add`, `dami board claim`, `rg`,
+`find`, and `sed`. No production code changed in this discovery step.
+
+One product boundary must be settled before behavior can be tested: whether a scheduled
+job executes a Dami prompt through the existing traced turn machinery, an arbitrary OS
+command through cron, or both. Arbitrary commands materially enlarge the execution and
+approval boundary; the existing architecture does not answer that choice.

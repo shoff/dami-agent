@@ -192,8 +192,10 @@ public sealed class DiscordEgressChannelTests
 
         await channel.SendAsync(content, CancellationToken.None);
 
-        await rest.Received(1).PostMessageAsync(
-            "chan-1", "You were in Chicago on Tuesday", Arg.Any<CancellationToken>());
+        await rest.Received(1).PostMessageWithFilesAsync(
+            "chan-1", "You were in Chicago on Tuesday",
+            Arg.Is<IReadOnlyList<OutboundAttachment>>(files => files.Count == 0),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -206,8 +208,10 @@ public sealed class DiscordEgressChannelTests
 
         await channel.SendAsync(content, CancellationToken.None);
 
-        await rest.Received(1).PostMessageAsync(
-            "chan-1", "3 tasks open on the board", Arg.Any<CancellationToken>());
+        await rest.Received(1).PostMessageWithFilesAsync(
+            "chan-1", "3 tasks open on the board",
+            Arg.Is<IReadOnlyList<OutboundAttachment>>(files => files.Count == 0),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

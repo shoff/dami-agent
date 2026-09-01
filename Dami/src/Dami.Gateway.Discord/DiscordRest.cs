@@ -22,9 +22,16 @@ public sealed class DiscordRest : IDiscordRest
     private const string API = "https://discord.com/api/v10";
 
     private readonly HttpClient http;
+    private readonly AuthenticationHeaderValue credential;
     private readonly ILogger<DiscordRest> logger;
 
     /// <summary>Creates the client.</summary>
+    /// <remarks>
+    /// The token is attached per request rather than to
+    /// <c>DefaultRequestHeaders</c>, because a default is attached to *every* request the
+    /// client makes — including the attachment download, whose host is Discord's CDN and
+    /// which never asked for a credential. A test pins that it is not sent there.
+    /// </remarks>
     public DiscordRest(HttpClient http, string token, ILogger<DiscordRest> logger)
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -32,9 +39,16 @@ public sealed class DiscordRest : IDiscordRest
         ArgumentNullException.ThrowIfNull(logger);
 
         this.http = http;
+        this.credential = new AuthenticationHeaderValue("Bot", token);
         this.logger = logger;
-        this.http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bot", token);
     }
+
+    /// <summary>An authenticated request to Discord's own API.</summary>
+    private HttpRequestMessage Api(HttpMethod method, string url, HttpContent content) =>
+        new(method, new Uri(url)) { Headers = { Authorization = this.credential }, Content = content };
+
+    private static HttpContent Json(string text) =>
+        JsonContent.Create(new { content = Truncate(text) });
 
     /// <inheritdoc />
     public async Task PostMessageAsync(string channelId, string text, CancellationToken cancellationToken)
@@ -43,9 +57,9 @@ public sealed class DiscordRest : IDiscordRest
         ArgumentNullException.ThrowIfNull(text);
 
         var url = $"{API}/channels/{channelId}/messages";
+        using var request = this.Api(HttpMethod.Post, url, Json(text));
         using var response = await this.http
-            .PostAsJsonAsync(url, new { content = Truncate(text) }, cancellationToken)
-            .ConfigureAwait(false);
+            .SendAsync(request, cancellationToken).ConfigureAwait(false);
 
         if (response.StatusCode == HttpStatusCode.TooManyRequests)
         {
@@ -54,6 +68,59 @@ public sealed class DiscordRest : IDiscordRest
         }
 
         response.EnsureSuccessStatusCode();
+    }
+
+    /// <inheritdoc />
+    public async Task PostMessageWithFilesAsync(
+        string channelId,
+        string text,
+        IReadOnlyList<Dami.Contracts.Privacy.OutboundAttachment> files,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelId);
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(files);
+
+        if (files.Count == 0)
+        {
+            await this.PostMessageAsync(channelId, text, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        // multipart/form-data with a payload_json part is Discord's documented shape for
+        // an upload; the files are indexed and referenced by that index.
+        using var form = new MultipartFormDataContent();
+        form.Add(
+            new StringContent(
+                System.Text.Json.JsonSerializer.Serialize(new { content = Truncate(text) })),
+            "payload_json");
+        for (var index = 0; index < files.Count; index++)
+        {
+            var file = new ByteArrayContent(files[index].Bytes.ToArray());
+            file.Headers.ContentType = new MediaTypeHeaderValue(files[index].ContentType);
+            form.Add(file, $"files[{index}]", files[index].FileName);
+        }
+
+        using var request = this.Api(
+            HttpMethod.Post, $"{API}/channels/{channelId}/messages", form);
+        using var response = await this.http
+            .SendAsync(request, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <inheritdoc />
+    public async Task<ReadOnlyMemory<byte>> DownloadAsync(
+        string url, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(url);
+
+        // Deliberately not built by Api(): the URL already carries its own signature, and
+        // sending credentials to a host that did not ask for them is how they leak.
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url));
+        using var response = await this.http
+            .SendAsync(request, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task RetryAfterAsync(
@@ -65,9 +132,9 @@ public sealed class DiscordRest : IDiscordRest
             wait.TotalSeconds.ToString("F1", CultureInfo.InvariantCulture));
 
         await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
+        using var request = this.Api(HttpMethod.Post, url, Json(text));
         using var retry = await this.http
-            .PostAsJsonAsync(url, new { content = Truncate(text) }, cancellationToken)
-            .ConfigureAwait(false);
+            .SendAsync(request, cancellationToken).ConfigureAwait(false);
         retry.EnsureSuccessStatusCode();
     }
 

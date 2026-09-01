@@ -19,6 +19,7 @@
     <ProjectReference Include="../Dami.Providers/Dami.Providers.csproj" />
     <ProjectReference Include="../Dami.Privacy/Dami.Privacy.csproj" />
     <ProjectReference Include="../Dami.Proactive/Dami.Proactive.csproj" />
+    <ProjectReference Include="../Dami.Vision/Dami.Vision.csproj" />
     <ProjectReference Include="..\Dami.Capabilities.Skills\Dami.Capabilities.Skills.csproj" />
     <ProjectReference Include="..\Dami.Host.Discord\Dami.Host.Discord.csproj" />
   </ItemGroup>

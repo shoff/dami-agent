@@ -179,4 +179,53 @@ public sealed class DiscordGatewayProtocolTests
         Assert.Equal("session-1", data.GetProperty("session_id").GetString());
         Assert.Equal(17, data.GetProperty("seq").GetInt32());
     }
+
+    [Fact]
+    public void ReadMessage_Should_Read_The_Attachments()
+    {
+        // These were dropped before any policy saw them, which is why an image was
+        // invisible to the whole gateway path (ADR-0026).
+        var frame = DiscordGatewayProtocol.ReadFrame(
+            """
+            {"op":0,"s":3,"t":"MESSAGE_CREATE","d":{
+              "id":"111","channel_id":"222","guild_id":"333","content":"what is this",
+              "attachments":[{"filename":"bolt.png","url":"https://cdn/bolt.png",
+                              "content_type":"image/png","size":2048}],
+              "author":{"id":"444","bot":false}}}
+            """)!;
+
+        var message = DiscordGatewayProtocol.ReadMessage(frame);
+
+        var attachment = Assert.Single(message!.Attachments);
+        Assert.Equal(
+            ("bolt.png", "https://cdn/bolt.png", "image/png", 2048),
+            (attachment.FileName, attachment.Url, attachment.ContentType, attachment.SizeBytes));
+    }
+
+    [Fact]
+    public void ReadMessage_Should_Have_No_Attachments_On_A_Plain_Message()
+    {
+        var frame = DiscordGatewayProtocol.ReadFrame(
+            """
+            {"op":0,"s":3,"t":"MESSAGE_CREATE","d":{
+              "id":"111","channel_id":"222","guild_id":"333","content":"hi",
+              "author":{"id":"444","bot":false}}}
+            """)!;
+
+        Assert.Empty(DiscordGatewayProtocol.ReadMessage(frame)!.Attachments);
+    }
+
+    [Fact]
+    public void ReadMessage_Should_Skip_An_Attachment_With_No_Url()
+    {
+        var frame = DiscordGatewayProtocol.ReadFrame(
+            """
+            {"op":0,"s":3,"t":"MESSAGE_CREATE","d":{
+              "id":"111","channel_id":"222","guild_id":"333","content":"hi",
+              "attachments":[{"filename":"broken.png"}],
+              "author":{"id":"444","bot":false}}}
+            """)!;
+
+        Assert.Empty(DiscordGatewayProtocol.ReadMessage(frame)!.Attachments);
+    }
 }

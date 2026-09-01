@@ -24,6 +24,15 @@ public sealed class DiscordOptions
     /// <summary>Whether the gateway should run at all.</summary>
     public bool Enabled { get; set; }
 
+    /// <summary>
+    /// Whether the frontier answers on locally-assembled context (ADR-0026). False makes
+    /// the local sidecar answer directly again, which is that decision's reversal path.
+    /// </summary>
+    public bool Frontier { get; set; } = true;
+
+    /// <summary>Prior exchanges carried into a turn. The window is bounded on purpose.</summary>
+    public int HistoryTurns { get; set; } = 6;
+
     /// <summary>Whether the options are complete enough to connect.</summary>
     public bool IsConfigured =>
         this.Enabled && this.Token.Length > 0 && this.OwnerUserId.Length > 0;

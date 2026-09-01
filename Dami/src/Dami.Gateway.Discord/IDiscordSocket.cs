@@ -61,4 +61,23 @@ public interface IDiscordRest
 {
     /// <summary>Posts a message to a channel.</summary>
     Task PostMessageAsync(string channelId, string text, CancellationToken cancellationToken);
+
+    /// <summary>Posts a message carrying files.</summary>
+    Task PostMessageWithFilesAsync(
+        string channelId,
+        string text,
+        IReadOnlyList<Dami.Contracts.Privacy.OutboundAttachment> files,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Fetches an attachment Discord already holds, so the local vision model can be
+    /// asked about it.
+    /// </summary>
+    /// <remarks>
+    /// The channel's own transport, not <see cref="Dami.Contracts.Privacy.IEgressClient"/>:
+    /// ADR-0024 separated the two precisely so a gateway's two-way traffic does not have
+    /// to be expressed as a fetch. Nothing about Steve travels outward in this request —
+    /// it is a GET of a URL Discord itself just handed us.
+    /// </remarks>
+    Task<ReadOnlyMemory<byte>> DownloadAsync(string url, CancellationToken cancellationToken);
 }

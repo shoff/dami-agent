@@ -33,6 +33,13 @@ public enum DiscordOpcode
 /// <summary>One decoded gateway frame.</summary>
 public sealed record GatewayFrame(DiscordOpcode Opcode, int? Sequence, string? EventName, JsonElement Data);
 
+/// <summary>A file Discord says came with a message.</summary>
+public sealed record DiscordAttachment(
+    string FileName,
+    string Url,
+    string ContentType,
+    int SizeBytes);
+
 /// <summary>A message Discord pushed at us, before any policy is applied.</summary>
 public sealed record DiscordMessage(
     string MessageId,
@@ -40,7 +47,8 @@ public sealed record DiscordMessage(
     string GuildId,
     string AuthorId,
     bool AuthorIsBot,
-    string Content);
+    string Content,
+    IReadOnlyList<DiscordAttachment> Attachments);
 
 /// <summary>Reads and writes the gateway wire format.</summary>
 /// <remarks>
@@ -143,7 +151,42 @@ public static class DiscordGatewayProtocol
             author.ValueKind == JsonValueKind.Object
                 && author.TryGetProperty("bot", out var bot)
                 && bot.ValueKind == JsonValueKind.True,
-            Text(frame.Data, "content"));
+            Text(frame.Data, "content"),
+            ReadAttachments(frame.Data));
+    }
+
+    /// <summary>
+    /// The files Discord says came with the message. Nothing is downloaded here — the
+    /// URL and the declared type are enough to decide whether anything wants the bytes.
+    /// </summary>
+    private static IReadOnlyList<DiscordAttachment> ReadAttachments(JsonElement data)
+    {
+        if (!data.TryGetProperty("attachments", out var attachments)
+            || attachments.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var files = new List<DiscordAttachment>();
+        foreach (var attachment in attachments.EnumerateArray())
+        {
+            var url = Text(attachment, "url");
+            if (url.Length == 0)
+            {
+                continue;
+            }
+
+            files.Add(new DiscordAttachment(
+                Text(attachment, "filename"),
+                url,
+                Text(attachment, "content_type"),
+                attachment.TryGetProperty("size", out var size)
+                    && size.ValueKind == JsonValueKind.Number
+                        ? size.GetInt32()
+                        : 0));
+        }
+
+        return files;
     }
 
     private static string Text(JsonElement element, string property) =>

@@ -1,6 +1,8 @@
 using Dami.Contracts.Gateways;
 using Dami.Contracts.Privacy;
 using Dami.Contracts.Proactive;
+using Dami.Contracts.Sessions;
+using Dami.Core.Frontier;
 using Dami.Core.Sessions;
 using Dami.Core.Turns;
 using Dami.Gateway.Discord;
@@ -22,6 +24,10 @@ public sealed class DiscordGatewayWorker : BackgroundService
     private readonly IGatewayAuthority authority;
     private readonly IEgressChannel channel;
     private readonly ITracedTurnRunner turns;
+    private readonly IAugmentedTurn augmented;
+    private readonly DiscordVision vision;
+    private readonly IConversationSessionStore sessions;
+    private readonly IConversationTurnStore turnStore;
     private readonly IProactiveRunHistory history;
     private readonly TimeProvider clock;
     private readonly DiscordOptions options;
@@ -32,6 +38,10 @@ public sealed class DiscordGatewayWorker : BackgroundService
         IGatewayAuthority authority,
         IEgressChannel channel,
         ITracedTurnRunner turns,
+        IAugmentedTurn augmented,
+        DiscordVision vision,
+        IConversationSessionStore sessions,
+        IConversationTurnStore turnStore,
         IProactiveRunHistory history,
         TimeProvider clock,
         DiscordOptions options,
@@ -40,6 +50,10 @@ public sealed class DiscordGatewayWorker : BackgroundService
         ArgumentNullException.ThrowIfNull(authority);
         ArgumentNullException.ThrowIfNull(channel);
         ArgumentNullException.ThrowIfNull(turns);
+        ArgumentNullException.ThrowIfNull(augmented);
+        ArgumentNullException.ThrowIfNull(vision);
+        ArgumentNullException.ThrowIfNull(sessions);
+        ArgumentNullException.ThrowIfNull(turnStore);
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(options);
@@ -48,6 +62,10 @@ public sealed class DiscordGatewayWorker : BackgroundService
         this.authority = authority;
         this.channel = channel;
         this.turns = turns;
+        this.augmented = augmented;
+        this.vision = vision;
+        this.sessions = sessions;
+        this.turnStore = turnStore;
         this.history = history;
         this.clock = clock;
         this.options = options;
@@ -148,6 +166,9 @@ public sealed class DiscordGatewayWorker : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Answers one message: local models look and remember, the frontier thinks (ADR-0026).
+    /// </summary>
     private async Task AnswerAsync(InboundMessage message, CancellationToken cancellationToken)
     {
         if (await this.TryOperationalAsync(message, cancellationToken).ConfigureAwait(false))
@@ -155,20 +176,107 @@ public sealed class DiscordGatewayWorker : BackgroundService
             return;
         }
 
+        var sessionId = DiscordConversations.SessionFor(message.ConversationId);
+        await DiscordConversations
+            .EnsureAsync(this.sessions, sessionId, this.clock.GetUtcNow(), cancellationToken)
+            .ConfigureAwait(false);
+
+        var captions = await this.vision.DescribeAsync(message, cancellationToken)
+            .ConfigureAwait(false);
+        var question = DiscordPrompt.Question(message, captions);
+        if (question.Length == 0)
+        {
+            return;
+        }
+
+        var prior = await this.PriorExchangesAsync(sessionId, cancellationToken).ConfigureAwait(false);
+        var (answer, traceId, provenance) = await this
+            .ThinkAsync(question, prior, cancellationToken).ConfigureAwait(false);
+
+        await this.SendOrExplainAsync(
+            new OutboundContent(message.ConversationId, answer, provenance, traceId),
+            traceId, cancellationToken).ConfigureAwait(false);
+        await this.JournalAsync(sessionId, question, answer, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The frontier answers on locally-assembled context; the local model answers only
+    /// when the frontier cannot be reached.
+    /// </summary>
+    /// <remarks>
+    /// Falling back rather than failing, because a subscription hiccup should degrade the
+    /// answer and not the gateway — and the reply says which model produced it, so a worse
+    /// answer is never quietly passed off as the good one.
+    /// </remarks>
+    private async Task<(string Answer, Guid TraceId, ContentProvenance Provenance)> ThinkAsync(
+        string question, IReadOnlyList<string> prior, CancellationToken cancellationToken)
+    {
+        if (this.options.Frontier)
+        {
+            try
+            {
+                var frontier = await this.augmented
+                    .RunAsync(question, prior, cancellationToken).ConfigureAwait(false);
+                this.logger.LogInformation(
+                    "Discord turn {Trace} answered by the frontier on {Items} local item(s)",
+                    frontier.TraceId, frontier.ContextItems);
+
+                // The augmented turn already gated and redacted everything that left this
+                // host, and what came back is the frontier's own prose.
+                return (frontier.Answer, frontier.TraceId, ContentProvenance.ProfileDerived);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                this.logger.LogWarning(exception, "Frontier turn failed; answering locally");
+            }
+        }
+
         var traceId = Guid.NewGuid();
-        var result = await this.turns
-            .RunTracedAsync(traceId, message.Text, ConversationWindow.Empty, cancellationToken)
+        var local = await this.turns
+            .RunTracedAsync(traceId, question, ConversationWindow.Empty, cancellationToken)
             .ConfigureAwait(false);
 
         // The worker labels; the channel decides (ADR-0025). Keeping the judgement in one
         // place stops the two disagreeing, which is how the gateway ended up refusing a
         // greeting while believing it was enforcing D-012.
-        var provenance = DiscordAnswer.ProvenanceOf(result);
-        var reply = new OutboundContent(
-            message.ConversationId, result.Answer, provenance, result.TraceId);
+        var note = this.options.Frontier ? "\n\n_(answered locally — the frontier was unreachable)_" : string.Empty;
+        return (local.Answer + note, local.TraceId, DiscordAnswer.ProvenanceOf(local));
+    }
 
-        await this.SendOrExplainAsync(reply, result.TraceId, cancellationToken).ConfigureAwait(false);
-        this.logger.LogInformation(
-            "Discord turn {Trace} answered as {Provenance}", result.TraceId, provenance);
+    /// <summary>The recent conversation, so the next message is not turn one again.</summary>
+    private async Task<IReadOnlyList<string>> PriorExchangesAsync(
+        Guid sessionId, CancellationToken cancellationToken)
+    {
+        var turns = new List<(string, string)>();
+        await foreach (var turn in this.turnStore
+            .RecentCompletedTurnsAsync(sessionId, this.options.HistoryTurns, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            turns.Add((turn.Request.Message, turn.Response ?? string.Empty));
+        }
+
+        return DiscordPrompt.Exchanges(turns);
+    }
+
+    /// <summary>Records the exchange, so it survives a restart and builds the next window.</summary>
+    private async Task JournalAsync(
+        Guid sessionId, string question, string answer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var requestId = Guid.NewGuid();
+            var now = this.clock.GetUtcNow();
+            await this.turnStore.ReserveTurnAsync(
+                new ConversationTurnRequest(sessionId, requestId, question, now),
+                cancellationToken).ConfigureAwait(false);
+            await this.turnStore.CompleteTurnAsync(
+                sessionId, requestId, answer, now, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // Steve already has his answer; losing the journal entry costs the next
+            // message its memory, which is worth a warning and not a failed turn.
+            this.logger.LogWarning(exception, "Could not journal a Discord turn");
+        }
     }
 }

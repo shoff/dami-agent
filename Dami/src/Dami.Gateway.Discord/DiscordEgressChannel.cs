@@ -63,7 +63,8 @@ public sealed class DiscordEgressChannel : IEgressChannel
         // this channel ever replies into is Steve's own. The recipient is the subject.
         ChannelDisclosurePolicy.EnsureMayLeave(content, this.ChannelName, recipientIsDataSubject: true);
         await this.rest
-            .PostMessageAsync(content.ConversationId, content.Text, cancellationToken)
+            .PostMessageWithFilesAsync(
+                content.ConversationId, content.Text, content.Attachments, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -350,7 +351,11 @@ public sealed class DiscordEgressChannel : IEgressChannel
         }
 
         var inbound = new InboundMessage(
-            message.AuthorId, message.ChannelId, message.Content, this.clock.GetUtcNow());
+            message.AuthorId, message.ChannelId, message.Content, this.clock.GetUtcNow())
+        {
+            Attachments = [.. message.Attachments.Select(file => new InboundAttachment(
+                file.FileName, file.Url, file.ContentType, file.SizeBytes))],
+        };
 
         if (ChannelDisclosurePolicy.ShouldAnswer(inbound, this.options.OwnerUserId, this.session.SelfId))
         {

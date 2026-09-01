@@ -34,6 +34,18 @@ public static class DiscordComposition
             return services;
         }
 
+        AddTransport(services, options);
+
+        // The local vision model reads what Steve sends; the caption becomes context and
+        // the image itself never leaves this host (ADR-0026).
+        services.AddSingleton<DiscordVision>();
+
+        services.AddHostedService<DiscordGatewayWorker>();
+        return services;
+    }
+
+    private static void AddTransport(IServiceCollection services, DiscordOptions options)
+    {
         services.AddHttpClient(nameof(DiscordRest));
         services.AddSingleton<IDiscordRest>(provider => new DiscordRest(
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(DiscordRest)),
@@ -46,9 +58,6 @@ public static class DiscordComposition
             options,
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<DiscordEgressChannel>>()));
-
-        services.AddHostedService<DiscordGatewayWorker>();
-        return services;
     }
 
     private static DiscordOptions Read(IConfiguration configuration)
@@ -60,6 +69,12 @@ public static class DiscordComposition
             OwnerUserId = section["OwnerUserId"] ?? string.Empty,
             GuildId = section["GuildId"] ?? string.Empty,
             Enabled = bool.TryParse(section["Enabled"], out var enabled) && enabled,
+
+            // Defaults on, per ADR-0026; only an explicit false turns it off.
+            Frontier = !bool.TryParse(section["Frontier"], out var frontier) || frontier,
+            HistoryTurns = int.TryParse(section["HistoryTurns"], out var history) && history > 0
+                ? history
+                : 6,
         };
     }
 }
