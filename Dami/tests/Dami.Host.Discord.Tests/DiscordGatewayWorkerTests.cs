@@ -161,15 +161,30 @@ public sealed class DiscordGatewayWorkerTests
     }
 
     [Fact]
-    public async Task Should_Send_An_Operational_Answer()
+    public async Task Should_Answer_Status_From_Runtime_State_Without_A_Turn()
     {
-        var harness = Listening(From("status?"));
+        // This test used to stub the turn runner and assert the runner's answer came back,
+        // so it passed whether or not the operational path fired — mutation testing found
+        // it. What matters is that "status" is answered WITHOUT assembling context, since
+        // doing so would retrieve Steve's memories in order to report service health.
+        var harness = Listening(From("status"));
         Answers(harness, Answer(PrivacyClass.Egressable, withMemory: false));
 
         await RunAsync(harness.Build());
 
+        await harness.Turns.DidNotReceive().RunTracedAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<ConversationWindow>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Send_Operational_Content_As_Operational_Provenance()
+    {
+        var harness = Listening(From("status"));
+
+        await RunAsync(harness.Build());
+
         await harness.Channel.Received(1).SendAsync(
-            Arg.Is<OutboundContent>(content => content.Text.Contains("the answer text", StringComparison.Ordinal)),
+            Arg.Is<OutboundContent>(content => content.Provenance == ContentProvenance.Operational),
             Arg.Any<CancellationToken>());
     }
 
@@ -308,9 +323,13 @@ public sealed class DiscordGatewayWorkerTests
 
         await RunAsync(harness.Build());
 
+        // The caption must arrive as GATED context, never inside the question — the
+        // question is appended to the frontier prompt ungated, and an image is LocalOnly
+        // under D-012. An earlier version put it in the question and leaked it.
         await harness.Augmented.Received(1).RunAsync(
-            Arg.Is<string>(question => question.Contains("a rusted hex bolt", StringComparison.Ordinal)),
-            Arg.Any<IReadOnlyList<string>>(),
+            Arg.Is<string>(question => !question.Contains("a rusted hex bolt", StringComparison.Ordinal)),
+            Arg.Is<IReadOnlyList<string>>(context =>
+                context.Any(line => line.Contains("a rusted hex bolt", StringComparison.Ordinal))),
             Arg.Any<CancellationToken>());
     }
 

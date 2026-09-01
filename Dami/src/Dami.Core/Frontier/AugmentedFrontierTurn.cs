@@ -20,15 +20,17 @@ public interface IAugmentedTurn
     Task<AugmentedTurnResult> RunAsync(string question, CancellationToken cancellationToken) =>
         this.RunAsync(question, [], cancellationToken);
 
-    /// <summary>The same, carrying prior exchanges from an ongoing conversation.</summary>
+    /// <summary>The same, carrying context the caller derived on this host.</summary>
     /// <remarks>
-    /// Prior exchanges go through the disclosure gate with retrieved memory rather than
-    /// around it. "What Dami said last message" is profile-derived too, and a history
-    /// that bypassed the gate would be the hole every other part of this class closes.
+    /// Everything in <paramref name="localContext"/> goes through the disclosure gate with
+    /// retrieved memory rather than around it — prior exchanges, image captions, anything
+    /// this host produced about Steve. The question is his own words and is appended
+    /// ungated; anything derived belongs here instead, because a caller that folds derived
+    /// text into the question egresses it unjudged.
     /// </remarks>
     Task<AugmentedTurnResult> RunAsync(
         string question,
-        IReadOnlyList<string> priorExchanges,
+        IReadOnlyList<string> localContext,
         CancellationToken cancellationToken);
 }
 
@@ -105,16 +107,16 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
     /// <inheritdoc />
     public async Task<AugmentedTurnResult> RunAsync(
         string question,
-        IReadOnlyList<string> priorExchanges,
+        IReadOnlyList<string> localContext,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(question);
-        ArgumentNullException.ThrowIfNull(priorExchanges);
+        ArgumentNullException.ThrowIfNull(localContext);
 
         var traceId = Guid.NewGuid();
         var context = await this.RetrieveAsync(traceId, question, cancellationToken)
             .ConfigureAwait(false);
-        var lines = priorExchanges
+        var lines = localContext
             .Concat(context.Beliefs.Concat(context.Memories).Select(item => item.Content))
             .ToList();
         var prepared = await this.PrepareAsync(traceId, question, lines, cancellationToken)

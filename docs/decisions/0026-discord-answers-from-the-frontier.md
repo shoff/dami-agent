@@ -81,6 +81,17 @@ Image *captions* are produced locally by qwen2.5vl and are then context like any
 they pass the gate before any of them can reach the frontier. An image itself never
 leaves this host.
 
+**Correction, 2026-08-31.** That paragraph was false when written. The first
+implementation folded captions into the *question*, and the question is appended to the
+frontier prompt after the gated block — so captions egressed unjudged, and since the
+vision prompt asks for any text in the image, a photographed lab result or statement left
+verbatim. Found by an adversarial audit the same day. `DiscordPrompt` now splits the two
+explicitly: `Question` is Steve's own words, `LocalContext` is everything this host
+derived — prior exchanges and captions — and only the latter reaches the frontier, through
+the gate. `IAugmentedTurn`'s second parameter was renamed `priorExchanges` →
+`localContext` so the contract says what it is for. A test asserts the caption is absent
+from the question and present in the gated context.
+
 What does not change: `ChannelDisclosurePolicy` still drops every inbound message that is
 not from `OwnerUserId`, so the only conversation this affects is Steve's own. A future
 channel whose recipient is not Steve still refuses under ADR-0025 and still needs its own

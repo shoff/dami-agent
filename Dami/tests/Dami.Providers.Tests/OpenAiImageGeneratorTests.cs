@@ -23,14 +23,22 @@ public sealed class OpenAiImageGeneratorTests
 
         public string Body { get; set; } = string.Empty;
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        /// <summary>What the caller actually put on the wire.</summary>
+        public string Sent { get; private set; } = string.Empty;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             this.Request = request;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            if (request.Content is not null)
+            {
+                this.Sent = await request.Content.ReadAsStringAsync(cancellationToken);
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(this.Body),
-            });
+            };
         }
     }
 
@@ -173,5 +181,16 @@ public sealed class OpenAiImageGeneratorTests
         // A 200 with an empty data array is the shape a quota or safety refusal takes.
         Assert.Throws<InvalidOperationException>(
             () => OpenAiImageGenerator.Read("""{"data":[]}""", Request()));
+    }
+    [Fact]
+    public async Task Should_Send_The_Prompt_As_The_Prompt()
+    {
+        // Mutation testing found this untested: swapping Prompt for Purpose in the body
+        // sends the wrong string to a paid API and no test noticed.
+        var (generator, handler, _) = Create();
+
+        await generator.GenerateAsync(Request(), CancellationToken.None);
+
+        Assert.Contains("\"prompt\":\"a portrait\"", handler.Sent, StringComparison.Ordinal);
     }
 }

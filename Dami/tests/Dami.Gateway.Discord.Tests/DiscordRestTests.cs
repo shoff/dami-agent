@@ -107,4 +107,28 @@ public sealed class DiscordRestTests
 
         Assert.Null(handler.Request!.Headers.Authorization);
     }
+    [Fact]
+    public async Task PostMessageAsync_Should_Send_The_Bot_Auth_Scheme()
+    {
+        // Mutation testing found this untested: dropping the "Bot" scheme 401s every API
+        // call and the gateway goes mute, with nothing in the suite noticing.
+        var (rest, handler) = Create();
+
+        await rest.PostMessageAsync("chan-1", "hello", CancellationToken.None);
+
+        Assert.Equal("Bot", handler.Request!.Headers.Authorization!.Scheme);
+    }
+
+    [Fact]
+    public async Task PostMessageWithFilesAsync_Should_Send_The_Bot_Auth_Scheme()
+    {
+        var (rest, handler) = Create();
+
+        await rest.PostMessageWithFilesAsync(
+            "chan-1", "hi",
+            [new OutboundAttachment("a.png", new ReadOnlyMemory<byte>([1]), "image/png")],
+            CancellationToken.None);
+
+        Assert.Equal("Bot", handler.Request!.Headers.Authorization!.Scheme);
+    }
 }

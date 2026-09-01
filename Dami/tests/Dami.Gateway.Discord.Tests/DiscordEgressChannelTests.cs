@@ -22,6 +22,13 @@ public sealed class DiscordEgressChannelTests
         + "\"resume_gateway_url\":\"wss://resume.example.discord.gg\","
         + "\"user\":{\"id\":\"" + SELF + "\"}}}";
 
+    /// <summary>A direct message: Discord omits guild_id entirely.</summary>
+    private static string DirectMessage(string authorId, string text) =>
+        "{\"op\":0,\"s\":2,\"t\":\"MESSAGE_CREATE\",\"d\":{\"id\":\"1\","
+        + "\"channel_id\":\"chan-1\","
+        + "\"content\":\"" + text + "\","
+        + "\"author\":{\"id\":\"" + authorId + "\",\"bot\":false}}}";
+
     private static string Message(string authorId, string text, string guildId = GUILD) =>
         "{\"op\":0,\"s\":2,\"t\":\"MESSAGE_CREATE\",\"d\":{\"id\":\"1\","
         + "\"channel_id\":\"chan-1\",\"guild_id\":\"" + guildId + "\","
@@ -182,11 +189,13 @@ public sealed class DiscordEgressChannelTests
     [Fact]
     public async Task SendAsync_Should_Carry_Profile_Derived_Content_To_Its_Own_Subject()
     {
-        // ADR-0025. This channel only ever replies into Steve's own conversation, because
-        // ShouldAnswer drops every inbound message that is not his. Refusing here was what
-        // made the gateway answer "hi there" by quoting a decision record at him.
+        // ADR-0025: in Steve's own DM the reader IS the subject, so it goes. Refusing here
+        // was what made the gateway answer "hi there" by quoting a decision record at him.
+        // The DM must be seen first — the audience is learned from inbound traffic, and an
+        // unknown conversation fails safe.
         var rest = Substitute.For<IDiscordRest>();
-        var channel = Channel(new ScriptedSocket(), rest);
+        var channel = Channel(new ScriptedSocket(HELLO, ready, DirectMessage(OWNER, "hi")), rest);
+        await HeardAsync(channel, 1, TimeSpan.FromSeconds(5));
         var content = new OutboundContent(
             "chan-1", "You were in Chicago on Tuesday", ContentProvenance.ProfileDerived, Guid.NewGuid());
 
@@ -273,5 +282,53 @@ public sealed class DiscordEgressChannelTests
         Assert.Contains("token", new DiscordClose(4004, "x").Advice, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("MESSAGE CONTENT", new DiscordClose(4014, "x").Advice, StringComparison.Ordinal);
         Assert.False(new DiscordClose(1006, "abnormal closure").IsFatal);
+    }
+    [Fact]
+    public async Task SendAsync_Should_Refuse_Profile_Derived_Content_In_A_Guild_Channel()
+    {
+        // ADR-0025 promises exactly this and the code did not implement it: the author
+        // filter proves who ASKED, never who can READ. A guild channel has an audience.
+        var socket = new ScriptedSocket(HELLO, ready, Message(OWNER, "where was I?"));
+        var rest = Substitute.For<IDiscordRest>();
+        var channel = Channel(socket, rest);
+        await HeardAsync(channel, 1, TimeSpan.FromSeconds(5));
+
+        await Assert.ThrowsAsync<EgressRefusedException>(() => channel.SendAsync(
+            new OutboundContent(
+                "chan-1", "You were in Chicago on Tuesday",
+                ContentProvenance.ProfileDerived, Guid.NewGuid()),
+            CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Allow_Operational_Content_In_A_Guild_Channel()
+    {
+        // Board state and service status say nothing about Steve; the guild may read them.
+        var socket = new ScriptedSocket(HELLO, ready, Message(OWNER, "status?"));
+        var rest = Substitute.For<IDiscordRest>();
+        var channel = Channel(socket, rest);
+        await HeardAsync(channel, 1, TimeSpan.FromSeconds(5));
+
+        await channel.SendAsync(
+            new OutboundContent(
+                "chan-1", "3 tasks open", ContentProvenance.Operational, Guid.NewGuid()),
+            CancellationToken.None);
+
+        await rest.Received(1).PostMessageWithFilesAsync(
+            "chan-1", "3 tasks open",
+            Arg.Any<IReadOnlyList<OutboundAttachment>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Refuse_Profile_Derived_Content_To_An_Unknown_Conversation()
+    {
+        // Nothing has been received from this conversation, so nothing is known about its
+        // audience. Fail safe rather than assume privacy.
+        var channel = Channel(new ScriptedSocket());
+
+        await Assert.ThrowsAsync<EgressRefusedException>(() => channel.SendAsync(
+            new OutboundContent(
+                "never-seen", "You were in Chicago", ContentProvenance.ProfileDerived, Guid.NewGuid()),
+            CancellationToken.None));
     }
 }

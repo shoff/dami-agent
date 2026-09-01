@@ -176,22 +176,21 @@ public sealed class DiscordGatewayWorker : BackgroundService
             return;
         }
 
-        var sessionId = DiscordConversations.SessionFor(message.ConversationId);
-        await DiscordConversations
-            .EnsureAsync(this.sessions, sessionId, this.clock.GetUtcNow(), cancellationToken)
-            .ConfigureAwait(false);
-
-        var captions = await this.vision.DescribeAsync(message, cancellationToken)
-            .ConfigureAwait(false);
-        var question = DiscordPrompt.Question(message, captions);
+        var question = DiscordPrompt.Question(message);
         if (question.Length == 0)
         {
             return;
         }
 
-        var prior = await this.PriorExchangesAsync(sessionId, cancellationToken).ConfigureAwait(false);
+        var sessionId = DiscordConversations.SessionFor(message.ConversationId);
+        await DiscordConversations
+            .EnsureAsync(this.sessions, sessionId, this.clock.GetUtcNow(), cancellationToken)
+            .ConfigureAwait(false);
+
+        var localContext = await this.LocalContextAsync(message, sessionId, cancellationToken)
+            .ConfigureAwait(false);
         var (answer, traceId, provenance) = await this
-            .ThinkAsync(question, prior, cancellationToken).ConfigureAwait(false);
+            .ThinkAsync(question, localContext, cancellationToken).ConfigureAwait(false);
 
         await this.SendOrExplainAsync(
             new OutboundContent(message.ConversationId, answer, provenance, traceId),
@@ -209,14 +208,14 @@ public sealed class DiscordGatewayWorker : BackgroundService
     /// answer is never quietly passed off as the good one.
     /// </remarks>
     private async Task<(string Answer, Guid TraceId, ContentProvenance Provenance)> ThinkAsync(
-        string question, IReadOnlyList<string> prior, CancellationToken cancellationToken)
+        string question, IReadOnlyList<string> localContext, CancellationToken cancellationToken)
     {
         if (this.options.Frontier)
         {
             try
             {
                 var frontier = await this.augmented
-                    .RunAsync(question, prior, cancellationToken).ConfigureAwait(false);
+                    .RunAsync(question, localContext, cancellationToken).ConfigureAwait(false);
                 this.logger.LogInformation(
                     "Discord turn {Trace} answered by the frontier on {Items} local item(s)",
                     frontier.TraceId, frontier.ContextItems);
@@ -243,8 +242,27 @@ public sealed class DiscordGatewayWorker : BackgroundService
         return (local.Answer + note, local.TraceId, DiscordAnswer.ProvenanceOf(local));
     }
 
+    /// <summary>
+    /// Everything this host derived for the turn: the recent conversation, so the next
+    /// message is not turn one again, and captions of any images.
+    /// </summary>
+    /// <remarks>
+    /// Captions are derived from LocalOnly images, so they belong in the gated context
+    /// rather than in the question — the question is appended to the frontier prompt
+    /// ungated, and a caption there would leave the host unjudged.
+    /// </remarks>
+    private async Task<IReadOnlyList<string>> LocalContextAsync(
+        InboundMessage message, Guid sessionId, CancellationToken cancellationToken)
+    {
+        var captions = await this.vision.DescribeAsync(message, cancellationToken)
+            .ConfigureAwait(false);
+        var prior = await this.PriorExchangesAsync(sessionId, cancellationToken)
+            .ConfigureAwait(false);
+        return DiscordPrompt.LocalContext(prior, captions);
+    }
+
     /// <summary>The recent conversation, so the next message is not turn one again.</summary>
-    private async Task<IReadOnlyList<string>> PriorExchangesAsync(
+    private async Task<IReadOnlyList<(string Message, string Response)>> PriorExchangesAsync(
         Guid sessionId, CancellationToken cancellationToken)
     {
         var turns = new List<(string, string)>();
@@ -255,7 +273,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
             turns.Add((turn.Request.Message, turn.Response ?? string.Empty));
         }
 
-        return DiscordPrompt.Exchanges(turns);
+        return turns;
     }
 
     /// <summary>Records the exchange, so it survives a restart and builds the next window.</summary>

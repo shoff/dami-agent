@@ -56,6 +56,20 @@ What this locks in: any *future* channel with a recipient who is not Steve — a
 guild, a family calendar, a public bot — refuses profile-derived content and must justify
 otherwise in its own ADR. The permission is to the person, never to the transport.
 
+## Correction, 2026-08-31
+
+The clause above promising that a shared guild refuses profile-derived content was not
+implemented. `DiscordEgressChannel.SendAsync` passed `recipientIsDataSubject: true`
+unconditionally, justified by `ShouldAnswer` filtering inbound to `OwnerUserId` — but that
+filter establishes who **asked**, never who can **read**, and a guild text channel has an
+audience. `GuildId` was parsed and then dropped when building `InboundMessage`, so nothing
+downstream could tell a DM from `#general`. A memory-derived answer to a question Steve
+asked in a public channel would have been posted there.
+
+The channel now learns each conversation's audience from inbound traffic — Discord omits
+`guild_id` on a DM, which is the only available signal — and an unseen conversation fails
+safe as *not* private. Operational content is unaffected and still flows anywhere.
+
 ## Reversal path
 
 One boolean at one call site: `ChannelDisclosurePolicy.EnsureMayLeave` takes whether the

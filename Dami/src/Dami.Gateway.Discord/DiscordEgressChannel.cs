@@ -22,6 +22,18 @@ public sealed class DiscordEgressChannel : IEgressChannel
     private readonly DiscordOptions options;
     private static readonly TimeSpan identifyFloor = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// Conversations known to be direct messages, learned from inbound traffic.
+    /// </summary>
+    /// <remarks>
+    /// The audience, not the author. `ShouldAnswer` establishes who ASKED; it says nothing
+    /// about who can READ, and a guild text channel has readers who are not Steve. Discord
+    /// omits `guild_id` on a DM, which is the only signal that a conversation is private.
+    /// Absent knowledge the answer is "not private" — an unseen conversation fails safe.
+    /// </remarks>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> privateConversations =
+        new(StringComparer.Ordinal);
+
     private readonly DiscordSession session = new();
     private DateTimeOffset lastIdentify = DateTimeOffset.MinValue;
     private readonly TimeProvider clock;
@@ -59,9 +71,13 @@ public sealed class DiscordEgressChannel : IEgressChannel
     {
         ArgumentNullException.ThrowIfNull(content);
 
-        // ADR-0025: inbound is already filtered to OwnerUserId, so the only conversation
-        // this channel ever replies into is Steve's own. The recipient is the subject.
-        ChannelDisclosurePolicy.EnsureMayLeave(content, this.ChannelName, recipientIsDataSubject: true);
+        // ADR-0025 permits profile-derived content only where the reader IS the subject.
+        // That is true of a DM and false of a guild channel, and this used to be hardcoded
+        // true on the strength of the author filter — which proves who asked, not who reads.
+        var isPrivate = this.privateConversations.TryGetValue(content.ConversationId, out var known)
+            && known;
+        ChannelDisclosurePolicy.EnsureMayLeave(
+            content, this.ChannelName, recipientIsDataSubject: isPrivate);
         await this.rest
             .PostMessageWithFilesAsync(
                 content.ConversationId, content.Text, content.Attachments, cancellationToken)
@@ -349,6 +365,10 @@ public sealed class DiscordEgressChannel : IEgressChannel
         {
             return;
         }
+
+        // A DM carries no guild id. Learned here because this is the only place the
+        // distinction exists; InboundMessage deliberately does not carry Discord's shape.
+        this.privateConversations[message.ChannelId] = message.GuildId.Length == 0;
 
         var inbound = new InboundMessage(
             message.AuthorId, message.ChannelId, message.Content, this.clock.GetUtcNow())

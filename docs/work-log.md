@@ -9169,3 +9169,119 @@ work is whole: 1259 + Dami.Core.Tests' 217 = 1476 = the 1448 before this slice p
 **Worth Steve's attention:** Codex is building a cron scheduler at the same moment I added
 an `EightHourly` cadence for the same need. If `CronSchedule` lands, that cadence is the
 first thing it should replace — noted in ADR-0027 rather than left to be discovered.
+
+## 2026-08-31 — Claude — Adversarial audit, and an incident I caused during it
+
+Steve: "run an adversarial audit."
+
+**Incident first, because it matters more than the findings.** I spawned four adversarial
+audit subagents with full tool access. One of them decided to do mutation testing **by
+editing production source in the live working tree** — its own last words were "Let me
+verify the headline claims by actually mutating production code and re-running." Five
+mutations landed in files I had already committed:
+
+| File | Mutation | Effect if shipped |
+|---|---|---|
+| `DiscordGatewayWorker.cs` | `if (intent == …None \|\| true)` | `status`/`help` never answered from runtime state |
+| `DiscordRest.cs` | `AuthenticationHeaderValue(token)` — dropped the `"Bot"` scheme | **every Discord API call 401s; the gateway goes mute** |
+| `OpenAiImageGenerator.cs` | `prompt = request.Purpose` | the wrong string sent to a paid API |
+| `PostgresFitnessStore.cs` | null-safe reads → `GetDecimal`/`GetInt32` | `/fitness` throws on any NULL column |
+| `DailyPortraitService.cs` | `Did(...)` → `quiet` | a failed portrait pass reports nothing |
+
+This tree is shared: Codex commits from it and **Steve deploys from it** (`tools/deploy.sh`
+builds the working tree, not a commit). Had a deploy run in that window it would have
+shipped a mute Discord gateway. Nothing reached a commit — `git diff` against `origin/main`
+for my files is empty — and all five are reverted, but the exposure was real and it was my
+doing: I gave adversarial agents write access to production state and did not constrain
+them to read-only. **Rule for next time: audit agents get read-only tools, or a worktree.**
+
+Detected by noticing `|| true` in a file-change notice, not by anything systematic. All
+four agents were stopped. Post-revert verification: `git diff` shows only Codex's
+scheduling work; Discord 55, Providers 46, Proactive 241, Persistence 283 — all green.
+
+**The mutations did yield a real finding, and it is about my own tests.** Four of the five
+survive the suite. Worst is `DiscordGatewayWorkerTests.Should_Send_An_Operational_Answer`:
+it sends `"status?"` but stubs the *turn runner* and asserts the turn runner's answer was
+sent, so it passes identically whether the operational fast-path fires or not. The name
+claims a behaviour the test never checks — the vacuous-test class this repo already has a
+scar from. Also untested: the `"Bot"` auth scheme, and that the outbound image body carries
+`Prompt` rather than some other field.
+
+**Findings from the privacy audit (verified by me before recording):**
+
+1. **Image captions reach the frontier ungated.** `DiscordPrompt.Question` folds the caption
+   into the *question*, and `AugmentedFrontierTurn` gates only `lines`
+   (priorExchanges ∪ beliefs ∪ memories) — the question is appended raw after the gated
+   block. Since `DiscordVision`'s prompt says "Include any text that appears in it", a photo
+   of a lab result or a statement is OCR'd and egressed verbatim. This contradicts ADR-0026
+   ("captions … pass the gate before any of them can reach the frontier") and D-012, which
+   names captioning LocalOnly. Turn 2 gates the same bytes via `priorExchanges`, which
+   proves the intent. **My defect, my false claim in the ADR.**
+2. **`recipientIsDataSubject: true` is hardcoded** in `DiscordEgressChannel`, justified by an
+   author filter. `GuildId` is dropped when building `InboundMessage`, so nothing downstream
+   can tell a DM from a public channel. ADR-0025 promises a shared guild refuses
+   profile-derived content; no mechanism implements that.
+3. **Attachment download bypasses every egress control** — no scheme/host check, no size cap,
+   no event. Declared `content_type`/`size` are attacker-controlled.
+4. **The recall split is a false invariant.** `RecallCollectorService.KnownAsync` reads the
+   whole `recall` domain with no category filter, so match rows containing drug names from
+   the health record land in the egress-holding collector's memory. No path to the wire
+   today; one refactor away.
+5. **`CveWatchService` does send host inventory** — the full resolved NuGet closure of a
+   private repo, by name, nightly, to `api.github.com`. Versions do not leave. The class
+   remark claiming "never anything about this host" is wrong.
+6. **A failed frontier call leaves a dangling `EgressRequested`** with no `EgressFailed` and
+   no `EgressBrief`, so ADR-0026's "the exact bytes that left are stored hash-pinned" is
+   false on every timeout and non-2xx.
+
+**My own findings:** the paid image door is the only frontier-class door not behind
+`IEgressBudget` (`CodexChatClient` consults it; `OpenAiImageGenerator` does not); the
+H12/H14 privacy split has no architecture test; ADR-0027 overstates "no retries" for a
+missing key. Cleared on inspection: the surfacing threshold does not filter portraits, and
+a frontier timeout does reach the local fallback (`CodexProcess` translates it to
+`TimeoutException`).
+
+Nothing is fixed yet. Recorded before acting, deliberately.
+
+**Both fixes done, with evidence.** Steve: "word."
+
+1. **Caption leak closed.** `DiscordPrompt` now splits what may be asked from what must be
+   gated: `Question` is Steve's own words (appended ungated, as before), `LocalContext` is
+   everything this host derived — prior exchanges *and* image captions — and only that
+   goes through `LocalDisclosureGate`. `IAugmentedTurn`'s second parameter renamed
+   `priorExchanges` → `localContext` so the contract states the rule. A test asserts the
+   caption is **absent** from the question and **present** in the gated context; the old
+   test that pinned the defect failed on the first run, which is how it should go.
+2. **Audience-aware disclosure.** `DiscordEgressChannel` no longer hardcodes
+   `recipientIsDataSubject: true`. It learns each conversation's audience from inbound
+   traffic — Discord omits `guild_id` on a DM, the only available signal — and an unseen
+   conversation **fails safe as not private**. Profile-derived content in a guild channel
+   now refuses; operational content still flows anywhere. Four tests: guild refuses, guild
+   allows operational, DM carries, unknown conversation refuses.
+
+ADR-0025 and ADR-0026 both carry a dated correction recording that the claim they made was
+false when written, rather than being quietly edited to match the new code.
+
+**Two of the surviving mutants also fixed**, since they were free once identified:
+`DiscordRestTests` now asserts the `"Bot"` auth scheme on both send paths, and
+`OpenAiImageGeneratorTests` asserts the outbound body carries `Prompt`.
+
+**The vacuous test is gone, and it was worse than reported.**
+`Should_Send_An_Operational_Answer` stubbed the turn runner and asserted the runner's
+answer — but it also used the input `"status?"`, and `DiscordOperations.Classify` matches
+`"status"` exactly. So the message never took the operational path at all and the test
+passed for entirely the wrong reason. Replaced by two honest ones: status is answered
+**without** a turn (asserting `RunTracedAsync` was never called) and carries `Operational`
+provenance.
+
+**Left open, deliberately, not fixed here:** `Classify` does not tolerate trailing
+punctuation, so `"status?"` reaches the model instead of the fast path — pre-existing (M1),
+small, real. Also still open from the audit: the unbudgeted paid image door, the
+attachment download bypassing egress controls, the recall collector's uncategorised
+`known` read, `CveWatchService`'s NuGet-closure disclosure and its false remark, the
+dangling `EgressRequested` on a failed frontier call, and the missing architecture tests
+for four of the five egress seams.
+
+Gate: build clean; **20/20 test assemblies green, 1269 passing** (+10), excluding
+`Dami.Core.Tests`, which still does not compile because of Codex's untracked
+`Scheduling/` work.

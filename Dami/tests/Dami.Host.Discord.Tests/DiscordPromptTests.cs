@@ -14,42 +14,69 @@ public sealed class DiscordPromptTests
     [Fact]
     public void Question_Should_Be_The_Text_When_Nothing_Is_Attached()
     {
-        Assert.Equal("what is this", DiscordPrompt.Question(Message("what is this"), []));
+        Assert.Equal("what is this", DiscordPrompt.Question(Message("what is this")));
     }
 
     [Fact]
-    public void Question_Should_Fold_A_Caption_In_As_Context()
+    public void Question_Should_Not_Carry_A_Caption()
     {
-        var question = DiscordPrompt.Question(
-            Message("what is this", Image("bolt.png")), ["a rusted hex bolt on a workbench"]);
-
-        Assert.Contains("a rusted hex bolt on a workbench", question, StringComparison.Ordinal);
+        // The whole point of the fix: a caption is locally derived from a LocalOnly image
+        // (D-012), so it must go through the disclosure gate as context. The question is
+        // appended to the frontier prompt ungated, so a caption in it would be a leak.
+        Assert.Equal("what is this", DiscordPrompt.Question(Message("what is this", Image("bolt.png"))));
     }
 
     [Fact]
-    public void Question_Should_Keep_The_Askers_Words_Alongside_The_Caption()
+    public void LocalContext_Should_Carry_Captions_As_Gateable_Lines()
     {
-        var question = DiscordPrompt.Question(
-            Message("what size is this", Image("bolt.png")), ["a rusted hex bolt"]);
+        var context = DiscordPrompt.LocalContext([], ["a rusted hex bolt on a workbench"]);
 
-        Assert.Contains("what size is this", question, StringComparison.Ordinal);
+        Assert.Contains(
+            context,
+            line => line.Contains("a rusted hex bolt on a workbench", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LocalContext_Should_Label_A_Caption_As_Locally_Described()
+    {
+        // The gate classifies text it is given; telling it the line describes an image
+        // Steve sent is the difference between judging a caption and judging a stray noun.
+        var context = DiscordPrompt.LocalContext([], ["a lab report showing a value"]);
+
+        Assert.StartsWith("Image Steve sent", Assert.Single(context), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LocalContext_Should_Put_Prior_Exchanges_Before_Captions()
+    {
+        var context = DiscordPrompt.LocalContext(
+            [("what did I lift", "225")], ["a photo of a barbell"]);
+
+        Assert.StartsWith("Earlier", context[0], StringComparison.Ordinal);
+        Assert.StartsWith("Image", context[^1], StringComparison.Ordinal);
     }
 
     [Fact]
     public void Question_Should_Stand_Alone_When_An_Image_Arrives_With_No_Words()
     {
-        // Sending a photo with no caption is a question — "what am I looking at" — and an
-        // empty prompt would be rejected before it ever reached a model.
-        var question = DiscordPrompt.Question(Message(string.Empty, Image("bolt.png")), ["a hex bolt"]);
+        // A photo with no caption is still a question, and an empty prompt would be
+        // rejected before it reached a model.
+        var question = DiscordPrompt.Question(Message(string.Empty, Image("bolt.png")));
 
         Assert.NotEmpty(question.Trim());
     }
 
     [Fact]
+    public void Question_Should_Be_Empty_When_There_Is_Neither_Text_Nor_Image()
+    {
+        Assert.Empty(DiscordPrompt.Question(Message(string.Empty)));
+    }
+
+    [Fact]
     public void Exchanges_Should_Read_Oldest_First_As_Labelled_Lines()
     {
-        var lines = DiscordPrompt.Exchanges(
-            [("what did I lift monday", "225 for five"), ("and tuesday", "you rested")]);
+        var lines = DiscordPrompt.LocalContext(
+            [("what did I lift monday", "225 for five"), ("and tuesday", "you rested")], []);
 
         Assert.Equal(
             ["Earlier — Steve: what did I lift monday", "Earlier — Dami: 225 for five",
@@ -58,8 +85,8 @@ public sealed class DiscordPromptTests
     }
 
     [Fact]
-    public void Exchanges_Should_Be_Empty_For_A_First_Message()
+    public void LocalContext_Should_Be_Empty_For_A_First_Plain_Message()
     {
-        Assert.Empty(DiscordPrompt.Exchanges([]));
+        Assert.Empty(DiscordPrompt.LocalContext([], []));
     }
 }
