@@ -1,0 +1,177 @@
+using System.Net;
+using System.Text;
+using Dami.Contracts.Context;
+using Dami.Contracts.Events;
+using Dami.Contracts.Models;
+using Dami.Contracts.Privacy;
+using Dami.Privacy;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using NSubstitute;
+using Xunit;
+
+namespace Dami.Providers.Tests;
+
+public sealed class OpenAiImageGeneratorTests
+{
+    private static readonly string onePixel = Convert.ToBase64String(
+        Encoding.UTF8.GetBytes("pretend-png-bytes"));
+
+    private sealed class Canned : HttpMessageHandler
+    {
+        public HttpRequestMessage? Request { get; private set; }
+
+        public string Body { get; set; } = string.Empty;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            this.Request = request;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(this.Body),
+            });
+        }
+    }
+
+    private static ImageRequest Request(PrivacyClass privacy = PrivacyClass.Egressable) =>
+        new("a portrait", "daily portrait (evening)", privacy, Guid.NewGuid(),
+            ExecutionOrigin.ScheduledService);
+
+    private static (OpenAiImageGenerator Generator, Canned Handler, IExecutionEventStore Events)
+        Create(string? apiKey = "sk-test", string allowedHost = "api.openai.com")
+    {
+        var handler = new Canned
+        {
+            Body = $$"""{"data":[{"b64_json":"{{onePixel}}"}]}""",
+        };
+        var egress = new EgressOptions();
+        if (allowedHost.Length > 0)
+        {
+            egress.AllowedHosts.Add(allowedHost);
+        }
+
+        var events = Substitute.For<IExecutionEventStore>();
+        return (
+            new OpenAiImageGenerator(
+                new HttpClient(handler),
+                Options.Create(new OpenAiImageOptions { ApiKey = apiKey ?? string.Empty }),
+                Options.Create(egress),
+                events,
+                TimeProvider.System,
+                NullLogger<OpenAiImageGenerator>.Instance),
+            handler,
+            events);
+    }
+
+    [Fact]
+    public async Task Should_Return_The_Decoded_Image()
+    {
+        var (generator, _, _) = Create();
+
+        var image = await generator.GenerateAsync(Request(), CancellationToken.None);
+
+        Assert.Equal("pretend-png-bytes", Encoding.UTF8.GetString(image.Bytes.ToArray()));
+    }
+
+    [Fact]
+    public async Task Should_Refuse_A_Prompt_That_Is_Not_Egressable()
+    {
+        // The caller should make this unreachable; the boundary enforces it anyway.
+        var (generator, _, _) = Create();
+
+        await Assert.ThrowsAsync<EgressRefusedException>(
+            () => generator.GenerateAsync(Request(PrivacyClass.LocalOnly), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Should_Refuse_A_Host_That_Is_Not_Allowlisted()
+    {
+        // Being configured does not exempt a provider from the allowlist.
+        var (generator, _, _) = Create(allowedHost: string.Empty);
+
+        await Assert.ThrowsAsync<EgressRefusedException>(
+            () => generator.GenerateAsync(Request(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Should_Refuse_When_No_Key_Is_Configured()
+    {
+        // Absent capability, not an error to retry.
+        var (generator, _, _) = Create(apiKey: null);
+
+        await Assert.ThrowsAsync<EgressRefusedException>(
+            () => generator.GenerateAsync(Request(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Should_Not_Reach_The_Network_When_Refused()
+    {
+        var (generator, handler, _) = Create(allowedHost: string.Empty);
+
+        await Assert.ThrowsAsync<EgressRefusedException>(
+            () => generator.GenerateAsync(Request(), CancellationToken.None));
+
+        Assert.Null(handler.Request);
+    }
+
+    [Fact]
+    public async Task Should_Record_A_Refusal_In_The_Event_Stream()
+    {
+        // Every call, allowed or refused, is auditable. The Hermes job recorded nothing.
+        var (generator, _, events) = Create(allowedHost: string.Empty);
+
+        await Assert.ThrowsAsync<EgressRefusedException>(
+            () => generator.GenerateAsync(Request(), CancellationToken.None));
+
+        await events.Received().AppendAsync(
+            Arg.Is<ExecutionEvent>(e => e.Type == ExecutionEventType.EgressRefused),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Record_A_Completed_Egress_On_Success()
+    {
+        var (generator, _, events) = Create();
+
+        await generator.GenerateAsync(Request(), CancellationToken.None);
+
+        await events.Received().AppendAsync(
+            Arg.Is<ExecutionEvent>(e => e.Type == ExecutionEventType.EgressCompleted),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Never_Put_The_Prompt_Into_An_Event_Label()
+    {
+        // Purpose lines, never prompt text — the same rule the frontier client follows.
+        var (generator, _, events) = Create();
+
+        await generator.GenerateAsync(Request(), CancellationToken.None);
+
+        await events.DidNotReceive().AppendAsync(
+            Arg.Is<ExecutionEvent>(e => e.Label.Contains("a portrait", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Send_The_Key_As_A_Bearer_Token()
+    {
+        var (generator, handler, _) = Create();
+
+        await generator.GenerateAsync(Request(), CancellationToken.None);
+
+        Assert.Contains(
+            "sk-test",
+            handler.Request!.Headers.GetValues("Authorization").First(),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Read_Should_Fail_Loudly_When_The_Provider_Returns_No_Image()
+    {
+        // A 200 with an empty data array is the shape a quota or safety refusal takes.
+        Assert.Throws<InvalidOperationException>(
+            () => OpenAiImageGenerator.Read("""{"data":[]}""", Request()));
+    }
+}

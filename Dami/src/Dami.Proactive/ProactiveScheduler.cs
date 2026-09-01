@@ -20,6 +20,7 @@ public sealed class ProactiveScheduler
             [ProactiveCadence.Nightly] = TimeSpan.FromDays(1),
             [ProactiveCadence.Weekly] = TimeSpan.FromDays(7),
             [ProactiveCadence.Quarterly] = TimeSpan.FromDays(91),
+            [ProactiveCadence.EightHourly] = TimeSpan.FromHours(8),
         };
 
     private readonly IReadOnlyList<IProactiveService> services;

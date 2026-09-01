@@ -9089,3 +9089,58 @@ One product boundary must be settled before behavior can be tested: whether a sc
 job executes a Dami prompt through the existing traced turn machinery, an arbitrary OS
 command through cron, or both. Arbitrary commands materially enlarge the execution and
 approval boundary; the existing architecture does not answer that choice.
+
+Steve answered **both**. Decision for implementation: represent prompt and command
+payloads as distinct job kinds; show the complete payload and schedule before an
+explicit confirmation; keep drafts inert; execute prompt jobs through the traced Dami
+runtime and command jobs as the exact executable plus argument vector (not an implicit
+shell string). Started the first TDD slice at the schedule/domain boundary before any
+Host, persistence, executor, or GUI production changes.
+
+## 2026-08-31 — Claude — Image generation, and the Hermes portrait jobs ported (ADR-0027)
+
+Steve, after asking how Hermes had been doing this: "yes build it and port the daily jobs
+over."
+
+**How Hermes did it**, recovered from the imported corpus rather than from the Mac (no SSH
+key from here): Clawdbot's own scheduler held 16 jobs, three of them `mei-morning-photo`,
+`mei-midday-photo`, `mei-evening-photo`, each shelling out to
+`/opt/homebrew/lib/node_modules/clawdbot/skills/openai-image-gen/scripts/gen.py --model
+gpt-image-1 --quality high --size 1024x1536 --count 1 --out-dir
+/Users/steve/clawd/mei-daily-$(date +%Y-%m-%d)-<slot>`, then emailing the result and
+labelling the thread `Mei`. The `mei-` prefix predates the 2026-03-02 rename from MAI/Mei
+to Dami. All three were failing when found: 429 rate limits, an unconfigured Azure
+OpenAI, and a local Stable Diffusion "Juggernaut" fallback on the Mac mini that never
+finished initialising (probed 192.168.4.23 on 7860/7861/8188/5000 today — nothing
+listening).
+
+**Built.** `IImageGenerator` + `ImageRequest` as a third door through the boundary,
+shaped like `FrontierPrompt` and gated like `IFrontierChat`; `OpenAiImageGenerator` is a
+near-copy of `AnthropicChatClient`'s enforcement on purpose, so the boundary looks the
+same whichever door is used. 10 tests, and they pin the parts that matter: a
+non-Egressable prompt refused, an unallowlisted host refused, a missing key treated as
+absent capability, **no network call when refused**, a refusal recorded in the event
+stream, and the prompt text never in an event label.
+
+**Ported.** `DailyPortraitService`, `EightHourly` cadence (new — the scheduler is
+interval-based, so the service reads its slot from the clock and the label says when the
+pass actually happened). 18 tests. Off by default: this is the first capability that
+spends money per pass, and idempotent per slot so a restart cannot buy the same picture
+twice. It surfaces rather than delivers — push vs pull is ADR-0014, unsigned, and wiring
+a push now would decide it by implementation. The prompt is configuration; the default is
+a plain portrait and what Steve wants drawn belongs in his drop-in beside the key.
+
+**Gate, with a caveat I did not cause.** My four projects build 0 warnings / 0 errors, and
+**20 of 21 test assemblies are green with 1259 passing** — every project except
+`Dami.Core.Tests`. That one does not compile because of
+`Dami/tests/Dami.Core.Tests/Scheduling/` (`CronScheduleTests.cs`,
+`ScheduledJobServiceTests.cs`), **untracked, created 20:00 today while I was working, and
+not mine**: Codex's TDD red for a `Dami.Core.Scheduling` / `Dami.Contracts.Scheduling`
+that does not exist yet. All 9 solution build errors are inside that directory and none
+are in my files. Left untouched and unstaged per runbook §7. Arithmetic check that my
+work is whole: 1259 + Dami.Core.Tests' 217 = 1476 = the 1448 before this slice plus the
+28 added.
+
+**Worth Steve's attention:** Codex is building a cron scheduler at the same moment I added
+an `EightHourly` cadence for the same need. If `CronSchedule` lands, that cadence is the
+first thing it should replace — noted in ADR-0027 rather than left to be discovered.

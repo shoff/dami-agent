@@ -11,6 +11,7 @@ using Dami.Proactive.Curation;
 using Dami.Proactive.Health;
 using Dami.Proactive.Civic;
 using Dami.Proactive.Network;
+using Dami.Proactive.Portrait;
 using Dami.Proactive.Releases;
 using Dami.Proactive.Recalls;
 using Dami.Proactive.Security;
@@ -210,6 +211,17 @@ public static class ProactiveComposition
         services.Configure<OllamaVisionOptions>(configuration.GetSection(OllamaVisionOptions.SECTION_NAME));
         services.AddHttpClient<IVisionClient, OllamaVisionClient>(client =>
             client.Timeout = TimeSpan.FromMinutes(10));
+
+        // ADR-0027: the third door through the boundary, and the only one with a bill
+        // attached. Refused unless api.openai.com is allowlisted and a key is configured;
+        // the portrait pass is off until DailyPortrait:Enabled says otherwise.
+        services.Configure<OpenAiImageOptions>(
+            configuration.GetSection(OpenAiImageOptions.SECTION_NAME));
+        services.AddHttpClient<IImageGenerator, OpenAiImageGenerator>(client =>
+            client.Timeout = TimeSpan.FromMinutes(5));
+        services.Configure<DailyPortraitOptions>(
+            configuration.GetSection(DailyPortraitOptions.SECTION_NAME));
+        services.AddSingleton<IProactiveService, DailyPortraitService>();
     }
 
     private static void AddRemaining(
