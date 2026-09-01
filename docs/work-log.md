@@ -9097,6 +9097,31 @@ runtime and command jobs as the exact executable plus argument vector (not an im
 shell string). Started the first TDD slice at the schedule/domain boundary before any
 Host, persistence, executor, or GUI production changes.
 
+**Implemented.** `CronSchedule` validates standard five-field expressions and computes
+the next instant in each job's IANA time zone. `ScheduledJobPlanner` conducts the local
+LLM interview one question at a time and produces either another question or a typed
+Prompt/Command proposal. `ScheduledJobService` persists that proposal as an inert draft;
+only the separate confirm operation activates it. Command payloads must be absolute
+executables with an argument vector and never pass through a shell. Prompt jobs use the
+existing traced turn runner. A 30-second Host worker dispatches due jobs and records last
+run result plus the next occurrence.
+
+Added loopback `/jobs`, `/jobs/plan`, `/jobs/drafts`, and `/jobs/{id}/confirm` endpoints,
+PostgreSQL store and migration `037_scheduled_jobs.sql`, and the requested Avalonia top
+menu (`File`, `Tasks`, `About`). `Tasks > Jobs` opens a conversational creation window
+beside a persisted dashboard showing name, description, kind, cron/time zone, state,
+next run, last run, and result. The exact proposed prompt or executable/arguments is
+shown before the confirmation button activates it.
+
+TDD evidence: cron tests first failed because `Dami.Core.Scheduling` did not exist; job
+service tests first failed because scheduling contracts/store did not exist; planner
+tests first failed because the planner did not exist; dispatcher test first failed
+because its execution seam did not exist. After minimum implementations, 16 scheduling
+tests passed. `bash tools/ddl/test_apply.sh` passed and `bash tools/ddl/apply.sh` applied
+037 to `dami-data`. Final gate: `dotnet build Dami/Dami.sln` succeeded with 0 warnings
+and 0 errors; all 21 test assemblies passed, 1,492 tests total. No deploy, restart,
+commit, push, or PR was performed.
+
 ## 2026-08-31 — Claude — Image generation, and the Hermes portrait jobs ported (ADR-0027)
 
 Steve, after asking how Hermes had been doing this: "yes build it and port the daily jobs

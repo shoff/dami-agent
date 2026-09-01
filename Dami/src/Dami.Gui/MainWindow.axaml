@@ -15,6 +15,18 @@
     <SolidColorBrush x:Key="Accent">#5AA9E6</SolidColorBrush>
   </Window.Resources>
 
+  <DockPanel>
+  <Menu DockPanel.Dock="Top" Background="#171D24" Foreground="{StaticResource Ink}">
+    <MenuItem Header="_File">
+      <MenuItem x:Name="ExitMenuItem" Header="E_xit"/>
+    </MenuItem>
+    <MenuItem Header="_Tasks">
+      <MenuItem x:Name="JobsMenuItem" Header="_Jobs…"/>
+    </MenuItem>
+    <MenuItem Header="_About">
+      <MenuItem x:Name="AboutMenuItem" Header="About Dami"/>
+    </MenuItem>
+  </Menu>
   <Panel>
   <!-- Right-click anything to ask about it. The popup is a child of the window rather
        than of whatever was clicked, because the thing under the pointer is often inside a
@@ -1229,4 +1241,5 @@
     </DockPanel>
   </Border>
   </Panel>
+  </DockPanel>
 </Window>

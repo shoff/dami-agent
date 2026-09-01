@@ -45,6 +45,11 @@ if (authenticationEnabled)
 builder.Services.AddSingleton<TaskBoardActorResolver>();
 
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<Dami.Core.Scheduling.ScheduledJobPlanner>();
+builder.Services.AddSingleton<Dami.Core.Scheduling.ScheduledJobService>();
+builder.Services.AddSingleton<Dami.Core.Scheduling.IScheduledJobActionRunner, ScheduledJobActionRunner>();
+builder.Services.AddSingleton<Dami.Core.Scheduling.ScheduledJobDispatcher>();
+builder.Services.AddHostedService<ScheduledJobWorker>();
 
 // Turns: the same runner the CLI proved out — leading with the §9.1 identity block.
 builder.Services.Configure<Dami.Core.Identity.IdentityOptions>(
@@ -210,6 +215,7 @@ if (authenticationEnabled)
 app.MapDamiRuntime();
 app.MapDamiProactive();
 app.MapDamiActivity();
+app.MapScheduledJobs();
 app.Run();
 
 /// <summary>Web entry point exposed for in-memory composition tests.</summary>

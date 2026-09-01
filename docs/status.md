@@ -630,6 +630,12 @@ change, or an ADR — not silence.
 
 ## 5b. Acceptance suite scoreboard
 
+The interactive runtime now also has durable user-authored recurring jobs (G16): a
+local-model interview yields an inert Prompt or exact-executable Command proposal,
+explicit confirmation activates it, the Host dispatches due work, and the Avalonia
+`Tasks > Jobs` window shows schedule and run state. Migration 037 is applied locally;
+the new binaries are built but not deployed or restarted as of 2026-08-31.
+
 The charter's fourteen cutover items, scored against what has actually been
 demonstrated. "partial" means a real demonstration exists for part of the item's scope.
 

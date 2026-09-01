@@ -36,6 +36,9 @@ public sealed partial class MainWindow : Window
     private readonly ToggleButton speakToggle;
     private readonly TextBlock statusLine;
     private readonly ScrollViewer chatScroll;
+    private readonly MenuItem jobsMenuItem;
+    private readonly MenuItem exitMenuItem;
+    private readonly MenuItem aboutMenuItem;
 
     /// <summary>Creates the window and starts following the event stream.</summary>
     public MainWindow()
@@ -47,6 +50,9 @@ public sealed partial class MainWindow : Window
         this.speakToggle = Require<ToggleButton>(this, "SpeakToggle");
         this.statusLine = Require<TextBlock>(this, "StatusLine");
         this.chatScroll = Require<ScrollViewer>(this, "ChatScroll");
+        this.jobsMenuItem = Require<MenuItem>(this, "JobsMenuItem");
+        this.exitMenuItem = Require<MenuItem>(this, "ExitMenuItem");
+        this.aboutMenuItem = Require<MenuItem>(this, "AboutMenuItem");
         this.DataContext = this.state;
         this.Closed += this.OnClosed;
 
@@ -55,6 +61,9 @@ public sealed partial class MainWindow : Window
         // looks alive, accepts text, and does nothing at all when you press the button.
         this.sendButton.Click += this.OnSendClick;
         this.input.KeyDown += this.OnInputKeyDown;
+        this.jobsMenuItem.Click += (_, _) => new JobsWindow(this.runtime).Show(this);
+        this.exitMenuItem.Click += (_, _) => this.Close();
+        this.aboutMenuItem.Click += (_, _) => _ = new AboutWindow().ShowDialog(this);
         this.InitializeTaskBoards();
         this.InitializeFitness();
         this.InitializeNetwork();
