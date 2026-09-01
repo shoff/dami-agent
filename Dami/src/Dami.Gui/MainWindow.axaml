@@ -59,9 +59,9 @@
                         Foreground="{StaticResource Ink}"
                         ToolTip.Tip="Read Dami's replies aloud in its own voice. Off by default so it never surprises you."/>
           <ToggleButton x:Name="FrontierToggle" Grid.Column="2" Content="subscription"
-                        Margin="8,0,0,0" Background="#233041"
+                        Margin="8,0,0,0" Background="#233041" IsChecked="True"
                         Foreground="{StaticResource Ink}"
-                        ToolTip.Tip="Answer on your ChatGPT subscription (codex CLI, no API key). No memories are sent."/>
+                        ToolTip.Tip="On: this host retrieves and gates your context, then your ChatGPT subscription writes the answer (ADR-0026). Off: the local model answers alone — faster, streamed, and much less capable."/>
           <Button x:Name="SendButton" Grid.Column="3" Content="send" Margin="8,0,0,0"
                   Background="#233041" Foreground="{StaticResource Ink}"/>
         </Grid>

@@ -40,7 +40,7 @@ public sealed partial class MainWindow
         this.state.Messages.Add(new Message("you", text));
         var reply = new Message("dami", string.Empty)
         {
-            Meta = frontier ? "asking your subscription…" : "thinking…",
+            Meta = frontier ? "retrieving locally, then asking the frontier…" : "thinking (local model)…",
         };
         this.state.Messages.Add(reply);
         ScrollLater(this.chatScroll);
@@ -56,14 +56,23 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
-    /// Answers on the ChatGPT subscription through the codex CLI (ADR-0011). No API key
-    /// is involved and no retrieved memory is sent — that is what keeps it Egressable
-    /// without a consent step. For a memory-informed frontier answer, use `dami brief`.
+    /// The frontier answers on context this host retrieved and gated (ADR-0026).
     /// </summary>
+    /// <remarks>
+    /// This used to send `frontier: true`, which is identity-plus-question with **no
+    /// retrieved memory** (ADR-0010). That left the console with two bad options and no
+    /// good one: a local model that knows Steve and cannot think, or a frontier model that
+    /// can think and knows nothing about him. The augmented path is the one that was built
+    /// for this — local retrieval, the disclosure gate, then the frontier writes the
+    /// answer — and the desktop client simply never used it.
+    ///
+    /// Not streamed, because the gate has to see the whole context before any of it may
+    /// leave. A slower good answer beats an instant useless one.
+    /// </remarks>
     private async Task AskFrontierAsync(Message reply, string text)
     {
         using var answer = await this.runtime.PostAsync(
-            "/turns", new { message = text, frontier = true }, this.lifetime.Token)
+            "/turns", new { message = text, augmented = true }, this.lifetime.Token)
             .ConfigureAwait(true);
         if (answer is null)
         {
@@ -79,7 +88,7 @@ public sealed partial class MainWindow
         }
 
         reply.Body = root.GetProperty("answer").GetString() ?? string.Empty;
-        reply.Meta = $"frontier · subscription · trace "
+        reply.Meta = $"frontier on {root.GetProperty("memories").GetInt32()} gated local item(s) · trace "
             + $"{root.GetProperty("traceId").GetGuid().ToString("N")[..8]}";
         ScrollLater(this.chatScroll);
         await this.SpeakAsync(reply).ConfigureAwait(true);

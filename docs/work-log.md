@@ -9354,3 +9354,41 @@ would have put an unrelated behaviour change in a privacy commit.
 
 Gate: build clean; **20/20 test assemblies green, 1285 passing** (+16), excluding
 `Dami.Core.Tests`, still uncompilable from Codex's untracked `Scheduling/` work.
+
+## 2026-08-31 — Claude — The GUI console was never fixed, only Discord
+
+Steve, with a screenshot of the console: "WTF is this WHY am I talking to the moron local
+model?"
+
+Fair, and my error. ADR-0026 said "the local model feeds the answer; it does not write it"
+and I implemented that for exactly one surface. When he said "the local model should not
+be directly answering me" he meant Dami, and I scoped it to the gateway we happened to be
+discussing.
+
+**What the console actually offered, and neither option was good.** The subscription
+toggle chose between `/turns/stream` → local `TurnRunner` (knows him, cannot think) and
+`/turns` with `frontier: true` → `FrontierTracedTurnRunner`, which is identity plus
+question with **no retrieved memory** (ADR-0010) — its own tooltip said "No memories are
+sent." So the console could give a model that knows Steve or a model that can think, never
+both, while the augmented path sat on the same endpoint unused by any client but Discord.
+
+**Fix.** The toggle now sends `augmented: true` and defaults **on**, so the good path is
+what he gets without opting in. Off remains the local streamed answer, which is still the
+right choice when he wants speed and no egress. Both the button tooltip and the per-reply
+meta line now say what actually happened — the meta reports how many gated local items the
+answer was built on rather than the word "subscription".
+
+Not streamed, and that is inherent rather than laziness: the disclosure gate has to see
+the whole context before any of it may leave, so there is nothing to stream until the
+decision is made.
+
+**Demonstrated live, not asserted.** `POST /turns {"augmented":true}` asking what it knows
+about his heart condition: `route: Frontier (locally augmented)`, **13** gated context
+items, and the answer named aortic stenosis and the March 2026 mechanical AVR via
+sternotomy. The same question on the old paths would have produced either a local model's
+version of that or a frontier model that had never heard of him.
+
+Gate: `dotnet build Dami.sln` **0 warnings, 0 errors**; `dotnet test Dami.sln`
+**1518 passed, 0 failed, 21/21** — the whole solution, now that Codex's Scheduling slice
+has landed and `Dami.Core.Tests` compiles again. `tools/install-gui.sh` re-run; the
+instance Steve has open predates it and needs a relaunch.
