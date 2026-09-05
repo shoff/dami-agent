@@ -61,5 +61,22 @@ public sealed class GalleryImageCardTests
         Assert.False(item.Hidden);
         Assert.Equal("♥ gpt-image-2", item.Badge);
         Assert.Equal("edited from dami-1.png", item.Lineage);
+        Assert.Equal("♥ favourite", item.Marks);
+    }
+
+    [Fact]
+    public void Marks_Should_Follow_The_Flags_As_They_Change()
+    {
+        using var document = JsonDocument.Parse("""
+            {"fileName":"dami.png","createdAt":"2026-09-05T12:00:00Z","prompt":"p","model":"gpt-image-2","isCanonical":false}
+            """);
+        var item = GalleryImageCard.From(document.RootElement);
+        Assert.Equal(string.Empty, item.Marks);
+
+        item.Favourite = true;
+        item.Hidden = true;
+
+        Assert.Equal("♥ favourite · hidden", item.Marks);
+        Assert.StartsWith("♥ ", item.Badge, StringComparison.Ordinal);
     }
 }

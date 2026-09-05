@@ -85,6 +85,10 @@ public sealed class GalleryImageCard
     /// <summary>Compact provenance label, with a heart when it is a favourite.</summary>
     public string Badge => (this.Favourite ? "♥ " : string.Empty) + (this.IsCanonical ? "identity anchor" : this.Model);
 
+    /// <summary>The picture's marks for the detail pane: "♥ favourite", "hidden", both, or empty.</summary>
+    public string Marks =>
+        string.Join(" · ", new[] { this.Favourite ? "♥ favourite" : null, this.Hidden ? "hidden" : null }.Where(mark => mark is not null));
+
     /// <summary>"edited from …" for the detail pane, or empty.</summary>
     public string Lineage => this.DerivedFrom is { Length: > 0 } source ? "edited from " + source : string.Empty;
 

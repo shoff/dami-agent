@@ -53,8 +53,21 @@ public sealed partial class MainWindow
         _ = this.LoadGalleryAsync(false);
     }
 
-    private void OnGallerySelected(object? sender, SelectionChangedEventArgs e) =>
+    private void OnGallerySelected(object? sender, SelectionChangedEventArgs e)
+    {
         this.state.SelectedGalleryImage = this.galleryList.SelectedItem as GalleryImageCard;
+        this.UpdateFlagButtons();
+    }
+
+    /// <summary>The two flag buttons say what pressing them will do to the selected picture.</summary>
+    private void UpdateFlagButtons()
+    {
+        var selected = this.state.SelectedGalleryImage;
+        this.galleryFavourite.Content = selected?.Favourite == true ? "♥ unfavourite" : "♥ favourite";
+        this.galleryHide.Content = selected?.Hidden == true ? "unhide" : "hide";
+        this.galleryFavourite.IsEnabled = selected is not null;
+        this.galleryHide.IsEnabled = selected is not null;
+    }
 
     private void OnGalleryGenerate(object? sender, RoutedEventArgs e) =>
         _ = this.GenerateGalleryImageAsync();
@@ -131,7 +144,12 @@ public sealed partial class MainWindow
             : $"{items.Count} of {this.galleryAll.Count} portraits";
     }
 
-    /// <summary>Toggles the selected picture's favourite or hidden flag on the runtime, then reloads.</summary>
+    /// <summary>
+    /// Toggles the selected picture's favourite or hidden flag on the runtime and shows it
+    /// at once: the card in place, the marks line, the button label, and the status rail —
+    /// no grid reload, which re-decoded every bitmap and hid the change behind seconds of
+    /// waiting (2026-09-05, "no feedback when you click it").
+    /// </summary>
     private async Task FlagSelectedAsync(bool favourite)
     {
         if (this.state.SelectedGalleryImage is not { } selected)
@@ -147,12 +165,33 @@ public sealed partial class MainWindow
             .ConfigureAwait(true);
         if (result is null)
         {
-            this.state.GalleryMessage = "The runtime did not answer /gallery/{file}/flags.";
+            this.SetStatus(GlobalStatus.Failure("The runtime did not record the change (/gallery/{file}/flags)."));
             return;
         }
 
-        await this.LoadGalleryAsync(false).ConfigureAwait(true);
+        this.ShowFlagChange(selected, favourite);
+    }
+
+    private void ShowFlagChange(GalleryImageCard selected, bool favourite)
+    {
+        if (favourite)
+        {
+            selected.Favourite = !selected.Favourite;
+            this.SetStatus(GlobalStatus.Success(selected.Favourite ? "Marked ♥ favourite." : "Favourite removed."));
+        }
+        else
+        {
+            selected.Hidden = !selected.Hidden;
+            this.SetStatus(GlobalStatus.Success(selected.Hidden
+                ? "Hidden — tick the hidden box in the header to see it again."
+                : "Unhidden."));
+        }
+
+        var showingHidden = this.galleryShowHidden.IsChecked == true;
+        this.galleryAll = this.galleryAll.Where(card => showingHidden || !card.Hidden).ToList();
+        this.ApplyGalleryFilter();
         this.SelectGalleryImage(selected.FileName);
+        this.UpdateFlagButtons();
     }
 
     private void SelectGalleryImage(string? fileName)

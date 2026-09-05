@@ -1123,6 +1123,8 @@
                   <TextBlock Text="{Binding SelectedGalleryImage.Date}" FontSize="12"
                              VerticalAlignment="Center" Foreground="{StaticResource Ink}"/>
                 </DockPanel>
+                <TextBlock Text="{Binding SelectedGalleryImage.Marks}" FontSize="11" Margin="0,4,0,0"
+                           Foreground="#E0A0B0"/>
                 <Button x:Name="GalleryLineage" Content="{Binding SelectedGalleryImage.Lineage}"
                         IsVisible="{Binding SelectedGalleryImage.DerivedFrom, Converter={x:Static ObjectConverters.IsNotNull}}"
                         FontSize="10" Padding="0" Background="Transparent" Foreground="#5AA9E6"

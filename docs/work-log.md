@@ -10234,3 +10234,16 @@ client-side over the loaded cards. Tests: index flags ×1 (live database), catal
 + flag ×2, card ×1. Gate: 0 warnings, 0 errors, **1,713 passed**. Host restaged, GUI
 installed.
 
+## 2026-09-05 — Claude — Gym photo proven live; favourite button gets real feedback
+
+Steve, after the restart: "the gym photo worked" — the Hammer Strength biceps-curl photo with
+"4x12 140 lbs RPE 7" logged. And: "the favorite button on images doesn't show any feedback
+when you click it."
+
+The runtime side was fine: `POST /gallery/{file}/flags` 200 in 11 ms, `favourite` stored,
+the API returned it. The GUI then reloaded the whole grid — 81 bitmaps re-decoded — and the
+only visible change was a heart in a 10 px badge. Now the card is updated in place, the
+detail pane shows a marks line ("♥ favourite · hidden"), the buttons read "♥ unfavourite"
+/ "unhide" for what they will do, the status rail says what happened, and a hidden picture
+leaves the grid at once (unless the hidden box is ticked). GUI tests 126/126; installed.
+
