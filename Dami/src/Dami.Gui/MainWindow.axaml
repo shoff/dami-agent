@@ -1049,7 +1049,7 @@
                     Margin="0,0,8,0" Padding="12,4" Background="#233041"
                     Foreground="{StaticResource Ink}"/>
             <TextBox x:Name="GallerySearch" DockPanel.Dock="Right" Width="300" Margin="0,0,8,0"
-                     Watermark="search: balcony at dusk, red dress, reading…"
+                     PlaceholderText="search: balcony at dusk, red dress, reading…"
                      Background="#0D1116" BorderBrush="#2A333D" Foreground="{StaticResource Ink}"/>
             <StackPanel>
               <TextBlock Text="DAMI · PORTRAIT GALLERY" FontSize="16" FontWeight="SemiBold"
@@ -1130,7 +1130,7 @@
                       BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,8,0,0">
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBox x:Name="GalleryEdit" Grid.Column="0"
-                           Watermark="change the selected picture: golden hour, red dress, in the workshop…"
+                           PlaceholderText="change the selected picture: golden hour, red dress, in the workshop…"
                            Background="Transparent" BorderThickness="0"
                            Foreground="{StaticResource Ink}"/>
                   <Button x:Name="GalleryEditRun" Grid.Column="1" Content="edit selected"
