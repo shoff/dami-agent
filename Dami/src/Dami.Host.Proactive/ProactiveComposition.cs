@@ -17,6 +17,7 @@ using Dami.Proactive.Recalls;
 using Dami.Proactive.Security;
 using Dami.Proactive.Weather;
 using Dami.Proactive.Embedder;
+using Dami.Proactive.Gallery;
 using Dami.Proactive.Librarian;
 using Dami.Proactive.Reflection;
 using Dami.Proactive.Scout;
@@ -213,6 +214,11 @@ public static class ProactiveComposition
             client.Timeout = TimeSpan.FromMinutes(10));
 
         AddDailyPortrait(services, configuration);
+
+        // Migration 040: the Gallery learns what it has — loopback vision and embeddings
+        // over files already on this host, so on by default and bill-free.
+        services.Configure<GalleryCuratorOptions>(configuration.GetSection(GalleryCuratorOptions.SECTION_NAME));
+        services.AddSingleton<IProactiveService, GalleryCuratorService>();
     }
 
     private static void AddDailyPortrait(IServiceCollection services, IConfiguration configuration)

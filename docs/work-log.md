@@ -10051,3 +10051,26 @@ BackgroundService exception stopped the test host. Applying 039 fixed it — and
 **Gate.** 0 warnings, 0 errors; **1,649 passed** across 21 assemblies. Host restaged;
 GUI installed to `~/.local/opt/dami-gui` via `tools/install-gui.sh`.
 
+## 2026-09-05 — Claude — Gallery index and curator (ADR-0031)
+
+Steve asked for a brainstorm on making the Gallery "a 5 star AI integrated" feature, then:
+"go, start with the migration and the curator."
+
+**Found.** 79 images, 68 sidecars, no search, no captions, no edit; the vision model,
+embedder and pgvector on this host unused by it.
+
+**Built.** Migration 040 (`gallery_images` with provenance, caption, tags, `derived_from`,
+`favourite`, `hidden`; `gallery_image_embeddings` vector(1024) hnsw). `IGalleryIndex` in
+Contracts, `PostgresGalleryIndex` in Persistence. `GalleryCuratorService` in Proactive
+(`EightHourly`, on by default): index every file with provenance from the sidecar and
+the naming convention, caption up to 40 unseen pictures per pass with qwen2.5vl asking for
+JSON and accepting prose, embed captioned pictures with bge-m3. `GalleryCaption` and
+`GallerySidecar` are pure and tested on their own.
+
+**Proof.** 040 applied at 22:1x; `--run gallery-curator` from the staged Release binary
+(cap 6 for the run): 79 indexed, 6 captioned, 6 embedded, exit 0; captions read like
+photographs, not templates. Gate: 0 warnings, 0 errors, **1,671 passed** across 21
+assemblies (Proactive 250 → 263, Persistence 291 → 296). Proactive restaged; needs
+`sudo rsync … /opt/dami/proactive/` and `systemctl restart dami-proactive`. The old
+binary running now does not know the tables, so nothing breaks in the meantime.
+
