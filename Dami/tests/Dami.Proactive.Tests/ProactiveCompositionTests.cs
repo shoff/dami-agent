@@ -69,7 +69,7 @@ public sealed class ProactiveCompositionTests
             {
                 "interest-scout", "pushback-audit", "health-collector", "network-collector",
                 "civic-collector", "civic-agenda", "curator", "codebase-audit", "reflection",
-                "media-librarian", "embedder", "repo-hygiene", "gallery-curator",
+                "media-librarian", "embedder", "repo-hygiene", "gallery-curator", "opportunity-scout",
             },
             names);
     }

@@ -10247,3 +10247,36 @@ detail pane shows a marks line ("♥ favourite · hidden"), the buttons read "�
 / "unhide" for what they will do, the status rail says what happened, and a hidden picture
 leaves the grid at once (unless the hidden box is ticked). GUI tests 126/126; installed.
 
+## 2026-09-05 — Claude — Research egress: SearXNG, a public-only reader, search tools, and the opportunity scout (ADR-0033)
+
+Steve: "go ahead, I'll sign the egress widening, build the first slice."
+
+**Engine.** `dami-searxng` on loopback from the pinned digest, JSON format on, limiter
+off; `--dns 1.1.1.1 --dns 192.168.4.23` because the container inherited only the slow
+first resolver and every engine call began with a three-second timeout (0.7 s per search
+after). `tools/search/run.sh` and `settings.yml` are the source of truth.
+
+**Seam.** `IResearchReader` (Contracts.Research) + `ResearchReader` (Privacy): http/https
+GET only, host resolved and every address checked public (`IsPublic`: RFC 1918, loopback,
+link-local, CGNAT, multicast, `::1`), blocked-host list, five redirects each re-checked, 2 MB
+body cap, 8,000-char text cap, `Research:Enabled` switch, egress budget, four event kinds.
+`HtmlText` strips markup to words. `ISearchEngine` + `SearxngSearchClient` (Providers).
+
+**Tools.** `ResearchTools` (`search_web`, `read_page`) in the bundle — thirteen tools. The
+query passes the disclosure gate: pass sends it, disguise sends the rewrite and says
+"searched as", withhold refuses; the ledger records it under `search_web: <query>`. Page
+text is labelled untrusted. **Scout.** `OpportunityScoutService` (Weekly): each drop-in
+query → SearXNG → dedupe → TEI reranker against the profile → top N in one surfacing
+"Opportunities this week"; a failed query does not sink the pass.
+
+**Architecture.** `IResearchReader` and `ISearchEngine` join the egress seams; holders
+pinned to four types. Gate: 0 warnings, 0 errors, **1,741 passed** across 21 assemblies
+(Privacy 44 → 58, Providers 62 → 64, Core 240 → 246, Proactive 263 → 266). Both tiers
+restaged; drop-in blocks in the runbook. Not yet exercised live from a chat turn.
+
+**A trap of my own.** The first attempt to write these notes nested a shell heredoc
+inside a Python heredoc whose text contained the inner terminator; the script ended
+early, the rest ran as shell, `sudo` refused without a terminal, and `git commit -F -`
+hung on a broken stdin for ten minutes. Nothing was committed or changed by it; the
+notes were rewritten from a script file.
+

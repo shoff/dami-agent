@@ -144,6 +144,15 @@ builder.Services.AddSingleton<IFrontierRecall, FrontierRecallTool>();
 builder.Services.AddSingleton<IFrontierRemember, RememberTool>();
 builder.Services.AddSingleton<IFrontierScheduling, ScheduleTools>();
 builder.Services.AddSingleton<IFrontierFitness, FitnessTools>();
+// ADR-0033: research egress — the private SearXNG on loopback, and a reader of public
+// pages that refuses private addresses. Both behind Research:Enabled.
+builder.Services.Configure<SearxngOptions>(builder.Configuration.GetSection(SearxngOptions.SECTION_NAME));
+builder.Services.Configure<Dami.Privacy.ResearchOptions>(builder.Configuration.GetSection(Dami.Privacy.ResearchOptions.SECTION_NAME));
+builder.Services.Configure<ResearchToolOptions>(builder.Configuration.GetSection(ResearchToolOptions.SECTION_NAME));
+builder.Services.AddHttpClient<Dami.Contracts.Research.ISearchEngine, SearxngSearchClient>();
+builder.Services.AddHttpClient<Dami.Contracts.Research.IResearchReader, Dami.Privacy.ResearchReader>()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddSingleton<IFrontierResearch, ResearchTools>();
 builder.Services.AddSingleton<FrontierToolBundle>();
 
 // Frontier: subscription door (ADR-0011) behind the C5 egress budget.

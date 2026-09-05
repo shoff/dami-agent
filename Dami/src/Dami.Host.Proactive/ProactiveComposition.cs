@@ -19,6 +19,7 @@ using Dami.Proactive.Weather;
 using Dami.Proactive.Embedder;
 using Dami.Proactive.Gallery;
 using Dami.Proactive.Librarian;
+using Dami.Proactive.Opportunities;
 using Dami.Proactive.Reflection;
 using Dami.Proactive.Scout;
 using Dami.Vision;
@@ -219,6 +220,22 @@ public static class ProactiveComposition
         // over files already on this host, so on by default and bill-free.
         services.Configure<GalleryCuratorOptions>(configuration.GetSection(GalleryCuratorOptions.SECTION_NAME));
         services.AddSingleton<IProactiveService, GalleryCuratorService>();
+
+        AddOpportunityScout(services, configuration);
+    }
+
+    /// <summary>
+    /// ADR-0033: the weekly opportunity scout searches through the private SearXNG on
+    /// loopback. Its queries are Steve's own words from the drop-in; quiet until named.
+    /// </summary>
+    private static void AddOpportunityScout(IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<SearxngOptions>(configuration.GetSection(SearxngOptions.SECTION_NAME));
+        services.AddHttpClient<Dami.Contracts.Research.ISearchEngine, SearxngSearchClient>();
+        services.Configure<TeiRerankOptions>(configuration.GetSection(TeiRerankOptions.SECTION_NAME));
+        services.AddHttpClient<IRerankClient, TeiRerankClient>();
+        services.Configure<OpportunityScoutOptions>(configuration.GetSection(OpportunityScoutOptions.SECTION_NAME));
+        services.AddSingleton<IProactiveService, OpportunityScoutService>();
     }
 
     private static void AddDailyPortrait(IServiceCollection services, IConfiguration configuration)

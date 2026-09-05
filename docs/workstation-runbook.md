@@ -33,6 +33,7 @@ network, and that is deliberate — remote access is SSH first, then talk to loc
 | `dami` CLI | `/usr/local/bin/dami` | — native | published to `/opt/dami/cli` | inbox/read/feedback · beliefs/correct/retract/note · recall/ask/**chat**/context · trace/stats/health · caption · **board**/board-import |
 | Text to speech | `127.0.0.1:8091` | `dami-tts` (unit in `tools/systemd`, run by hand until installed) | — bare metal, `uv run --with piper-tts tools/tts/server.py` | Piper, voice `en_US-ljspeech-medium` (public domain, ADR-0022), voices in `/home/steve/Data/piper`; CPU |
 | Speech to text | `127.0.0.1:8090` | `dami-stt` | `fedirz/faster-whisper-server:latest-cuda` | `Systran/faster-whisper-small.en` on CUDA; model cache at `/home/steve/Data/whisper`; ~1s per 5s of audio warm |
+| Web search | `127.0.0.1:8888` | `dami-searxng` | `searxng/searxng@sha256:55e1fa15…` (pinned digest) | private SearXNG for ADR-0033 research; JSON enabled; settings in `/home/steve/Data/dami-searxng`; `tools/search/run.sh` recreates it; the query leaves this host to the engines |
 | LLM guard | systemd `dami-llm-guard.timer` | — bare metal | 15-min check | restarts `dami-llm` when a loaded model is not fully in VRAM **for two samples 30 s apart** (five occurrences of the silent CPU fallback to date; on 2026-09-05 it restarted under a live turn on a model that was merely loading after the vision model evicted it — hence the second sample). Install: `sudo cp tools/systemd/dami-llm-guard /usr/local/bin/` |
 
 All containers are `--restart unless-stopped` and `docker.service` is enabled at boot,
@@ -443,6 +444,39 @@ tier writing the run row.
 A pass that could not draw completes with the reason in its run-log note ("… portrait not
 produced: …") rather than failing the tier; `journalctl -u dami-proactive | grep -i portrait`
 has the exception.
+
+### Enabling web research and the opportunity scout (ADR-0033)
+
+Off by default on both tiers. The Host's drop-in turns on `search_web` / `read_page`; the
+proactive tier's drop-in names what the weekly scout looks for. The profile and queries are
+your own words and go to the search engines ungated — write them as you would type them
+into a search box, with nothing in them you would not put there.
+
+```bash
+sudo tee /etc/systemd/system/dami-host.service.d/research.conf > /dev/null <<'UNIT'
+[Service]
+Environment=Research__Enabled=true
+UNIT
+sudo tee /etc/systemd/system/dami-proactive.service.d/opportunities.conf > /dev/null <<'UNIT'
+[Service]
+Environment=OpportunityScout__Enabled=true
+Environment="OpportunityScout__Profile=Senior C#/.NET and PostgreSQL developer in Minnesota with an RTX 4080 workstation, a 3D printer, and scale-model skills; wants short remote contracts, bug bounties on .NET and web targets, and small things worth selling."
+Environment="OpportunityScout__Queries__0=remote .NET contract developer short term"
+Environment="OpportunityScout__Queries__1=freelance PostgreSQL performance consultant"
+Environment="OpportunityScout__Queries__2=bug bounty program .NET ASP.NET new scope"
+Environment="OpportunityScout__Queries__3=3D printed parts in demand Etsy 2026"
+UNIT
+sudo systemctl daemon-reload && sudo systemctl restart dami-host dami-proactive
+```
+
+Run the scout now rather than waiting a week — set the same variables in the shell (the
+`systemctl show` expansion breaks on the quoted values) and:
+
+```bash
+cd /opt/dami/proactive && ./Dami.Host.Proactive --run opportunity-scout
+```
+
+The digest lands in the inbox as "Opportunities this week".
 
 ### Rebuilding /opt/dami from nothing
 

@@ -125,6 +125,15 @@ public sealed class DiscordGatewayWorkerTests
             return fitness;
         }
 
+        private static IFrontierResearch ResearchStub()
+        {
+            var research = Substitute.For<IFrontierResearch>();
+            var schema = System.Text.Json.JsonDocument.Parse("""{"type":"object"}""").RootElement;
+            research.SearchTool.Returns(new FrontierTool("search_web", "s", schema));
+            research.ReadTool.Returns(new FrontierTool("read_page", "r", schema));
+            return research;
+        }
+
         private static IConversationTurnStore EmptyHistory()
         {
             var store = Substitute.For<IConversationTurnStore>();
@@ -138,7 +147,7 @@ public sealed class DiscordGatewayWorkerTests
         {
             var bundle = new FrontierToolBundle(
                 this.Images, this.Portraits, this.Recall, this.Remember, this.Scheduling,
-                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), FitnessStub(),
+                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), FitnessStub(), ResearchStub(),
                 NullLogger<FrontierToolBundle>.Instance);
             var vision = new DiscordVision(
                 this.Vision, this.Rest, this.Options, NullLogger<DiscordVision>.Instance);

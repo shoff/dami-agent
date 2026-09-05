@@ -22,6 +22,7 @@ public sealed class FrontierToolBundleTests
     private readonly IGallerySearch gallery = Substitute.For<IGallerySearch>();
     private readonly IGalleryPictures pictures = Substitute.For<IGalleryPictures>();
     private readonly IFrontierFitness fitness = Substitute.For<IFrontierFitness>();
+    private readonly IFrontierResearch research = Substitute.For<IFrontierResearch>();
 
     public FrontierToolBundleTests()
     {
@@ -31,6 +32,8 @@ public sealed class FrontierToolBundleTests
         this.scheduling.ConfirmTool.Returns(new FrontierTool("confirm_schedule", "c", schema));
         this.fitness.SetsTool.Returns(new FrontierTool("log_sets", "l", schema));
         this.fitness.CardioTool.Returns(new FrontierTool("log_cardio", "l", schema));
+        this.research.SearchTool.Returns(new FrontierTool("search_web", "s", schema));
+        this.research.ReadTool.Returns(new FrontierTool("read_page", "r", schema));
     }
 
     private static FrontierToolCall Call(string tool, string json) =>
@@ -38,16 +41,16 @@ public sealed class FrontierToolBundleTests
 
     private FrontierToolBundle.FrontierTurnTools Tools(string channel = "discord:1") =>
         new FrontierToolBundle(
-            this.images, this.portraits, this.recall, this.remember, this.scheduling, this.gallery, this.pictures, this.fitness,
+            this.images, this.portraits, this.recall, this.remember, this.scheduling, this.gallery, this.pictures, this.fitness, this.research,
             NullLogger<FrontierToolBundle>.Instance).ForTurn(Guid.NewGuid(), channel);
 
     [Fact]
-    public void The_Bundle_Should_Be_Eleven_Tools_With_Object_Schemas()
+    public void The_Bundle_Should_Be_Thirteen_Tools_With_Object_Schemas()
     {
         var tools = this.Tools().Toolbox.Tools;
 
         Assert.Equal(
-            ["make_portrait", "make_image", "find_pictures", "show_picture", "retouch_picture", "recall", "remember", "schedule", "confirm_schedule", "log_sets", "log_cardio"],
+            ["make_portrait", "make_image", "find_pictures", "show_picture", "retouch_picture", "recall", "remember", "schedule", "confirm_schedule", "log_sets", "log_cardio", "search_web", "read_page"],
             tools.Select(tool => tool.Name));
         Assert.All(tools, tool => Assert.Equal("object", tool.InputSchema.GetProperty("type").GetString()));
     }
@@ -153,6 +156,17 @@ public sealed class FrontierToolBundleTests
             CancellationToken.None);
 
         Assert.Equal("Logged 4x12 biceps curl at 140 lb, RPE 7.", result.Text);
+    }
+
+    [Fact]
+    public async Task Search_Web_Should_Carry_The_Turns_Trace_To_The_Gated_Search()
+    {
+        this.research.SearchAsync(Arg.Any<Guid>(), "dotnet contract work", Arg.Any<CancellationToken>())
+            .Returns(FrontierToolResult.Ok("Results (untrusted, from the web):\n1. x"));
+
+        var result = await this.Tools().HandleAsync(Call("search_web", """{"query":"dotnet contract work"}"""), CancellationToken.None);
+
+        Assert.Contains("untrusted", result.Text, StringComparison.Ordinal);
     }
 
     [Fact]

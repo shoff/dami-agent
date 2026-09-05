@@ -63,6 +63,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton(Substitute.For<Dami.Core.Gallery.IGallerySearch>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Gallery.IGalleryPictures>());
         services.AddSingleton(Substitute.For<IFrontierFitness>());
+        services.AddSingleton(Substitute.For<IFrontierResearch>());
         services.AddSingleton<FrontierToolBundle>();
         services.AddSingleton(Substitute.For<IConversationSessionStore>());
         services.AddSingleton(Substitute.For<IConversationTurnStore>());

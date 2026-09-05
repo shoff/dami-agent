@@ -1,0 +1,15 @@
+# Dami's private SearXNG: loopback only, JSON enabled for the runtime, no limiter
+# (the only client is this host). Source of truth: tools/search/settings.yml in the repo.
+use_default_settings: true
+server:
+  secret_key: "dami-local-searxng-not-a-secret-loopback-only"
+  limiter: false
+  image_proxy: false
+search:
+  formats:
+    - html
+    - json
+  safe_search: 0
+outgoing:
+  request_timeout: 6.0
+  max_request_timeout: 12.0

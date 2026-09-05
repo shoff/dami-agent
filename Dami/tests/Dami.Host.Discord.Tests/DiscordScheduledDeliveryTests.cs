@@ -49,6 +49,9 @@ public sealed class DiscordScheduledDeliveryTests
         var fitness = Substitute.For<IFrontierFitness>();
         fitness.SetsTool.Returns(new FrontierTool("log_sets", "l", schema));
         fitness.CardioTool.Returns(new FrontierTool("log_cardio", "l", schema));
+        var research = Substitute.For<IFrontierResearch>();
+        research.SearchTool.Returns(new FrontierTool("search_web", "s", schema));
+        research.ReadTool.Returns(new FrontierTool("read_page", "r", schema));
         var options = new DiscordOptions { Token = "t", OwnerUserId = "1", Enabled = true };
         this.turnStore.RecentCompletedTurnsAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(NoneAsync());
@@ -56,7 +59,7 @@ public sealed class DiscordScheduledDeliveryTests
             this.channel, this.augmented, new DiscordReplyStreamer(this.progressive),
             new FrontierToolBundle(
                 Substitute.For<IImageGenerator>(), Substitute.For<IPortraitGenerator>(), recall, remember, scheduling,
-                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), fitness,
+                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), fitness, research,
                 NullLogger<FrontierToolBundle>.Instance),
             new DiscordVision(Substitute.For<IVisionClient>(), Substitute.For<IDiscordRest>(), options, NullLogger<DiscordVision>.Instance),
             Substitute.For<IConversationSessionStore>(), this.turnStore, TimeProvider.System, options,

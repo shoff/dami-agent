@@ -52,6 +52,17 @@ public sealed class EgressSeamTests
         "IFrontierChat",
         "IImageGenerator",
         "IDiscordRest",
+        "IResearchReader",
+        "ISearchEngine",
+    ];
+
+    /// <summary>The types allowed to read public pages or search (ADR-0033): the research door.</summary>
+    private static readonly string[] permittedResearchHolders =
+    [
+        "Dami.Core.Frontier.ResearchTools",
+        "Dami.Proactive.Opportunities.OpportunityScoutService",
+        "Dami.Privacy.ResearchReader",
+        "Dami.Providers.SearxngSearchClient",
     ];
 
     /// <summary>The stores that hold what D-012 protects.</summary>
@@ -135,6 +146,18 @@ public sealed class EgressSeamTests
             unexpected.Count == 0,
             "Image generation costs money per call; new holders are a decision. Found: "
                 + string.Join(", ", unexpected));
+    }
+
+    [Fact]
+    public void Research_Holders_Should_Be_The_Pinned_Set()
+    {
+        // ADR-0033 widened the boundary to any public host, read-only. Who may use that
+        // door is a decision, and the gate on the query lives in exactly these types.
+        var unexpected = HoldersOf("IResearchReader").Concat(HoldersOf("ISearchEngine"))
+            .Where(holder => !permittedResearchHolders.Contains(holder, StringComparer.Ordinal))
+            .ToList();
+
+        Assert.True(unexpected.Count == 0, "New research holders are a decision. Found: " + string.Join(", ", unexpected));
     }
 
     [Fact]
