@@ -10220,3 +10220,17 @@ withheld. Shared by the augmented turn and `recall`. Not changed: the planner's 
 passed**. Host restaged. Expected effect on a chat turn after the first: the gate prompt
 shrinks from ~30 items to the handful that are new.
 
+## 2026-09-05 — Claude — Gallery: filters, favourites, hide, and the edit chain (ADR-0031 closed out)
+
+Steve: "continue."
+
+`IGalleryIndex.SetFlagsAsync(fileName, favourite?, hidden?)` (null leaves a flag alone),
+`ListAsync` now returns hidden entries so the catalog can filter; `GalleryCatalog.ListAsync(
+includeHidden)` and `FlagAsync` (indexes an unknown file from the folder first);
+`POST /gallery/{file}/flags`, `GET /gallery?hidden=true`. `GalleryCard` carries favourite,
+hidden, derivedFrom. GUI: source combo, "♥ only", "hidden" in the header; ♥ and hide
+buttons beside the date; "edited from …" link selects the source; filtering is
+client-side over the loaded cards. Tests: index flags ×1 (live database), catalog hidden
++ flag ×2, card ×1. Gate: 0 warnings, 0 errors, **1,713 passed**. Host restaged, GUI
+installed.
+

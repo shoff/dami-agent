@@ -14,7 +14,10 @@ public sealed class GalleryImageCard
         bool canonical,
         string caption,
         IReadOnlyList<string> tags,
-        string source)
+        string source,
+        bool favourite,
+        bool hidden,
+        string? derivedFrom)
     {
         this.FileName = fileName;
         this.CreatedAt = createdAt;
@@ -24,6 +27,9 @@ public sealed class GalleryImageCard
         this.Caption = caption;
         this.Tags = tags;
         this.Source = source;
+        this.Favourite = favourite;
+        this.Hidden = hidden;
+        this.DerivedFrom = derivedFrom;
     }
 
     /// <summary>Maps runtime metadata; the curator's fields are optional until it has looked.</summary>
@@ -35,7 +41,10 @@ public sealed class GalleryImageCard
         item.GetProperty("isCanonical").GetBoolean(),
         Optional(item, "caption") ?? string.Empty,
         TagsOf(item),
-        Optional(item, "source") ?? "unknown");
+        Optional(item, "source") ?? "unknown",
+        Flag(item, "favourite"),
+        Flag(item, "hidden"),
+        Optional(item, "derivedFrom"));
 
     /// <summary>Artifact basename.</summary>
     public string FileName { get; }
@@ -61,11 +70,23 @@ public sealed class GalleryImageCard
     /// <summary>Where it came from: chat, discord, scheduled, proactive, imported, unknown.</summary>
     public string Source { get; }
 
+    /// <summary>Steve marked it a favourite.</summary>
+    public bool Favourite { get; set; }
+
+    /// <summary>Steve hid it from the default list.</summary>
+    public bool Hidden { get; set; }
+
+    /// <summary>The picture this one was edited from, if any.</summary>
+    public string? DerivedFrom { get; }
+
     /// <summary>Decoded local image.</summary>
     public Bitmap? Image { get; set; }
 
-    /// <summary>Compact provenance label.</summary>
-    public string Badge => this.IsCanonical ? "identity anchor" : this.Model;
+    /// <summary>Compact provenance label, with a heart when it is a favourite.</summary>
+    public string Badge => (this.Favourite ? "♥ " : string.Empty) + (this.IsCanonical ? "identity anchor" : this.Model);
+
+    /// <summary>"edited from …" for the detail pane, or empty.</summary>
+    public string Lineage => this.DerivedFrom is { Length: > 0 } source ? "edited from " + source : string.Empty;
 
     /// <summary>Human-readable date.</summary>
     public string Date => this.CreatedAt.ToLocalTime().ToString("MMM d, yyyy · h:mm tt");
@@ -75,6 +96,9 @@ public sealed class GalleryImageCard
 
     /// <summary>The caption, or the prompt when the curator has not caught up.</summary>
     public string Description => this.Caption.Length > 0 ? this.Caption : this.Prompt;
+
+    private static bool Flag(JsonElement item, string name) =>
+        item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
 
     private static string? Optional(JsonElement item, string name) =>
         item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;

@@ -146,6 +146,13 @@ public sealed class GalleryCuratorServiceTests : IDisposable
         public IAsyncEnumerable<GalleryEntry> UncaptionedAsync(int limit, CancellationToken cancellationToken) =>
             this.Entries.Values.Where(e => e.Caption is null).OrderBy(e => e.FileName, StringComparer.Ordinal).Take(limit).ToAsyncEnumerable();
 
+        public Task SetFlagsAsync(string fileName, bool? favourite, bool? hidden, CancellationToken cancellationToken)
+        {
+            var entry = this.Entries[fileName];
+            this.Entries[fileName] = entry with { Favourite = favourite ?? entry.Favourite, Hidden = hidden ?? entry.Hidden };
+            return Task.CompletedTask;
+        }
+
         public Task DescribeAsync(string fileName, GalleryDescription description, CancellationToken cancellationToken)
         {
             this.Entries[fileName] = this.Entries[fileName] with

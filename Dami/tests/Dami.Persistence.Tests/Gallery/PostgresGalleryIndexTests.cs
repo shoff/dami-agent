@@ -123,6 +123,22 @@ public sealed class PostgresGalleryIndexTests
     }
 
     [Fact]
+    public async Task SetFlags_Should_Change_Only_The_Flags_Given_And_List_Should_Still_Show_Hidden()
+    {
+        await this.fixture.ResetAsync();
+        var index = this.Index();
+        await index.UpsertAsync(Entry("a.png"), CancellationToken.None);
+
+        await index.SetFlagsAsync("a.png", favourite: true, hidden: null, CancellationToken.None);
+        await index.SetFlagsAsync("a.png", favourite: null, hidden: true, CancellationToken.None);
+
+        var found = await index.FindAsync("a.png", CancellationToken.None);
+        Assert.Equal((true, true), (found!.Favourite, found.Hidden));
+        Assert.Contains(await AllAsync(index.ListAsync(10, CancellationToken.None)), entry => entry.FileName == "a.png");
+        Assert.Empty(await AllAsync(index.UncaptionedAsync(10, CancellationToken.None)));
+    }
+
+    [Fact]
     public async Task Describe_Should_Refuse_An_Unindexed_Picture()
     {
         await this.fixture.ResetAsync();

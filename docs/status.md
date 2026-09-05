@@ -702,7 +702,7 @@ the Gallery folder — provenance, caption, tags, vector — and a `gallery-cura
 pass (eight-hourly, loopback only) keeps it current. First live pass: 79 indexed, 6
 captioned, 6 embedded. **Search followed the same day:** `/gallery/search`, a search box
 and captions in the GUI, and `find_pictures`/`show_picture` in the frontier's bundle.
-Then similar-to-this (`/gallery/{file}/similar`, a button) and edit-from-selected (`/gallery/{file}/edit`, an edit box, `retouch_picture` in the bundle, `derived_from` recorded). Filters and favourites are next. 1,691 tests.
+Then similar-to-this (`/gallery/{file}/similar`, a button) and edit-from-selected (`/gallery/{file}/edit`, an edit box, `retouch_picture` in the bundle, `derived_from` recorded). Then filters, favourites, hide, and the edit-chain link. The brainstorm's first tier and the edit half of the second are done. 1,713 tests.
 
 **First measurement (2026-09-05, ADR-0032).** Disclosure ledger over one day: 44 withheld /
 9 disguised / 14 passed; the gate was withholding the conversation history for containing

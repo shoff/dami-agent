@@ -15,6 +15,13 @@ public sealed partial class MainWindow
     private TextBox galleryEdit = null!;
     private Button galleryEditRun = null!;
     private Button gallerySimilar = null!;
+    private Button galleryFavourite = null!;
+    private Button galleryHide = null!;
+    private Button galleryLineage = null!;
+    private ComboBox gallerySourceFilter = null!;
+    private CheckBox galleryFavouritesOnly = null!;
+    private CheckBox galleryShowHidden = null!;
+    private IReadOnlyList<GalleryImageCard> galleryAll = [];
     private Button galleryGenerate = null!;
     private Button galleryRefresh = null!;
     private Button galleryImport = null!;
@@ -31,6 +38,7 @@ public sealed partial class MainWindow
         this.gallerySimilar = Require<Button>(this, "GallerySimilar");
         this.galleryEditRun.Click += (_, _) => _ = this.EditGalleryImageAsync();
         this.gallerySimilar.Click += (_, _) => _ = this.SimilarGalleryImagesAsync();
+        this.InitializeGalleryFilters();
         this.galleryGenerate = Require<Button>(this, "GalleryGenerate");
         this.galleryRefresh = Require<Button>(this, "GalleryRefresh");
         this.galleryImport = Require<Button>(this, "GalleryImport");
@@ -84,6 +92,82 @@ public sealed partial class MainWindow
         this.state.GalleryMessage = items.Count == 0
             ? $"nothing matches “{query}” — the curator may not have captioned everything yet"
             : $"{items.Count} match(es) for “{query}” · clear the box and press Enter for all";
+    }
+
+    private void InitializeGalleryFilters()
+    {
+        this.galleryFavourite = Require<Button>(this, "GalleryFavourite");
+        this.galleryHide = Require<Button>(this, "GalleryHide");
+        this.galleryLineage = Require<Button>(this, "GalleryLineage");
+        this.gallerySourceFilter = Require<ComboBox>(this, "GallerySourceFilter");
+        this.galleryFavouritesOnly = Require<CheckBox>(this, "GalleryFavouritesOnly");
+        this.galleryShowHidden = Require<CheckBox>(this, "GalleryShowHidden");
+        this.galleryFavourite.Click += (_, _) => _ = this.FlagSelectedAsync(favourite: true);
+        this.galleryHide.Click += (_, _) => _ = this.FlagSelectedAsync(favourite: false);
+        this.galleryLineage.Click += (_, _) => this.SelectGalleryImage(this.state.SelectedGalleryImage?.DerivedFrom);
+        this.gallerySourceFilter.SelectionChanged += (_, _) => this.ApplyGalleryFilter();
+        this.galleryFavouritesOnly.IsCheckedChanged += (_, _) => this.ApplyGalleryFilter();
+        this.galleryShowHidden.IsCheckedChanged += (_, _) => _ = this.LoadGalleryAsync(false);
+    }
+
+    /// <summary>The loaded cards through the source, favourite and hidden filters.</summary>
+    private void ApplyGalleryFilter()
+    {
+        var source = (this.gallerySourceFilter.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "all sources";
+        var favouritesOnly = this.galleryFavouritesOnly.IsChecked == true;
+        var items = this.galleryAll
+            .Where(card => source == "all sources" || card.Source == source)
+            .Where(card => !favouritesOnly || card.Favourite)
+            .ToList();
+        Replace(this.state.GalleryImages, items);
+        if (!items.Contains(this.state.SelectedGalleryImage!))
+        {
+            this.galleryList.SelectedItem = items.FirstOrDefault();
+            this.state.SelectedGalleryImage = items.FirstOrDefault();
+        }
+
+        this.state.GalleryMessage = items.Count == this.galleryAll.Count
+            ? $"{items.Count} portraits"
+            : $"{items.Count} of {this.galleryAll.Count} portraits";
+    }
+
+    /// <summary>Toggles the selected picture's favourite or hidden flag on the runtime, then reloads.</summary>
+    private async Task FlagSelectedAsync(bool favourite)
+    {
+        if (this.state.SelectedGalleryImage is not { } selected)
+        {
+            return;
+        }
+
+        var body = favourite
+            ? new { favourite = (bool?)!selected.Favourite, hidden = (bool?)null }
+            : new { favourite = (bool?)null, hidden = (bool?)!selected.Hidden };
+        using var result = await this.runtime.PostAsync(
+            "/gallery/" + Uri.EscapeDataString(selected.FileName) + "/flags", body, this.lifetime.Token)
+            .ConfigureAwait(true);
+        if (result is null)
+        {
+            this.state.GalleryMessage = "The runtime did not answer /gallery/{file}/flags.";
+            return;
+        }
+
+        await this.LoadGalleryAsync(false).ConfigureAwait(true);
+        this.SelectGalleryImage(selected.FileName);
+    }
+
+    private void SelectGalleryImage(string? fileName)
+    {
+        if (fileName is null)
+        {
+            return;
+        }
+
+        var match = this.state.GalleryImages.FirstOrDefault(card => card.FileName == fileName);
+        if (match is not null)
+        {
+            this.galleryList.SelectedItem = match;
+            this.state.SelectedGalleryImage = match;
+        }
     }
 
     /// <summary>The pictures most like the selected one (ADR-0031).</summary>
@@ -182,7 +266,8 @@ public sealed partial class MainWindow
             this.SetStatus(GlobalStatus.Working("Refreshing Dami's gallery…"));
         }
 
-        using var response = await this.runtime.GetAsync("/gallery", this.lifetime.Token)
+        var path = this.galleryShowHidden?.IsChecked == true ? "/gallery?hidden=true" : "/gallery";
+        using var response = await this.runtime.GetAsync(path, this.lifetime.Token)
             .ConfigureAwait(true);
         if (response is null)
         {
@@ -192,7 +277,9 @@ public sealed partial class MainWindow
         }
 
         var items = await this.CardsAsync(response).ConfigureAwait(true);
+        this.galleryAll = items;
         this.ShowGallery(items);
+        this.ApplyGalleryFilter();
         if (announce)
         {
             this.SetStatus(GlobalStatus.Success($"Gallery refreshed · {items.Count} portraits."));

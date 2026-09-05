@@ -78,8 +78,13 @@ thing: the Gallery knowing what each picture is. This is that thing.
   the detail pane, and `retouch_picture` in the bundle (nine tools now) all use it.
   Every generation now also records itself in the index at once, so a picture is known
   before the curator has captioned it.
-- Still to come: source and favourite filters, favourites and hidden (columns exist, no
-  UI yet), and a derivation chain view.
+- **Filters, favourites, hide, and lineage followed.** `IGalleryIndex.SetFlagsAsync` and
+  `POST /gallery/{file}/flags`; `/gallery` leaves hidden pictures out unless
+  `?hidden=true`; a picture the curator has not indexed yet is indexed from the folder
+  before it is marked. The GUI header filters by source and favourites and can show
+  hidden ones; the detail pane has ♥ and hide toggles and an "edited from …" link that
+  selects the source picture. That closes the plan's first tier and the edit half of the
+  second; a captioned daily page and Discord delivery of search results remain ideas.
 
 ## Reversal path
 

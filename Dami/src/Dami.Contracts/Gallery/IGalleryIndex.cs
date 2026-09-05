@@ -50,8 +50,11 @@ public interface IGalleryIndex
     /// <summary>One entry by file name.</summary>
     Task<GalleryEntry?> FindAsync(string fileName, CancellationToken cancellationToken);
 
-    /// <summary>The newest first.</summary>
+    /// <summary>The newest first, hidden ones included; the entry says which are hidden.</summary>
     IAsyncEnumerable<GalleryEntry> ListAsync(int limit, CancellationToken cancellationToken);
+
+    /// <summary>Marks a picture favourite or hidden; a null leaves that flag as it is.</summary>
+    Task SetFlagsAsync(string fileName, bool? favourite, bool? hidden, CancellationToken cancellationToken);
 
     /// <summary>Pictures the vision model has not described yet, oldest indexed first.</summary>
     IAsyncEnumerable<GalleryEntry> UncaptionedAsync(int limit, CancellationToken cancellationToken);

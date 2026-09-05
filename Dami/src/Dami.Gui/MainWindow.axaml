@@ -1048,6 +1048,19 @@
             <Button x:Name="GalleryImport" DockPanel.Dock="Right" Content="import images…"
                     Margin="0,0,8,0" Padding="12,4" Background="#233041"
                     Foreground="{StaticResource Ink}"/>
+            <CheckBox x:Name="GalleryShowHidden" DockPanel.Dock="Right" Content="hidden" Margin="0,0,8,0"
+                      Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+            <CheckBox x:Name="GalleryFavouritesOnly" DockPanel.Dock="Right" Content="♥ only" Margin="0,0,8,0"
+                      Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+            <ComboBox x:Name="GallerySourceFilter" DockPanel.Dock="Right" Width="130" Margin="0,0,8,0"
+                      SelectedIndex="0" VerticalAlignment="Center">
+              <ComboBoxItem Content="all sources"/>
+              <ComboBoxItem Content="chat"/>
+              <ComboBoxItem Content="discord"/>
+              <ComboBoxItem Content="scheduled"/>
+              <ComboBoxItem Content="proactive"/>
+              <ComboBoxItem Content="imported"/>
+            </ComboBox>
             <TextBox x:Name="GallerySearch" DockPanel.Dock="Right" Width="300" Margin="0,0,8,0"
                      PlaceholderText="search: balcony at dusk, red dress, reading…"
                      Background="#0D1116" BorderBrush="#2A333D" Foreground="{StaticResource Ink}"/>
@@ -1103,9 +1116,17 @@
                 <DockPanel>
                   <Button x:Name="GallerySimilar" DockPanel.Dock="Right" Content="find similar"
                           Padding="10,3" Background="#233041" Foreground="{StaticResource Ink}"/>
+                  <Button x:Name="GalleryHide" DockPanel.Dock="Right" Content="hide" Margin="0,0,6,0"
+                          Padding="10,3" Background="#233041" Foreground="{StaticResource Ink}"/>
+                  <Button x:Name="GalleryFavourite" DockPanel.Dock="Right" Content="♥" Margin="0,0,6,0"
+                          Padding="10,3" Background="#233041" Foreground="{StaticResource Ink}"/>
                   <TextBlock Text="{Binding SelectedGalleryImage.Date}" FontSize="12"
                              VerticalAlignment="Center" Foreground="{StaticResource Ink}"/>
                 </DockPanel>
+                <Button x:Name="GalleryLineage" Content="{Binding SelectedGalleryImage.Lineage}"
+                        IsVisible="{Binding SelectedGalleryImage.DerivedFrom, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        FontSize="10" Padding="0" Background="Transparent" Foreground="#5AA9E6"
+                        HorizontalAlignment="Left"/>
                 <TextBlock Text="{Binding SelectedGalleryImage.Caption}" FontSize="11"
                            TextWrapping="Wrap" Foreground="{StaticResource Ink}"/>
                 <TextBlock Text="{Binding SelectedGalleryImage.TagLine}" FontSize="10"

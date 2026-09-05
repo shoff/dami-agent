@@ -49,12 +49,40 @@ public sealed class GalleryCatalogTests : IDisposable
         this.index.ListAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(EntriesAsync(
             new GalleryEntry("seen.png", DateTimeOffset.UnixEpoch, GallerySource.Discord, "p", "m", false, Caption: "on a balcony", Tags: ["balcony"])));
 
-        var cards = await this.Subject().ListAsync(CancellationToken.None);
+        var cards = await this.Subject().ListAsync(false, CancellationToken.None);
 
         var seen = Assert.Single(cards, card => card.FileName == "seen.png");
         var fresh = Assert.Single(cards, card => card.FileName == "new.png");
         Assert.Equal(("on a balcony", "discord"), (seen.Caption, seen.Source));
         Assert.Equal((null, "unknown"), (fresh.Caption, fresh.Source));
+    }
+
+    [Fact]
+    public async Task List_Should_Leave_Hidden_Pictures_Out_Unless_Asked()
+    {
+        await File.WriteAllBytesAsync(Path.Combine(this.root, "shown.png"), [1]);
+        await File.WriteAllBytesAsync(Path.Combine(this.root, "hidden.png"), [1]);
+        this.index.ListAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(EntriesAsync(
+            new GalleryEntry("hidden.png", DateTimeOffset.UnixEpoch, GallerySource.Chat, "p", "m", false, Hidden: true, Favourite: true)));
+
+        var shown = await this.Subject().ListAsync(false, CancellationToken.None);
+        var all = await this.Subject().ListAsync(true, CancellationToken.None);
+
+        Assert.Equal(["shown.png"], shown.Select(card => card.FileName));
+        Assert.Equal(2, all.Count);
+        Assert.True(Assert.Single(all, card => card.FileName == "hidden.png").Favourite);
+    }
+
+    [Fact]
+    public async Task Flag_Should_Index_An_Unknown_Picture_From_The_Folder_Before_Marking_It()
+    {
+        await File.WriteAllBytesAsync(Path.Combine(this.root, "new.png"), [1]);
+        this.index.FindAsync("new.png", Arg.Any<CancellationToken>()).Returns((GalleryEntry?)null);
+
+        await this.Subject().FlagAsync("new.png", favourite: true, hidden: null, CancellationToken.None);
+
+        await this.index.Received(1).UpsertAsync(Arg.Is<GalleryEntry>(entry => entry.FileName == "new.png"), Arg.Any<CancellationToken>());
+        await this.index.Received(1).SetFlagsAsync("new.png", true, null, Arg.Any<CancellationToken>());
     }
 
     [Fact]

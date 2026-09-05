@@ -70,9 +70,24 @@ public sealed class PostgresGalleryIndex : IGalleryIndex
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(limit, 0);
         var command = this.dataSource.CreateCommand(
-            $"select {COLUMNS} from {this.Images} where not hidden order by created_at desc limit @limit");
+            $"select {COLUMNS} from {this.Images} order by created_at desc limit @limit");
         command.Parameters.AddWithValue("limit", limit);
         return StreamAsync(command, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task SetFlagsAsync(string fileName, bool? favourite, bool? hidden, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        await using var command = this.dataSource.CreateCommand(
+            $"update {this.Images} set favourite = coalesce(@favourite, favourite), hidden = coalesce(@hidden, hidden) where file_name = @file");
+        command.Parameters.AddWithValue("file", fileName);
+        command.Parameters.AddWithValue("favourite", (object?)favourite ?? DBNull.Value);
+        command.Parameters.AddWithValue("hidden", (object?)hidden ?? DBNull.Value);
+        if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
+        {
+            throw new KeyNotFoundException($"Gallery picture {fileName} is not indexed.");
+        }
     }
 
     /// <inheritdoc />

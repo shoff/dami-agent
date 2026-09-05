@@ -27,8 +27,8 @@ public static class ImageEndpoints
     private static void MapGallery(WebApplication app)
     {
         app.MapGet("/gallery", async (
-            GalleryCatalog catalog, CancellationToken cancellationToken) =>
-            Results.Ok(await catalog.ListAsync(cancellationToken).ConfigureAwait(false)));
+            bool? hidden, GalleryCatalog catalog, CancellationToken cancellationToken) =>
+            Results.Ok(await catalog.ListAsync(hidden ?? false, cancellationToken).ConfigureAwait(false)));
         app.MapGet("/gallery/search", async (
             string q, int? limit, GalleryCatalog catalog, CancellationToken cancellationToken) =>
             string.IsNullOrWhiteSpace(q)
@@ -62,6 +62,12 @@ public static class ImageEndpoints
             string fileName, int? limit, GalleryCatalog catalog, CancellationToken cancellationToken) =>
             Results.Ok(await catalog.SimilarAsync(fileName, Math.Clamp(limit ?? 12, 1, 60), cancellationToken)
                 .ConfigureAwait(false)));
+        app.MapPost("/gallery/{fileName}/flags", async (
+            string fileName, GalleryFlagsRequest request, GalleryCatalog catalog, CancellationToken cancellationToken) =>
+        {
+            await catalog.FlagAsync(fileName, request.Favourite, request.Hidden, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(new { fileName, request.Favourite, request.Hidden });
+        });
         app.MapPost("/gallery/{fileName}/edit", async (
             string fileName, GalleryEditRequest request, GalleryImageGenerator generator, CancellationToken cancellationToken) =>
             Results.Ok(await generator.EditAsync(fileName, request.Instruction, cancellationToken).ConfigureAwait(false)));
@@ -85,3 +91,6 @@ public sealed record GalleryImportRequest(IReadOnlyList<GalleryImport> Images);
 
 /// <summary>One change to make to an existing Gallery picture.</summary>
 public sealed record GalleryEditRequest(string Instruction);
+
+/// <summary>Favourite or hide a picture; a null leaves that flag alone.</summary>
+public sealed record GalleryFlagsRequest(bool? Favourite, bool? Hidden);
