@@ -47,6 +47,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton(Substitute.For<IVisionClient>());
         services.AddSingleton(Substitute.For<IImageGenerator>());
         services.AddSingleton(Substitute.For<IDiscordPortraitGenerator>());
+        services.AddSingleton(Substitute.For<IFrontierRecall>());
         services.AddSingleton(Substitute.For<IConversationSessionStore>());
         services.AddSingleton(Substitute.For<IConversationTurnStore>());
         services.AddSingleton(Substitute.For<IProactiveRunHistory>());

@@ -73,6 +73,8 @@ public sealed class DiscordGatewayWorkerTests
 
         public IDiscordPortraitGenerator Portraits { get; init; } = Substitute.For<IDiscordPortraitGenerator>();
 
+        public IFrontierRecall Recall { get; init; } = RecallStub();
+
         public IDiscordRest Rest { get; init; } = Substitute.For<IDiscordRest>();
 
         public IConversationSessionStore Sessions { get; init; } =
@@ -82,6 +84,14 @@ public sealed class DiscordGatewayWorkerTests
         public IConversationTurnStore TurnStore { get; init; } = EmptyHistory();
 
         public DiscordOptions Options { get; set; } = Configured();
+
+        private static IFrontierRecall RecallStub()
+        {
+            var recall = Substitute.For<IFrontierRecall>();
+            recall.Tool.Returns(new FrontierTool(
+                "recall", "look it up", System.Text.Json.JsonDocument.Parse("""{"type":"object"}""").RootElement));
+            return recall;
+        }
 
         private static IConversationTurnStore EmptyHistory()
         {
@@ -103,7 +113,7 @@ public sealed class DiscordGatewayWorkerTests
                 new DiscordReplyStreamer(this.Progressive),
                 new DiscordImageResponder(
                     this.Images, this.Portraits, this.Channel, NullLogger<DiscordImageResponder>.Instance),
-                new DiscordToolbox(this.Images, this.Portraits, NullLogger<DiscordToolbox>.Instance),
+                new DiscordToolbox(this.Images, this.Portraits, this.Recall, NullLogger<DiscordToolbox>.Instance),
                 new DiscordTypingIndicator(
                     this.Rest, this.Options, NullLogger<DiscordTypingIndicator>.Instance),
                 this.Sessions,
@@ -501,7 +511,8 @@ public sealed class DiscordGatewayWorkerTests
             Arg.Any<IReadOnlyList<string>>(),
             Arg.Is<FrontierToolbox>(tools =>
                 tools.Tools.Any(tool => tool.Name == DiscordToolbox.MAKE_PORTRAIT)
-                && tools.Tools.Any(tool => tool.Name == DiscordToolbox.MAKE_IMAGE)),
+                && tools.Tools.Any(tool => tool.Name == DiscordToolbox.MAKE_IMAGE)
+                && tools.Tools.Any(tool => tool.Name == "recall")),
             Arg.Any<CancellationToken>());
     }
 

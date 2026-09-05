@@ -72,9 +72,15 @@ bundle per turn". It existed for the local tool loop and had never reached the f
 - A picture made by tool is attached as a follow-up message after the streamed text, with
   Operational provenance. The frontier is told in the tool description not to write a
   path or link.
-- `remember`, `schedule`, and `look at the gallery` are the obvious next tools. Each one
-  that reads profile data must pass the same gate as retrieved context, which is why
-  they are not in this bundle.
+- **`recall` joined the bundle the same night** (`FrontierRecallTool`, Core). It is the
+  first tool that reads the profile, so it is the first pass again rather than a side
+  door: local retrieval for the query, the disclosure gate per item, the decision in the
+  ledger under `recall: <query>`, and the bytes that left in a hash-pinned egress brief on
+  the turn's trace. Withheld items are reported as withheld, not omitted silently, and the
+  description tells the model that is final. `AugmentedTurn:Gate=false` bypasses the gate
+  here exactly as it does for the first pass.
+- `remember`, `schedule`, and `look at the gallery` are the obvious next tools. Any that
+  reads profile data goes through `FrontierRecallTool`'s shape, not around it.
 
 ## Reversal path
 

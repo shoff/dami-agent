@@ -358,6 +358,14 @@ switch any more and nothing to set. The local sidecar still does retrieval plann
 disclosure gating, and image captioning for that path — `journalctl -u dami-host | grep
 "nothing was answered"` finds the failures.
 
+The frontier carries a per-turn tool bundle on Discord (ADR-0030): `make_portrait`,
+`make_image`, `recall`. It rides the app-server's experimental dynamic-tools surface in
+`codex-cli 0.152.1`; if a Codex update breaks it the symptom is words without pictures and
+a `-32600` error at `thread/start` in the journal. A turn that produces no token or tool
+call within `Codex__FirstTokenTimeoutSeconds` (default 90) is abandoned and the app-server
+reset — `grep "said nothing for"` finds those; the overall `Codex__TimeoutSeconds` (600)
+still bounds long answers.
+
 Native turn tools are enabled by
 `/etc/systemd/system/dami-host.service.d/native-tools.conf`. All file access is rooted
 at `/home/steve/DamiWorkspace` (not the repository); read and approved patch content are

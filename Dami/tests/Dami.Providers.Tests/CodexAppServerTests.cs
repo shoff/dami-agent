@@ -128,6 +128,42 @@ public sealed class CodexAppServerTests
         }
     }
 
+    [Fact]
+    public async Task A_Silent_Turn_Ends_At_The_First_Token_Deadline_Not_The_Overall_One()
+    {
+        // 2026-09-03 23:09 → 23:19: nothing for the full 600 s. The overall deadline is
+        // for long answers; silence gets its own, much shorter clock.
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        var (root, script, pidFile) = await CreateFakeServerAsync();
+        try
+        {
+            await using var server = new CodexAppServer(
+                new CodexOptions { BinaryPath = script, FirstTokenTimeoutSeconds = 1 },
+                NullLogger<CodexAppServer>.Instance);
+            var watch = Stopwatch.StartNew();
+
+            var thrown = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            {
+                await foreach (var unused in server.StreamAsync(
+                    "say nothing", root, TimeSpan.FromSeconds(30), [], FrontierToolbox.Empty, CancellationToken.None))
+                {
+                }
+            });
+
+            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"took {watch.Elapsed}");
+            Assert.Contains("produced nothing for 1s", thrown.Message, StringComparison.Ordinal);
+            Assert.False(IsRunning(int.Parse(await File.ReadAllTextAsync(pidFile))));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static async Task<List<string>> StreamAllAsync(string script, string root, FrontierToolbox toolbox)
     {
         await using var server = new CodexAppServer(

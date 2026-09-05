@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dami.Contracts.Models;
+using Dami.Core.Frontier;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -10,6 +11,13 @@ public sealed class DiscordToolboxTests
 {
     private readonly IImageGenerator images = Substitute.For<IImageGenerator>();
     private readonly IDiscordPortraitGenerator portraits = Substitute.For<IDiscordPortraitGenerator>();
+    private readonly IFrontierRecall recall = Substitute.For<IFrontierRecall>();
+
+    public DiscordToolboxTests()
+    {
+        this.recall.Tool.Returns(new FrontierTool(
+            FrontierRecallTool.NAME, "look it up", JsonDocument.Parse("""{"type":"object"}""").RootElement));
+    }
 
     private static FrontierToolCall Call(string tool, string json)
     {
@@ -18,17 +26,32 @@ public sealed class DiscordToolboxTests
     }
 
     private DiscordToolbox.DiscordTurnTools Tools() =>
-        new DiscordToolbox(this.images, this.portraits, NullLogger<DiscordToolbox>.Instance)
+        new DiscordToolbox(this.images, this.portraits, this.recall, NullLogger<DiscordToolbox>.Instance)
             .ForTurn(Guid.NewGuid());
 
     [Fact]
-    public void The_Bundle_Should_Be_Two_Picture_Tools_With_Object_Schemas()
+    public void The_Bundle_Should_Be_Two_Picture_Tools_And_Recall()
     {
         var tools = this.Tools().Toolbox.Tools;
 
-        Assert.Equal([DiscordToolbox.MAKE_PORTRAIT, DiscordToolbox.MAKE_IMAGE], tools.Select(tool => tool.Name));
+        Assert.Equal(
+            [DiscordToolbox.MAKE_PORTRAIT, DiscordToolbox.MAKE_IMAGE, FrontierRecallTool.NAME],
+            tools.Select(tool => tool.Name));
         Assert.All(tools, tool => Assert.Equal("object", tool.InputSchema.GetProperty("type").GetString()));
-        Assert.All(tools, tool => Assert.Contains("attached", tool.Description, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Recall_Should_Go_Through_The_Gated_Tool_With_The_Turns_Trace()
+    {
+        this.recall.RecallAsync(Arg.Any<Guid>(), "monday lifts", Arg.Any<CancellationToken>())
+            .Returns(FrontierToolResult.Ok("- 225 for five"));
+        var tools = this.Tools();
+
+        var result = await tools.HandleAsync(
+            Call(FrontierRecallTool.NAME, """{"query":"monday lifts"}"""), CancellationToken.None);
+
+        Assert.Equal("- 225 for five", result.Text);
+        Assert.Empty(tools.Attachments);
     }
 
     [Fact]

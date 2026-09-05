@@ -3,16 +3,18 @@ using Dami.Contracts.Context;
 using Dami.Contracts.Events;
 using Dami.Contracts.Models;
 using Dami.Contracts.Privacy;
+using Dami.Core.Frontier;
 using Microsoft.Extensions.Logging;
 
 namespace Dami.Host.Discord;
 
 /// <summary>The small bundle of tools the frontier gets on a Discord turn (ADR-0030).</summary>
 /// <remarks>
-/// Two tools, both pictures, both Egressable by construction: the only thing that leaves
-/// this host is text the frontier itself wrote, and the only thing that comes back is a
-/// file name. Nothing here reads the profile. The bundle is created per turn because it
-/// carries the turn's attachments.
+/// Two picture tools, Egressable by construction — the only thing that leaves this host
+/// is text the frontier itself wrote, and the only thing that comes back is a file name —
+/// and one recall tool, which is the only member that reads the profile and therefore
+/// goes through the disclosure gate and the egress brief like retrieved context. The
+/// bundle is created per turn because it carries the turn's attachments.
 /// </remarks>
 public sealed class DiscordToolbox
 {
@@ -26,7 +28,7 @@ public sealed class DiscordToolbox
         "The picture is attached to your reply automatically. Describe it in one short "
         + "line if you like; do not write a file name, path, or link.";
 
-    private static readonly IReadOnlyList<FrontierTool> tools =
+    private static readonly IReadOnlyList<FrontierTool> pictureTools =
     [
         new(
             MAKE_PORTRAIT,
@@ -43,17 +45,25 @@ public sealed class DiscordToolbox
 
     private readonly IImageGenerator images;
     private readonly IDiscordPortraitGenerator portraits;
+    private readonly IFrontierRecall recall;
+    private readonly IReadOnlyList<FrontierTool> tools;
     private readonly ILogger<DiscordToolbox> logger;
 
     /// <summary>Creates the bundle factory.</summary>
     public DiscordToolbox(
-        IImageGenerator images, IDiscordPortraitGenerator portraits, ILogger<DiscordToolbox> logger)
+        IImageGenerator images,
+        IDiscordPortraitGenerator portraits,
+        IFrontierRecall recall,
+        ILogger<DiscordToolbox> logger)
     {
         ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(portraits);
+        ArgumentNullException.ThrowIfNull(recall);
         ArgumentNullException.ThrowIfNull(logger);
         this.images = images;
         this.portraits = portraits;
+        this.recall = recall;
+        this.tools = [.. pictureTools, recall.Tool];
         this.logger = logger;
     }
 
@@ -83,7 +93,7 @@ public sealed class DiscordToolbox
         {
             this.owner = owner;
             this.traceId = traceId;
-            this.Toolbox = new FrontierToolbox(tools, this);
+            this.Toolbox = new FrontierToolbox(owner.tools, this);
         }
 
         /// <summary>What to offer the frontier.</summary>
@@ -99,6 +109,12 @@ public sealed class DiscordToolbox
             ArgumentNullException.ThrowIfNull(call);
             try
             {
+                if (call.Tool == FrontierRecallTool.NAME)
+                {
+                    return await this.owner.recall
+                        .RecallAsync(this.traceId, Argument(call, "query"), cancellationToken).ConfigureAwait(false);
+                }
+
                 var image = await this.GenerateAsync(call, cancellationToken).ConfigureAwait(false);
                 if (image is null)
                 {
@@ -113,7 +129,7 @@ public sealed class DiscordToolbox
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 this.owner.logger.LogWarning(exception, "Discord frontier tool {Tool} failed", call.Tool);
-                return FrontierToolResult.Failed($"the picture could not be made: {exception.Message}");
+                return FrontierToolResult.Failed($"{call.Tool} failed: {exception.Message}");
             }
         }
 

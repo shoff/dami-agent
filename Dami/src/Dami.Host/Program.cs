@@ -137,6 +137,8 @@ builder.Services.Configure<AugmentedTurnOptions>(
 builder.Services.AddSingleton<AugmentedFrontierTurn>();
 builder.Services.AddSingleton<IAugmentedTurn>(services =>
     services.GetRequiredService<AugmentedFrontierTurn>());
+// ADR-0030: mid-turn recall for the frontier's tool bundle, through the same gate.
+builder.Services.AddSingleton<IFrontierRecall, FrontierRecallTool>();
 
 // Frontier: subscription door (ADR-0011) behind the C5 egress budget.
 builder.Services.Configure<CodexOptions>(builder.Configuration.GetSection(CodexOptions.SECTION_NAME));

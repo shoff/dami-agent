@@ -78,7 +78,8 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
             await this.OpenTurnAsync(live, prompt, imagePaths, workingDirectory, tools, deadline.Token)
                 .ConfigureAwait(false);
 
-            await foreach (var fragment in this.ReadDeltasAsync(live, tools, deadline.Token).ConfigureAwait(false))
+            await foreach (var fragment in this.ReadDeltasAsync(live, tools, deadline.Token)
+                .ConfigureAwait(false))
             {
                 yield return fragment;
             }
@@ -192,17 +193,21 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
         throw new InvalidOperationException("codex app-server closed before answering");
     }
 
-    /// <summary>Yields answer fragments until the turn ends, answering tool calls on the way.</summary>
+    /// <summary>
+    /// Yields answer fragments until the turn ends, answering tool calls on the way. The
+    /// turn may be silent only until its first token or tool call; after that the
+    /// overall deadline is the only clock.
+    /// </summary>
     private async IAsyncEnumerable<string> ReadDeltasAsync(
         Process live,
         FrontierToolbox tools,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        while (await live.StandardOutput.ReadLineAsync(cancellationToken).ConfigureAwait(false)
-            is { } line)
+        using var quiet = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        quiet.CancelAfter(TimeSpan.FromSeconds(this.options.FirstTokenTimeoutSeconds));
+        while (await this.ReadLineAsync(live, quiet, cancellationToken).ConfigureAwait(false) is { } line)
         {
-            if (Read(line) is not { } message
-                || !message.TryGetProperty("method", out var method))
+            if (Read(line) is not { } message || !message.TryGetProperty("method", out var method))
             {
                 continue;
             }
@@ -210,10 +215,12 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
             var name = method.GetString();
             if (name == "item/tool/call")
             {
+                quiet.CancelAfter(Timeout.InfiniteTimeSpan);
                 await this.AnswerToolCallAsync(live, message, tools, cancellationToken).ConfigureAwait(false);
             }
             else if (name == "item/agentMessage/delta" && Delta(message) is { } fragment)
             {
+                quiet.CancelAfter(Timeout.InfiniteTimeSpan);
                 yield return fragment;
             }
             else if (name == "turn/failed")
@@ -256,6 +263,24 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
             new { jsonrpc = "2.0", id = request.GetProperty("id"), result = ToolCallResponse(result) }, wire);
         await live.StandardInput.WriteLineAsync(frame.AsMemory(), cancellationToken).ConfigureAwait(false);
         await live.StandardInput.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>One line, or a named failure when the turn stayed silent too long.</summary>
+    private async Task<string?> ReadLineAsync(
+        Process live, CancellationTokenSource quiet, CancellationToken outer)
+    {
+        try
+        {
+            return await live.StandardOutput.ReadLineAsync(quiet.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!outer.IsCancellationRequested)
+        {
+            this.logger.LogWarning(
+                "codex app-server said nothing for {Seconds}s; giving up on the turn",
+                this.options.FirstTokenTimeoutSeconds);
+            throw new OperationCanceledException(
+                $"the frontier produced nothing for {this.options.FirstTokenTimeoutSeconds}s");
+        }
     }
 
     private static string? Delta(JsonElement message) =>

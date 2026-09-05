@@ -27,4 +27,12 @@ public sealed class CodexOptions
 
     /// <summary>Wall-clock ceiling per completion.</summary>
     public int TimeoutSeconds { get; set; } = 600;
+
+    /// <summary>
+    /// How long a turn may stay silent before its first token or tool call. On
+    /// 2026-09-03 a turn produced nothing for the full 600 s; this ends that in about
+    /// a minute and resets the app-server. Reasoning that takes longer than this before
+    /// saying anything is a hang for a chat turn, whatever it is for a coding one.
+    /// </summary>
+    public int FirstTokenTimeoutSeconds { get; set; } = 90;
 }

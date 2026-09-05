@@ -9992,3 +9992,30 @@ warnings, 0 errors, **1,615 passed**. Host restaged 21:0x; `appsettings.json` in
 staged output carries the new path and must be rsynced along (the runbook's "--exclude
 appsettings.json" trap runs the other way this time).
 
+## 2026-09-04 — Claude — Committed the night; then the first-token deadline and `recall`
+
+Steve: "commit it then do the hang fix and recall."
+
+**Commit `0d36bb5`** — the whole tree: tonight's four decisions plus Codex's G17–G26/N11
+slices that had been deployed on 09-01/09-02 and never committed (they were in the same
+files and in the same passing gate; separating them was not possible). Authored by Steve,
+no attribution trailers, per CLAUDE.md.
+
+**Hang fix.** `CodexOptions.FirstTokenTimeoutSeconds` (default 90). `CodexAppServer`
+reads with a linked "quiet" token that is disarmed by the first agent-message delta or
+tool call; if neither arrives, the read throws `OperationCanceledException("the frontier
+produced nothing for Ns")`, the existing cleanup kills and resets the app-server, and the
+Discord worker reports it as a deadline in the usual one line. Overall
+`TimeoutSeconds` (600) still bounds long answers. Test: the fake server that never answers
+`turn/start` now fails in ~1 s with a 30 s overall deadline and the process is dead
+afterwards. Env override: `Codex__FirstTokenTimeoutSeconds`.
+
+**`recall`.** `FrontierRecallTool` in Core behind `IFrontierRecall`, registered in the
+Host, added to `DiscordToolbox` as the third tool. Same boundary as the augmented turn's
+first pass: `IContextBuilder` → gate per item → ledger (`recall: <query>`) → hash-pinned
+`EgressBrief` on the turn's trace; empty results and all-withheld results are said in
+words and record no brief. Six Core tests, one toolbox dispatch test, the worker's bundle
+assertion now expects three tools.
+
+**Gate.** 0 warnings, 0 errors; **1,623 passed** across 21 assemblies. Host restaged.
+
