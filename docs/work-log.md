@@ -10195,3 +10195,28 @@ drives it through a curl shim — and its first run caught my own fixture at exa
 cap (80 − 30 = 50 is *at* the cap, not over it), which is the boundary the script should
 stop on. Live: 8 MB, nothing to delete. Timer install needs sudo (README §Retention).
 
+## 2026-09-05 — Claude — Fewer local-model calls per turn: vision unloads, the gate remembers
+
+Steve: "go ahead and reorder the gate runs." (And: the observability containers were
+stopped by him on purpose; noted in the runbook.)
+
+**What a photo turn ran, in order (trace ccf4ba65):** vision 5.7 s → planner draft 5.9 s →
+planner grounding 4.0 s → embed/rerank < 0.1 s → gate (died). Two structural problems:
+the vision model stayed resident beside qwen3 on a card that cannot hold both with the
+embedders, so one sat half on the CPU — the state the guard restarts; and the gate judged
+the same dozen "Earlier —" history lines on every turn, the largest part of its prompt.
+
+**Changed.** (1) `Vision:KeepAliveSeconds` (default 0): the vision request carries
+`keep_alive: 0`, so qwen2.5vl is unloaded the moment the caption is back and qwen3 loads
+whole. Next photo pays a ~4 s reload; no split residency. (2) `DisclosureMemo` (Core,
+singleton): a line's verdict is reused for `AugmentedTurn:GateMemoMinutes` (30); the gate
+sees only the turn's new lines and the ledger records only those; a correction on
+`/disclosures/{id}/correct` forgets the line at once; a line the gate forgot to rule on is
+withheld. Shared by the augmented turn and `recall`. Not changed: the planner's two calls
+(draft, then grounding on the facts it found — they depend on each other).
+
+**Tests.** Memo ×5 (order, expiry, forget, zero lifetime, fail closed), augmented turn
+"judge only unseen lines", vision `keep_alive`. Gate: 0 warnings, 0 errors, **1,709
+passed**. Host restaged. Expected effect on a chat turn after the first: the gate prompt
+shrinks from ~30 items to the handful that are new.
+

@@ -36,6 +36,7 @@ public sealed class FrontierRecallTool : IFrontierRecall
     private readonly IContextBuilder contextBuilder;
     private readonly IContextDisclosureGate gate;
     private readonly IDisclosureLedger disclosureLedger;
+    private readonly DisclosureMemo memo;
     private readonly IEgressBriefStore briefStore;
     private readonly AugmentedTurnOptions turnOptions;
     private readonly TimeProvider clock;
@@ -46,6 +47,7 @@ public sealed class FrontierRecallTool : IFrontierRecall
         IContextBuilder contextBuilder,
         IContextDisclosureGate gate,
         IDisclosureLedger disclosureLedger,
+        DisclosureMemo memo,
         IEgressBriefStore briefStore,
         IOptions<AugmentedTurnOptions> turnOptions,
         TimeProvider clock,
@@ -54,6 +56,7 @@ public sealed class FrontierRecallTool : IFrontierRecall
         ArgumentNullException.ThrowIfNull(contextBuilder);
         ArgumentNullException.ThrowIfNull(gate);
         ArgumentNullException.ThrowIfNull(disclosureLedger);
+        ArgumentNullException.ThrowIfNull(memo);
         ArgumentNullException.ThrowIfNull(briefStore);
         ArgumentNullException.ThrowIfNull(turnOptions);
         ArgumentNullException.ThrowIfNull(clock);
@@ -61,6 +64,7 @@ public sealed class FrontierRecallTool : IFrontierRecall
         this.contextBuilder = contextBuilder;
         this.gate = gate;
         this.disclosureLedger = disclosureLedger;
+        this.memo = memo;
         this.briefStore = briefStore;
         this.turnOptions = turnOptions.Value;
         this.clock = clock;
@@ -123,11 +127,17 @@ public sealed class FrontierRecallTool : IFrontierRecall
             return [.. lines.Select(line => new DisclosedItem(line, Disclosure.Pass, line, "gate disabled"))];
         }
 
-        var decided = await this.gate.ClassifyAsync(query, lines, cancellationToken).ConfigureAwait(false);
-        await this.disclosureLedger.RecordAsync(
-            traceId, NAME + ": " + query, decided, this.clock.GetUtcNow(), cancellationToken)
-            .ConfigureAwait(false);
-        return decided;
+        return await this.memo.DecideAsync(
+            lines, TimeSpan.FromMinutes(this.turnOptions.GateMemoMinutes),
+            async fresh =>
+            {
+                var decided = await this.gate.ClassifyAsync(query, fresh, cancellationToken).ConfigureAwait(false);
+                await this.disclosureLedger.RecordAsync(
+                    traceId, NAME + ": " + query, decided, this.clock.GetUtcNow(), cancellationToken)
+                    .ConfigureAwait(false);
+                return decided;
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The bytes that left, hash-pinned, beside the turn's own brief.</summary>

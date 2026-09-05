@@ -15,8 +15,11 @@ namespace Dami.Core.Tests.Frontier;
 public sealed class AugmentedFrontierTurnToolTests
 {
     private readonly IFrontierChat frontier = Substitute.For<IFrontierChat>();
+    private readonly IContextDisclosureGate gate = Substitute.For<IContextDisclosureGate>();
+    private readonly IDisclosureLedger ledger = Substitute.For<IDisclosureLedger>();
+    private readonly DisclosureMemo memo = new(TimeProvider.System);
 
-    private AugmentedFrontierTurn Subject()
+    private AugmentedFrontierTurn Subject(bool gated = false)
     {
         var contextBuilder = Substitute.For<IContextBuilder>();
         contextBuilder.BuildAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -25,15 +28,37 @@ public sealed class AugmentedFrontierTurnToolTests
         identity.FrontierVoice.Returns("You are Dami.");
         return new AugmentedFrontierTurn(
             contextBuilder,
-            Substitute.For<IContextDisclosureGate>(),
+            this.gate,
             this.frontier,
             identity,
             Substitute.For<IEgressBriefStore>(),
-            Substitute.For<IDisclosureLedger>(),
+            this.ledger,
+            this.memo,
             Substitute.For<IExecutionEventStore>(),
-            Options.Create(new AugmentedTurnOptions { Gate = false }),
+            Options.Create(new AugmentedTurnOptions { Gate = gated, GateMemoMinutes = 30 }),
             TimeProvider.System,
             NullLogger<AugmentedFrontierTurn>.Instance);
+    }
+
+    [Fact]
+    public async Task The_Gate_Should_Judge_Only_Lines_It_Has_Not_Seen_Lately()
+    {
+        // Every turn re-sent the same dozen history lines to the local model. Now a line
+        // judged in the last thirty minutes reuses its verdict; only new lines are asked.
+        this.gate.ClassifyAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.ArgAt<IReadOnlyList<string>>(1)
+                .Select(line => new DisclosedItem(line, Disclosure.Pass, line, "ok")).ToList());
+        this.frontier.StreamAsync(Arg.Any<FrontierPrompt>(), Arg.Any<IReadOnlyList<FrontierImage>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(WordsAsync("hi"));
+        var subject = this.Subject(gated: true);
+
+        await subject.StreamAsync("q", ["Earlier — Steve: hello", "Earlier — Dami: hi"], CancellationToken.None);
+        await subject.StreamAsync("q2", ["Earlier — Steve: hello", "Earlier — Dami: hi", "a new memory"], CancellationToken.None);
+
+        await this.gate.Received(1).ClassifyAsync(
+            "q2", Arg.Is<IReadOnlyList<string>>(lines => lines.Count == 1 && lines[0] == "a new memory"), Arg.Any<CancellationToken>());
+        await this.ledger.Received(1).RecordAsync(
+            Arg.Any<Guid>(), "q2", Arg.Is<IReadOnlyList<DisclosedItem>>(items => items.Count == 1), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
     }
 
     private static async IAsyncEnumerable<string> WordsAsync(params string[] words)

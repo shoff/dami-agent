@@ -28,7 +28,7 @@ public static class DisclosureEndpoints
     {
         app.MapPost("/disclosures/{prefix}/correct", async (
             string prefix, CorrectDisclosureRequest request, IDisclosureLedger ledger,
-            TimeProvider clock, CancellationToken token) =>
+            Dami.Core.Frontier.DisclosureMemo memo, TimeProvider clock, CancellationToken token) =>
         {
             if (!Enum.TryParse<Disclosure>(request.Disclosure, ignoreCase: true, out var corrected))
             {
@@ -45,6 +45,7 @@ public static class DisclosureEndpoints
             var correction = new DisclosureCorrection(
                 corrected, request.Note ?? string.Empty, request.CorrectedBy ?? "steve", clock.GetUtcNow());
             var recorded = await ledger.CorrectAsync(target.DecisionId, correction, token).ConfigureAwait(false);
+            memo.Forget(target.Original);   // the next turn judges this line afresh, with the correction as an example
             return recorded
                 ? Results.Ok(new { corrected = target.DecisionId, was = target.Disclosure.ToString(), now = corrected.ToString() })
                 : Results.Conflict(new { error = "that decision was already corrected" });

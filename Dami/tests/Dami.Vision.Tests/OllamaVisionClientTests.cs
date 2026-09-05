@@ -24,6 +24,20 @@ public sealed class OllamaVisionClientTests
     }
 
     [Fact]
+    public async Task DescribeAsync_Should_Ask_Ollama_To_Unload_The_Model_Afterwards()
+    {
+        // 2026-09-05: the vision model left resident beside qwen3 put one of them half on
+        // the CPU, the LLM guard restarted the sidecar under a live turn, and a gym photo
+        // failed. keep_alive 0 hands the card back the moment the caption is done.
+        var client = CreateClient(out var handler);
+
+        await client.DescribeAsync(new byte[] { 1 }, "caption this", CancellationToken.None);
+
+        var sent = JsonDocument.Parse(handler.LastBody!);
+        Assert.Equal(0, sent.RootElement.GetProperty("keep_alive").GetInt32());
+    }
+
+    [Fact]
     public async Task DescribeAsync_Should_Return_The_Trimmed_Response()
     {
         var client = CreateClient(out _);

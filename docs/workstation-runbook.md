@@ -24,7 +24,7 @@ network, and that is deliberate — remote access is SSH first, then talk to loc
 | PostgreSQL | `127.0.0.1:5432` | — bare metal | `postgresql-16 16.15-1.pgdg24.04+2` | D-004: not containerised |
 | Embeddings | `127.0.0.1:8080` | `dami-embed` | `ghcr.io/huggingface/text-embeddings-inference:89-1.9.0` | `BAAI/bge-m3`, 1024 dims |
 | Reranker | `127.0.0.1:8081` | `dami-rerank` | same image | `BAAI/bge-reranker-v2-m3`, cross-encoder |
-| LLM sidecar | `127.0.0.1:11434` | `dami-llm` | `ollama/ollama:0.32.15` | `qwen3:8b` pulled |
+| LLM sidecar | `127.0.0.1:11434` | `dami-llm` | `ollama/ollama:0.32.15` | `qwen3:8b` pulled; `qwen2.5vl:7b` for vision, unloaded after every caption (`Vision:KeepAliveSeconds=0`) because the two cannot share the card with the embedders |
 | Elasticsearch | `127.0.0.1:9200` | `dami-elasticsearch` | `docker.elastic.co/elasticsearch/elasticsearch:9.5.2` | local runtime-log index; data in `/home/steve/Data/dami-observability/elasticsearch`; **retention 14 days by data stream lifecycle and a 50 GB hard cap by `dami-es-retention.timer`** (`tools/observability/README.md` §Retention) |
 | Kibana | `127.0.0.1:5601` | `dami-kibana` | `docker.elastic.co/kibana/kibana:9.5.2` | Discover data view `dami-runtime-*` |
 | Runtime log shipper | systemd journal → Elasticsearch | `dami-filebeat` | `docker.elastic.co/beats/filebeat:9.5.2` | reads only `dami-host.service` and `dami-proactive.service`; no published port |
@@ -36,7 +36,11 @@ network, and that is deliberate — remote access is SSH first, then talk to loc
 | LLM guard | systemd `dami-llm-guard.timer` | — bare metal | 15-min check | restarts `dami-llm` when a loaded model is not fully in VRAM **for two samples 30 s apart** (five occurrences of the silent CPU fallback to date; on 2026-09-05 it restarted under a live turn on a model that was merely loading after the vision model evicted it — hence the second sample). Install: `sudo cp tools/systemd/dami-llm-guard /usr/local/bin/` |
 
 All containers are `--restart unless-stopped` and `docker.service` is enabled at boot,
-so they return after a reboot without intervention.
+so they return after a reboot without intervention. The observability three
+(`dami-elasticsearch`, `dami-kibana`, `dami-filebeat`) are the exception in practice: Steve
+stops them by hand when he wants the memory back, and `unless-stopped` honours that, so
+"Exited (0) three days ago" on those is a choice, not an incident. `docker start` them
+before expecting runtime logs in Kibana.
 
 **Runtime logs.** The two .NET hosts emit JSON console records to journald. Filebeat is
 the shipper, rather than an application Elasticsearch sink: it lets the applications keep

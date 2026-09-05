@@ -85,6 +85,7 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
     private readonly IIdentityProvider identityProvider;
     private readonly IEgressBriefStore briefStore;
     private readonly IDisclosureLedger disclosureLedger;
+    private readonly DisclosureMemo memo;
     private readonly IExecutionEventStore eventStore;
     private readonly AugmentedTurnOptions turnOptions;
     private readonly TimeProvider clock;
@@ -98,6 +99,7 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
         IIdentityProvider identityProvider,
         IEgressBriefStore briefStore,
         IDisclosureLedger disclosureLedger,
+        DisclosureMemo memo,
         IExecutionEventStore eventStore,
         IOptions<AugmentedTurnOptions> turnOptions,
         TimeProvider clock,
@@ -109,6 +111,7 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
         ArgumentNullException.ThrowIfNull(identityProvider);
         ArgumentNullException.ThrowIfNull(briefStore);
         ArgumentNullException.ThrowIfNull(disclosureLedger);
+        ArgumentNullException.ThrowIfNull(memo);
         ArgumentNullException.ThrowIfNull(eventStore);
         ArgumentNullException.ThrowIfNull(turnOptions);
         ArgumentNullException.ThrowIfNull(clock);
@@ -120,6 +123,7 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
         this.identityProvider = identityProvider;
         this.briefStore = briefStore;
         this.disclosureLedger = disclosureLedger;
+        this.memo = memo;
         this.eventStore = eventStore;
         this.turnOptions = turnOptions.Value;
         this.clock = clock;
@@ -287,10 +291,18 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
             return [.. lines.Select(line => new DisclosedItem(line, Disclosure.Pass, line, "gate disabled"))];
         }
 
-        var decided = await this.gate.ClassifyAsync(question, lines, cancellationToken).ConfigureAwait(false);
-        await this.disclosureLedger.RecordAsync(
-            traceId, question, decided, this.clock.GetUtcNow(), cancellationToken).ConfigureAwait(false);
-        return decided;
+        // Only the lines this turn has not seen lately reach the gate; the rest reuse
+        // their verdict. History repeats every turn, so this is most of the call.
+        return await this.memo.DecideAsync(
+            lines, TimeSpan.FromMinutes(this.turnOptions.GateMemoMinutes),
+            async fresh =>
+            {
+                var decided = await this.gate.ClassifyAsync(question, fresh, cancellationToken).ConfigureAwait(false);
+                await this.disclosureLedger.RecordAsync(
+                    traceId, question, decided, this.clock.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+                return decided;
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Stores exactly what left, hash-pinned, so it is auditable afterwards.</summary>
@@ -336,6 +348,13 @@ public sealed class AugmentedTurnOptions
     /// take deliberately rather than a default anyone inherits.
     /// </summary>
     public bool Gate { get; set; } = true;
+
+    /// <summary>
+    /// How long the gate's verdict on a given line is reused before it is judged again.
+    /// Zero judges everything every turn. Thirty minutes covers a conversation; a
+    /// correction in the ledger forgets the line at once regardless.
+    /// </summary>
+    public int GateMemoMinutes { get; set; } = 30;
 }
 
 /// <summary>What an augmented frontier turn produced.</summary>

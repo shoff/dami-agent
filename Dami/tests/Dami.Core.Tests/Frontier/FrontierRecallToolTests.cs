@@ -21,7 +21,7 @@ public sealed class FrontierRecallToolTests
         new("observation", Guid.NewGuid(), content, DateTimeOffset.UnixEpoch);
 
     private FrontierRecallTool Subject(bool gated = true) => new(
-        this.contextBuilder, this.gate, this.ledger, this.briefs,
+        this.contextBuilder, this.gate, this.ledger, new DisclosureMemo(TimeProvider.System), this.briefs,
         Options.Create(new AugmentedTurnOptions { Gate = gated }),
         TimeProvider.System, NullLogger<FrontierRecallTool>.Instance);
 

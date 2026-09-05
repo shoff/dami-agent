@@ -46,6 +46,7 @@ public sealed class OllamaVisionClient : IVisionClient
             prompt,
             images = new[] { Convert.ToBase64String(imageBytes.Span) },
             stream = false,
+            keep_alive = this.visionOptions.KeepAliveSeconds,
             options = new { num_predict = this.visionOptions.MaxTokens },
         };
 

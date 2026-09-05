@@ -14,4 +14,11 @@ public sealed class OllamaVisionOptions
 
     /// <summary>Cap on generated tokens per description.</summary>
     public int MaxTokens { get; set; } = 300;
+
+    /// <summary>
+    /// How long Ollama keeps the vision model loaded after a caption, in seconds. Zero
+    /// unloads it at once: on a 16 GiB card it cannot sit beside the text model and the
+    /// embedders, and a model left half on the CPU is what the LLM guard restarts.
+    /// </summary>
+    public int KeepAliveSeconds { get; set; }
 }
