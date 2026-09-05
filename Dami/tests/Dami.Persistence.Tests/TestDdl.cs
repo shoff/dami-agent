@@ -36,7 +36,9 @@ public static class TestDdl
         "034_task_work_activity.sql",
         "035_proactive_run_cadence.sql",
         "036_fitness_domain.sql",
+        "037_scheduled_jobs.sql",
         "038_proactive_run_cadence_eight_hourly.sql",
+        "039_scheduled_job_delivery.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",
@@ -73,7 +75,7 @@ public static class TestDdl
         ArgumentNullException.ThrowIfNull(schema);
 
         return DropFitness(schema) + DropDomainFacts(schema) + DropTaskBoards(schema) + DropToolStaging(schema) + DropObservationOverlays(schema) + $"""
-            drop table if exists {schema}.skill_changes cascade;  drop table if exists {schema}.conversation_turns cascade;
+            drop table if exists {schema}.scheduled_jobs cascade;  drop table if exists {schema}.skill_changes cascade;  drop table if exists {schema}.conversation_turns cascade;
             drop table if exists {schema}.conversation_sessions cascade;
             drop table if exists {schema}.file_patch_proposals cascade;
             drop table if exists {schema}.health_event_rejections cascade;
@@ -193,6 +195,7 @@ public static class TestDdl
             + TruncateToolPromotions(schema)
             + TruncateToolProposals(schema) + TruncateSkillChanges(schema)
             + TruncateFilePatchProposals(schema) + TruncateObservationOverlays(schema) + $"""
+            delete from {schema}.scheduled_jobs;
             delete from {schema}.domain_fact_rejections;  delete from {schema}.domain_facts;
             delete from {schema}.health_event_rejections;  delete from {schema}.gateway_authority;  delete from {schema}.health_examined;
             delete from {schema}.health_events;  delete from {schema}.egress_briefs;

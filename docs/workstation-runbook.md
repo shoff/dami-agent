@@ -358,8 +358,11 @@ switch any more and nothing to set. The local sidecar still does retrieval plann
 disclosure gating, and image captioning for that path — `journalctl -u dami-host | grep
 "nothing was answered"` finds the failures.
 
-The frontier carries a per-turn tool bundle on Discord (ADR-0030): `make_portrait`,
-`make_image`, `recall`. It rides the app-server's experimental dynamic-tools surface in
+The frontier carries a per-turn tool bundle on Discord and in the GUI's direct chat
+(ADR-0030): `make_portrait`, `make_image`, `recall`, `remember`, `schedule`,
+`confirm_schedule`. A job drafted in a channel is delivered back to it when it runs
+(`scheduled_jobs.delivery`, migration 039 — **apply before restarting a Host built after
+2026-09-04 21:40**, or the job worker's first tick stops the host). It rides the app-server's experimental dynamic-tools surface in
 `codex-cli 0.152.1`; if a Codex update breaks it the symptom is words without pictures and
 a `-32600` error at `thread/start` in the journal. A turn that produces no token or tool
 call within `Codex__FirstTokenTimeoutSeconds` (default 90) is abandoned and the app-server

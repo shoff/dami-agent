@@ -40,20 +40,30 @@ public sealed class DiscordCompositionTests
 
         // The runtime's own registrations, stubbed: this asserts the gateway's wiring,
         // not the whole host's.
-        // No ITracedTurnRunner on purpose: the gateway has no local model to answer
-        // with, and this composition proves it never needs one (ADR-0028).
+        AddRuntimeStubs(services);
+        services.AddDamiDiscordGateway(configuration);
+        return services.BuildServiceProvider(validateScopes: true);
+    }
+
+    /// <summary>
+    /// The runtime's own registrations, stubbed. No ITracedTurnRunner on purpose: the
+    /// gateway has no local model to answer with, and this proves it never needs one
+    /// (ADR-0028).
+    /// </summary>
+    private static void AddRuntimeStubs(ServiceCollection services)
+    {
         services.AddSingleton(Substitute.For<IGatewayAuthority>());
         services.AddSingleton(Substitute.For<IAugmentedTurn>());
         services.AddSingleton(Substitute.For<IVisionClient>());
         services.AddSingleton(Substitute.For<IImageGenerator>());
-        services.AddSingleton(Substitute.For<IDiscordPortraitGenerator>());
+        services.AddSingleton(Substitute.For<IPortraitGenerator>());
         services.AddSingleton(Substitute.For<IFrontierRecall>());
+        services.AddSingleton(Substitute.For<IFrontierRemember>());
+        services.AddSingleton(Substitute.For<IFrontierScheduling>());
+        services.AddSingleton<FrontierToolBundle>();
         services.AddSingleton(Substitute.For<IConversationSessionStore>());
         services.AddSingleton(Substitute.For<IConversationTurnStore>());
         services.AddSingleton(Substitute.For<IProactiveRunHistory>());
-
-        services.AddDamiDiscordGateway(configuration);
-        return services.BuildServiceProvider(validateScopes: true);
     }
 
     [Fact]
@@ -64,6 +74,17 @@ public sealed class DiscordCompositionTests
         Assert.Contains(
             provider.GetServices<IHostedService>(),
             service => service is DiscordGatewayWorker);
+    }
+
+    [Fact]
+    public void Configured_Gateway_Should_Offer_Scheduled_Delivery_Back_Into_Discord()
+    {
+        // Migration 039: a job drafted on Discord comes back as a Discord turn.
+        using var provider = Compose();
+
+        Assert.Contains(
+            provider.GetServices<Dami.Core.Scheduling.IScheduledPromptDelivery>(),
+            delivery => delivery is DiscordScheduledDelivery);
     }
 
     [Fact]

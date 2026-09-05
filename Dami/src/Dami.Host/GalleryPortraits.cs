@@ -1,21 +1,20 @@
 using Dami.Contracts.Models;
-using Dami.Host.Discord;
 
 namespace Dami.Host;
 
-/// <summary>The Gallery's identity-preserving generator, offered to the Discord gateway.</summary>
+/// <summary>The Gallery's identity-preserving generator, behind the runtime's portrait seam.</summary>
 /// <remarks>
 /// The picture is saved to the Gallery first and then read back for the channel, so a
 /// portrait Steve asked for on Discord is the same artifact he later sees in the Gallery
 /// tab — one generation, one file, one sidecar.
 /// </remarks>
-public sealed class DiscordGalleryPortraits : IDiscordPortraitGenerator
+public sealed class GalleryPortraits : IPortraitGenerator
 {
     private readonly GalleryImageGenerator generator;
     private readonly ImageGallery gallery;
 
     /// <summary>Creates the adapter.</summary>
-    public DiscordGalleryPortraits(GalleryImageGenerator generator, ImageGallery gallery)
+    public GalleryPortraits(GalleryImageGenerator generator, ImageGallery gallery)
     {
         ArgumentNullException.ThrowIfNull(generator);
         ArgumentNullException.ThrowIfNull(gallery);

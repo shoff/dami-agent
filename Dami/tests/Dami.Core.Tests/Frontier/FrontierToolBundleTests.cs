@@ -1,0 +1,137 @@
+using System.Text.Json;
+using Dami.Contracts.Context;
+using Dami.Contracts.Models;
+using Dami.Core.Frontier;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using Xunit;
+
+namespace Dami.Core.Tests.Frontier;
+
+public sealed class FrontierToolBundleTests
+{
+    private static readonly JsonElement schema = JsonDocument.Parse("""{"type":"object"}""").RootElement.Clone();
+
+    private readonly IImageGenerator images = Substitute.For<IImageGenerator>();
+    private readonly IPortraitGenerator portraits = Substitute.For<IPortraitGenerator>();
+    private readonly IFrontierRecall recall = Substitute.For<IFrontierRecall>();
+    private readonly IFrontierRemember remember = Substitute.For<IFrontierRemember>();
+    private readonly IFrontierScheduling scheduling = Substitute.For<IFrontierScheduling>();
+
+    public FrontierToolBundleTests()
+    {
+        this.recall.Tool.Returns(new FrontierTool("recall", "r", schema));
+        this.remember.Tool.Returns(new FrontierTool("remember", "m", schema));
+        this.scheduling.ScheduleTool.Returns(new FrontierTool("schedule", "s", schema));
+        this.scheduling.ConfirmTool.Returns(new FrontierTool("confirm_schedule", "c", schema));
+    }
+
+    private static FrontierToolCall Call(string tool, string json) =>
+        new("call-1", tool, JsonDocument.Parse(json).RootElement.Clone());
+
+    private FrontierToolBundle.FrontierTurnTools Tools(string channel = "discord:1") =>
+        new FrontierToolBundle(
+            this.images, this.portraits, this.recall, this.remember, this.scheduling,
+            NullLogger<FrontierToolBundle>.Instance).ForTurn(Guid.NewGuid(), channel);
+
+    [Fact]
+    public void The_Bundle_Should_Be_Six_Tools_With_Object_Schemas()
+    {
+        var tools = this.Tools().Toolbox.Tools;
+
+        Assert.Equal(
+            ["make_portrait", "make_image", "recall", "remember", "schedule", "confirm_schedule"],
+            tools.Select(tool => tool.Name));
+        Assert.All(tools, tool => Assert.Equal("object", tool.InputSchema.GetProperty("type").GetString()));
+    }
+
+    [Fact]
+    public async Task Make_Portrait_Should_Draw_Dami_And_Keep_The_Picture()
+    {
+        this.portraits.GenerateAsync("on the porch", Arg.Any<CancellationToken>())
+            .Returns(new GeneratedImage("dami-9.png", new ReadOnlyMemory<byte>([1]), "image/png", "p"));
+        var tools = this.Tools();
+
+        var result = await tools.HandleAsync(Call("make_portrait", """{"scene":"on the porch"}"""), CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain("/", result.Text, StringComparison.Ordinal);
+        Assert.Equal("dami-9.png", Assert.Single(tools.Pictures).FileName);
+    }
+
+    [Fact]
+    public async Task Make_Image_Should_Send_An_Egressable_Request()
+    {
+        this.images.GenerateAsync(Arg.Any<ImageRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new GeneratedImage("barn.png", new ReadOnlyMemory<byte>([1]), "image/png", "p"));
+
+        var result = await this.Tools().HandleAsync(Call("make_image", """{"prompt":"a red barn"}"""), CancellationToken.None);
+
+        Assert.True(result.Success);
+        await this.images.Received(1).GenerateAsync(
+            Arg.Is<ImageRequest>(request => request.Prompt == "a red barn" && request.Privacy == PrivacyClass.Egressable),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Remember_Should_Carry_The_Channel_So_Provenance_Says_Where_It_Came_From()
+    {
+        this.remember.RememberAsync(Arg.Any<Guid>(), "discord:1", "a fact", Arg.Any<CancellationToken>())
+            .Returns(FrontierToolResult.Ok("Saved."));
+
+        var result = await this.Tools().HandleAsync(Call("remember", """{"note":"a fact"}"""), CancellationToken.None);
+
+        Assert.Equal("Saved.", result.Text);
+    }
+
+    [Fact]
+    public async Task Schedule_Should_Deliver_To_The_Turns_Channel()
+    {
+        this.scheduling.ScheduleAsync("discord:1", Arg.Any<JsonElement>(), Arg.Any<CancellationToken>())
+            .Returns(FrontierToolResult.Ok("Draft abc created"));
+
+        var result = await this.Tools().HandleAsync(Call("schedule", """{"name":"x"}"""), CancellationToken.None);
+
+        Assert.Equal("Draft abc created", result.Text);
+    }
+
+    [Fact]
+    public async Task Confirm_Should_Pass_The_Short_Id_Through()
+    {
+        this.scheduling.ConfirmAsync("abcd1234", Arg.Any<CancellationToken>())
+            .Returns(FrontierToolResult.Ok("Active"));
+
+        var result = await this.Tools().HandleAsync(Call("confirm_schedule", """{"draftId":"abcd1234"}"""), CancellationToken.None);
+
+        Assert.Equal("Active", result.Text);
+    }
+
+    [Fact]
+    public async Task A_Tool_That_Throws_Should_Fail_In_Words_So_The_Turn_Continues()
+    {
+        // The app-server is blocked until the call is answered; an exception here would
+        // be a hung turn, then the deadline.
+        this.portraits.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Task<GeneratedImage>>(_ => throw new InvalidOperationException("image tool refused"));
+        var tools = this.Tools();
+
+        var result = await tools.HandleAsync(Call("make_portrait", """{"scene":"x"}"""), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("image tool refused", result.Text, StringComparison.Ordinal);
+        Assert.Empty(tools.Pictures);
+    }
+
+    [Fact]
+    public async Task An_Unknown_Tool_Or_Missing_Argument_Should_Fail_Without_Side_Effects()
+    {
+        var tools = this.Tools();
+
+        var unknown = await tools.HandleAsync(Call("send_email", "{}"), CancellationToken.None);
+        var missing = await tools.HandleAsync(Call("make_portrait", """{"scene":""}"""), CancellationToken.None);
+
+        Assert.False(unknown.Success);
+        Assert.False(missing.Success);
+        await this.portraits.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+}

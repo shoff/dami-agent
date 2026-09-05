@@ -10019,3 +10019,35 @@ assertion now expects three tools.
 
 **Gate.** 0 warnings, 0 errors; **1,623 passed** across 21 assemblies. Host restaged.
 
+## 2026-09-04 — Claude — `remember`, `schedule`, and the bundle in the GUI (ADR-0030 amended)
+
+Steve: "ok do 1 and 2 then the gui."
+
+**Shape.** The bundle moved from `Dami.Host.Discord.DiscordToolbox` to
+`Dami.Core.Frontier.FrontierToolBundle` — channel-agnostic, `ForTurn(traceId, channel)`,
+collecting `GeneratedImage`s rather than Discord attachments. `IDiscordPortraitGenerator`
+became `Dami.Contracts.Models.IPortraitGenerator` (`GalleryPortraits` in the Host). The
+Discord worker's answer path was extracted to `DiscordAnswerer` so a scheduled job and a
+live message run through the same code.
+
+**`remember`** (`RememberTool`, Core): observation `frontier-remember` with trace and
+channel metadata, embedded immediately through `IEmbeddingClient` +
+`IObservationEmbeddingStore`; embedding failure logs and still reports saved. **`schedule` /
+`confirm_schedule`** (`ScheduleTools`, Core): Draft Prompt job with `Delivery` = the
+channel, short-id handshake, activation only by the second tool. Migration 039 adds
+`scheduled_jobs.delivery`; store, record, and `TestDdl` (now including 037/039 and the
+table's drop/truncate) follow. **Runner:** `ScheduledJobActionRunner` no longer touches
+`ITracedTurnRunner`; channel deliveries via `IScheduledPromptDelivery`
+(`DiscordScheduledDelivery`), otherwise augmented frontier turn → inbox surfacing.
+**GUI:** `/turns/stream` (frontier) offers the bundle and emits `event: picture` blocks;
+`ServerSentEvents` in the client parses them and `MainWindow` loads the Gallery bitmap.
+
+**Trap hit during the gate.** Every Host endpoint test returned 500 with "Cannot access
+a disposed object": `ScheduledJobWorker`'s first `RunDueAsync` selected the new
+`delivery` column from the live `dami` schema, 039 was not applied yet, and the
+BackgroundService exception stopped the test host. Applying 039 fixed it — and it means
+**039 must be applied before the new Host is restarted**, which it now is (21:50).
+
+**Gate.** 0 warnings, 0 errors; **1,649 passed** across 21 assemblies. Host restaged;
+GUI installed to `~/.local/opt/dami-gui` via `tools/install-gui.sh`.
+

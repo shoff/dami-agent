@@ -177,7 +177,7 @@ public sealed partial class MainWindow
             }
 
             any = true;
-            reply.Body += fragment;
+            await this.ApplyAsync(reply, fragment).ConfigureAwait(true);
             reply.Meta = string.Empty;
             ScrollLater(this.chatScroll);
         }
@@ -199,6 +199,19 @@ public sealed partial class MainWindow
     /// line rather than anywhere louder — the answer already succeeded, and not being able
     /// to say it out loud does not undo that.
     /// </summary>
+    /// <summary>Text appends; a picture the frontier made is fetched from the Gallery.</summary>
+    private async Task ApplyAsync(Message reply, StreamedFragment fragment)
+    {
+        if (fragment.PictureFileName is { } picture)
+        {
+            reply.Image = await this.LoadGalleryBitmapAsync(picture).ConfigureAwait(true);
+        }
+        else
+        {
+            reply.Body += fragment.Text;
+        }
+    }
+
     private async Task SpeakAsync(Message reply)
     {
         if (this.speakToggle.IsChecked != true || string.IsNullOrWhiteSpace(reply.Body))

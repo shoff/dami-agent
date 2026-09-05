@@ -71,9 +71,13 @@ public sealed class DiscordGatewayWorkerTests
 
         public IImageGenerator Images { get; init; } = Substitute.For<IImageGenerator>();
 
-        public IDiscordPortraitGenerator Portraits { get; init; } = Substitute.For<IDiscordPortraitGenerator>();
+        public IPortraitGenerator Portraits { get; init; } = Substitute.For<IPortraitGenerator>();
 
         public IFrontierRecall Recall { get; init; } = RecallStub();
+
+        public IFrontierRemember Remember { get; init; } = RememberStub();
+
+        public IFrontierScheduling Scheduling { get; init; } = SchedulingStub();
 
         public IDiscordRest Rest { get; init; } = Substitute.For<IDiscordRest>();
 
@@ -93,6 +97,23 @@ public sealed class DiscordGatewayWorkerTests
             return recall;
         }
 
+        private static IFrontierRemember RememberStub()
+        {
+            var remember = Substitute.For<IFrontierRemember>();
+            remember.Tool.Returns(new FrontierTool(
+                "remember", "keep it", System.Text.Json.JsonDocument.Parse("""{"type":"object"}""").RootElement));
+            return remember;
+        }
+
+        private static IFrontierScheduling SchedulingStub()
+        {
+            var scheduling = Substitute.For<IFrontierScheduling>();
+            var schema = System.Text.Json.JsonDocument.Parse("""{"type":"object"}""").RootElement;
+            scheduling.ScheduleTool.Returns(new FrontierTool("schedule", "draft", schema));
+            scheduling.ConfirmTool.Returns(new FrontierTool("confirm_schedule", "confirm", schema));
+            return scheduling;
+        }
+
         private static IConversationTurnStore EmptyHistory()
         {
             var store = Substitute.For<IConversationTurnStore>();
@@ -104,20 +125,30 @@ public sealed class DiscordGatewayWorkerTests
 
         public DiscordGatewayWorker Build()
         {
+            var bundle = new FrontierToolBundle(
+                this.Images, this.Portraits, this.Recall, this.Remember, this.Scheduling,
+                NullLogger<FrontierToolBundle>.Instance);
+            var vision = new DiscordVision(
+                this.Vision, this.Rest, this.Options, NullLogger<DiscordVision>.Instance);
+            var answerer = new DiscordAnswerer(
+                this.Channel,
+                this.Augmented,
+                new DiscordReplyStreamer(this.Progressive),
+                bundle,
+                vision,
+                this.Sessions,
+                this.TurnStore,
+                TimeProvider.System,
+                this.Options,
+                NullLogger<DiscordAnswerer>.Instance);
             return new DiscordGatewayWorker(
                 this.Authority,
                 this.Channel,
-                this.Augmented,
-                new DiscordVision(
-                    this.Vision, this.Rest, this.Options, NullLogger<DiscordVision>.Instance),
-                new DiscordReplyStreamer(this.Progressive),
+                answerer,
                 new DiscordImageResponder(
                     this.Images, this.Portraits, this.Channel, NullLogger<DiscordImageResponder>.Instance),
-                new DiscordToolbox(this.Images, this.Portraits, this.Recall, NullLogger<DiscordToolbox>.Instance),
                 new DiscordTypingIndicator(
                     this.Rest, this.Options, NullLogger<DiscordTypingIndicator>.Instance),
-                this.Sessions,
-                this.TurnStore,
                 Substitute.For<IProactiveRunHistory>(),
                 TimeProvider.System,
                 this.Options,
@@ -510,8 +541,8 @@ public sealed class DiscordGatewayWorkerTests
             Arg.Any<string>(),
             Arg.Any<IReadOnlyList<string>>(),
             Arg.Is<FrontierToolbox>(tools =>
-                tools.Tools.Any(tool => tool.Name == DiscordToolbox.MAKE_PORTRAIT)
-                && tools.Tools.Any(tool => tool.Name == DiscordToolbox.MAKE_IMAGE)
+                tools.Tools.Any(tool => tool.Name == FrontierToolBundle.MAKE_PORTRAIT)
+                && tools.Tools.Any(tool => tool.Name == FrontierToolBundle.MAKE_IMAGE)
                 && tools.Tools.Any(tool => tool.Name == "recall")),
             Arg.Any<CancellationToken>());
     }
@@ -545,7 +576,7 @@ public sealed class DiscordGatewayWorkerTests
     {
         using var arguments = System.Text.Json.JsonDocument.Parse("""{"scene":"reading on the sofa"}""");
         var result = await tools.Handler.HandleAsync(
-            new FrontierToolCall("call-1", DiscordToolbox.MAKE_PORTRAIT, arguments.RootElement),
+            new FrontierToolCall("call-1", FrontierToolBundle.MAKE_PORTRAIT, arguments.RootElement),
             CancellationToken.None);
         yield return result.Success ? "here you go" : result.Text;
     }

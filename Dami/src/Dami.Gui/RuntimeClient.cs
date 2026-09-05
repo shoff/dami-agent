@@ -152,7 +152,7 @@ public sealed class RuntimeClient
     }
 
     /// <summary>Streams one turn's answer fragment by fragment as the model produces it.</summary>
-    public async IAsyncEnumerable<string> StreamTurnAsync(
+    public async IAsyncEnumerable<StreamedFragment> StreamTurnAsync(
         string message,
         IReadOnlyList<DirectChatImage> images,
         [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -162,20 +162,9 @@ public sealed class RuntimeClient
         await using var body = await response.Content.ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);
         using var reader = new StreamReader(body);
-        var pending = new List<string>();
-        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        await foreach (var fragment in ServerSentEvents.ReadAsync(reader, cancellationToken).ConfigureAwait(false))
         {
-            if (line.StartsWith("data: ", StringComparison.Ordinal))
-            {
-                pending.Add(line["data: ".Length..]);
-                continue;
-            }
-
-            if (line.Length == 0 && pending.Count > 0)
-            {
-                yield return string.Join('\n', pending);
-                pending.Clear();
-            }
+            yield return fragment;
         }
     }
 }

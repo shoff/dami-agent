@@ -25,7 +25,7 @@ public sealed class ScheduledJobService
             Guid.NewGuid(), proposal.Name.Trim(), proposal.Description.Trim(), proposal.Kind,
             proposal.Payload.Trim(), proposal.Arguments.ToArray(), proposal.CronExpression.Trim(),
             proposal.TimeZoneId, ScheduledJobStatus.Draft, this.timeProvider.GetUtcNow(),
-            null, null, null, null);
+            null, null, null, null, proposal.Delivery);
         return this.store.AddAsync(job, cancellationToken);
     }
 

@@ -41,8 +41,10 @@ public static class DiscordComposition
         services.AddSingleton<DiscordVision>();
         services.AddSingleton<DiscordReplyStreamer>();
         services.AddSingleton<DiscordImageResponder>();
-        services.AddSingleton<DiscordToolbox>();
         services.AddSingleton<DiscordTypingIndicator>();
+        services.AddSingleton<DiscordAnswerer>();
+        // A job drafted here comes back here (ADR-0030, migration 039).
+        services.AddSingleton<Dami.Core.Scheduling.IScheduledPromptDelivery, DiscordScheduledDelivery>();
 
         services.AddHostedService<DiscordGatewayWorker>();
         return services;

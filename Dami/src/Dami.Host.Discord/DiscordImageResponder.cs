@@ -10,14 +10,14 @@ namespace Dami.Host.Discord;
 public sealed class DiscordImageResponder
 {
     private readonly IImageGenerator generator;
-    private readonly IDiscordPortraitGenerator portraits;
+    private readonly IPortraitGenerator portraits;
     private readonly IEgressChannel channel;
     private readonly ILogger<DiscordImageResponder> logger;
 
     /// <summary>Creates the responder.</summary>
     public DiscordImageResponder(
         IImageGenerator generator,
-        IDiscordPortraitGenerator portraits,
+        IPortraitGenerator portraits,
         IEgressChannel channel,
         ILogger<DiscordImageResponder> logger)
     {

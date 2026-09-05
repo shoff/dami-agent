@@ -84,7 +84,7 @@ public sealed class EgressSeamTests
         "Dami.Proactive.Portrait.DailyPortraitService",
         // M1d: explicit user image commands, still metered and enforced by the same door.
         "Dami.Host.Discord.DiscordImageResponder",
-        "Dami.Host.Discord.DiscordToolbox", // ADR-0030: the frontier's make_image tool on Discord
+        "Dami.Core.Frontier.FrontierToolBundle", // ADR-0030: the frontier's make_image tool, any channel
     ];
 
     [Fact]

@@ -166,11 +166,13 @@ public static class TurnEndpoints
             IIdentityProvider identity,
             Dami.Core.Frontier.AugmentedFrontierTurn augmentedTurn,
             TurnImageContext images,
+            Dami.Core.Frontier.FrontierToolBundle bundle,
+            ImageGallery gallery,
             HttpContext http, CancellationToken token) =>
         {
             if (request.Frontier)
             {
-                await StreamFrontierAsync(request, frontier, identity, http, token)
+                await StreamFrontierAsync(request, frontier, identity, bundle, gallery, http, token)
                     .ConfigureAwait(false);
                 return;
             }
@@ -209,10 +211,17 @@ public static class TurnEndpoints
         }
     }
 
+    /// <summary>
+    /// The GUI's direct chat: the frontier with the tool bundle (ADR-0030). Text streams as
+    /// <c>data:</c> lines; each picture the frontier made follows as an
+    /// <c>event: picture</c> naming a Gallery file the client can fetch.
+    /// </summary>
     private static async Task StreamFrontierAsync(
         TurnRequest request,
         IFrontierChat frontier,
         IIdentityProvider identity,
+        Dami.Core.Frontier.FrontierToolBundle bundle,
+        ImageGallery gallery,
         HttpContext http,
         CancellationToken cancellationToken)
     {
@@ -224,7 +233,8 @@ public static class TurnEndpoints
             PrivacyClass.Egressable, traceId, ExecutionOrigin.UserTurn);
         var images = (request.Images ?? []).Select(item => new FrontierImage(
             item.FileName, item.ContentType, item.Bytes)).ToArray();
-        await foreach (var fragment in frontier.StreamAsync(prompt, images, cancellationToken)
+        var tools = bundle.ForTurn(traceId, "gui");
+        await foreach (var fragment in frontier.StreamAsync(prompt, images, tools.Toolbox, cancellationToken)
             .WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             await http.Response.WriteAsync(
@@ -232,5 +242,21 @@ public static class TurnEndpoints
                 .ConfigureAwait(false);
             await http.Response.Body.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
+
+        foreach (var picture in tools.Pictures)
+        {
+            var fileName = await KeptAsync(gallery, picture, cancellationToken).ConfigureAwait(false);
+            await http.Response.WriteAsync($"event: picture\ndata: {fileName}\n\n", cancellationToken)
+                .ConfigureAwait(false);
+            await http.Response.Body.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
+
+    /// <summary>A portrait is already in the Gallery; anything else is put there so the client can fetch it.</summary>
+    private static async Task<string> KeptAsync(
+        ImageGallery gallery, GeneratedImage picture, CancellationToken cancellationToken) =>
+        gallery.Resolve(picture.FileName) is not null
+            ? picture.FileName
+            : (await gallery.SaveAsync(picture.Bytes.ToArray(), picture.Prompt, "gpt-image-2", cancellationToken)
+                .ConfigureAwait(false)).FileName;
 }

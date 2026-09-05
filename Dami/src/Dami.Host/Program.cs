@@ -137,8 +137,12 @@ builder.Services.Configure<AugmentedTurnOptions>(
 builder.Services.AddSingleton<AugmentedFrontierTurn>();
 builder.Services.AddSingleton<IAugmentedTurn>(services =>
     services.GetRequiredService<AugmentedFrontierTurn>());
-// ADR-0030: mid-turn recall for the frontier's tool bundle, through the same gate.
+// ADR-0030: the frontier's per-turn tool bundle — pictures, recall through the same
+// gate, remember, and scheduling with Steve's explicit confirmation.
 builder.Services.AddSingleton<IFrontierRecall, FrontierRecallTool>();
+builder.Services.AddSingleton<IFrontierRemember, RememberTool>();
+builder.Services.AddSingleton<IFrontierScheduling, ScheduleTools>();
+builder.Services.AddSingleton<FrontierToolBundle>();
 
 // Frontier: subscription door (ADR-0011) behind the C5 egress budget.
 builder.Services.Configure<CodexOptions>(builder.Configuration.GetSection(CodexOptions.SECTION_NAME));
@@ -161,7 +165,7 @@ builder.Services.Configure<ImageGalleryOptions>(
 builder.Services.AddSingleton<ImageGallery>();
 builder.Services.AddSingleton<GalleryImageGenerator>();
 // Discord asks for pictures of Dami through this seam; the Gallery answers.
-builder.Services.AddSingleton<Dami.Host.Discord.IDiscordPortraitGenerator, DiscordGalleryPortraits>();
+builder.Services.AddSingleton<IPortraitGenerator, GalleryPortraits>();
 
 // Feature planning is provider-neutral at the application boundary. The three
 // adapters share the already-composed model clients and router; only the selected

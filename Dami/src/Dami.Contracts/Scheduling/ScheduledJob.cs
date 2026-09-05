@@ -31,7 +31,8 @@ public sealed record ScheduledJobProposal(
     string Payload,
     IReadOnlyList<string> Arguments,
     string CronExpression,
-    string TimeZoneId);
+    string TimeZoneId,
+    string? Delivery = null);
 
 /// <summary>A durable recurring job and its latest scheduling state.</summary>
 public sealed record ScheduledJob(
@@ -48,4 +49,5 @@ public sealed record ScheduledJob(
     DateTimeOffset? ConfirmedAt,
     DateTimeOffset? NextRunAt,
     DateTimeOffset? LastRunAt,
-    string? LastRunStatus);
+    string? LastRunStatus,
+    string? Delivery = null);

@@ -5,7 +5,7 @@ using Xunit;
 
 namespace Dami.Host.Tests;
 
-public sealed class DiscordGalleryPortraitsTests : IDisposable
+public sealed class GalleryPortraitsTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), $"dami-discord-portrait-{Guid.NewGuid():N}");
 
@@ -25,7 +25,7 @@ public sealed class DiscordGalleryPortraitsTests : IDisposable
         provider.GenerateAsync(Arg.Any<ImageRequest>(), Arg.Any<CancellationToken>())
             .Returns(new GeneratedImage("out.png", new byte[] { 7, 8, 9 }, "image/png", "prompt"));
         var gallery = new ImageGallery(options, TimeProvider.System);
-        var subject = new DiscordGalleryPortraits(
+        var subject = new GalleryPortraits(
             new GalleryImageGenerator(provider, gallery, options), gallery);
 
         var image = await subject.GenerateAsync("Dami painting her toes", CancellationToken.None);

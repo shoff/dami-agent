@@ -79,11 +79,28 @@ bundle per turn". It existed for the local tool loop and had never reached the f
   the turn's trace. Withheld items are reported as withheld, not omitted silently, and the
   description tells the model that is final. `AugmentedTurn:Gate=false` bypasses the gate
   here exactly as it does for the first pass.
-- `remember`, `schedule`, and `look at the gallery` are the obvious next tools. Any that
-  reads profile data goes through `FrontierRecallTool`'s shape, not around it.
+- **`remember`, `schedule` and `confirm_schedule` followed the same night**, and the bundle
+  moved to Core as `FrontierToolBundle` so the GUI's direct chat carries it too.
+  `remember` writes an observation with source `frontier-remember`, the trace and the
+  channel in its metadata, and embeds it on the spot so a `recall` minutes later finds
+  it; if embedding fails it is saved anyway and said to be searchable after the nightly
+  pass. `schedule` creates a G16 Draft of kind Prompt whose `Delivery` (migration 039) is
+  the channel that asked — `discord:<channel>` or `gui` — and returns a short id; the
+  frontier is told it is not active and to ask Steve. `confirm_schedule` activates a
+  Draft by that short id; the tool description says never without his yes in the
+  conversation. Command jobs are not offered to the frontier at all.
+- **Prompt jobs no longer run on the local model.** `ScheduledJobActionRunner` delivers a
+  job whose `Delivery` names a channel through that channel's `IScheduledPromptDelivery`
+  (Discord: the same `DiscordAnswerer` as a live message, bundle included) and answers
+  any other through the augmented frontier turn, surfacing the result to the inbox.
+- **GUI parity.** `/turns/stream` with `frontier: true` offers the bundle; pictures the
+  frontier made follow the text as `event: picture` blocks naming a Gallery file, which
+  the client fetches from `/gallery/{file}`. The runtime keeps a `make_image` result in
+  the Gallery so it has a file to name.
+- A `gallery` tool ("show me yesterday's") is the obvious next one.
 
 ## Reversal path
 
-`DiscordGatewayWorker` passes `FrontierToolbox.Empty` instead of `tools.Toolbox`; one
-line, and the regex fast path still works. Removing the protocol support entirely is the
+`DiscordAnswerer` and `TurnEndpoints.StreamFrontierAsync` pass `FrontierToolbox.Empty`
+instead of `tools.Toolbox`; one line each, and the regex fast path still works. Removing the protocol support entirely is the
 `ICodexAppServer` signature and `AnswerToolCallAsync`, about an hour.
