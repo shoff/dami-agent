@@ -1,3 +1,4 @@
+using Dami.Contracts.Domains;
 using Dami.Persistence.Domains;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -88,6 +89,56 @@ public sealed class PostgresFitnessStoreTests
         var snapshot = await this.CreateStore().SnapshotAsync(CancellationToken.None);
 
         Assert.Equal((0, 0, 0), (snapshot.Cardio.Count, snapshot.Sets.Count, snapshot.WeighIns.Count));
+    }
+
+    [Fact]
+    public async Task RecordResistance_Should_Write_The_Event_The_Exercise_And_Every_Set()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+        var entry = new FitnessResistanceEntry(
+            day1, "biceps curl (Hammer Strength)",
+            Enumerable.Repeat(new FitnessSetEntry(12, 140m, 7), 4).ToList(), "claude_chat", "biceps", "machine", "felt strong");
+
+        var id = await store.RecordResistanceAsync(entry, CancellationToken.None);
+
+        var sets = (await store.SnapshotAsync(CancellationToken.None)).Sets;
+        Assert.Equal(4, sets.Count);
+        Assert.All(sets, set => Assert.Equal((id, "biceps curl (Hammer Strength)", (short?)12, 140m, (short?)7), (set.FitnessEventId, set.Exercise, set.Reps, set.WeightLbs, set.Rpe)));
+        Assert.Equal([1, 2, 3, 4], sets.Select(set => (int)set.SetNumber).OrderBy(n => n));
+    }
+
+    [Fact]
+    public async Task RecordResistance_Should_Reuse_An_Exercise_By_Name_Case_Insensitively()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+        await store.RecordResistanceAsync(new FitnessResistanceEntry(day1, "Leg Press", [new FitnessSetEntry(10, 300m, null)], "claude_chat"), CancellationToken.None);
+        await store.RecordResistanceAsync(new FitnessResistanceEntry(day2, "leg press", [new FitnessSetEntry(10, 320m, null)], "claude_chat"), CancellationToken.None);
+
+        await using var command = this.fixture.DataSource.CreateCommand(
+            $"select count(*) from {DatabaseFixture.SCHEMA}.fitness_exercise where lower(name) = 'leg press'");
+        Assert.Equal(1L, await command.ExecuteScalarAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RecordCardio_Should_Write_The_Session_With_Its_Display_Numbers()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+
+        await store.RecordCardioAsync(
+            new FitnessCardioEntry(day1, "treadmill", "claude_chat", 1830, 2.1m, 310, 4.1m, 3m, 138, 155, "easy"), CancellationToken.None);
+
+        var session = Assert.Single((await store.SnapshotAsync(CancellationToken.None)).Cardio);
+        Assert.Equal(("treadmill", 1830, 2.1m, 310, 138, 155), (session.Modality, session.DurationSeconds, session.DistanceMi, session.Calories, session.HrAvg, session.HrMax));
+    }
+
+    [Fact]
+    public async Task RecordResistance_Should_Refuse_An_Entry_With_No_Sets()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => this.CreateStore().RecordResistanceAsync(
+            new FitnessResistanceEntry(day1, "x", [], "claude_chat"), CancellationToken.None));
     }
 
     private PostgresFitnessStore CreateStore()

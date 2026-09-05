@@ -4,18 +4,33 @@
 # Fifth occurrence of the failure this exists for: after heavy TEI VRAM use, Ollama
 # loads the next model on CPU and stays there - answering at 2 tok/s instead of 90+.
 # A healthy endpoint says nothing about the device (runbook 4.3).
+#
+# 2026-09-05: it fired at 13:24:44, under a live Discord turn, on qwen3 that was merely
+# *loading* after the vision model had evicted it - and killed the turn. A model in the
+# middle of loading also reports size_vram < size. So the condition has to hold twice,
+# thirty seconds apart, before anything is restarted; a load finishes in seconds, a CPU
+# fallback does not.
 # Source of truth: tools/systemd/ in the dami-agent repository.
 set -euo pipefail
 
-placement=$(curl -sf -m 10 http://127.0.0.1:11434/api/ps) || exit 0   # idle/down: not this guard's job
-
-degraded=$(printf '%s' "$placement" | python3 -c '
+degraded() {
+    local placement
+    placement=$(curl -sf -m 10 http://127.0.0.1:11434/api/ps) || { echo no; return; }   # idle/down: not this guard's job
+    printf '%s' "$placement" | python3 -c '
 import json, sys
 models = json.load(sys.stdin).get("models", [])
 print("yes" if any(m.get("size_vram", 0) < m.get("size", 1) for m in models) else "no")
-')
+'
+}
 
-if [ "$degraded" = "yes" ]; then
-    echo "dami-llm-guard: model not fully in VRAM; restarting dami-llm"
+if [ "$(degraded)" != "yes" ]; then
+    exit 0
+fi
+
+sleep 30
+if [ "$(degraded)" = "yes" ]; then
+    echo "dami-llm-guard: model not fully in VRAM for 30s; restarting dami-llm"
     docker restart dami-llm
+else
+    echo "dami-llm-guard: model was loading, now in VRAM; leaving it alone"
 fi

@@ -46,6 +46,9 @@ public sealed class DiscordScheduledDeliveryTests
         var scheduling = Substitute.For<IFrontierScheduling>();
         scheduling.ScheduleTool.Returns(new FrontierTool("schedule", "s", schema));
         scheduling.ConfirmTool.Returns(new FrontierTool("confirm_schedule", "c", schema));
+        var fitness = Substitute.For<IFrontierFitness>();
+        fitness.SetsTool.Returns(new FrontierTool("log_sets", "l", schema));
+        fitness.CardioTool.Returns(new FrontierTool("log_cardio", "l", schema));
         var options = new DiscordOptions { Token = "t", OwnerUserId = "1", Enabled = true };
         this.turnStore.RecentCompletedTurnsAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(NoneAsync());
@@ -53,7 +56,7 @@ public sealed class DiscordScheduledDeliveryTests
             this.channel, this.augmented, new DiscordReplyStreamer(this.progressive),
             new FrontierToolBundle(
                 Substitute.For<IImageGenerator>(), Substitute.For<IPortraitGenerator>(), recall, remember, scheduling,
-                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(),
+                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), fitness,
                 NullLogger<FrontierToolBundle>.Instance),
             new DiscordVision(Substitute.For<IVisionClient>(), Substitute.For<IDiscordRest>(), options, NullLogger<DiscordVision>.Instance),
             Substitute.For<IConversationSessionStore>(), this.turnStore, TimeProvider.System, options,

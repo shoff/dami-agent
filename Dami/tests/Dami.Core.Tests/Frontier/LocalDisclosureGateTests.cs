@@ -80,6 +80,20 @@ public sealed class LocalDisclosureGateTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_Should_Withhold_Everything_When_The_Model_Cannot_Be_Reached()
+    {
+        // 2026-09-05 13:24:44: the sidecar was restarted under this call; the exception
+        // escaped and the whole Discord turn failed. Fail closed, not loud.
+        this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Task<string>>(_ => throw new HttpRequestException("response ended prematurely"));
+
+        var decided = await this.ClassifyAsync("one", "two");
+
+        Assert.All(decided, item => Assert.Equal(Disclosure.Withhold, item.Disclosure));
+        Assert.All(decided, item => Assert.Equal("gate unavailable", item.Reason));
+    }
+
+    [Fact]
     public async Task ClassifyAsync_Should_Not_Call_The_Model_With_No_Context()
     {
         await this.ClassifyAsync();

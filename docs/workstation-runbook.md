@@ -33,7 +33,7 @@ network, and that is deliberate — remote access is SSH first, then talk to loc
 | `dami` CLI | `/usr/local/bin/dami` | — native | published to `/opt/dami/cli` | inbox/read/feedback · beliefs/correct/retract/note · recall/ask/**chat**/context · trace/stats/health · caption · **board**/board-import |
 | Text to speech | `127.0.0.1:8091` | `dami-tts` (unit in `tools/systemd`, run by hand until installed) | — bare metal, `uv run --with piper-tts tools/tts/server.py` | Piper, voice `en_US-ljspeech-medium` (public domain, ADR-0022), voices in `/home/steve/Data/piper`; CPU |
 | Speech to text | `127.0.0.1:8090` | `dami-stt` | `fedirz/faster-whisper-server:latest-cuda` | `Systran/faster-whisper-small.en` on CUDA; model cache at `/home/steve/Data/whisper`; ~1s per 5s of audio warm |
-| LLM guard | systemd `dami-llm-guard.timer` | — bare metal | 15-min check | restarts `dami-llm` when a loaded model is not fully in VRAM (five occurrences of the silent CPU fallback to date) |
+| LLM guard | systemd `dami-llm-guard.timer` | — bare metal | 15-min check | restarts `dami-llm` when a loaded model is not fully in VRAM **for two samples 30 s apart** (five occurrences of the silent CPU fallback to date; on 2026-09-05 it restarted under a live turn on a model that was merely loading after the vision model evicted it — hence the second sample). Install: `sudo cp tools/systemd/dami-llm-guard /usr/local/bin/` |
 
 All containers are `--restart unless-stopped` and `docker.service` is enabled at boot,
 so they return after a reboot without intervention.

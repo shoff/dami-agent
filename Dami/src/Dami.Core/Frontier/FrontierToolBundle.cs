@@ -90,6 +90,7 @@ public sealed class FrontierToolBundle
     private readonly IFrontierScheduling scheduling;
     private readonly IGallerySearch gallery;
     private readonly IGalleryPictures pictures;
+    private readonly IFrontierFitness fitness;
     private readonly IReadOnlyList<FrontierTool> tools;
     private readonly ILogger<FrontierToolBundle> logger;
 
@@ -102,6 +103,7 @@ public sealed class FrontierToolBundle
         IFrontierScheduling scheduling,
         IGallerySearch gallery,
         IGalleryPictures pictures,
+        IFrontierFitness fitness,
         ILogger<FrontierToolBundle> logger)
     {
         ArgumentNullException.ThrowIfNull(images);
@@ -111,6 +113,7 @@ public sealed class FrontierToolBundle
         ArgumentNullException.ThrowIfNull(scheduling);
         ArgumentNullException.ThrowIfNull(gallery);
         ArgumentNullException.ThrowIfNull(pictures);
+        ArgumentNullException.ThrowIfNull(fitness);
         ArgumentNullException.ThrowIfNull(logger);
         this.images = images;
         this.portraits = portraits;
@@ -119,7 +122,12 @@ public sealed class FrontierToolBundle
         this.scheduling = scheduling;
         this.gallery = gallery;
         this.pictures = pictures;
-        this.tools = [.. pictureTools, recall.Tool, remember.Tool, scheduling.ScheduleTool, scheduling.ConfirmTool];
+        this.fitness = fitness;
+        this.tools =
+        [
+            .. pictureTools, recall.Tool, remember.Tool, scheduling.ScheduleTool, scheduling.ConfirmTool,
+            fitness.SetsTool, fitness.CardioTool,
+        ];
         this.logger = logger;
     }
 
@@ -198,6 +206,8 @@ public sealed class FrontierToolBundle
                     this.channel, call.Arguments, cancellationToken),
                 ScheduleTools.CONFIRM => this.owner.scheduling.ConfirmAsync(
                     Argument(call, "draftId"), cancellationToken),
+                FitnessTools.LOG_SETS => this.owner.fitness.LogSetsAsync(call.Arguments, cancellationToken),
+                FitnessTools.LOG_CARDIO => this.owner.fitness.LogCardioAsync(call.Arguments, cancellationToken),
                 FIND_PICTURES => this.FindAsync(Argument(call, "query"), cancellationToken),
                 SHOW_PICTURE => this.ShowAsync(Argument(call, "fileName"), cancellationToken),
                 RETOUCH_PICTURE => this.PictureAsync(

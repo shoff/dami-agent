@@ -22,7 +22,11 @@ public sealed class DiscordVision
 
     private const string PROMPT =
         "Describe this image plainly and concretely for someone who cannot see it. "
-        + "Include any text that appears in it. Two or three sentences.";
+        + "Include any text that appears in it. If it shows gym equipment or a fitness display, "
+        + "name the machine or exercise exactly as labelled (for example 'Hammer Strength biceps "
+        + "curl machine', 'Precor treadmill') and read out every number on the display, label or "
+        + "weight stack: weight, reps, time, distance, calories, speed, incline, heart rate. "
+        + "Two or three sentences.";
 
     private readonly IVisionClient vision;
     private readonly IDiscordRest rest;

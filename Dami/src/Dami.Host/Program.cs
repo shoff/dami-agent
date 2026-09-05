@@ -142,6 +142,7 @@ builder.Services.AddSingleton<IAugmentedTurn>(services =>
 builder.Services.AddSingleton<IFrontierRecall, FrontierRecallTool>();
 builder.Services.AddSingleton<IFrontierRemember, RememberTool>();
 builder.Services.AddSingleton<IFrontierScheduling, ScheduleTools>();
+builder.Services.AddSingleton<IFrontierFitness, FitnessTools>();
 builder.Services.AddSingleton<FrontierToolBundle>();
 
 // Frontier: subscription door (ADR-0011) behind the C5 egress budget.

@@ -10147,3 +10147,32 @@ corrections. ADR-0032.
 Steve restarted at 12:21 carries search and `find_pictures`/`show_picture`; edit,
 similar, `retouch_picture`, and the gate wording wait for the next restart.
 
+## 2026-09-05 — Claude — The gym photo that failed: guard, gate, and a fitness log that writes
+
+Steve, from the gym: a Hammer Strength biceps-curl photo with "4x12 140 lbs RPE 7" got "The
+frontier did not answer that: An error occurred while sending the request". "One of the main
+things I use to do with my Hermes agent … this has failed to work even once on this new
+agent and this is critical to me."
+
+**Trace ccf4ba65, 13:24.** CDN download 200 (0.4 s); qwen2.5vl caption 5.7 s; then the local
+qwen3 calls for the planner and the gate — the fourth died at 13:24:44 with "response ended
+prematurely". `journalctl -u dami-llm-guard`: **13:24:44 "model not fully in VRAM; restarting
+dami-llm"**. Ollama's log: loading the vision model had evicted qwen3 (6.8 GiB free of 15.6
+with TEI resident); qwen3 was *reloading* for the gate when the guard sampled `/api/ps`, saw
+`size_vram < size`, and restarted the container under the live request. A photo turn is
+exactly the condition the guard punishes. The gate had no exception handling, so the turn
+died with it.
+
+**Fixed three ways.** (1) `tools/systemd/dami-llm-guard` now requires the condition to hold
+across two samples 30 s apart before restarting — a load finishes in seconds, a CPU fallback
+does not; needs `sudo cp tools/systemd/dami-llm-guard /usr/local/bin/`. (2)
+`LocalDisclosureGate` catches a failed model call and withholds everything with reason
+"gate unavailable" — fail closed, not loud; the turn proceeds with less context. (3) The job
+itself: `IFitnessStore.RecordResistanceAsync/RecordCardioAsync`, `FitnessTools` (`log_sets`,
+`log_cardio`) in the bundle, and a vision prompt that reads machines and displays.
+
+**Tests.** Gate unavailable ×1, FitnessTools ×4, fitness store writes ×4 against the live
+database, bundle dispatch ×1; bundle count now eleven. Gate: 0 warnings, 0 errors,
+**1,702 passed** across 21 assemblies. Host restaged. Not yet proven live — needs the
+restart, then the same photo again.
+

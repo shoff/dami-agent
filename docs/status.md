@@ -709,6 +709,12 @@ Then similar-to-this (`/gallery/{file}/similar`, a button) and edit-from-selecte
 Steve's own name, which is why she lost the thread of a chat about a picture. Instructions
 corrected, re-measure after a day. Latency: two turns (16 s, 5 s) — not a sample yet.
 
+**Gym photo → exercise log (2026-09-05).** Steve's Hermes use case. First attempt died because
+the LLM guard restarted Ollama under a live turn (qwen3 was reloading after the vision model
+evicted it); the gate had no exception handling. Guard now samples twice 30 s apart, gate
+fails closed, and the bundle gains `log_sets`/`log_cardio` writing to the fitness tables with
+a vision prompt that reads machine labels and displays. Staged, not yet proven live. 1,702 tests.
+
 The charter's fourteen cutover items, scored against what has actually been
 demonstrated. "partial" means a real demonstration exists for part of the item's scope.
 

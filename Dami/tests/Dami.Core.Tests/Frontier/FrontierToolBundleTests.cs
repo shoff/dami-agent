@@ -21,6 +21,7 @@ public sealed class FrontierToolBundleTests
     private readonly IFrontierScheduling scheduling = Substitute.For<IFrontierScheduling>();
     private readonly IGallerySearch gallery = Substitute.For<IGallerySearch>();
     private readonly IGalleryPictures pictures = Substitute.For<IGalleryPictures>();
+    private readonly IFrontierFitness fitness = Substitute.For<IFrontierFitness>();
 
     public FrontierToolBundleTests()
     {
@@ -28,6 +29,8 @@ public sealed class FrontierToolBundleTests
         this.remember.Tool.Returns(new FrontierTool("remember", "m", schema));
         this.scheduling.ScheduleTool.Returns(new FrontierTool("schedule", "s", schema));
         this.scheduling.ConfirmTool.Returns(new FrontierTool("confirm_schedule", "c", schema));
+        this.fitness.SetsTool.Returns(new FrontierTool("log_sets", "l", schema));
+        this.fitness.CardioTool.Returns(new FrontierTool("log_cardio", "l", schema));
     }
 
     private static FrontierToolCall Call(string tool, string json) =>
@@ -35,16 +38,16 @@ public sealed class FrontierToolBundleTests
 
     private FrontierToolBundle.FrontierTurnTools Tools(string channel = "discord:1") =>
         new FrontierToolBundle(
-            this.images, this.portraits, this.recall, this.remember, this.scheduling, this.gallery, this.pictures,
+            this.images, this.portraits, this.recall, this.remember, this.scheduling, this.gallery, this.pictures, this.fitness,
             NullLogger<FrontierToolBundle>.Instance).ForTurn(Guid.NewGuid(), channel);
 
     [Fact]
-    public void The_Bundle_Should_Be_Nine_Tools_With_Object_Schemas()
+    public void The_Bundle_Should_Be_Eleven_Tools_With_Object_Schemas()
     {
         var tools = this.Tools().Toolbox.Tools;
 
         Assert.Equal(
-            ["make_portrait", "make_image", "find_pictures", "show_picture", "retouch_picture", "recall", "remember", "schedule", "confirm_schedule"],
+            ["make_portrait", "make_image", "find_pictures", "show_picture", "retouch_picture", "recall", "remember", "schedule", "confirm_schedule", "log_sets", "log_cardio"],
             tools.Select(tool => tool.Name));
         Assert.All(tools, tool => Assert.Equal("object", tool.InputSchema.GetProperty("type").GetString()));
     }
@@ -137,6 +140,19 @@ public sealed class FrontierToolBundleTests
         Assert.True(result.Success);
         Assert.Equal("dami-1.png", Assert.Single(tools.Pictures).FileName);
         await this.portraits.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Log_Sets_Should_Hand_The_Arguments_To_The_Fitness_Log()
+    {
+        this.fitness.LogSetsAsync(Arg.Is<JsonElement>(a => a.GetProperty("sets").GetInt32() == 4), Arg.Any<CancellationToken>())
+            .Returns(FrontierToolResult.Ok("Logged 4x12 biceps curl at 140 lb, RPE 7."));
+
+        var result = await this.Tools().HandleAsync(
+            Call("log_sets", """{"exercise":"biceps curl (Hammer Strength)","sets":4,"reps":12,"weightLbs":140,"rpe":7}"""),
+            CancellationToken.None);
+
+        Assert.Equal("Logged 4x12 biceps curl at 140 lb, RPE 7.", result.Text);
     }
 
     [Fact]

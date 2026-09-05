@@ -116,6 +116,15 @@ public sealed class DiscordGatewayWorkerTests
             return scheduling;
         }
 
+        private static IFrontierFitness FitnessStub()
+        {
+            var fitness = Substitute.For<IFrontierFitness>();
+            var schema = System.Text.Json.JsonDocument.Parse("""{"type":"object"}""").RootElement;
+            fitness.SetsTool.Returns(new FrontierTool("log_sets", "l", schema));
+            fitness.CardioTool.Returns(new FrontierTool("log_cardio", "l", schema));
+            return fitness;
+        }
+
         private static IConversationTurnStore EmptyHistory()
         {
             var store = Substitute.For<IConversationTurnStore>();
@@ -129,7 +138,7 @@ public sealed class DiscordGatewayWorkerTests
         {
             var bundle = new FrontierToolBundle(
                 this.Images, this.Portraits, this.Recall, this.Remember, this.Scheduling,
-                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(),
+                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), FitnessStub(),
                 NullLogger<FrontierToolBundle>.Instance);
             var vision = new DiscordVision(
                 this.Vision, this.Rest, this.Options, NullLogger<DiscordVision>.Instance);

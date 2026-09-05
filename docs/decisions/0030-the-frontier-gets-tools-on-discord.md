@@ -98,6 +98,13 @@ bundle per turn". It existed for the local tool loop and had never reached the f
   the client fetches from `/gallery/{file}`. The runtime keeps a `make_image` result in
   the Gallery so it has a file to name.
 - A `gallery` tool ("show me yesterday's") is the obvious next one.
+- **`log_sets` and `log_cardio` (2026-09-05).** The use Hermes was kept for: a photo of the
+  machine and "4x12 140 lbs RPE 7" become rows in the fitness log. `IFitnessStore` gains
+  `RecordResistanceAsync`/`RecordCardioAsync` (event + exercise found-or-created by name +
+  sets, or event + cardio row, in one transaction, source `claude_chat`), `FitnessTools`
+  in Core holds the store — and nothing that can leave the host, per the seam test — and
+  the bundle offers both. The Discord vision prompt now asks the local model to name gym
+  equipment as labelled and read every number on a display or weight stack. Eleven tools.
 
 ## Reversal path
 

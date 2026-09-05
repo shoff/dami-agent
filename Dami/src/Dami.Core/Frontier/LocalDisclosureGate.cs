@@ -59,20 +59,36 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
         }
 
         var examples = await this.ExamplesAsync(cancellationToken).ConfigureAwait(false);
-        var reply = await this.chatClient
-            .CompleteAsync(this.BuildPrompt(question, context, examples), cancellationToken)
+        var reply = await this.AskAsync(this.BuildPrompt(question, context, examples), cancellationToken)
             .ConfigureAwait(false);
-        var decisions = Parse(reply, context);
+        var decisions = reply is null ? null : Parse(reply, context);
         if (decisions is null)
         {
+            var reason = reply is null ? "gate unavailable" : "gate output unreadable";
             this.logger.LogWarning(
-                "Disclosure gate could not read its own output; withholding all {Count} item(s)",
-                context.Count);
-            return [.. context.Select(item =>
-                new DisclosedItem(item, Disclosure.Withhold, string.Empty, "gate output unreadable"))];
+                "Disclosure gate {Reason}; withholding all {Count} item(s)", reason, context.Count);
+            return [.. context.Select(item => new DisclosedItem(item, Disclosure.Withhold, string.Empty, reason))];
         }
 
         return decisions;
+    }
+
+    /// <summary>
+    /// The local model's verdict, or null when it could not be reached. On 2026-09-05 the
+    /// sidecar was restarted under a live request and the exception took the whole turn
+    /// with it; a gate that cannot judge withholds, it does not crash.
+    /// </summary>
+    private async Task<string?> AskAsync(string prompt, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await this.chatClient.CompleteAsync(prompt, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            this.logger.LogWarning(exception, "Disclosure gate could not reach the local model");
+            return null;
+        }
     }
 
     private const string INSTRUCTIONS =
