@@ -78,12 +78,19 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
     private const string INSTRUCTIONS =
         """
         You decide what may be sent to an external AI service on the user's behalf.
+        The service already knows it is talking to the user and knows his first name, Steve.
+        The name by itself never makes an item identifying; judge the rest of the item.
+        Items beginning "Earlier —" are what the user and the assistant already said to each
+        other in this same chat: pass them unless they name another person or carry specific
+        health, financial, or address details.
         For EACH numbered item choose exactly one action:
-          pass     - contains nothing that identifies the user or another person
+          pass     - contains nothing that identifies the user or another person beyond his
+                     first name
           disguise - the FACT is needed to answer, the identity is not. Rewrite it about
                      an unnamed third party ("a friend", "someone I know") keeping every
-                     clinical or technical detail intact.
-          withhold - too personal to send and not needed to answer this question
+                     clinical or technical detail intact. Prefer this over withhold whenever
+                     the fact bears on the question.
+          withhold - too personal to send AND not needed to answer this question
 
         """;
 

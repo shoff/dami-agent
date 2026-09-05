@@ -108,6 +108,25 @@ public sealed class LocalDisclosureGateTests
         Assert.Equal(Disclosure.Withhold, Assert.Single(decided).Disclosure);
     }
 
+    [Fact]
+    public async Task The_Prompt_Should_Say_The_Name_Is_Known_And_History_Is_This_Chat()
+    {
+        // 2026-09-04/05: 44 of 67 items withheld, most with "Steve is a personal identifier"
+        // — including the conversation history, which is how she lost the thread of a chat
+        // about a picture she had just been asked for. The service already knows his name.
+        string? prompt = null;
+        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+            .Returns("""[{"n":1,"action":"pass","text":"Earlier — Steve: where's the image?","why":"chat"}]""");
+
+        await this.ClassifyAsync("Earlier — Steve: where's the image?");
+
+        Assert.NotNull(prompt);
+        Assert.Contains("knows his first name, Steve", prompt, StringComparison.Ordinal);
+        Assert.Contains("never makes an item identifying", prompt, StringComparison.Ordinal);
+        Assert.Contains("Items beginning \"Earlier —\"", prompt, StringComparison.Ordinal);
+        Assert.Contains("Prefer this over withhold", prompt, StringComparison.Ordinal);
+    }
+
     private void Says(string reply)
     {
         this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())

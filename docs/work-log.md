@@ -10123,3 +10123,27 @@ selected picture kept first.
 says nine. Gate: 0 warnings, 0 errors, **1,691 passed** across 21 assemblies. Host restaged;
 GUI installed.
 
+## 2026-09-05 — Claude — A day measured, and the gate told whose name it is (ADR-0032)
+
+Steve, on his phone: "what else can we do." Measured instead of building.
+
+**Turns.** Only two streamed frontier turns in the window (16 s, 5 s) — too few for the
+latency question; the instrumentation is in place and a week is the right sample.
+
+**The gate.** 67 items judged: 44 withheld, 9 disguised, 14 passed. Top reason: "Steve is a
+personal identifier and should be withheld" — on the *conversation history* lines
+("Earlier — Steve: Well where's the image?"). That is the mechanism behind last night's
+"I don't see an image": the frontier was never shown the exchange. Second group: "Contains
+personal details about Steve" on a gym routine and a monitoring directive, where the gate's
+own definition says disguise. Recall on the fitness question: 18 found, 10 sent, 8 withheld.
+
+**Fix.** Three sentences in `LocalDisclosureGate.INSTRUCTIONS`: the service already knows
+his first name; "Earlier —" items are this chat and pass unless they name another person or
+carry health/financial/address specifics; prefer disguise over withhold when the fact bears
+on the question. Pinned by a prompt-content test. No change to actions, ledger, or
+corrections. ADR-0032.
+
+**Gate.** 0 warnings, 0 errors, 1,692 passed. Host restaged (search + edit + this). The Host
+Steve restarted at 12:21 carries search and `find_pictures`/`show_picture`; edit,
+similar, `retouch_picture`, and the gate wording wait for the next restart.
+

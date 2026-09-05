@@ -704,6 +704,11 @@ captioned, 6 embedded. **Search followed the same day:** `/gallery/search`, a se
 and captions in the GUI, and `find_pictures`/`show_picture` in the frontier's bundle.
 Then similar-to-this (`/gallery/{file}/similar`, a button) and edit-from-selected (`/gallery/{file}/edit`, an edit box, `retouch_picture` in the bundle, `derived_from` recorded). Filters and favourites are next. 1,691 tests.
 
+**First measurement (2026-09-05, ADR-0032).** Disclosure ledger over one day: 44 withheld /
+9 disguised / 14 passed; the gate was withholding the conversation history for containing
+Steve's own name, which is why she lost the thread of a chat about a picture. Instructions
+corrected, re-measure after a day. Latency: two turns (16 s, 5 s) — not a sample yet.
+
 The charter's fourteen cutover items, scored against what has actually been
 demonstrated. "partial" means a real demonstration exists for part of the item's scope.
 
