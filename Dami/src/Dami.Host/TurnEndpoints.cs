@@ -55,11 +55,12 @@ public static class TurnEndpoints
     /// </summary>
     private static async Task StreamAugmentedAsync(
         string message,
+        IReadOnlyList<string> localContext,
         Dami.Core.Frontier.AugmentedFrontierTurn augmentedTurn,
         HttpContext http,
         CancellationToken cancellationToken)
     {
-        var stream = await augmentedTurn.StreamAsync(message, [], cancellationToken)
+        var stream = await augmentedTurn.StreamAsync(message, localContext, cancellationToken)
             .ConfigureAwait(false);
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.Append("X-Dami-Trace", stream.TraceId.ToString("N"));
@@ -161,30 +162,75 @@ public static class TurnEndpoints
     private static void MapStream(WebApplication app)
     {
         app.MapPost("/turns/stream", async (
-            TurnRequest request, ITurnRunner runner,
+            TurnRequest request, ITurnRunner runner, IFrontierChat frontier,
+            IIdentityProvider identity,
             Dami.Core.Frontier.AugmentedFrontierTurn augmentedTurn,
+            TurnImageContext images,
             HttpContext http, CancellationToken token) =>
         {
-            if (request.Augmented)
+            if (request.Frontier)
             {
-                await StreamAugmentedAsync(request.Message, augmentedTurn, http, token)
+                await StreamFrontierAsync(request, frontier, identity, http, token)
                     .ConfigureAwait(false);
                 return;
             }
 
-            var stream = await runner.BeginStreamingAsync(request.Message, token).ConfigureAwait(false);
-            http.Response.ContentType = "text/event-stream";
-            http.Response.Headers.Append("X-Dami-Trace", stream.TraceId.ToString("N"));
-            http.Response.Headers.Append("X-Dami-Route", stream.Route.Tier.ToString());
-            http.Response.Headers.Append("X-Dami-Ctx-Tokens", stream.Context.EstimatedTokens.ToString());
-            http.Response.Headers.Append("X-Dami-Memories", stream.Context.Memories.Count.ToString());
-            http.Response.Headers.Append("X-Dami-Beliefs", stream.Context.Beliefs.Count.ToString());
-            await foreach (var fragment in stream.Tokens.WithCancellation(token).ConfigureAwait(false))
+            if (request.Augmented)
             {
-                await http.Response.WriteAsync($"data: {fragment.Replace("\n", "\ndata: ")}\n\n", token)
+                var localContext = await images.DescribeAsync(request.Image, token)
                     .ConfigureAwait(false);
-                await http.Response.Body.FlushAsync(token).ConfigureAwait(false);
+                await StreamAugmentedAsync(
+                    request.Message, localContext, augmentedTurn, http, token)
+                    .ConfigureAwait(false);
+                return;
             }
+
+            await StreamLocalAsync(request.Message, runner, http, token).ConfigureAwait(false);
         });
+    }
+
+    private static async Task StreamLocalAsync(
+        string message, ITurnRunner runner, HttpContext http, CancellationToken cancellationToken)
+    {
+        var stream = await runner.BeginStreamingAsync(message, cancellationToken).ConfigureAwait(false);
+        http.Response.ContentType = "text/event-stream";
+        http.Response.Headers.Append("X-Dami-Trace", stream.TraceId.ToString("N"));
+        http.Response.Headers.Append("X-Dami-Route", stream.Route.Tier.ToString());
+        http.Response.Headers.Append("X-Dami-Ctx-Tokens", stream.Context.EstimatedTokens.ToString());
+        http.Response.Headers.Append("X-Dami-Memories", stream.Context.Memories.Count.ToString());
+        http.Response.Headers.Append("X-Dami-Beliefs", stream.Context.Beliefs.Count.ToString());
+        await foreach (var fragment in stream.Tokens.WithCancellation(cancellationToken)
+            .ConfigureAwait(false))
+        {
+            await http.Response.WriteAsync(
+                $"data: {fragment.Replace("\n", "\ndata: ")}\n\n", cancellationToken)
+                .ConfigureAwait(false);
+            await http.Response.Body.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task StreamFrontierAsync(
+        TurnRequest request,
+        IFrontierChat frontier,
+        IIdentityProvider identity,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        http.Response.ContentType = "text/event-stream";
+        var traceId = Guid.NewGuid();
+        http.Response.Headers.Append("X-Dami-Trace", traceId.ToString("N"));
+        var prompt = new FrontierPrompt(
+            $"{identity.FrontierVoice}\n\n{request.Message}", "GUI direct chat",
+            PrivacyClass.Egressable, traceId, ExecutionOrigin.UserTurn);
+        var images = (request.Images ?? []).Select(item => new FrontierImage(
+            item.FileName, item.ContentType, item.Bytes)).ToArray();
+        await foreach (var fragment in frontier.StreamAsync(prompt, images, cancellationToken)
+            .WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            await http.Response.WriteAsync(
+                $"data: {fragment.Replace("\n", "\ndata: ")}\n\n", cancellationToken)
+                .ConfigureAwait(false);
+            await http.Response.Body.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 }

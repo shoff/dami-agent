@@ -1,5 +1,7 @@
+using Dami.Contracts.Models;
 using Dami.Contracts.Proactive;
 using Dami.Host.Proactive;
+using Dami.Providers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -20,9 +22,9 @@ namespace Dami.Proactive.Tests;
 /// </remarks>
 public sealed class ProactiveCompositionTests
 {
-    private static ServiceProvider Build()
+    private static ServiceProvider Build(params KeyValuePair<string, string?>[] settings)
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         return new ServiceCollection()
             .AddLogging()
             .AddDamiProactiveTier(configuration, "Host=127.0.0.1;Database=dami-test;Username=none")
@@ -70,6 +72,28 @@ public sealed class ProactiveCompositionTests
                 "media-librarian", "embedder", "repo-hygiene",
             },
             names);
+    }
+
+    [Fact]
+    public void Disabled_DailyPortrait_Should_Not_Be_Scheduled()
+    {
+        using var provider = Build();
+
+        var services = provider.GetServices<IProactiveService>();
+
+        Assert.DoesNotContain(services, service => service.ServiceName == "daily-portrait");
+    }
+
+    [Fact]
+    public void Enabled_DailyPortrait_Should_Draw_On_The_Subscription_Not_A_Key()
+    {
+        // ADR-0029. The keyed OpenAI door was wired here and never configured, so the
+        // portrait pass sat enabled-in-theory for four days without producing a picture.
+        using var provider = Build(new KeyValuePair<string, string?>("DailyPortrait:Enabled", "true"));
+
+        Assert.Contains(
+            provider.GetServices<IProactiveService>(), service => service.ServiceName == "daily-portrait");
+        Assert.IsType<CodexSubscriptionImageGenerator>(provider.GetRequiredService<IImageGenerator>());
     }
 
     [Fact]

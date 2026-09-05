@@ -45,26 +45,28 @@
     </StackPanel>
 
     <!-- Conversation -->
-    <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource Panel}"
+    <Border x:Name="ConversationPanel" Grid.Row="1" Grid.Column="0" Background="{StaticResource Panel}"
             CornerRadius="8" Padding="12" Margin="0,0,5,0">
       <DockPanel>
         <TextBlock DockPanel.Dock="Top" Text="CONVERSATION" FontSize="11"
                    Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
-        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,8,0,0">
-          <TextBox x:Name="Input" Grid.Column="0" PlaceholderText="say something…"
-                   Background="#0D1116" Foreground="{StaticResource Ink}"
-                   BorderBrush="#2A333D"/>
-          <ToggleButton x:Name="SpeakToggle" Grid.Column="1" Content="speak"
-                        Margin="8,0,0,0" Background="#233041"
-                        Foreground="{StaticResource Ink}"
-                        ToolTip.Tip="Read Dami's replies aloud in its own voice. Off by default so it never surprises you."/>
-          <ToggleButton x:Name="FrontierToggle" Grid.Column="2" Content="subscription"
-                        Margin="8,0,0,0" Background="#233041" IsChecked="True"
-                        Foreground="{StaticResource Ink}"
-                        ToolTip.Tip="On: this host retrieves and gates your context, then your ChatGPT subscription writes the answer (ADR-0026). Off: the local model answers alone — faster, streamed, and much less capable."/>
-          <Button x:Name="SendButton" Grid.Column="3" Content="send" Margin="8,0,0,0"
-                  Background="#233041" Foreground="{StaticResource Ink}"/>
-        </Grid>
+        <Border DockPanel.Dock="Bottom" Margin="0,8,0,0" Padding="6"
+                Background="#0D1116" BorderBrush="#2A333D" BorderThickness="1" CornerRadius="5">
+          <Grid ColumnDefinitions="*,Auto,Auto">
+            <WrapPanel x:Name="ComposerFlow" Grid.Column="0" VerticalAlignment="Center">
+              <TextBox x:Name="Input" Width="420" MinWidth="220" MinHeight="34" MaxHeight="120"
+                       AcceptsReturn="True" TextWrapping="Wrap"
+                       PlaceholderText="say something…" Background="Transparent"
+                       Foreground="{StaticResource Ink}" BorderThickness="0"/>
+            </WrapPanel>
+              <ToggleButton x:Name="SpeakToggle" Grid.Column="1" Content="speak"
+                            Margin="8,0,0,0" Background="#233041"
+                            Foreground="{StaticResource Ink}"
+                            ToolTip.Tip="Read Dami's replies aloud in its own voice. Off by default so it never surprises you."/>
+              <Button x:Name="SendButton" Grid.Column="2" Content="send" Margin="8,0,0,0"
+                      Background="#233041" Foreground="{StaticResource Ink}"/>
+          </Grid>
+        </Border>
         <Grid>
         <ScrollViewer x:Name="ChatScroll">
           <ItemsControl ItemsSource="{Binding Messages}">
@@ -74,6 +76,8 @@
                   <TextBlock Text="{Binding Who}" FontSize="11" Foreground="{StaticResource Dim}"/>
                   <TextBlock Text="{Binding Body}" TextWrapping="Wrap"
                              Foreground="{StaticResource Ink}"/>
+                  <Image Source="{Binding Image}" MaxWidth="640" MaxHeight="480"
+                         HorizontalAlignment="Left" Stretch="Uniform"/>
                   <TextBlock Text="{Binding Meta}" FontSize="11"
                              Foreground="{StaticResource Dim}"/>
                 </StackPanel>
@@ -1034,6 +1038,86 @@
       </Grid>
     </TabItem>
 
+    <TabItem Header="Gallery">
+      <Grid x:Name="GallerySurface" RowDefinitions="Auto,*" Margin="10">
+        <Border Grid.Row="0" Background="{StaticResource Panel}" CornerRadius="8"
+                Padding="12" Margin="0,0,0,10">
+          <DockPanel>
+            <Button x:Name="GalleryRefresh" DockPanel.Dock="Right" Content="refresh"
+                    Padding="12,4" Background="#233041" Foreground="{StaticResource Ink}"/>
+            <Button x:Name="GalleryImport" DockPanel.Dock="Right" Content="import images…"
+                    Margin="0,0,8,0" Padding="12,4" Background="#233041"
+                    Foreground="{StaticResource Ink}"/>
+            <StackPanel>
+              <TextBlock Text="DAMI · PORTRAIT GALLERY" FontSize="16" FontWeight="SemiBold"
+                         Foreground="{StaticResource Ink}"/>
+              <TextBlock Text="{Binding GalleryMessage}" FontSize="11"
+                         Foreground="{StaticResource Dim}"/>
+            </StackPanel>
+          </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1" ColumnDefinitions="3*,2*">
+          <Border Grid.Column="0" Background="{StaticResource Panel}" CornerRadius="8"
+                  Padding="10" Margin="0,0,8,0">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+              <ListBox x:Name="GalleryList" ItemsSource="{Binding GalleryImages}"
+                       Background="Transparent" BorderThickness="0">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:GalleryImageCard">
+                    <Border Width="188" Margin="4" Background="#0D1116" CornerRadius="7"
+                            ClipToBounds="True">
+                      <StackPanel>
+                        <Image Source="{Binding Image}" Width="188" Height="250"
+                               Stretch="UniformToFill"/>
+                        <Grid ColumnDefinitions="*,Auto" Margin="9,7,9,9">
+                          <TextBlock Grid.Column="0" Text="{Binding Date}" FontSize="10"
+                                     Foreground="{StaticResource Dim}"/>
+                          <TextBlock Grid.Column="1" Text="{Binding Badge}" FontSize="10"
+                                     Foreground="#5AA9E6"/>
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </ScrollViewer>
+          </Border>
+
+          <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="8" Padding="14">
+            <Grid RowDefinitions="*,Auto,Auto">
+              <Border Grid.Row="0" Background="#0D1116" CornerRadius="7" ClipToBounds="True">
+                <Image Source="{Binding SelectedGalleryImage.Image}" Stretch="Uniform"
+                       HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+              </Border>
+              <StackPanel Grid.Row="1" Margin="0,10,0,12">
+                <TextBlock Text="{Binding SelectedGalleryImage.Date}" FontSize="12"
+                           Foreground="{StaticResource Ink}"/>
+                <TextBlock Text="{Binding SelectedGalleryImage.Prompt}" FontSize="11"
+                           TextWrapping="Wrap" Foreground="{StaticResource Dim}"/>
+              </StackPanel>
+              <Border Grid.Row="2" Background="#0D1116" BorderBrush="#2A333D"
+                      BorderThickness="1" CornerRadius="6" Padding="8">
+                <Grid RowDefinitions="Auto,Auto">
+                  <TextBox x:Name="GalleryPrompt" Grid.Row="0" AcceptsReturn="True"
+                           TextWrapping="Wrap" MinHeight="62" MaxHeight="110"
+                           PlaceholderText="a candid scene, action, mood, and setting…"
+                           Background="Transparent" BorderThickness="0"
+                           Foreground="{StaticResource Ink}"/>
+                  <Button x:Name="GalleryGenerate" Grid.Row="1" Content="create new Dami portrait"
+                          HorizontalAlignment="Right" Margin="0,8,0,0" Padding="14,6"
+                          Background="#2F4A66" Foreground="{StaticResource Ink}"/>
+                </Grid>
+              </Border>
+            </Grid>
+          </Border>
+        </Grid>
+      </Grid>
+    </TabItem>
+
     <TabItem Header="Network">
       <Grid RowDefinitions="Auto,Auto,*" Margin="10">
 
@@ -1209,6 +1293,24 @@
       </Grid>
     </TabItem>
   </TabControl>
+
+  <!-- Persistent system rail: it does not expire like a toast and does not steal focus.
+       Every accepted user action can acknowledge itself here before its first await. -->
+  <Border HorizontalAlignment="Right" VerticalAlignment="Top"
+          Width="390" MinHeight="42" Margin="0,3,14,0" Padding="10,7"
+          Background="#E8171D24" BorderBrush="#3B4A59" BorderThickness="1"
+          CornerRadius="7" IsHitTestVisible="False">
+    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding SystemStatus.Label}"
+                 FontSize="10" FontWeight="SemiBold" Foreground="#5AA9E6"
+                 Margin="0,0,9,0" VerticalAlignment="Center"/>
+      <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemStatus.Message}"
+                 FontSize="11" Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis"
+                 VerticalAlignment="Center"/>
+      <ProgressBar Grid.Row="1" Grid.ColumnSpan="3" Height="2" Margin="0,5,0,0"
+                   IsIndeterminate="True" IsVisible="{Binding SystemStatus.IsBusy}"/>
+    </Grid>
+  </Border>
 
   <!-- An overlay in the visual tree, not a Popup. A Popup is an OS-level window that
        needs a placement target and silently renders nothing without one — it opened

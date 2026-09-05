@@ -212,15 +212,26 @@ public static class ProactiveComposition
         services.AddHttpClient<IVisionClient, OllamaVisionClient>(client =>
             client.Timeout = TimeSpan.FromMinutes(10));
 
-        // ADR-0027: the third door through the boundary, and the only one with a bill
-        // attached. Refused unless api.openai.com is allowlisted and a key is configured;
-        // the portrait pass is off until DailyPortrait:Enabled says otherwise.
-        services.Configure<OpenAiImageOptions>(
-            configuration.GetSection(OpenAiImageOptions.SECTION_NAME));
-        services.AddHttpClient<IImageGenerator, OpenAiImageGenerator>(client =>
-            client.Timeout = TimeSpan.FromMinutes(5));
-        services.Configure<DailyPortraitOptions>(
-            configuration.GetSection(DailyPortraitOptions.SECTION_NAME));
+        AddDailyPortrait(services, configuration);
+    }
+
+    private static void AddDailyPortrait(IServiceCollection services, IConfiguration configuration)
+    {
+        var section = configuration.GetSection(DailyPortraitOptions.SECTION_NAME);
+        var options = section.Get<DailyPortraitOptions>();
+        if (options?.Enabled != true)
+        {
+            return;
+        }
+
+        // ADR-0027: the third door through the boundary. ADR-0029 moved it onto the Codex
+        // subscription's image tool — the same provider the Host's Gallery uses — because
+        // the keyed OpenAI door was never configured and so the pass never ran. Register
+        // the egress-capable provider only after explicit enablement.
+        services.Configure<CodexOptions>(configuration.GetSection(CodexOptions.SECTION_NAME));
+        services.AddSingleton<ICodexProcess, CodexProcess>();
+        services.AddSingleton<IImageGenerator, CodexSubscriptionImageGenerator>();
+        services.Configure<DailyPortraitOptions>(section);
         services.AddSingleton<IProactiveService, DailyPortraitService>();
     }
 

@@ -11,6 +11,16 @@ using Dami.Proactive;
 // client is loopback inference, not egress — interests embedded through it never
 // leave the host.
 var builder = Host.CreateApplicationBuilder(args);
+builder.Logging.ClearProviders();
+builder.Logging.Configure(options => options.ActivityTrackingOptions =
+    ActivityTrackingOptions.SpanId
+    | ActivityTrackingOptions.TraceId
+    | ActivityTrackingOptions.ParentId);
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.TimestampFormat = "O";
+});
 
 var connectionString =
     builder.Configuration.GetConnectionString("Dami")

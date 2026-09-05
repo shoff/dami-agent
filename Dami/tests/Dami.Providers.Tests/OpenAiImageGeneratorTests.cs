@@ -199,6 +199,26 @@ public sealed class OpenAiImageGeneratorTests
 
         Assert.Contains("\"prompt\":\"a portrait\"", handler.Sent, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task Should_Send_One_Reference_To_The_Edit_Endpoint()
+    {
+        var (generator, handler, _) = Create();
+        var request = Request() with
+        {
+            Reference = new ImageReference(
+                "dami-canonical.png", "image/png", Encoding.UTF8.GetBytes("identity")),
+        };
+
+        await generator.GenerateAsync(request, CancellationToken.None);
+
+        Assert.EndsWith("/v1/images/edits", handler.Request!.RequestUri!.AbsolutePath,
+            StringComparison.Ordinal);
+        Assert.Contains("name=\"image[]\"", handler.Sent, StringComparison.Ordinal);
+        Assert.Contains("dami-canonical.png", handler.Sent, StringComparison.Ordinal);
+        Assert.Contains("name=prompt", handler.Sent, StringComparison.Ordinal);
+        Assert.Contains("a portrait", handler.Sent, StringComparison.Ordinal);
+    }
     [Fact]
     public async Task Should_Refuse_When_The_Egress_Budget_Is_Spent()
     {

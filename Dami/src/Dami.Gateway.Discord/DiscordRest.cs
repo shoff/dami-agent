@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
 namespace Dami.Gateway.Discord;
@@ -72,6 +73,67 @@ public sealed class DiscordRest : IDiscordRest
         JsonContent.Create(new { content = Truncate(text) });
 
     /// <inheritdoc />
+    public async Task PostTypingAsync(string channelId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelId);
+
+        using var request = this.Api(
+            HttpMethod.Post,
+            $"{API}/channels/{channelId}/typing",
+            new ByteArrayContent([]));
+        using var response = await this.http
+            .SendAsync(request, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <inheritdoc />
+    public async Task<string> CreateMessageAsync(
+        string channelId, string text, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelId);
+        ArgumentNullException.ThrowIfNull(text);
+
+        using var request = this.Api(
+            HttpMethod.Post, $"{API}/channels/{channelId}/messages", Json(text));
+        using var response = await this.http
+            .SendAsync(request, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        using var body = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
+        return body.RootElement.GetProperty("id").GetString()
+            ?? throw new InvalidOperationException("Discord returned a message without an id.");
+    }
+
+    /// <inheritdoc />
+    public async Task EditMessageAsync(
+        string channelId,
+        string messageId,
+        string text,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+        ArgumentNullException.ThrowIfNull(text);
+
+        // Progressive replies edit every ~80 characters, which is exactly the shape
+        // Discord rate-limits; on 2026-09-03 one 429 here cost the whole frontier answer.
+        var url = $"{API}/channels/{channelId}/messages/{messageId}";
+        using var request = this.Api(HttpMethod.Patch, url, Json(text));
+        using var response = await this.http
+            .SendAsync(request, cancellationToken).ConfigureAwait(false);
+
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            await this.RetryAfterAsync(HttpMethod.Patch, url, text, response, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <inheritdoc />
     public async Task PostMessageAsync(string channelId, string text, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(channelId);
@@ -84,7 +146,8 @@ public sealed class DiscordRest : IDiscordRest
 
         if (response.StatusCode == HttpStatusCode.TooManyRequests)
         {
-            await this.RetryAfterAsync(url, text, response, cancellationToken).ConfigureAwait(false);
+            await this.RetryAfterAsync(HttpMethod.Post, url, text, response, cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
@@ -177,7 +240,11 @@ public sealed class DiscordRest : IDiscordRest
     }
 
     private async Task RetryAfterAsync(
-        string url, string text, HttpResponseMessage refused, CancellationToken cancellationToken)
+        HttpMethod method,
+        string url,
+        string text,
+        HttpResponseMessage refused,
+        CancellationToken cancellationToken)
     {
         var wait = refused.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(5);
         this.logger.LogWarning(
@@ -185,7 +252,7 @@ public sealed class DiscordRest : IDiscordRest
             wait.TotalSeconds.ToString("F1", CultureInfo.InvariantCulture));
 
         await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
-        using var request = this.Api(HttpMethod.Post, url, Json(text));
+        using var request = this.Api(method, url, Json(text));
         using var retry = await this.http
             .SendAsync(request, cancellationToken).ConfigureAwait(false);
         retry.EnsureSuccessStatusCode();

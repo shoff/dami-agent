@@ -1,35 +1,17 @@
-using Dami.Contracts.Context;
 using Dami.Contracts.Privacy;
-using Dami.Core.Turns;
 
 namespace Dami.Host.Discord;
 
-/// <summary>Classifies a turn's answer for the egress channel.</summary>
+/// <summary>What the gateway says when it cannot pass on a frontier answer.</summary>
 /// <remarks>
-/// Pure, because this is where ADR-0024 is either enforced or quietly not. The
-/// classification reuses the routing decision the system already made rather than
-/// inventing a second opinion: <c>ModelRoute.Privacy</c> is what D-012 branches
-/// on everywhere else, and a channel that disagreed with the router would be a boundary
-/// with two answers.
-///
-/// The retrieved-context check is belt and braces. If memories or beliefs entered the
-/// prompt then the answer is shaped by them whatever the route says, and the conservative
-/// reading is the one that keeps the profile at home.
+/// Pure, and every message here is Operational: each is a fact about the system rather
+/// than about Steve, which is what lets it leave through a channel that would refuse
+/// profile-derived text. Nothing in this class writes an answer to the question — that
+/// is the frontier's alone (ADR-0028).
 /// </remarks>
 public static class DiscordAnswer
 {
-    /// <summary>How the answer may be treated on the way out.</summary>
-    public static ContentProvenance ProvenanceOf(TurnResult result)
-    {
-        ArgumentNullException.ThrowIfNull(result);
-
-        var routedLocalOnly = result.Route.Privacy == PrivacyClass.LocalOnly;
-        var usedProfile = result.Context.Memories.Count > 0 || result.Context.Beliefs.Count > 0;
-
-        return routedLocalOnly || usedProfile
-            ? ContentProvenance.ProfileDerived
-            : ContentProvenance.Operational;
-    }
+    private const int MAX_REASON_LENGTH = 160;
 
     /// <summary>
     /// What to say instead when the answer cannot leave — itself operational, so it can.
@@ -46,4 +28,31 @@ public static class DiscordAnswer
             + $"(ADR-0025). It is on the host — trace {traceId}.",
             ContentProvenance.Operational,
             traceId);
+
+    /// <summary>
+    /// What to say when the frontier produced no answer. There is no other author.
+    /// </summary>
+    /// <remarks>
+    /// ADR-0026 let the local model answer here "so a hiccup degrades the answer, not the
+    /// gateway". It degraded the answer to one Steve had said he never wanted, twice in a
+    /// night. The honest degradation is no answer and the reason.
+    /// </remarks>
+    public static OutboundContent FrontierUnavailable(
+        string conversationId, Guid traceId, string reason)
+    {
+        ArgumentNullException.ThrowIfNull(reason);
+
+        var line = reason.ReplaceLineEndings(" ").Trim();
+        if (line.Length > MAX_REASON_LENGTH)
+        {
+            line = line[..MAX_REASON_LENGTH] + "…";
+        }
+
+        return new OutboundContent(
+            conversationId,
+            $"The frontier did not answer that: {line}. Nothing was answered locally — "
+            + $"this channel answers only from the frontier (ADR-0028). Trace {traceId}.",
+            ContentProvenance.Operational,
+            traceId);
+    }
 }

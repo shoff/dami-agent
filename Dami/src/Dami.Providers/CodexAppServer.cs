@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Dami.Contracts.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Dami.Providers;
@@ -24,7 +25,8 @@ public interface ICodexAppServer
 {
     /// <summary>Runs one turn, yielding the answer as it arrives.</summary>
     IAsyncEnumerable<string> StreamAsync(
-        string prompt, string workingDirectory, TimeSpan timeout, CancellationToken cancellationToken);
+        string prompt, string workingDirectory, TimeSpan timeout, IReadOnlyList<string> imagePaths,
+        FrontierToolbox tools, CancellationToken cancellationToken);
 }
 
 /// <summary>The real app-server process.</summary>
@@ -60,41 +62,55 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
         string prompt,
         string workingDirectory,
         TimeSpan timeout,
+        IReadOnlyList<string> imagePaths,
+        FrontierToolbox tools,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
-        ArgumentException.ThrowIfNullOrWhiteSpace(workingDirectory);
-
+        Validate(prompt, workingDirectory, tools);
         await this.oneTurnAtATime.WaitAsync(cancellationToken).ConfigureAwait(false);
+        Process? live = null;
+        var completed = false;
         try
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             deadline.CancelAfter(timeout);
-            var live = this.Ensure(workingDirectory);
-            await this.OpenTurnAsync(live, prompt, workingDirectory, deadline.Token)
+            live = this.Ensure(workingDirectory);
+            await this.OpenTurnAsync(live, prompt, imagePaths, workingDirectory, tools, deadline.Token)
                 .ConfigureAwait(false);
 
-            await foreach (var fragment in ReadDeltasAsync(live, deadline.Token).ConfigureAwait(false))
+            await foreach (var fragment in this.ReadDeltasAsync(live, tools, deadline.Token).ConfigureAwait(false))
             {
                 yield return fragment;
             }
+
+            completed = true;
         }
         finally
         {
+            if (!completed && live is not null)
+            {
+                await this.StopAsync(live).ConfigureAwait(false);
+            }
+
             this.oneTurnAtATime.Release();
         }
     }
 
+    private static void Validate(string prompt, string workingDirectory, FrontierToolbox tools)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workingDirectory);
+        ArgumentNullException.ThrowIfNull(tools);
+    }
+
     /// <summary>Handshake, a fresh thread, then the turn — in protocol order.</summary>
     private async Task OpenTurnAsync(
-        Process live, string prompt, string workingDirectory, CancellationToken cancellationToken)
+        Process live, string prompt, IReadOnlyList<string> imagePaths, string workingDirectory,
+        FrontierToolbox tools, CancellationToken cancellationToken)
     {
-        await this.SendAsync(live, "initialize", new
-        {
-            clientInfo = new { name = "dami", title = "Dami", version = "1.0" },
-        }, cancellationToken).ConfigureAwait(false);
+        await this.SendAsync(live, "initialize", InitializeParams(), cancellationToken).ConfigureAwait(false);
 
-        await this.SendAsync(live, "thread/start", new { cwd = workingDirectory }, cancellationToken)
+        await this.SendAsync(live, "thread/start", ThreadStartParams(workingDirectory, tools), cancellationToken)
             .ConfigureAwait(false);
 
         // The thread id lives at result.thread.id, not result.threadId — a detail that
@@ -106,9 +122,55 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
         await this.SendAsync(live, "turn/start", new
         {
             threadId,
-            input = new[] { new { type = "text", text = prompt } },
+            input = TurnInput(prompt, imagePaths),
         }, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// The handshake. <c>experimentalApi</c> is what unlocks <c>dynamicTools</c> on
+    /// <c>thread/start</c>; without it the server answers "requires experimentalApi
+    /// capability" and nothing else changes — found by probing, 2026-09-04.
+    /// </summary>
+    public static object InitializeParams() => new
+    {
+        clientInfo = new { name = "dami", title = "Dami", version = "1.0" },
+        capabilities = new { experimentalApi = true },
+    };
+
+    /// <summary>A thread in the working directory, offering the bundle's tools if any.</summary>
+    public static object ThreadStartParams(string workingDirectory, FrontierToolbox tools)
+    {
+        ArgumentNullException.ThrowIfNull(tools);
+        var parameters = new Dictionary<string, object> { ["cwd"] = workingDirectory };
+        if (!tools.IsEmpty)
+        {
+            parameters["dynamicTools"] = tools.Tools.Select(tool => new
+            {
+                type = "function",
+                name = tool.Name,
+                description = tool.Description,
+                inputSchema = tool.InputSchema,
+            }).ToArray();
+        }
+
+        return parameters;
+    }
+
+    /// <summary>The installed app-server's shape for answering <c>item/tool/call</c>.</summary>
+    public static object ToolCallResponse(FrontierToolResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return new
+        {
+            success = result.Success,
+            contentItems = new[] { new { type = "inputText", text = result.Text } },
+        };
+    }
+
+    /// <summary>Builds the installed app-server's text plus local-image wire input.</summary>
+    public static object[] TurnInput(string prompt, IReadOnlyList<string> imagePaths) =>
+        [new { type = "text", text = prompt }, .. imagePaths.Select(
+            path => (object)new { type = "localImage", path })];
 
     /// <summary>Reads until a response carrying the named nested field arrives.</summary>
     private static async Task<string> ReadResultAsync(
@@ -130,9 +192,10 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
         throw new InvalidOperationException("codex app-server closed before answering");
     }
 
-    /// <summary>Yields answer fragments until the turn ends.</summary>
-    private static async IAsyncEnumerable<string> ReadDeltasAsync(
+    /// <summary>Yields answer fragments until the turn ends, answering tool calls on the way.</summary>
+    private async IAsyncEnumerable<string> ReadDeltasAsync(
         Process live,
+        FrontierToolbox tools,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         while (await live.StandardOutput.ReadLineAsync(cancellationToken).ConfigureAwait(false)
@@ -145,18 +208,77 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
             }
 
             var name = method.GetString();
-            if (name == "item/agentMessage/delta"
-                && message.TryGetProperty("params", out var parameters)
-                && parameters.TryGetProperty("delta", out var delta)
-                && delta.GetString() is { Length: > 0 } fragment)
+            if (name == "item/tool/call")
+            {
+                await this.AnswerToolCallAsync(live, message, tools, cancellationToken).ConfigureAwait(false);
+            }
+            else if (name == "item/agentMessage/delta" && Delta(message) is { } fragment)
             {
                 yield return fragment;
             }
-            else if (name is "turn/completed" or "turn/failed")
+            else if (name == "turn/failed")
             {
+                throw new InvalidOperationException("the subscription turn failed");
+            }
+            else if (name == "turn/completed")
+            {
+                ThrowIfTurnFailed(message);
                 yield break;
             }
         }
+    }
+
+    /// <summary>
+    /// Runs the call and replies on the request's id. The turn is blocked until this
+    /// answers, so a handler failure becomes a failed result, never a missing reply.
+    /// </summary>
+    private async Task AnswerToolCallAsync(
+        Process live, JsonElement request, FrontierToolbox tools, CancellationToken cancellationToken)
+    {
+        var parameters = request.GetProperty("params");
+        var call = new FrontierToolCall(
+            parameters.GetProperty("callId").GetString() ?? string.Empty,
+            parameters.GetProperty("tool").GetString() ?? string.Empty,
+            parameters.GetProperty("arguments"));
+        FrontierToolResult result;
+        try
+        {
+            result = await tools.Handler.HandleAsync(call, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            this.logger.LogWarning(exception, "Frontier tool {Tool} failed", call.Tool);
+            result = FrontierToolResult.Failed(exception.Message);
+        }
+
+        this.logger.LogInformation("Frontier tool {Tool} answered (success: {Success})", call.Tool, result.Success);
+        var frame = JsonSerializer.Serialize(
+            new { jsonrpc = "2.0", id = request.GetProperty("id"), result = ToolCallResponse(result) }, wire);
+        await live.StandardInput.WriteLineAsync(frame.AsMemory(), cancellationToken).ConfigureAwait(false);
+        await live.StandardInput.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string? Delta(JsonElement message) =>
+        message.TryGetProperty("params", out var parameters)
+        && parameters.TryGetProperty("delta", out var delta)
+        && delta.GetString() is { Length: > 0 } fragment
+            ? fragment
+            : null;
+
+    private static void ThrowIfTurnFailed(JsonElement message)
+    {
+        if (!message.TryGetProperty("params", out var parameters)
+            || !parameters.TryGetProperty("turn", out var turn)
+            || !turn.TryGetProperty("error", out var error)
+            || error.ValueKind == JsonValueKind.Null)
+        {
+            return;
+        }
+
+        var detail = error.TryGetProperty("message", out var value)
+            ? value.GetString()
+            : null;
+        throw new InvalidOperationException(detail ?? "the subscription turn failed");
     }
 
     /// <summary>Starts the process if it is not already running, and hands back its pipes.</summary>
@@ -212,20 +334,36 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (this.process is { HasExited: false } live)
+        if (this.process is { } live)
         {
-            try
+            await this.StopAsync(live).ConfigureAwait(false);
+        }
+
+        this.oneTurnAtATime.Dispose();
+    }
+
+    private async Task StopAsync(Process live)
+    {
+        try
+        {
+            if (!live.HasExited)
             {
                 live.Kill(entireProcessTree: true);
                 await live.WaitForExitAsync().ConfigureAwait(false);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or NotSupportedException)
-            {
-                // Already gone; nothing to clean up.
-            }
         }
+        catch (Exception exception) when (exception is InvalidOperationException or NotSupportedException)
+        {
+            // Already gone; nothing to clean up.
+        }
+        finally
+        {
+            if (ReferenceEquals(this.process, live))
+            {
+                this.process = null;
+            }
 
-        this.process?.Dispose();
-        this.oneTurnAtATime.Dispose();
+            live.Dispose();
+        }
     }
 }

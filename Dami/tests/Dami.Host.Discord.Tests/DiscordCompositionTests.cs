@@ -4,8 +4,6 @@ using Dami.Contracts.Privacy;
 using Dami.Contracts.Proactive;
 using Dami.Contracts.Sessions;
 using Dami.Core.Frontier;
-using Dami.Core.Turns;
-using Dami.Gateway.Discord;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -42,10 +40,13 @@ public sealed class DiscordCompositionTests
 
         // The runtime's own registrations, stubbed: this asserts the gateway's wiring,
         // not the whole host's.
+        // No ITracedTurnRunner on purpose: the gateway has no local model to answer
+        // with, and this composition proves it never needs one (ADR-0028).
         services.AddSingleton(Substitute.For<IGatewayAuthority>());
-        services.AddSingleton(Substitute.For<ITracedTurnRunner>());
         services.AddSingleton(Substitute.For<IAugmentedTurn>());
         services.AddSingleton(Substitute.For<IVisionClient>());
+        services.AddSingleton(Substitute.For<IImageGenerator>());
+        services.AddSingleton(Substitute.For<IDiscordPortraitGenerator>());
         services.AddSingleton(Substitute.For<IConversationSessionStore>());
         services.AddSingleton(Substitute.For<IConversationTurnStore>());
         services.AddSingleton(Substitute.For<IProactiveRunHistory>());
@@ -80,36 +81,5 @@ public sealed class DiscordCompositionTests
         using var provider = Compose();
 
         Assert.Single(provider.GetServices<IEgressChannel>());
-    }
-
-    [Fact]
-    public void Frontier_Should_Default_On()
-    {
-        using var provider = Compose();
-
-        Assert.True(provider.GetRequiredService<DiscordOptions>().Frontier);
-    }
-
-    [Fact]
-    public void Frontier_Should_Be_Switchable_Off()
-    {
-        // ADR-0026's reversal path has to actually work from configuration.
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Discord:Enabled"] = "true",
-                ["Discord:Token"] = "a-token",
-                ["Discord:OwnerUserId"] = "347544641295613953",
-                ["Discord:Frontier"] = "false",
-            })
-            .Build();
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton(TimeProvider.System);
-
-        services.AddDamiDiscordGateway(configuration);
-
-        using var provider = services.BuildServiceProvider();
-        Assert.False(provider.GetRequiredService<DiscordOptions>().Frontier);
     }
 }

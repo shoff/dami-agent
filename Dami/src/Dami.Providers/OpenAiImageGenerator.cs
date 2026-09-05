@@ -146,24 +146,50 @@ public sealed class OpenAiImageGenerator : IImageGenerator
     private async Task<GeneratedImage> SendAsync(
         ImageRequest request, CancellationToken cancellationToken)
     {
-        using var message = new HttpRequestMessage(
-            HttpMethod.Post, new Uri(new Uri(this.imageOptions.BaseUrl), "/v1/images/generations"));
+        using var message = this.CreateMessage(request);
         message.Headers.Add("Authorization", "Bearer " + this.imageOptions.ApiKey);
-        message.Content = JsonContent.Create(new
-        {
-            model = this.imageOptions.Model,
-            prompt = request.Prompt,
-            size = request.Size,
-            quality = request.Quality,
-            n = 1,
-        });
-
         using var response = await this.httpClient
             .SendAsync(message, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         return Read(body, request);
+    }
+
+    private HttpRequestMessage CreateMessage(ImageRequest request)
+    {
+        var endpoint = request.Reference is null ? "/v1/images/generations" : "/v1/images/edits";
+        var message = new HttpRequestMessage(
+            HttpMethod.Post, new Uri(new Uri(this.imageOptions.BaseUrl), endpoint));
+        message.Content = request.Reference is null
+            ? this.CreateGenerationContent(request)
+            : this.CreateEditContent(request, request.Reference);
+        return message;
+    }
+
+    private JsonContent CreateGenerationContent(ImageRequest request) => JsonContent.Create(new
+    {
+        model = this.imageOptions.Model,
+        prompt = request.Prompt,
+        size = request.Size,
+        quality = request.Quality,
+        n = 1,
+    });
+
+    private MultipartFormDataContent CreateEditContent(
+        ImageRequest request, ImageReference reference)
+    {
+        var content = new MultipartFormDataContent();
+        content.Add(new StringContent(this.imageOptions.Model), "model");
+        content.Add(new StringContent(request.Prompt), "prompt");
+        content.Add(new StringContent(request.Size), "size");
+        content.Add(new StringContent(request.Quality), "quality");
+        content.Add(new StringContent("1"), "n");
+        var image = new ByteArrayContent(reference.Bytes.ToArray());
+        image.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+            reference.ContentType);
+        content.Add(image, "image[]", reference.FileName);
+        return content;
     }
 
     /// <summary>Reads the response. gpt-image-1 always returns base64, never a URL.</summary>

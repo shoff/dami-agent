@@ -41,6 +41,16 @@ public sealed class FileIdentityProviderTests
         Assert.DoesNotContain("Steve", provider.FrontierVoice, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void FrontierVoice_Should_Preserve_Damis_Personal_Identity()
+    {
+        var provider = CreateProvider("/nonexistent/dami-identity.md");
+
+        Assert.Contains("Korean American", provider.FrontierVoice, StringComparison.Ordinal);
+        Assert.Contains("flirt", provider.FrontierVoice, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("thirty", provider.FrontierVoice, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static FileIdentityProvider CreateProvider(string path)
     {
         return new FileIdentityProvider(

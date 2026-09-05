@@ -79,7 +79,12 @@ public sealed class EgressSeamTests
     private static readonly string[] permittedImageHolders =
     [
         "Dami.Providers.OpenAiImageGenerator",
+        // G25: authenticated built-in image tool; subscription-covered and API-key-free.
+        "Dami.Providers.CodexSubscriptionImageGenerator",
         "Dami.Proactive.Portrait.DailyPortraitService",
+        // M1d: explicit user image commands, still metered and enforced by the same door.
+        "Dami.Host.Discord.DiscordImageResponder",
+        "Dami.Host.Discord.DiscordToolbox", // ADR-0030: the frontier's make_image tool on Discord
     ];
 
     [Fact]

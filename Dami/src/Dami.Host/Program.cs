@@ -19,6 +19,16 @@ using Dami.Providers;
 // thin clients of the same surface. Localhost-only is a privacy boundary, not a
 // deployment detail — exposing this beyond loopback is a separate auth decision.
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.ClearProviders();
+builder.Logging.Configure(options => options.ActivityTrackingOptions =
+    ActivityTrackingOptions.SpanId
+    | ActivityTrackingOptions.TraceId
+    | ActivityTrackingOptions.ParentId);
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.TimestampFormat = "O";
+});
 builder.Host.UseDefaultServiceProvider(options =>
 {
     options.ValidateOnBuild = true;
@@ -140,6 +150,16 @@ builder.Services.AddSingleton<IFrontierChat, CodexChatClient>();
 builder.Services.Configure<EgressBudgetOptions>(
     builder.Configuration.GetSection(EgressBudgetOptions.SECTION_NAME));
 builder.Services.AddSingleton<Dami.Contracts.Privacy.IEgressBudget, EventCountEgressBudget>();
+builder.Services.Configure<OpenAiImageOptions>(
+    builder.Configuration.GetSection(OpenAiImageOptions.SECTION_NAME));
+builder.Services.AddSingleton<IImageGenerator, CodexSubscriptionImageGenerator>();
+builder.Services.AddSingleton<InteractiveImageGenerator>();
+builder.Services.Configure<ImageGalleryOptions>(
+    builder.Configuration.GetSection(ImageGalleryOptions.SECTION_NAME));
+builder.Services.AddSingleton<ImageGallery>();
+builder.Services.AddSingleton<GalleryImageGenerator>();
+// Discord asks for pictures of Dami through this seam; the Gallery answers.
+builder.Services.AddSingleton<Dami.Host.Discord.IDiscordPortraitGenerator, DiscordGalleryPortraits>();
 
 // Feature planning is provider-neutral at the application boundary. The three
 // adapters share the already-composed model clients and router; only the selected
@@ -170,6 +190,7 @@ builder.Services.Configure<Dami.Vision.OllamaVisionOptions>(
     builder.Configuration.GetSection(Dami.Vision.OllamaVisionOptions.SECTION_NAME));
 builder.Services.AddHttpClient<IVisionClient, Dami.Vision.OllamaVisionClient>(client =>
     client.Timeout = TimeSpan.FromMinutes(10));
+builder.Services.AddSingleton<TurnImageContext>();
 
 // Discord (ADR-0024, M1). Dormant unless Discord__Token and Discord__OwnerUserId are set,
 // which the systemd drop-in supplies; the registration is here rather than inside the
@@ -204,6 +225,7 @@ app.Use(async (context, next) =>
             new { error = failure.Message, kind = failure.GetType().Name }).ConfigureAwait(false);
     }
 });
+app.UseMiddleware<StructuredRequestLoggingMiddleware>();
 
 // J3 first cut: a zero-install conversation + live-graph view, rendered entirely
 // from the same endpoints every other client uses. Localhost-only like the API.

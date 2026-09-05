@@ -59,6 +59,17 @@ public interface IDiscordSocket : IAsyncDisposable
 /// </remarks>
 public interface IDiscordRest
 {
+    /// <summary>Shows Discord's typing indicator for the channel.</summary>
+    Task PostTypingAsync(string channelId, CancellationToken cancellationToken);
+
+    /// <summary>Creates a message and returns Discord's identifier for later edits.</summary>
+    Task<string> CreateMessageAsync(
+        string channelId, string text, CancellationToken cancellationToken);
+
+    /// <summary>Replaces an existing message's text.</summary>
+    Task EditMessageAsync(
+        string channelId, string messageId, string text, CancellationToken cancellationToken);
+
     /// <summary>Posts a message to a channel.</summary>
     Task PostMessageAsync(string channelId, string text, CancellationToken cancellationToken);
 

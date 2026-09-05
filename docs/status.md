@@ -109,7 +109,7 @@ rather than assuming — but nothing else blocks the phase.
 | Reconnect, heartbeat, sequence-gap detection | in progress | ADR-0004 sequence checks pass; ADR-0006 heartbeat is complete; ADR-0007 `TcpTransportConnector` creates fresh owned TCP transports with reset per-connection sequence. Transparent replay/session resumption remains deferred pending acknowledgements. |
 | Backpressure and flow control beyond bounded loopback | done for TCP v1 | ADR-0008: bounded loopback, awaited pipeline flush, pull-based receive, and TCP windows propagate pressure; failed post-write flush poisons outbound use and requires reconnect; queued cancellation remains safe |
 | Capability registry | F1–F5 done | Native, MCP, filesystem skills, and dynamically activated sandboxed tools share source-neutral catalog and execution seams. Skills load progressively and have a complete free lifecycle. Tool proposals stage immutable trace-owned source/tests/rationale without execution or registration, with bounded list and exact inspection surfaces. Exact verification runs fixed tests inside the memory/process/time/output-bounded systemd+bubblewrap boundary with no home, repository, network, or persistent writable mount, then records the tested assembly digest before a single-resolution human promotion. Failure-atomic activation publishes immutable version-addressed artifacts and converges durable handler/schema/search state before readiness. Live proposal `04a98141…` was verified, approved, activated, invoked, restarted, recovered 1/1 before listening, and invoked again through capability `a17970dd…`; the runtime DLL digest exactly matched its verification record. |
-| Model routing, sessions, events, CLI | partial | Routed/streaming/tool-enabled turns and the G6 live demonstration exist. G4 sessions are complete: durable idempotent turns, bounded recent context, localhost and thin-CLI lifecycle/reconnect surfaces, active model cancellation, resume, and retry convergence are demonstrated live. Streaming remains tool-less. |
+| Model routing, sessions, events, CLI | partial | Routed/streaming/tool-enabled turns and the G6 live demonstration exist. G4 sessions are complete: durable idempotent turns, bounded recent context, localhost and thin-CLI lifecycle/reconnect surfaces, active model cancellation, resume, and retry convergence are demonstrated live. Frontier streaming carries a per-turn tool bundle on Discord since ADR-0030 (2026-09-04); GUI and CLI streams are still tool-less. |
 
 Verification on 2026-08-23 for G6c3a in an isolated concurrent-work gate:
 `dotnet test Dami.sln` executed 439 tests across twelve suites with 0 failures;
@@ -636,6 +636,67 @@ explicit confirmation activates it, the Host dispatches due work, and the Avalon
 `Tasks > Jobs` window shows schedule and run state. Migration 037 is applied locally;
 the new binaries are built but not deployed or restarted as of 2026-08-31.
 
+The GUI direct-conversation route is subscription-only (G19/G20): the client request
+serializes `frontier: true` and `augmented: false`; the Host branches directly to the
+subscription stream before any augmented or local runner. One image attachment (maximum
+12 MiB each) can be dropped onto chat or pasted from the clipboard; multiple images
+accumulate in order and are supplied together to the subscription app-server as native
+`localImage` inputs. Neither text nor image chat
+invokes Ollama. Explicit `/image`, `create an image of`, `generate an image of`,
+and `draw an image of` requests use the existing governed image provider and render the
+returned bitmap inline. Pending replies print no provider-routing status. Dami's direct
+frontier identity now explicitly preserves her brilliant, playful/flirty, thirty-something
+Korean American woman persona without stereotypes. Built with zero warnings/errors; all
+1,561 tests pass. Staged images render as ordered 58px inline blocks in the same wrapping
+composer surface as the multiline editor; Enter sends, Shift+Enter inserts a newline,
+and sending clears the image blocks. The GUI and Host Release were installed and restarted
+on 2026-09-01; live direct chat therefore uses the subscription route rather than a local
+model.
+
+G24/G26 add a dedicated Gallery tab: responsive portrait cards, a useful-size selected
+view, provenance labels, and an in-tab scene composer. Eleven supplied Dami portraits
+were copied byte-for-byte into `/home/steve/Data/dami-gallery`; the originals remain
+unchanged. New portraits now use the authenticated Codex subscription's built-in image tool
+with exactly one configured canonical identity anchor; it requires no API key, makes no
+local-model fallback, and persists the PNG plus prompt/model sidecar for restart-safe
+reload. The Gallery supports multi-file picker and drop import, preserving file bytes.
+Gallery generation changes its button immediately and the persistent top-right status rail
+shows work/success/failure. Natural chat requests for a picture of Dami or a surprise
+picture route through the same identity-preserving Gallery generator. The deployed Host
+was demonstrated live: it generated and saved a valid 1024×1536 Dami kitchen portrait on
+2026-09-01.
+
+Operational incident resolved (2026-09-02): a Discord subscription turn reached the
+600-second Codex deadline; its `OperationCanceledException` escaped the gateway worker and
+caused the generic host to stop. The repaired worker now falls back locally on a frontier
+deadline, contains any other non-shutdown cancellation to one message, and resets an
+incomplete Codex app-server subprocess before reuse. The Host-only Release was deployed
+and restarted; `/health`, `/gallery`, and a 2,437,181-byte Gallery PNG each return 200.
+
+Two more defects Steve reported on 2026-09-04, both root-caused from the journal and the
+database (ADR-0028, ADR-0029). **Discord answered from qwen3 twice on 2026-09-03** — once
+when a Discord 429 on a progressive edit was caught as a frontier failure, once when the
+Codex app-server hung for the full 600 s — through the fallback ADR-0026 had kept. The
+fallback and its seam are gone: `DiscordGatewayWorker` no longer takes `ITracedTurnRunner`,
+a frontier failure is reported in one Operational line with the trace id, `Discord:Frontier`
+no longer exists, and `EditMessageAsync` now waits out a 429 like the post path did.
+**The daily portrait had never run**: `DailyPortrait:Enabled` was never set in the proactive
+drop-in and the pass was wired to the keyed `OpenAiImageGenerator` nobody had a key for
+(`proactive_runs` holds no `daily-portrait` row; `scheduled_jobs` is empty). It now uses
+`CodexSubscriptionImageGenerator` with the canonical anchor and `PortraitIdentity.PROMPT`,
+writes into the Gallery directory with the Gallery sidecar, and refuses to draw without the
+anchor when one is configured. **Demonstrated live from the staged binary** (2026-09-04
+19:56 CDT): a valid 1024×1536 Dami portrait, `dami-2026-09-04-evening.png`, in the Gallery
+with its sidecar. That first run then died on migration 035's cadence check — the
+`EightHourly` trap N10 closed only for the disabled case — so **migration 038** widens the
+check and is applied; the re-run exited 0 and `proactive_runs` holds the first
+`daily-portrait | Completed | EightHourly` row. Full solution: 0 warnings, 0 errors, 1,581
+tests in 21 assemblies. Deployed and restarted 20:17 CDT; the Discord image-intent follow-up (1,598 tests) is restaged at 20:35 and needs one more Host restart. Earlier note kept for the record: builds were staged in
+`~/.cache/dami-pub/`; **not deployed** — the rsync into `/opt`, the four drop-in lines
+(runbook §"Enabling the daily portrait"), and the restart need `sudo`, which this agent
+does not have (runbook §4.8). Until the drop-in carries `DailyPortrait__Enabled=true`,
+the scheduled tier still does not run the pass.
+
 The charter's fourteen cutover items, scored against what has actually been
 demonstrated. "partial" means a real demonstration exists for part of the item's scope.
 
@@ -651,7 +712,7 @@ demonstrated. "partial" means a real demonstration exists for part of the item's
 | 8 | Recover cleanly from failures | **demonstrated** | deliberate injection: embeddings sidecar stopped mid-turn → the turn failed in ~2s (no hang), `TraceFailed` recorded the true cause (`Connection refused 127.0.0.1:8080`), the host stayed up, and the next turn succeeded unaided once the sidecar returned. The client now names the cause instead of blaming transport |
 | 9 | Identity across two providers | **demonstrated** | §9.1 identity block from one installed file leads local prompts; a persona-only voice line rides frontier prompts — "who are you" answers as Dami on qwen3 AND codex |
 | 10 | Relevant memory without flooding the prompt | **demonstrated** | `ContextBuilder` hard budget (2.5k tokens) over embed→ANN→rerank, tested; vs Hermes's measured 90–126k |
-| 11 | Discord without duplicate gateways | **built, unproven live** | M1a `IGatewayAuthority` over a Postgres advisory lock was already done. ADR-0024 found that D-012 had no way to express outbound *content* at all — `IEgressClient` fetches and `EgressRequest` carries no body by design — so the gateway rides a new `IEgressChannel` rather than widening the existing type for every caller. `Dami.Gateway.Discord` hand-rolls the socket (identify, heartbeat, resume, backoff) on D-013's precedent; `Dami.Host.Discord` takes the authority lease and refuses to serve without it. Profile-derived answers are refused at the channel and replaced by a traced refusal message. 56 new tests (35 gateway, 10 host, 8 policy, 3 architecture). **First live contact 2026-08-30 found three defects**, all in the hand-rolled socket D-013 warned would cost five times the happy path: the WebSocket close code was discarded (so a permanent refusal looked like a dropped connection), RESUME went to the generic gateway instead of the `resume_gateway_url` READY names (which Discord answers with INVALID_SESSION), and backoff reset on a connection that died immediately. Together they identified 24 times a minute against Discord's limit of one per five seconds — a token-reset offence. Fixed with a fatal-close stop, an identify floor, and four regression tests. **Live on 2026-08-30**: the 4014 was MESSAGE CONTENT never enabled in the portal — the fixed build named it in one line instead of looping. First real exchange then exposed ADR-0024's refusal rule as miscalibrated: it tested whether retrieval had returned memories, which is true on every turn, so `hi there` was refused. **ADR-0025** replaces it with a recipient test — D-012 protects the profile from *others*, and the reader here is Steve. Cost accepted and recorded: Discord Inc. now holds memory-derived answers. Operational `status`/`help` answer from runtime state with no retrieval at all |
+| 11 | Discord without duplicate gateways | **built, responsive/media changes not deployed** | M1a `IGatewayAuthority` over a Postgres advisory lock was already done. ADR-0024 found that D-012 had no way to express outbound *content* at all — `IEgressClient` fetches and `EgressRequest` carries no body by design — so the gateway rides a new `IEgressChannel` rather than widening the existing type for every caller. `Dami.Gateway.Discord` hand-rolls the socket (identify, heartbeat, resume, backoff) on D-013's precedent; `Dami.Host.Discord` takes the authority lease and refuses to serve without it. Profile-derived answers are refused at the channel and replaced by a traced refusal message. **First live contact 2026-08-30 found three defects**, all in the hand-rolled socket D-013 warned would cost five times the happy path: the WebSocket close code was discarded, RESUME went to the wrong gateway, and backoff reset on immediately dead connections. Fixed with a fatal-close stop, an identify floor, and regression tests. **Live on 2026-08-30**: the fixed build identified missing MESSAGE CONTENT permission, then ADR-0025 replaced an over-broad profile refusal with a recipient test. Operational `status`/`help` answer from runtime state with no retrieval. **M1d built 2026-09-01 after a Hermes comparison and live trace:** typing starts immediately and refreshes every 8 s; frontier fragments create a Discord reply immediately, edit after each 80 accumulated characters, and reconcile final text; inbound vision is capped at 30 s per image and degrades visibly instead of holding the gateway; explicit `/image`, `create an image of`, `generate an image of`, and `draw an image of` requests use the existing audited/metered image provider and multipart attachment rail. Full solution: build 0 warnings/errors; 1,529 tests passed. These changes are not deployed or demonstrated live. **ADR-0028 (2026-09-04):** the local-model fallback is removed outright after it fired twice on 2026-09-03; the gateway answers from the frontier or says why not. Deployed 20:17. **Same evening:** "Let's see an image of you painting your toes" reached the frontier text turn because the image responder knew four literal prefixes; `DiscordImageIntent` now routes pictures *of Dami* through the Gallery generator (anchor, saved, then attached) and other picture requests through the plain one. 1,598 tests. **ADR-0030, same night:** the frontier now gets a per-turn tool bundle (`make_portrait`, `make_image`) over the app-server's dynamic tools, proven by live probe and pinned by tests; 1,613 tests; Host restaged 20:57, restart pending. |
 | 12 | Materially lower prompt/tool overhead than Hermes | **demonstrated** | measured live through dami-host: retrieved context 147–404 tokens across five varied queries (health, work, off-topic); the §9.1 stable block adds ~300, so a full turn sits well under the charter's 5k target — against Hermes's measured 90–126k, a 20–40× cut at the ceiling and ~250× at measured context |
 | 13 | Back up and restore runtime + databases | **demonstrated** (host restore still deferred by Steve) | **databases**: nightly verified dumps, now mirrored to a second physical device, and a full restore rehearsed 2026-08-24 into a PostgreSQL 17 cluster — 0 errors, every row count exact, pgvector working, append-only guards intact. **runtime**: `/opt/dami` is reproducible from the repo by `dotnet publish` + rsync, config lives in systemd drop-ins, and the identity prompt is version-controlled (it was not until today). Host-level restore remains unrehearsed by Steve's 2026-08-22 decision |
 | 14 | Spoken wake→STT→agent→TTS cycle | partial | **STT half done**: `dami-stt` sidecar + `dami listen` transcribes locally as a bounded traced worker, ~1s per 5s of audio. Blocked on hardware and a choice: this host has no analog mic, and Whisper hears "Hey Dami" as "HEY BABY" so the wake word needs a dedicated engine; TTS voice source is L4 |
@@ -682,3 +743,32 @@ demonstrated. "partial" means a real demonstration exists for part of the item's
   the machine, this file records the result; intent belongs in an ADR.
 - When an ADR is accepted or rejected, update §4 and §5 in the same commit.
 - Distinguish "not started" from "blocked" — blocked names what it waits on.
+
+---
+
+## 8. Runtime observability (N9) — verified 2026-09-01
+
+`dami-host` and `dami-proactive` now write JSON console records to their systemd journals.
+HTTP records carry `RequestId` and activity `TraceId`; streaming turns also return the
+same Dami trace in `X-Dami-Trace`. Request bodies and query strings are deliberately
+absent. Informational records are limited to state-changing requests, avoiding a flood
+from GUI polling while still retaining failed read requests.
+
+The local Docker stack in `tools/observability/` runs pinned Elasticsearch 9.5.2,
+Kibana 9.5.2, and Filebeat 9.5.2. Filebeat reads only the two Dami systemd units and
+indexes decoded records under `dami-runtime-*`; it is necessary because these hosts run
+under systemd rather than Docker. Elasticsearch and Kibana are reachable only at
+`127.0.0.1:9200` and `127.0.0.1:5601`. The observed Elasticsearch health was `yellow`
+(the expected one-node replica state), both hosts were `active`, and the Kibana data view
+`Dami Runtime` (`dami-runtime-*`, time field `@timestamp`) was created. Security is
+intentionally disabled only inside this loopback diagnostic stack; do not expose either
+port without a new authenticated HTTPS design.
+
+### Correction pending — direct application ingestion
+
+The initial local implementation used Filebeat to ship the two systemd journals. Steve
+rejected that as unnecessary: Dami already uses `ILogger`, so the final N9 design is a
+direct Serilog Elasticsearch sink that becomes inert if Elasticsearch is unavailable,
+while JSON console logging remains local. Filebeat is temporarily still running until the
+replacement has passed fallback and live-ingestion verification. N9 remains open on the
+task board and must not be represented as complete until then.

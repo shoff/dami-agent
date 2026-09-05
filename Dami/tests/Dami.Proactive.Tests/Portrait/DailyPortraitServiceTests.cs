@@ -123,9 +123,67 @@ public sealed class DailyPortraitServiceTests : IDisposable
         Assert.Empty(result.Surfacings);
     }
 
+    [Fact]
+    public async Task Should_Send_The_Identity_Anchor_When_One_Is_Configured()
+    {
+        // Without the reference the model draws whoever it likes; with it, the portrait
+        // is of Dami. ADR-0029.
+        Directory.CreateDirectory(this.directory);
+        var reference = Path.Combine(this.directory, "anchor.png");
+        await File.WriteAllBytesAsync(reference, [9, 9, 9]);
+
+        await this.Service(referencePath: reference).RunPassAsync(Context(), CancellationToken.None);
+
+        await this.generator.Received(1).GenerateAsync(
+            Arg.Is<ImageRequest>(request =>
+                request.Reference != null
+                && request.Reference.Bytes.Length == 3
+                && request.Prompt.Contains("sole identity reference", StringComparison.Ordinal)
+                && request.Prompt.Contains("evening", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Send_No_Identity_Text_Without_An_Anchor()
+    {
+        // "The attached image" with nothing attached would be an instruction about a
+        // picture that does not exist.
+        await this.Service().RunPassAsync(Context(), CancellationToken.None);
+
+        await this.generator.Received(1).GenerateAsync(
+            Arg.Is<ImageRequest>(request =>
+                request.Reference == null
+                && !request.Prompt.Contains("identity reference", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Report_A_Missing_Anchor_Rather_Than_Draw_A_Stranger()
+    {
+        var result = await this.Service(referencePath: Path.Combine(this.directory, "gone.png"))
+            .RunPassAsync(Context(), CancellationToken.None);
+
+        await this.generator.DidNotReceive()
+            .GenerateAsync(Arg.Any<ImageRequest>(), Arg.Any<CancellationToken>());
+        Assert.Contains("not produced", result.Note, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Should_Write_The_Gallery_Sidecar_Beside_The_Image()
+    {
+        // The Gallery tab reads a .json beside each picture; without one the prompt is blank.
+        await this.Service().RunPassAsync(Context(), CancellationToken.None);
+
+        var sidecar = Assert.Single(Directory.GetFiles(this.directory, "*.json"));
+        Assert.Equal("dami-2026-08-31-evening.json", Path.GetFileName(sidecar));
+        var text = await File.ReadAllTextAsync(sidecar);
+        Assert.Contains("\"FileName\":\"dami-2026-08-31-evening.png\"", text, StringComparison.Ordinal);
+        Assert.Contains("\"Prompt\":", text, StringComparison.Ordinal);
+    }
+
     private static ProactiveContext Context() => new(Guid.NewGuid(), now, null);
 
-    private DailyPortraitService Service(bool enabled = true)
+    private DailyPortraitService Service(bool enabled = true, string referencePath = "")
     {
         return new DailyPortraitService(
             this.generator,
@@ -134,6 +192,7 @@ public sealed class DailyPortraitServiceTests : IDisposable
                 Enabled = enabled,
                 OutputDirectory = this.directory,
                 LocalUtcOffsetHours = -5,
+                ReferencePath = referencePath,
             }),
             new FakeTimeProvider(now),
             NullLogger<DailyPortraitService>.Instance);

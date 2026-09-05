@@ -1,4 +1,8 @@
+using System.Diagnostics;
 using System.Text.Json;
+using Dami.Contracts.Models;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 
 namespace Dami.Providers.Tests;
@@ -41,8 +45,112 @@ public sealed class CodexAppServerTests
             result.GetProperty("thread").GetProperty("id").GetString());
     }
 
+    [Fact]
+    public void Image_Input_Uses_The_Installed_App_Server_LocalImage_Shape()
+    {
+        var json = JsonSerializer.Serialize(CodexAppServer.TurnInput(
+            "compare them", ["/tmp/first.png", "/tmp/second.png"]));
+
+        Assert.Contains("\"type\":\"text\"", json);
+        Assert.Contains("\"type\":\"localImage\"", json);
+        Assert.Contains("\"path\":\"/tmp/first.png\"", json);
+        Assert.Contains("\"path\":\"/tmp/second.png\"", json);
+    }
+
+    [Fact]
+    public void Initialize_Should_Declare_The_Experimental_Api_Capability()
+    {
+        // Without it: {"error":{"code":-32600,"message":"thread/start.dynamicTools requires
+        // experimentalApi capability"}} — the tools are silently absent otherwise.
+        var json = JsonSerializer.Serialize(CodexAppServer.InitializeParams());
+
+        Assert.Contains("\"experimentalApi\":true", json);
+    }
+
+    [Fact]
+    public void Thread_Start_Should_Declare_The_Bundle_As_Dynamic_Function_Tools()
+    {
+        var json = JsonSerializer.Serialize(CodexAppServer.ThreadStartParams("/x", OneTool()));
+
+        Assert.Contains("\"cwd\":\"/x\"", json);
+        Assert.Contains("\"dynamicTools\":[{\"type\":\"function\",\"name\":\"make_portrait\"", json);
+        Assert.Contains("\"inputSchema\":{\"type\":\"object\"", json);
+    }
+
+    [Fact]
+    public void Thread_Start_Without_Tools_Should_Not_Mention_Them()
+    {
+        var json = JsonSerializer.Serialize(CodexAppServer.ThreadStartParams("/x", FrontierToolbox.Empty));
+
+        Assert.DoesNotContain("dynamicTools", json);
+    }
+
+    [Fact]
+    public void A_Tool_Call_Is_Answered_In_The_Installed_Content_Item_Shape()
+    {
+        var json = JsonSerializer.Serialize(CodexAppServer.ToolCallResponse(FrontierToolResult.Ok("saved")));
+
+        Assert.Contains("\"success\":true", json);
+        Assert.Contains("\"contentItems\":[{\"type\":\"inputText\",\"text\":\"saved\"}]", json);
+    }
+
+    [Fact]
+    public async Task A_Tool_Call_From_The_Server_Is_Run_Here_And_Answered_On_Its_Id()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        var (root, script, _) = await CreateFakeServerAsync(callsTool: true);
+        var handler = Substitute.For<IFrontierToolHandler>();
+        handler.HandleAsync(Arg.Any<FrontierToolCall>(), Arg.Any<CancellationToken>())
+            .Returns(FrontierToolResult.Ok("dami-1.png attached"));
+        var toolbox = new FrontierToolbox(OneTool().Tools, handler);
+
+        try
+        {
+            var fragments = await StreamAllAsync(script, root, toolbox);
+
+            // The fake only completes the turn after it has read a reply on id 7 that
+            // says success:true — so a completed turn proves the response frame.
+            Assert.Equal(["answered"], fragments);
+            await handler.Received(1).HandleAsync(
+                Arg.Is<FrontierToolCall>(call =>
+                    call.CallId == "c1"
+                    && call.Tool == "make_portrait"
+                    && call.Arguments.GetProperty("scene").GetString() == "kitchen"),
+                Arg.Any<CancellationToken>());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task<List<string>> StreamAllAsync(string script, string root, FrontierToolbox toolbox)
+    {
+        await using var server = new CodexAppServer(
+            new CodexOptions { BinaryPath = script }, NullLogger<CodexAppServer>.Instance);
+        var fragments = new List<string>();
+        await foreach (var fragment in server.StreamAsync(
+            "draw", root, TimeSpan.FromSeconds(10), [], toolbox, CancellationToken.None))
+        {
+            fragments.Add(fragment);
+        }
+
+        return fragments;
+    }
+
+    private static FrontierToolbox OneTool()
+    {
+        using var schema = JsonDocument.Parse("""{"type":"object","properties":{"scene":{"type":"string"}}}""");
+        return new FrontierToolbox(
+            [new FrontierTool("make_portrait", "draw Dami", schema.RootElement.Clone())],
+            Substitute.For<IFrontierToolHandler>());
+    }
+
     [Theory]
-    [InlineData("turn/completed")]
     [InlineData("turn/failed")]
     public void A_Turn_Ends_On_These_Notifications(string method)
     {
@@ -53,5 +161,98 @@ public sealed class CodexAppServerTests
         Assert.Contains(
             document.RootElement.GetProperty("method").GetString(),
             new[] { "turn/completed", "turn/failed" });
+    }
+
+    [Fact]
+    public async Task A_Timed_Out_Turn_Stops_The_App_Server_Process()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        var (root, script, pidFile) = await CreateFakeServerAsync();
+
+        try
+        {
+            await using var server = new CodexAppServer(
+                new CodexOptions { BinaryPath = script },
+                NullLogger<CodexAppServer>.Instance);
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            {
+                await foreach (var unused in server.StreamAsync(
+                    "wait forever", root, TimeSpan.FromMilliseconds(100), [], FrontierToolbox.Empty,
+                    CancellationToken.None))
+                {
+                }
+            });
+
+            var pid = int.Parse(await File.ReadAllTextAsync(pidFile));
+            Assert.False(IsRunning(pid));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task<(string Root, string Script, string PidFile)> CreateFakeServerAsync(
+        bool callsTool = false)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            throw new PlatformNotSupportedException();
+        }
+
+        var root = Path.Combine(Path.GetTempPath(), $"dami-app-server-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var script = Path.Combine(root, "fake-codex");
+        var pidFile = Path.Combine(root, "fake.pid");
+        await File.WriteAllTextAsync(script, FakeServerScript(pidFile, callsTool));
+        File.SetUnixFileMode(
+            script,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        return (root, script, pidFile);
+    }
+
+    private static string FakeServerScript(string pidFile, bool callsTool)
+    {
+        var toolCall = callsTool
+            ? """
+                *'"method":"turn/start"'*)
+                  printf '%s\n' '{"id":7,"method":"item/tool/call","params":{"threadId":"thread-1","turnId":"u","callId":"c1","namespace":null,"tool":"make_portrait","arguments":{"scene":"kitchen"}}}'
+                  ;;
+                *'"id":7'*'"success":true'*)
+                  printf '%s\n' '{"method":"item/agentMessage/delta","params":{"delta":"answered"}}'
+                  printf '%s\n' '{"method":"turn/completed","params":{"turn":{"error":null}}}'
+                  ;;
+              """
+            : string.Empty;
+        return """
+            #!/bin/sh
+            printf '%s' "$$" > "__PID_FILE__"
+            while IFS= read -r frame; do
+              case "$frame" in
+                *'"method":"thread/start"'*)
+                  printf '%s\n' '{"result":{"thread":{"id":"thread-1"}}}'
+                  ;;
+            __TOOL_CALL__  esac
+            done
+            """.Replace("__PID_FILE__", pidFile, StringComparison.Ordinal)
+            .Replace("__TOOL_CALL__", toolCall, StringComparison.Ordinal);
+    }
+
+    private static bool IsRunning(int pid)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 }

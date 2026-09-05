@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using Dami.Contracts.Privacy;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -30,6 +31,26 @@ public sealed class DiscordRestTests
             {
                 Content = new ByteArrayContent(this.Payload),
             };
+        }
+    }
+
+    /// <summary>Refuses the first request with a 429, then accepts.</summary>
+    private sealed class RateLimitedOnce : HttpMessageHandler
+    {
+        public List<HttpMethod> Methods { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            this.Methods.Add(request.Method);
+            if (this.Methods.Count > 1)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+            }
+
+            var refused = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            refused.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.Zero);
+            return Task.FromResult(refused);
         }
     }
 
@@ -132,6 +153,31 @@ public sealed class DiscordRestTests
 
         Assert.Equal("Bot", handler.Request!.Headers.Authorization!.Scheme);
     }
+
+    [Fact]
+    public async Task PostTypingAsync_Should_Call_The_Channel_Typing_Endpoint()
+    {
+        var (rest, handler) = Create();
+
+        await rest.PostTypingAsync("chan-1", CancellationToken.None);
+
+        Assert.Equal(
+            "https://discord.com/api/v10/channels/chan-1/typing",
+            handler.Request!.RequestUri!.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task CreateMessageAsync_Should_Return_Discords_Message_Id()
+    {
+        var (rest, handler) = Create();
+        handler.Payload = Encoding.UTF8.GetBytes("{\"id\":\"msg-42\"}");
+
+        var messageId = await rest.CreateMessageAsync(
+            "chan-1", "first words", CancellationToken.None);
+
+        Assert.Equal("msg-42", messageId);
+    }
+
     [Theory]
     [InlineData("http://127.0.0.1:11434/api/tags")]
     [InlineData("https://evil.example.com/x.png")]
@@ -160,5 +206,18 @@ public sealed class DiscordRestTests
             "https://cdn.discordapp.com/attachments/1/2/x.png", CancellationToken.None);
 
         Assert.Equal("png", Encoding.UTF8.GetString(bytes.ToArray()));
+    }
+
+    [Fact]
+    public async Task EditMessageAsync_Should_Wait_And_Retry_When_Rate_Limited()
+    {
+        // 2026-09-03 23:04: a 429 on a progressive edit threw out of the streamer and the
+        // frontier's finished answer with it. The post path already waited; now both do.
+        var handler = new RateLimitedOnce();
+        var client = new DiscordRest(new HttpClient(handler), "a-token", NullLogger<DiscordRest>.Instance);
+
+        await client.EditMessageAsync("chan-1", "message-1", "more text", CancellationToken.None);
+
+        Assert.Equal([HttpMethod.Patch, HttpMethod.Patch], handler.Methods);
     }
 }

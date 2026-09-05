@@ -97,3 +97,14 @@ public interface IEgressChannel
     /// <summary>Yields messages as they arrive, until cancelled.</summary>
     IAsyncEnumerable<InboundMessage> ListenAsync(CancellationToken cancellationToken);
 }
+
+/// <summary>A channel that can progressively replace one in-flight reply.</summary>
+public interface IProgressiveEgressChannel
+{
+    /// <summary>Creates the first visible fragment and returns its channel identifier.</summary>
+    Task<string> BeginAsync(OutboundContent content, CancellationToken cancellationToken);
+
+    /// <summary>Replaces the visible reply with the accumulated text.</summary>
+    Task UpdateAsync(
+        string messageId, OutboundContent content, CancellationToken cancellationToken);
+}

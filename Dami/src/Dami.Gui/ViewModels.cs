@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Avalonia.Media.Imaging;
 using Dami.Contracts.TaskBoard;
 
 namespace Dami.Gui;
@@ -21,6 +22,7 @@ public sealed class Message : INotifyPropertyChanged
 
     private string body;
     private string meta = string.Empty;
+    private Bitmap? image;
 
     /// <summary>Who said it — "you" or "dami".</summary>
     public string Who { get; }
@@ -39,6 +41,13 @@ public sealed class Message : INotifyPropertyChanged
         set => this.Set(ref this.meta, value);
     }
 
+    /// <summary>An image returned by Dami, when this is a generated-image reply.</summary>
+    public Bitmap? Image
+    {
+        get => this.image;
+        set => this.Set(ref this.image, value);
+    }
+
     /// <summary>True when this is Steve's own line, for styling.</summary>
     public bool IsYou => this.Who == "you";
 
@@ -48,6 +57,17 @@ public sealed class Message : INotifyPropertyChanged
     private void Set(ref string field, string value, [CallerMemberName] string? name = null)
     {
         if (field == value)
+        {
+            return;
+        }
+
+        field = value;
+        this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    private void Set(ref Bitmap? field, Bitmap? value, [CallerMemberName] string? name = null)
+    {
+        if (ReferenceEquals(field, value))
         {
             return;
         }
@@ -572,6 +592,9 @@ public sealed class WindowState : INotifyPropertyChanged
     private string fitnessMessage = string.Empty;
     private string networkMessage = string.Empty;
     private string networkAnalysis = string.Empty;
+    private string galleryMessage = string.Empty;
+    private GalleryImageCard? selectedGalleryImage;
+    private GlobalStatus systemStatus = GlobalStatus.Ready;
     private PassSummary passSummary = PassSummary.none;
 
     /// <summary>What the trace pane is showing, or why it is showing nothing.</summary>
@@ -634,6 +657,39 @@ public sealed class WindowState : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Gallery loading or generation status.</summary>
+    public string GalleryMessage
+    {
+        get => this.galleryMessage;
+        set
+        {
+            this.galleryMessage = value;
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.GalleryMessage)));
+        }
+    }
+
+    /// <summary>The portrait opened at useful size.</summary>
+    public GalleryImageCard? SelectedGalleryImage
+    {
+        get => this.selectedGalleryImage;
+        set
+        {
+            this.selectedGalleryImage = value;
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.SelectedGalleryImage)));
+        }
+    }
+
+    /// <summary>Application-wide status shown persistently at the top right.</summary>
+    public GlobalStatus SystemStatus
+    {
+        get => this.systemStatus;
+        set
+        {
+            this.systemStatus = value;
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.SystemStatus)));
+        }
+    }
+
     /// <summary>What the selected pass cost and produced.</summary>
     public PassSummary PassSummary
     {
@@ -650,6 +706,12 @@ public sealed class WindowState : INotifyPropertyChanged
 
     /// <summary>The conversation, oldest first.</summary>
     public ObservableCollection<Message> Messages { get; } = [];
+
+    /// <summary>Images staged in the direct-chat composer, in insertion order.</summary>
+    public ObservableCollection<PendingChatImage> PendingImages { get; } = [];
+
+    /// <summary>Persisted Dami portraits, newest first.</summary>
+    public ObservableCollection<GalleryImageCard> GalleryImages { get; } = [];
 
     /// <summary>Pending surfacings and approvals.</summary>
     public ObservableCollection<SidebarItem> Attention { get; } = [];

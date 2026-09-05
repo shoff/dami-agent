@@ -89,6 +89,24 @@ public sealed class RuntimeClient
         }
     }
 
+    /// <summary>Reads local binary content such as one gallery image.</summary>
+    public async Task<byte[]?> GetBytesAsync(string path, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await this.httpClient
+                .GetAsync(new Uri(BASE_URL + path), cancellationToken).ConfigureAwait(false);
+            return response.IsSuccessStatusCode
+                ? await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false)
+                : null;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            Diagnostics.Write($"GET {path} FAILED {exception.GetType().Name}: {exception.Message}");
+            return null;
+        }
+    }
+
     /// <summary>Posts JSON and returns the reply, or null when the runtime is unreachable.</summary>
     public async Task<JsonDocument?> PostAsync(
         string path,
@@ -112,12 +130,12 @@ public sealed class RuntimeClient
     /// <summary>Opens the stream, raising a named failure rather than yielding silence.</summary>
     private async Task<HttpResponseMessage> OpenStreamAsync(
         string message,
-        bool augmented,
+        IReadOnlyList<DirectChatImage> images,
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(BASE_URL + "/turns/stream"))
         {
-            Content = JsonContent.Create(new { message, augmented }),
+            Content = JsonContent.Create(new DirectChatRequest(message) { Images = images }),
         };
         var response = await this.httpClient
             .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
@@ -136,10 +154,10 @@ public sealed class RuntimeClient
     /// <summary>Streams one turn's answer fragment by fragment as the model produces it.</summary>
     public async IAsyncEnumerable<string> StreamTurnAsync(
         string message,
-        bool augmented,
+        IReadOnlyList<DirectChatImage> images,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var response = await this.OpenStreamAsync(message, augmented, cancellationToken)
+        using var response = await this.OpenStreamAsync(message, images, cancellationToken)
             .ConfigureAwait(false);
         await using var body = await response.Content.ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);

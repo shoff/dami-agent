@@ -114,6 +114,8 @@ public sealed class CodexChatClient : IFrontierChat
                 prompt.Prompt,
                 this.codexOptions.WorkingDirectory,
                 TimeSpan.FromSeconds(this.codexOptions.TimeoutSeconds),
+                [],
+                FrontierToolbox.Empty,
                 cancellationToken).ConfigureAwait(false))
         {
             characters += fragment.Length;
@@ -123,6 +125,145 @@ public sealed class CodexChatClient : IFrontierChat
         await this.EmitAsync(
             prompt, ExecutionEventType.EgressCompleted, ExecutionStatus.Succeeded,
             $"{prompt.Purpose}: {characters} chars streamed", cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<string> StreamAsync(
+        FrontierPrompt prompt,
+        IReadOnlyList<FrontierImage> images,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (images.Count == 0)
+        {
+            await foreach (var fragment in this.StreamAsync(prompt, cancellationToken)
+                .ConfigureAwait(false))
+            {
+                yield return fragment;
+            }
+
+            yield break;
+        }
+
+        var paths = await WriteImagesAsync(images, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await foreach (var fragment in this.StreamImagesAsync(prompt, paths, cancellationToken)
+                .ConfigureAwait(false))
+            {
+                yield return fragment;
+            }
+        }
+        finally
+        {
+            foreach (var path in paths)
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The bundle rides the app-server's dynamic tools: declared on the thread, called
+    /// back mid-turn, answered on this host. The subscription door is the only frontier
+    /// that hosts tools, which is the point of routing Discord through it.
+    /// </remarks>
+    public async IAsyncEnumerable<string> StreamAsync(
+        FrontierPrompt prompt,
+        IReadOnlyList<FrontierImage> images,
+        FrontierToolbox tools,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+        ArgumentNullException.ThrowIfNull(images);
+        ArgumentNullException.ThrowIfNull(tools);
+
+        if (tools.IsEmpty)
+        {
+            await foreach (var fragment in this.StreamAsync(prompt, images, cancellationToken)
+                .ConfigureAwait(false))
+            {
+                yield return fragment;
+            }
+
+            yield break;
+        }
+
+        await foreach (var fragment in this.StreamToolTurnAsync(prompt, images, tools, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            yield return fragment;
+        }
+    }
+
+    private async IAsyncEnumerable<string> StreamToolTurnAsync(
+        FrontierPrompt prompt,
+        IReadOnlyList<FrontierImage> images,
+        FrontierToolbox tools,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await this.EmitAsync(
+            prompt, ExecutionEventType.EgressRequested, ExecutionStatus.Running,
+            $"{prompt.Purpose} -> codex subscription (streaming, {tools.Tools.Count} tool(s))",
+            cancellationToken).ConfigureAwait(false);
+        var paths = await WriteImagesAsync(images, cancellationToken).ConfigureAwait(false);
+        var characters = 0;
+        try
+        {
+            await foreach (var fragment in this.StreamImagesAsync(prompt, paths, tools, cancellationToken)
+                .ConfigureAwait(false))
+            {
+                characters += fragment.Length;
+                yield return fragment;
+            }
+        }
+        finally
+        {
+            foreach (var path in paths)
+            {
+                File.Delete(path);
+            }
+        }
+
+        await this.EmitAsync(
+            prompt, ExecutionEventType.EgressCompleted, ExecutionStatus.Succeeded,
+            $"{prompt.Purpose}: {characters} chars streamed", cancellationToken).ConfigureAwait(false);
+    }
+
+    private IAsyncEnumerable<string> StreamImagesAsync(
+        FrontierPrompt prompt, IReadOnlyList<string> paths, CancellationToken cancellationToken) =>
+        this.StreamImagesAsync(prompt, paths, FrontierToolbox.Empty, cancellationToken);
+
+    private async IAsyncEnumerable<string> StreamImagesAsync(
+        FrontierPrompt prompt,
+        IReadOnlyList<string> paths,
+        FrontierToolbox tools,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await this.RefuseIfNeededAsync(prompt, cancellationToken).ConfigureAwait(false);
+        await foreach (var fragment in this.appServer.StreamAsync(
+            prompt.Prompt, this.codexOptions.WorkingDirectory,
+            TimeSpan.FromSeconds(this.codexOptions.TimeoutSeconds), paths, tools, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            yield return fragment;
+        }
+    }
+
+    private static async Task<IReadOnlyList<string>> WriteImagesAsync(
+        IReadOnlyList<FrontierImage> images, CancellationToken cancellationToken)
+    {
+        var paths = new List<string>(images.Count);
+        foreach (var image in images)
+        {
+            var extension = Path.GetExtension(image.FileName);
+            var path = Path.Combine(Path.GetTempPath(), $"dami-chat-{Guid.NewGuid():N}{extension}");
+            await File.WriteAllBytesAsync(path, image.Bytes.ToArray(), cancellationToken)
+                .ConfigureAwait(false);
+            paths.Add(path);
+        }
+
+        return paths;
     }
 
     /// <summary>Throws if this prompt or this moment may not reach the frontier.</summary>

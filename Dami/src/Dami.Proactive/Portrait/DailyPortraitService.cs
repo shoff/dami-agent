@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Dami.Contracts.Context;
 using Dami.Contracts.Events;
 using Dami.Contracts.Memory;
@@ -86,13 +87,16 @@ public sealed class DailyPortraitService : IProactiveService
     {
         try
         {
+            var request = await this.RequestAsync(slot, context.TraceId, cancellationToken)
+                .ConfigureAwait(false);
             var image = await this.generator
-                .GenerateAsync(this.RequestFor(slot, context.TraceId), cancellationToken)
+                .GenerateAsync(request, cancellationToken)
                 .ConfigureAwait(false);
 
             Directory.CreateDirectory(this.portraitOptions.OutputDirectory);
             await File.WriteAllBytesAsync(path, image.Bytes.ToArray(), cancellationToken)
                 .ConfigureAwait(false);
+            await WriteSidecarAsync(path, request.Prompt, now, cancellationToken).ConfigureAwait(false);
             this.logger.LogInformation("Daily portrait: wrote the {Slot} image to {Path}", slot, path);
 
             return new ProactiveResult(
@@ -117,9 +121,17 @@ public sealed class DailyPortraitService : IProactiveService
     /// The request. Egressable because this prompt is composed from configuration and
     /// carries nothing retrieved — the generator refuses anything that is not.
     /// </summary>
-    private ImageRequest RequestFor(string slot, Guid traceId) =>
-        new(
-            this.portraitOptions.PromptTemplate.Replace("{slot}", slot, StringComparison.Ordinal),
+    private async Task<ImageRequest> RequestAsync(
+        string slot, Guid traceId, CancellationToken cancellationToken)
+    {
+        var scene = this.portraitOptions.PromptTemplate.Replace("{slot}", slot, StringComparison.Ordinal);
+        var reference = await this.ReferenceAsync(cancellationToken).ConfigureAwait(false);
+        var prompt = reference is null
+            ? scene
+            : $"{PortraitIdentity.PROMPT}\nScene and emotional beat: {scene}";
+
+        return new ImageRequest(
+            prompt,
             $"daily portrait ({slot})",
             PrivacyClass.Egressable,
             traceId,
@@ -127,5 +139,47 @@ public sealed class DailyPortraitService : IProactiveService
         {
             Size = this.portraitOptions.Size,
             Quality = this.portraitOptions.Quality,
+            Reference = reference,
         };
+    }
+
+    /// <summary>The identity anchor, when one is configured. Without it, no identity text.</summary>
+    private async Task<ImageReference?> ReferenceAsync(CancellationToken cancellationToken)
+    {
+        var path = this.portraitOptions.ReferencePath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException("The configured Dami identity reference is missing.", path);
+        }
+
+        return new ImageReference(
+            Path.GetFileName(path),
+            "image/png",
+            await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// The provenance the Gallery reads beside a picture: the same five fields
+    /// <c>Dami.Host.ImageGallery</c> writes, so a pass dropped into its directory shows
+    /// its prompt rather than a blank.
+    /// </summary>
+    private static Task WriteSidecarAsync(
+        string path, string prompt, DateTimeOffset createdAt, CancellationToken cancellationToken)
+    {
+        var sidecar = new
+        {
+            FileName = Path.GetFileName(path),
+            CreatedAt = createdAt,
+            Prompt = prompt,
+            Model = "gpt-image-2",
+            IsCanonical = false,
+        };
+        return File.WriteAllTextAsync(
+            Path.ChangeExtension(path, ".json"), JsonSerializer.Serialize(sidecar), cancellationToken);
+    }
 }

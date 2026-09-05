@@ -3,8 +3,6 @@ using Dami.Contracts.Privacy;
 using Dami.Contracts.Proactive;
 using Dami.Contracts.Sessions;
 using Dami.Core.Frontier;
-using Dami.Core.Sessions;
-using Dami.Core.Turns;
 using Dami.Gateway.Discord;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -23,9 +21,12 @@ public sealed class DiscordGatewayWorker : BackgroundService
 
     private readonly IGatewayAuthority authority;
     private readonly IEgressChannel channel;
-    private readonly ITracedTurnRunner turns;
+    private readonly DiscordReplyStreamer replyStreamer;
     private readonly IAugmentedTurn augmented;
     private readonly DiscordVision vision;
+    private readonly DiscordImageResponder images;
+    private readonly DiscordToolbox toolbox;
+    private readonly DiscordTypingIndicator typing;
     private readonly IConversationSessionStore sessions;
     private readonly IConversationTurnStore turnStore;
     private readonly IProactiveRunHistory history;
@@ -37,9 +38,12 @@ public sealed class DiscordGatewayWorker : BackgroundService
     public DiscordGatewayWorker(
         IGatewayAuthority authority,
         IEgressChannel channel,
-        ITracedTurnRunner turns,
         IAugmentedTurn augmented,
         DiscordVision vision,
+        DiscordReplyStreamer replyStreamer,
+        DiscordImageResponder images,
+        DiscordToolbox toolbox,
+        DiscordTypingIndicator typing,
         IConversationSessionStore sessions,
         IConversationTurnStore turnStore,
         IProactiveRunHistory history,
@@ -49,9 +53,12 @@ public sealed class DiscordGatewayWorker : BackgroundService
     {
         ArgumentNullException.ThrowIfNull(authority);
         ArgumentNullException.ThrowIfNull(channel);
-        ArgumentNullException.ThrowIfNull(turns);
         ArgumentNullException.ThrowIfNull(augmented);
         ArgumentNullException.ThrowIfNull(vision);
+        ArgumentNullException.ThrowIfNull(replyStreamer);
+        ArgumentNullException.ThrowIfNull(images);
+        ArgumentNullException.ThrowIfNull(toolbox);
+        ArgumentNullException.ThrowIfNull(typing);
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(turnStore);
         ArgumentNullException.ThrowIfNull(history);
@@ -61,9 +68,12 @@ public sealed class DiscordGatewayWorker : BackgroundService
 
         this.authority = authority;
         this.channel = channel;
-        this.turns = turns;
         this.augmented = augmented;
         this.vision = vision;
+        this.replyStreamer = replyStreamer;
+        this.images = images;
+        this.toolbox = toolbox;
+        this.typing = typing;
         this.sessions = sessions;
         this.turnStore = turnStore;
         this.history = history;
@@ -109,6 +119,11 @@ public sealed class DiscordGatewayWorker : BackgroundService
             {
                 break;
             }
+            catch (OperationCanceledException exception)
+            {
+                // A component deadline cancels one message, not the long-lived gateway.
+                this.logger.LogError(exception, "Discord turn canceled before completion");
+            }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 // One bad turn must not end the gateway. The tool loop learned this the
@@ -149,23 +164,6 @@ public sealed class DiscordGatewayWorker : BackgroundService
         return true;
     }
 
-    /// <summary>Sends, or says why it could not — silence would be the wrong failure.</summary>
-    private async Task SendOrExplainAsync(
-        OutboundContent reply, Guid traceId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await this.channel.SendAsync(reply, cancellationToken).ConfigureAwait(false);
-        }
-        catch (EgressRefusedException refused)
-        {
-            this.logger.LogWarning("Discord refused a reply: {Reason}", refused.Message);
-            await this.channel.SendAsync(
-                DiscordAnswer.Refusal(reply.ConversationId, traceId),
-                cancellationToken).ConfigureAwait(false);
-        }
-    }
-
     /// <summary>
     /// Answers one message: local models look and remember, the frontier thinks (ADR-0026).
     /// </summary>
@@ -182,65 +180,118 @@ public sealed class DiscordGatewayWorker : BackgroundService
             return;
         }
 
+        await using var active = await this.typing
+            .BeginAsync(message.ConversationId, cancellationToken).ConfigureAwait(false);
+        await this.AnswerQuestionAsync(message, question, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task AnswerQuestionAsync(
+        InboundMessage message, string question, CancellationToken cancellationToken)
+    {
+        if (await this.images.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
         var sessionId = DiscordConversations.SessionFor(message.ConversationId);
         await DiscordConversations
             .EnsureAsync(this.sessions, sessionId, this.clock.GetUtcNow(), cancellationToken)
             .ConfigureAwait(false);
 
-        var localContext = await this.LocalContextAsync(message, sessionId, cancellationToken)
+        var localContext = await this.LocalContextAsync(message, sessionId, cancellationToken).ConfigureAwait(false);
+        var answer = await this
+            .FrontierAsync(message.ConversationId, question, localContext, cancellationToken)
             .ConfigureAwait(false);
-        var (answer, traceId, provenance) = await this
-            .ThinkAsync(question, localContext, cancellationToken).ConfigureAwait(false);
-
-        await this.SendOrExplainAsync(
-            new OutboundContent(message.ConversationId, answer, provenance, traceId),
-            traceId, cancellationToken).ConfigureAwait(false);
-        await this.JournalAsync(sessionId, question, answer, cancellationToken).ConfigureAwait(false);
+        if (answer is not null)
+        {
+            await this.JournalAsync(sessionId, question, answer, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
-    /// The frontier answers on locally-assembled context; the local model answers only
-    /// when the frontier cannot be reached.
+    /// The frontier answers on locally-assembled context, or the gateway says that it
+    /// could not. Nothing else writes a reply (ADR-0028).
     /// </summary>
     /// <remarks>
-    /// Falling back rather than failing, because a subscription hiccup should degrade the
-    /// answer and not the gateway — and the reply says which model produced it, so a worse
-    /// answer is never quietly passed off as the good one.
+    /// There is deliberately no local-model fallback here. The one ADR-0026 kept "for a
+    /// subscription hiccup" fired on a Discord 429 and on a ten-minute Codex hang, and
+    /// each time Steve got a qwen3 answer he had said he never wanted. A failure is
+    /// reported as a failure; the answer is either the frontier's or absent.
     /// </remarks>
-    private async Task<(string Answer, Guid TraceId, ContentProvenance Provenance)> ThinkAsync(
-        string question, IReadOnlyList<string> localContext, CancellationToken cancellationToken)
+    /// <returns>The frontier's answer, or null when the failure was already explained.</returns>
+    private async Task<string?> FrontierAsync(
+        string conversationId,
+        string question,
+        IReadOnlyList<string> localContext,
+        CancellationToken cancellationToken)
     {
-        if (this.options.Frontier)
+        var traceId = Guid.NewGuid();
+        try
         {
-            try
-            {
-                var frontier = await this.augmented
-                    .RunAsync(question, localContext, cancellationToken).ConfigureAwait(false);
-                this.logger.LogInformation(
-                    "Discord turn {Trace} answered by the frontier on {Items} local item(s)",
-                    frontier.TraceId, frontier.ContextItems);
+            return await this.StreamReplyAsync(conversationId, question, localContext, traceId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (EgressRefusedException refused)
+        {
+            this.logger.LogWarning("Discord refused a reply: {Reason}", refused.Message);
+            await this.channel.SendAsync(DiscordAnswer.Refusal(conversationId, traceId), cancellationToken)
+                .ConfigureAwait(false);
+            return null;
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            this.logger.LogWarning(exception, "Frontier turn timed out; nothing was answered");
+            await this.ExplainAsync(conversationId, traceId, "it did not answer within its deadline", cancellationToken)
+                .ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            this.logger.LogWarning(exception, "Frontier turn failed; nothing was answered");
+            await this.ExplainAsync(conversationId, traceId, exception.Message, cancellationToken)
+                .ConfigureAwait(false);
+            return null;
+        }
+    }
 
-                // The augmented turn already gated and redacted everything that left this
-                // host, and what came back is the frontier's own prose.
-                return (frontier.Answer, frontier.TraceId, ContentProvenance.ProfileDerived);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                this.logger.LogWarning(exception, "Frontier turn failed; answering locally");
-            }
+    /// <summary>
+    /// The frontier answers with the turn's tool bundle in hand (ADR-0030); pictures it
+    /// made on the way follow the text as attachments.
+    /// </summary>
+    private async Task<string> StreamReplyAsync(
+        string conversationId,
+        string question,
+        IReadOnlyList<string> localContext,
+        Guid traceId,
+        CancellationToken cancellationToken)
+    {
+        var tools = this.toolbox.ForTurn(traceId);
+        var stream = await this.augmented
+            .StreamAsync(question, localContext, tools.Toolbox, cancellationToken).ConfigureAwait(false);
+        var answer = await this.replyStreamer
+            .StreamAsync(conversationId, stream, cancellationToken).ConfigureAwait(false);
+        this.logger.LogInformation(
+            "Discord turn {Trace} answered by the frontier on {Items} local item(s), {Pictures} picture(s)",
+            stream.TraceId, stream.ContextItems, tools.Attachments.Count);
+
+        if (tools.Attachments.Count > 0)
+        {
+            await this.channel.SendAsync(
+                new OutboundContent(conversationId, string.Empty, ContentProvenance.Operational, stream.TraceId)
+                {
+                    Attachments = tools.Attachments,
+                },
+                cancellationToken).ConfigureAwait(false);
         }
 
-        var traceId = Guid.NewGuid();
-        var local = await this.turns
-            .RunTracedAsync(traceId, question, ConversationWindow.Empty, cancellationToken)
-            .ConfigureAwait(false);
-
-        // The worker labels; the channel decides (ADR-0025). Keeping the judgement in one
-        // place stops the two disagreeing, which is how the gateway ended up refusing a
-        // greeting while believing it was enforcing D-012.
-        var note = this.options.Frontier ? "\n\n_(answered locally — the frontier was unreachable)_" : string.Empty;
-        return (local.Answer + note, local.TraceId, DiscordAnswer.ProvenanceOf(local));
+        return answer;
     }
+
+    /// <summary>Says why there is no answer — silence would be the wrong failure.</summary>
+    private Task ExplainAsync(
+        string conversationId, Guid traceId, string reason, CancellationToken cancellationToken) =>
+        this.channel.SendAsync(
+            DiscordAnswer.FrontierUnavailable(conversationId, traceId, reason), cancellationToken);
 
     /// <summary>
     /// Everything this host derived for the turn: the recent conversation, so the next

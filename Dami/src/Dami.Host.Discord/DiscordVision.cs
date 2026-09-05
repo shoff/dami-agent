@@ -26,17 +26,24 @@ public sealed class DiscordVision
 
     private readonly IVisionClient vision;
     private readonly IDiscordRest rest;
+    private readonly DiscordOptions options;
     private readonly ILogger<DiscordVision> logger;
 
     /// <summary>Creates the describer.</summary>
-    public DiscordVision(IVisionClient vision, IDiscordRest rest, ILogger<DiscordVision> logger)
+    public DiscordVision(
+        IVisionClient vision,
+        IDiscordRest rest,
+        DiscordOptions options,
+        ILogger<DiscordVision> logger)
     {
         ArgumentNullException.ThrowIfNull(vision);
         ArgumentNullException.ThrowIfNull(rest);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.vision = vision;
         this.rest = rest;
+        this.options = options;
         this.logger = logger;
     }
 
@@ -76,13 +83,15 @@ public sealed class DiscordVision
     {
         try
         {
-            var bytes = await this.rest.DownloadAsync(attachment.Url, cancellationToken)
+            using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            budget.CancelAfter(this.options.VisionTimeout);
+            var bytes = await this.rest.DownloadAsync(attachment.Url, budget.Token)
                 .ConfigureAwait(false);
-            var caption = await this.vision.DescribeAsync(bytes, PROMPT, cancellationToken)
+            var caption = await this.vision.DescribeAsync(bytes, PROMPT, budget.Token)
                 .ConfigureAwait(false);
             return $"{attachment.FileName}: {caption.Trim()}";
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             // A picture that cannot be read is worth saying so about; the rest of the
             // message is still answerable.

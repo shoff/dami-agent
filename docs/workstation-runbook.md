@@ -4,7 +4,7 @@
 evening if nobody told you.** Written for an agent or a human arriving at this host
 without the history.
 
-- **Last updated:** 2026-08-24 18:08 CDT
+- **Last updated:** 2026-09-04 20:00 CDT
 - **Host:** Linux Mint 22.3 (Ubuntu 24.04 `noble` base), RTX 4080 16 GiB, 125 GiB RAM
 - **Companion docs:** `status.md` for what is done, `onboarding.md` for orientation,
   `decisions/` for why
@@ -25,6 +25,9 @@ network, and that is deliberate — remote access is SSH first, then talk to loc
 | Embeddings | `127.0.0.1:8080` | `dami-embed` | `ghcr.io/huggingface/text-embeddings-inference:89-1.9.0` | `BAAI/bge-m3`, 1024 dims |
 | Reranker | `127.0.0.1:8081` | `dami-rerank` | same image | `BAAI/bge-reranker-v2-m3`, cross-encoder |
 | LLM sidecar | `127.0.0.1:11434` | `dami-llm` | `ollama/ollama:0.32.15` | `qwen3:8b` pulled |
+| Elasticsearch | `127.0.0.1:9200` | `dami-elasticsearch` | `docker.elastic.co/elasticsearch/elasticsearch:9.5.2` | local runtime-log index; data in `/home/steve/Data/dami-observability/elasticsearch` |
+| Kibana | `127.0.0.1:5601` | `dami-kibana` | `docker.elastic.co/kibana/kibana:9.5.2` | Discover data view `dami-runtime-*` |
+| Runtime log shipper | systemd journal → Elasticsearch | `dami-filebeat` | `docker.elastic.co/beats/filebeat:9.5.2` | reads only `dami-host.service` and `dami-proactive.service`; no published port |
 | pgAdmin | desktop app | — native | `pgadmin4-desktop 9.17` | the container was removed; do not recreate it |
 | Proactive tier | systemd `dami-proactive` | — bare metal | published to `/opt/dami/proactive` | hourly tick; five services (scout, reflection, pushback-audit, media-librarian, embedder); config via `systemctl edit dami-proactive`; logs in `journalctl -u dami-proactive` |
 | `dami` CLI | `/usr/local/bin/dami` | — native | published to `/opt/dami/cli` | inbox/read/feedback · beliefs/correct/retract/note · recall/ask/**chat**/context · trace/stats/health · caption · **board**/board-import |
@@ -34,6 +37,14 @@ network, and that is deliberate — remote access is SSH first, then talk to loc
 
 All containers are `--restart unless-stopped` and `docker.service` is enabled at boot,
 so they return after a reboot without intervention.
+
+**Runtime logs.** The two .NET hosts emit JSON console records to journald. Filebeat is
+the shipper, rather than an application Elasticsearch sink: it lets the applications keep
+logging locally when Elasticsearch is unavailable and avoids an Elasticsearch client
+dependency in the runtime. It filters at the journald input to the two Dami units, sends
+only to the internal Elasticsearch service, and has no published port. See
+`tools/observability/README.md` for lifecycle commands and the localhost-only security
+boundary.
 
 **VRAM budget.** 16376 MiB total. TEI embedder + reranker are permanently resident at
 **3254 MiB**. `qwen3:8b` adds **~5.6 GiB** while loaded and unloads itself after
@@ -340,6 +351,13 @@ in `X-Dami-Trace`), `/surfacings` (+`/{id}/feedback`), `/beliefs`, `/approvals`
 Verify: `curl -s 127.0.0.1:5810/health`. Redeploy: publish to
 `~/.cache/dami-pub/host`, stop, rsync to `/opt/dami/host`, start.
 
+The Discord gateway inside this host answers **only from the frontier** (ADR-0028, after
+the ADR-0026 fallback produced two qwen3 answers on 2026-09-03). A frontier failure is
+one Operational message with the reason and the trace id; there is no `Discord__Frontier`
+switch any more and nothing to set. The local sidecar still does retrieval planning,
+disclosure gating, and image captioning for that path — `journalctl -u dami-host | grep
+"nothing was answered"` finds the failures.
+
 Native turn tools are enabled by
 `/etc/systemd/system/dami-host.service.d/native-tools.conf`. All file access is rooted
 at `/home/steve/DamiWorkspace` (not the repository); read and approved patch content are
@@ -366,6 +384,50 @@ symbolic link. Before Kestrel becomes ready, a bounded recovery batch republishe
 approved exact artifacts into the in-memory handler, schema, and search registries;
 any recovery failure prevents readiness. Verify the journal line `Sandboxed tool
 recovery completed: <succeeded>/<found>` before `/health`.
+
+### dami-proactive — enabling the daily portrait (ADR-0029)
+
+The portrait pass is off by default and, until 2026-09-04, was wired to a keyed OpenAI
+provider nobody had a key for — which is why "the daily job" never ran once. It now draws
+on the Codex subscription like the Gallery does. Four lines turn it on, no secret:
+
+```bash
+sudo systemctl edit dami-proactive     # append under [Service]
+```
+
+```ini
+Environment=DailyPortrait__Enabled=true
+Environment=DailyPortrait__OutputDirectory=/home/steve/Data/dami-gallery
+Environment=DailyPortrait__ReferencePath=/home/steve/Data/dami-gallery/openai_gpt-image-2-medium_20260726_140042_9808fb1e.png
+Environment=Codex__Enabled=true
+```
+
+`OutputDirectory` pointed at the Gallery makes each pass appear in the GUI's Gallery tab
+with its prompt in the sidecar. `ReferencePath` is the canonical identity anchor (the same
+file `ImageGallery:CanonicalReferencePath` names in the Host); without it the pass sends
+the scene alone and the picture is of nobody in particular. `DailyPortrait__PromptTemplate`
+is the scene, with `{slot}` replaced by morning/midday/evening; three passes a day
+(`EightHourly`), idempotent per slot. The tier spawns `codex exec` as `steve`, sharing
+`~/.codex` with the Host, so the Host's subscription auth is the only auth.
+
+Verify without waiting for the scheduler — one pass now, due or not:
+
+```bash
+cd /opt/dami/proactive && env $(systemctl show dami-proactive -p Environment --value) \
+  ./Dami.Host.Proactive --run daily-portrait
+ls -la /home/steve/Data/dami-gallery/dami-$(date +%F)-*
+psql "host=127.0.0.1 dbname=dami-data user=dami_app" -c \
+  "select ran_at, status from dami.proactive_runs where service_name='daily-portrait' order by ran_at desc limit 3"
+```
+
+**Migration 038 must be applied first** (`bash tools/ddl/apply.sh --status` shows it
+under applied; it is, as of 2026-09-04 20:00). Before it, `proactive_runs_cadence_known`
+rejected `EightHourly` and the first enabled pass drew its picture and then stopped the
+tier writing the run row.
+
+A pass that could not draw completes with the reason in its run-log note ("… portrait not
+produced: …") rather than failing the tier; `journalctl -u dami-proactive | grep -i portrait`
+has the exception.
 
 ### Rebuilding /opt/dami from nothing
 

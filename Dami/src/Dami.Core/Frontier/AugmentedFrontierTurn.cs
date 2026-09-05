@@ -43,6 +43,16 @@ public interface IAugmentedTurn
         string question,
         IReadOnlyList<string> localContext,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Streams the frontier's answer while offering it a bundle of tools for this turn
+    /// (ADR-0030). The frontier decides whether to call them; this host runs them.
+    /// </summary>
+    Task<AugmentedTurnStream> StreamAsync(
+        string question,
+        IReadOnlyList<string> localContext,
+        FrontierToolbox tools,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>A streaming augmented turn: what was assembled, and the answer as it arrives.</summary>
@@ -152,13 +162,22 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
     }
 
     /// <inheritdoc />
+    public Task<AugmentedTurnStream> StreamAsync(
+        string question,
+        IReadOnlyList<string> localContext,
+        CancellationToken cancellationToken) =>
+        this.StreamAsync(question, localContext, FrontierToolbox.Empty, cancellationToken);
+
+    /// <inheritdoc />
     public async Task<AugmentedTurnStream> StreamAsync(
         string question,
         IReadOnlyList<string> localContext,
+        FrontierToolbox tools,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(question);
         ArgumentNullException.ThrowIfNull(localContext);
+        ArgumentNullException.ThrowIfNull(tools);
 
         var traceId = Guid.NewGuid();
         var context = await this.RetrieveAsync(traceId, question, cancellationToken)
@@ -171,7 +190,7 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
 
         return new AugmentedTurnStream(
             traceId, lines.Count, context.EstimatedTokens,
-            this.StreamAnswerAsync(traceId, question, prepared, cancellationToken));
+            this.StreamAnswerAsync(traceId, question, prepared, tools, cancellationToken));
     }
 
     /// <summary>Streams the frontier's answer, recording what left once it has all arrived.</summary>
@@ -179,6 +198,7 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
         Guid traceId,
         string question,
         string prepared,
+        FrontierToolbox tools,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var answer = new System.Text.StringBuilder();
@@ -186,6 +206,8 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
                 new FrontierPrompt(
                     prepared, "augmented frontier turn", PrivacyClass.Egressable,
                     traceId, ExecutionOrigin.UserTurn),
+                [],
+                tools,
                 cancellationToken).ConfigureAwait(false))
         {
             answer.Append(fragment);

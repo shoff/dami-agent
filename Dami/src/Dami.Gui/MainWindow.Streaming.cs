@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Avalonia.Media.Imaging;
 
 namespace Dami.Gui;
 
@@ -7,26 +8,30 @@ public sealed partial class MainWindow
 {
     private async Task SendAsync()
     {
-        var text = this.input.Text?.Trim();
-        if (string.IsNullOrEmpty(text))
+        var images = this.state.PendingImages.Select(item => item.Request).ToArray();
+        var text = ChatImageInput.MessageOrDefault(this.input.Text, images.Length > 0);
+        if (text is null)
         {
             return;
         }
 
-        var frontier = this.frontierToggle.IsChecked == true;
         this.input.Text = string.Empty;
+        this.state.PendingImages.Clear();
+        this.ClearComposerImages();
         this.sendButton.IsEnabled = false;
-        var reply = this.OpenExchange(text, frontier);
+        this.SetStatus(GlobalStatus.Working("Message sent to Dami…"));
+        var reply = this.OpenExchange(text, images);
 
         try
         {
-            await this.AnswerAsync(reply, text, frontier).ConfigureAwait(true);
+            await this.AnswerAsync(reply, text, images).ConfigureAwait(true);
         }
         catch (Exception exception)
         {
             // Every exception, not a chosen few. A silent no-op is the worst failure a
             // send button can have — it is indistinguishable from a dead control.
             reply.Meta = $"failed: {exception.Message}";
+            this.SetStatus(GlobalStatus.Failure(exception.Message));
         }
         finally
         {
@@ -35,12 +40,15 @@ public sealed partial class MainWindow
     }
 
     /// <summary>Puts the question and an empty reply on screen before the model answers.</summary>
-    private Message OpenExchange(string text, bool frontier)
+    private Message OpenExchange(string text, IReadOnlyList<DirectChatImage> images)
     {
-        this.state.Messages.Add(new Message("you", text));
+        this.state.Messages.Add(new Message("you", text)
+        {
+            Meta = images.Count == 0 ? string.Empty : $"attached {images.Count} image(s)",
+        });
         var reply = new Message("dami", string.Empty)
         {
-            Meta = frontier ? "retrieving locally, then asking the frontier…" : "thinking (local model)…",
+            Meta = DirectChatPresentation.PENDING_META,
         };
         this.state.Messages.Add(reply);
         ScrollLater(this.chatScroll);
@@ -48,12 +56,73 @@ public sealed partial class MainWindow
     }
 
     /// <summary>Routes the turn to the subscription or the local sidecar.</summary>
-    private Task AnswerAsync(Message reply, string text, bool frontier)
+    private Task AnswerAsync(Message reply, string text, IReadOnlyList<DirectChatImage> images)
     {
+        var damiScene = ImageGenerationPrompt.DamiScene(text);
+        if (damiScene is not null)
+        {
+            return this.GenerateDamiImageAsync(reply, damiScene);
+        }
+
+        var imagePrompt = ImageGenerationPrompt.Extract(text);
+        if (imagePrompt is not null)
+        {
+            return this.GenerateImageAsync(reply, imagePrompt);
+        }
+
         // Both modes stream now. The augmented one waits for retrieval and the gate
         // before the first token, because nothing may leave until the gate has judged it —
         // but the answer itself arrives as the frontier writes it.
-        return this.StreamIntoAsync(reply, text, frontier);
+        return this.StreamIntoAsync(reply, text, images);
+    }
+
+    private async Task GenerateImageAsync(Message reply, string prompt)
+    {
+        this.SetStatus(GlobalStatus.Working("Creating your image…"));
+        using var response = await this.runtime.PostAsync(
+            "/images/generate", new { prompt }, this.lifetime.Token).ConfigureAwait(true);
+        if (response is null)
+        {
+            throw new InvalidOperationException("the runtime is unreachable");
+        }
+
+        var root = response.RootElement;
+        ThrowImageError(root);
+        var bytes = root.GetProperty("bytes").GetBytesFromBase64();
+        reply.Image = new Bitmap(new MemoryStream(bytes));
+        reply.Body = "Here’s the image.";
+        reply.Meta = root.GetProperty("fileName").GetString() ?? string.Empty;
+        this.SetStatus(GlobalStatus.Success("Image received."));
+        ScrollLater(this.chatScroll);
+    }
+
+    private async Task GenerateDamiImageAsync(Message reply, string scene)
+    {
+        this.SetStatus(GlobalStatus.Working("Creating a new picture of Dami…"));
+        using var response = await this.runtime.PostAsync(
+            "/gallery/generate", new { prompt = scene }, this.lifetime.Token).ConfigureAwait(true);
+        if (response is null)
+        {
+            throw new InvalidOperationException("the runtime is unreachable");
+        }
+
+        var root = response.RootElement;
+        ThrowImageError(root);
+        var fileName = root.GetProperty("fileName").GetString()
+            ?? throw new InvalidOperationException("the runtime returned no image filename");
+        reply.Image = await this.LoadGalleryBitmapAsync(fileName).ConfigureAwait(true);
+        reply.Body = "For you. 😉";
+        reply.Meta = fileName;
+        this.SetStatus(GlobalStatus.Success("Dami's new portrait arrived and was saved."));
+        ScrollLater(this.chatScroll);
+    }
+
+    private static void ThrowImageError(JsonElement root)
+    {
+        if (root.TryGetProperty("error", out var error))
+        {
+            throw new InvalidOperationException(error.GetString() ?? "image generation failed");
+        }
     }
 
     /// <summary>
@@ -95,12 +164,18 @@ public sealed partial class MainWindow
         await this.SpeakAsync(reply).ConfigureAwait(true);
     }
 
-    private async Task StreamIntoAsync(Message reply, string text, bool augmented)
+    private async Task StreamIntoAsync(
+        Message reply, string text, IReadOnlyList<DirectChatImage> images)
     {
         var any = false;
         await foreach (var fragment in this.runtime
-            .StreamTurnAsync(text, augmented, this.lifetime.Token).ConfigureAwait(true))
+            .StreamTurnAsync(text, images, this.lifetime.Token).ConfigureAwait(true))
         {
+            if (!any)
+            {
+                this.SetStatus(GlobalStatus.Working("Dami is replying…"));
+            }
+
             any = true;
             reply.Body += fragment;
             reply.Meta = string.Empty;
@@ -110,9 +185,11 @@ public sealed partial class MainWindow
         if (!any)
         {
             reply.Meta = "the runtime returned nothing";
+            this.SetStatus(GlobalStatus.Failure(reply.Meta));
             return;
         }
 
+        this.SetStatus(GlobalStatus.Success("Reply received."));
         await this.SpeakAsync(reply).ConfigureAwait(true);
     }
 
@@ -167,6 +244,7 @@ public sealed partial class MainWindow
                 // this let one bad event kill the stream silently: the graph rendered a
                 // single row and then simply stopped, looking like an idle system.
                 this.statusLine.Text = $"poll failed: {exception.GetType().Name}: {exception.Message}";
+                this.SetStatus(GlobalStatus.Failure($"Event polling failed: {exception.Message}"));
                 Diagnostics.Write($"poll failed: {exception}");
             }
 

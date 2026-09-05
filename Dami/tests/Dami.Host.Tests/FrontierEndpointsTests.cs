@@ -97,6 +97,21 @@ public sealed class FrontierEndpointsTests
     }
 
     [Fact]
+    public async Task PostStreamingFrontier_Should_Return_The_DamiTrace_Header()
+    {
+        this.frontierChat.StreamAsync(
+            Arg.Any<FrontierPrompt>(), Arg.Any<IReadOnlyList<FrontierImage>>(), Arg.Any<CancellationToken>())
+            .Returns(StreamAsync("an answer"));
+
+        await using var factory = this.CreateFactory();
+        using var client = factory.CreateClient();
+        using var response = await client.PostAsJsonAsync(
+            "/turns/stream", new { message = "hello", frontier = true }, CancellationToken.None);
+
+        Assert.True(response.Headers.Contains("X-Dami-Trace"));
+    }
+
+    [Fact]
     public async Task PostSessionTurn_Should_Route_To_The_Frontier_Runner_When_Flagged()
     {
         var sessionId = Guid.NewGuid();
@@ -165,6 +180,12 @@ public sealed class FrontierEndpointsTests
                 "an answer",
                 at.AddSeconds(3)),
             wasReplay: false);
+    }
+
+    private static async IAsyncEnumerable<string> StreamAsync(string reply)
+    {
+        yield return reply;
+        await Task.CompletedTask;
     }
 
     private WebApplicationFactory<Program> CreateFactory()

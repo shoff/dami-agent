@@ -3,6 +3,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Input.Platform;
+using Avalonia.Media;
 
 namespace Dami.Gui;
 
@@ -31,8 +33,9 @@ public sealed partial class MainWindow : Window
     // every symptom is silent: the send button does nothing, the status line never
     // updates, and the poll loop dies mid-render. Look them up and fail loudly.
     private readonly TextBox input;
+    private readonly Border conversationPanel;
+    private readonly WrapPanel composerFlow;
     private readonly Button sendButton;
-    private readonly ToggleButton frontierToggle;
     private readonly ToggleButton speakToggle;
     private readonly TextBlock statusLine;
     private readonly ScrollViewer chatScroll;
@@ -45,8 +48,9 @@ public sealed partial class MainWindow : Window
     {
         this.InitializeComponent();
         this.input = Require<TextBox>(this, "Input");
+        this.conversationPanel = Require<Border>(this, "ConversationPanel");
+        this.composerFlow = Require<WrapPanel>(this, "ComposerFlow");
         this.sendButton = Require<Button>(this, "SendButton");
-        this.frontierToggle = Require<ToggleButton>(this, "FrontierToggle");
         this.speakToggle = Require<ToggleButton>(this, "SpeakToggle");
         this.statusLine = Require<TextBlock>(this, "StatusLine");
         this.chatScroll = Require<ScrollViewer>(this, "ChatScroll");
@@ -60,13 +64,20 @@ public sealed partial class MainWindow : Window
         // XAML was compiled, and when it silently fails the symptom is a control that
         // looks alive, accepts text, and does nothing at all when you press the button.
         this.sendButton.Click += this.OnSendClick;
-        this.input.KeyDown += this.OnInputKeyDown;
+        this.input.AddHandler(
+            InputElement.KeyDownEvent, this.OnInputKeyDown,
+            RoutingStrategies.Tunnel, handledEventsToo: true);
+        this.input.PastingFromClipboard += this.OnPaste;
+        DragDrop.SetAllowDrop(this.conversationPanel, true);
+        DragDrop.AddDragOverHandler(this.conversationPanel, this.OnDragOver);
+        DragDrop.AddDropHandler(this.conversationPanel, this.OnDrop);
         this.jobsMenuItem.Click += (_, _) => new JobsWindow(this.runtime).Show(this);
         this.exitMenuItem.Click += (_, _) => this.Close();
         this.aboutMenuItem.Click += (_, _) => _ = new AboutWindow().ShowDialog(this);
         this.InitializeTaskBoards();
         this.InitializeFitness();
         this.InitializeNetwork();
+        this.InitializeGallery();
         this.Opened += (_, _) => _ = this.EnsureLoggedInAsync();
         _ = this.FollowAsync();
     }
@@ -92,15 +103,132 @@ public sealed partial class MainWindow : Window
 
     private void OnInputKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter)
+        if (e.Key != Key.Enter)
         {
-            e.Handled = true;
-            _ = this.SendAsync();
+            return;
         }
+
+        e.Handled = true;
+        if (ComposerKey.ShouldSend(e.Key, e.KeyModifiers))
+        {
+            _ = this.SendAsync();
+            return;
+        }
+
+        var edit = ComposerKey.InsertNewline(
+            this.input.Text ?? string.Empty,
+            this.input.SelectionStart,
+            this.input.SelectionEnd);
+        this.input.Text = edit.Text;
+        this.input.CaretIndex = edit.Caret;
     }
 
     private void OnSendClick(object? sender, RoutedEventArgs e)
     {
         _ = this.SendAsync();
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e) => e.DragEffects = DragDropEffects.Copy;
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        _ = this.StageDroppedImageAsync(e.DataTransfer.TryGetFiles());
+    }
+
+    private async Task StageDroppedImageAsync(IReadOnlyList<Avalonia.Platform.Storage.IStorageItem>? files)
+    {
+        foreach (var file in files?.Where(item => ChatImageInput.IsSupportedFile(item.Name)) ?? [])
+        {
+            this.StageImage(await ChatImageInput.FromFileAsync(file, this.lifetime.Token)
+                .ConfigureAwait(true));
+        }
+    }
+
+    private void OnPaste(object? sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        _ = this.PasteAsync();
+    }
+
+    private async Task PasteAsync()
+    {
+        var clipboard = this.Clipboard;
+        if (clipboard is null)
+        {
+            return;
+        }
+
+        var files = await clipboard.TryGetFilesAsync().ConfigureAwait(true);
+        var imageFiles = files?.Where(item => ChatImageInput.IsSupportedFile(item.Name)).ToArray() ?? [];
+        if (imageFiles.Length > 0)
+        {
+            foreach (var file in imageFiles)
+            {
+                this.StageImage(await ChatImageInput.FromFileAsync(file, this.lifetime.Token)
+                    .ConfigureAwait(true));
+            }
+
+            return;
+        }
+
+        var bitmap = await clipboard.TryGetBitmapAsync().ConfigureAwait(true);
+        if (bitmap is not null)
+        {
+            this.StageImage(ChatImageInput.FromBitmap(bitmap));
+            return;
+        }
+
+        this.InsertPastedText(await clipboard.TryGetTextAsync().ConfigureAwait(true));
+    }
+
+    private void StageImage(DirectChatImage? image)
+    {
+        if (image is not null)
+        {
+            var pending = new PendingChatImage(image);
+            this.state.PendingImages.Add(pending);
+            this.composerFlow.Children.Insert(
+                this.composerFlow.Children.Count - 1, CreateThumbnail(pending));
+        }
+    }
+
+    private static Border CreateThumbnail(PendingChatImage pending)
+    {
+        var tile = new Border
+        {
+            Width = 58,
+            Height = 58,
+            CornerRadius = new Avalonia.CornerRadius(5),
+            ClipToBounds = true,
+            BorderBrush = new SolidColorBrush(Color.Parse("#3B4A59")),
+            BorderThickness = new Avalonia.Thickness(1),
+            Margin = new Avalonia.Thickness(0, 0, 6, 6),
+            Child = new Image { Source = pending.Thumbnail, Stretch = Stretch.UniformToFill },
+        };
+        ToolTip.SetTip(tile, pending.FileName);
+        return tile;
+    }
+
+    private void ClearComposerImages()
+    {
+        while (this.composerFlow.Children.Count > 1)
+        {
+            this.composerFlow.Children.RemoveAt(0);
+        }
+    }
+
+    private void InsertPastedText(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        var current = this.input.Text ?? string.Empty;
+        var start = Math.Min(this.input.SelectionStart, this.input.SelectionEnd);
+        var end = Math.Max(this.input.SelectionStart, this.input.SelectionEnd);
+        this.input.Text = current[..start] + text + current[end..];
+        this.input.CaretIndex = start + text.Length;
     }
 }

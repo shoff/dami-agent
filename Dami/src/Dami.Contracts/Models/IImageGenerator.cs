@@ -50,7 +50,13 @@ public sealed record ImageRequest
 
     /// <summary>Render quality, in the provider's vocabulary.</summary>
     public string Quality { get; init; } = "high";
+
+    /// <summary>The one identity or composition reference supplied to an edit request.</summary>
+    public ImageReference? Reference { get; init; }
 }
+
+/// <summary>One explicitly egress-approved image input for reference-based generation.</summary>
+public sealed record ImageReference(string FileName, string ContentType, ReadOnlyMemory<byte> Bytes);
 
 /// <summary>A generated image and what it was asked to be.</summary>
 public sealed record GeneratedImage(

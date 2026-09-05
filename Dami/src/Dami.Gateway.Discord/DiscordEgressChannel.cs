@@ -13,7 +13,7 @@ namespace Dami.Gateway.Discord;
 /// grows special cases under pressure, and the boundary must not be somewhere that
 /// happens.
 /// </remarks>
-public sealed class DiscordEgressChannel : IEgressChannel
+public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressChannel
 {
     private static readonly Uri gateway = new("wss://gateway.discord.gg/?v=10&encoding=json");
 
@@ -82,6 +82,37 @@ public sealed class DiscordEgressChannel : IEgressChannel
             .PostMessageWithFilesAsync(
                 content.ConversationId, content.Text, content.Attachments, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<string> BeginAsync(
+        OutboundContent content, CancellationToken cancellationToken)
+    {
+        this.EnsureMayLeave(content);
+        return await this.rest
+            .CreateMessageAsync(content.ConversationId, content.Text, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task UpdateAsync(
+        string messageId, OutboundContent content, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+        this.EnsureMayLeave(content);
+        await this.rest
+            .EditMessageAsync(
+                content.ConversationId, messageId, content.Text, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private void EnsureMayLeave(OutboundContent content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        var isPrivate = this.privateConversations.TryGetValue(content.ConversationId, out var known)
+            && known;
+        ChannelDisclosurePolicy.EnsureMayLeave(
+            content, this.ChannelName, recipientIsDataSubject: isPrivate);
     }
 
     /// <inheritdoc />

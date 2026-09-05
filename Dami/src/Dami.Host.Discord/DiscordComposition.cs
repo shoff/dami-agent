@@ -39,6 +39,10 @@ public static class DiscordComposition
         // The local vision model reads what Steve sends; the caption becomes context and
         // the image itself never leaves this host (ADR-0026).
         services.AddSingleton<DiscordVision>();
+        services.AddSingleton<DiscordReplyStreamer>();
+        services.AddSingleton<DiscordImageResponder>();
+        services.AddSingleton<DiscordToolbox>();
+        services.AddSingleton<DiscordTypingIndicator>();
 
         services.AddHostedService<DiscordGatewayWorker>();
         return services;
@@ -52,12 +56,16 @@ public static class DiscordComposition
             options.Token,
             provider.GetRequiredService<ILogger<DiscordRest>>()));
 
-        services.AddSingleton<IEgressChannel>(provider => new DiscordEgressChannel(
+        services.AddSingleton<DiscordEgressChannel>(provider => new DiscordEgressChannel(
             static () => new DiscordSocket(),
             provider.GetRequiredService<IDiscordRest>(),
             options,
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<DiscordEgressChannel>>()));
+        services.AddSingleton<IEgressChannel>(provider =>
+            provider.GetRequiredService<DiscordEgressChannel>());
+        services.AddSingleton<IProgressiveEgressChannel>(provider =>
+            provider.GetRequiredService<DiscordEgressChannel>());
     }
 
     private static DiscordOptions Read(IConfiguration configuration)
@@ -69,12 +77,17 @@ public static class DiscordComposition
             OwnerUserId = section["OwnerUserId"] ?? string.Empty,
             GuildId = section["GuildId"] ?? string.Empty,
             Enabled = bool.TryParse(section["Enabled"], out var enabled) && enabled,
-
-            // Defaults on, per ADR-0026; only an explicit false turns it off.
-            Frontier = !bool.TryParse(section["Frontier"], out var frontier) || frontier,
             HistoryTurns = int.TryParse(section["HistoryTurns"], out var history) && history > 0
                 ? history
                 : 6,
+            VisionTimeout = double.TryParse(
+                section["VisionTimeoutSeconds"], out var visionSeconds) && visionSeconds > 0
+                ? TimeSpan.FromSeconds(visionSeconds)
+                : TimeSpan.FromSeconds(30),
+            TypingRefresh = double.TryParse(
+                section["TypingRefreshSeconds"], out var typingSeconds) && typingSeconds > 0
+                ? TimeSpan.FromSeconds(typingSeconds)
+                : TimeSpan.FromSeconds(8),
         };
     }
 }

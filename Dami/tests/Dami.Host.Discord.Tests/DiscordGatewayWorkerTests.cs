@@ -1,11 +1,9 @@
-using Dami.Contracts.Context;
 using Dami.Contracts.Gateways;
 using Dami.Contracts.Models;
 using Dami.Contracts.Privacy;
 using Dami.Contracts.Proactive;
 using Dami.Contracts.Sessions;
 using Dami.Core.Frontier;
-using Dami.Core.Sessions;
 using Dami.Core.Turns;
 using Dami.Gateway.Discord;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -16,12 +14,11 @@ namespace Dami.Host.Discord.Tests;
 
 public sealed class DiscordGatewayWorkerTests
 {
-    private static DiscordOptions Configured(bool frontier = false) => new()
+    private static DiscordOptions Configured() => new()
     {
         Token = "a-token",
         OwnerUserId = "347544641295613953",
         Enabled = true,
-        Frontier = frontier,
     };
 
     private static async IAsyncEnumerable<InboundMessage> OneAsync(InboundMessage message)
@@ -38,18 +35,6 @@ public sealed class DiscordGatewayWorkerTests
 
     private static InboundMessage From(string text) =>
         new("owner", "chan-1", text, DateTimeOffset.UnixEpoch);
-
-    private static TurnResult Answer(PrivacyClass privacy, bool withMemory) =>
-        new(
-            Guid.NewGuid(),
-            "the answer text",
-            new AssembledContext(
-                withMemory
-                    ? [new RetrievedItem("observation", Guid.NewGuid(), "private", DateTimeOffset.UnixEpoch)]
-                    : [],
-                [],
-                10),
-            new ModelRoute(ModelTier.Local, privacy, "because"));
 
     private static IGatewayAuthority Granting()
     {
@@ -77,11 +62,16 @@ public sealed class DiscordGatewayWorkerTests
 
         public IEgressChannel Channel { get; init; } = Substitute.For<IEgressChannel>();
 
-        public ITracedTurnRunner Turns { get; init; } = Substitute.For<ITracedTurnRunner>();
+        public IProgressiveEgressChannel Progressive { get; init; } =
+            Substitute.For<IProgressiveEgressChannel>();
 
         public IAugmentedTurn Augmented { get; init; } = Substitute.For<IAugmentedTurn>();
 
         public IVisionClient Vision { get; init; } = Substitute.For<IVisionClient>();
+
+        public IImageGenerator Images { get; init; } = Substitute.For<IImageGenerator>();
+
+        public IDiscordPortraitGenerator Portraits { get; init; } = Substitute.For<IDiscordPortraitGenerator>();
 
         public IDiscordRest Rest { get; init; } = Substitute.For<IDiscordRest>();
 
@@ -107,9 +97,15 @@ public sealed class DiscordGatewayWorkerTests
             return new DiscordGatewayWorker(
                 this.Authority,
                 this.Channel,
-                this.Turns,
                 this.Augmented,
-                new DiscordVision(this.Vision, this.Rest, NullLogger<DiscordVision>.Instance),
+                new DiscordVision(
+                    this.Vision, this.Rest, this.Options, NullLogger<DiscordVision>.Instance),
+                new DiscordReplyStreamer(this.Progressive),
+                new DiscordImageResponder(
+                    this.Images, this.Portraits, this.Channel, NullLogger<DiscordImageResponder>.Instance),
+                new DiscordToolbox(this.Images, this.Portraits, NullLogger<DiscordToolbox>.Instance),
+                new DiscordTypingIndicator(
+                    this.Rest, this.Options, NullLogger<DiscordTypingIndicator>.Instance),
                 this.Sessions,
                 this.TurnStore,
                 Substitute.For<IProactiveRunHistory>(),
@@ -126,11 +122,21 @@ public sealed class DiscordGatewayWorkerTests
         return new Harness { Channel = channel };
     }
 
-    private static void Answers(Harness harness, TurnResult result)
+    /// <summary>The frontier answers with these fragments and Discord accepts the reply.</summary>
+    private static void FrontierAnswers(Harness harness, params string[] fragments)
     {
-        harness.Turns.RunTracedAsync(
-                Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<ConversationWindow>(), Arg.Any<CancellationToken>())
-            .Returns(result);
+        harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
+            .Returns("message-1");
+        harness.Augmented
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(Guid.NewGuid(), 6, 800, FragmentsAsync(fragments)));
+    }
+
+    private static void FrontierFails(Harness harness, Exception exception)
+    {
+        harness.Augmented
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns<Task<AugmentedTurnStream>>(_ => throw exception);
     }
 
     [Fact]
@@ -163,17 +169,15 @@ public sealed class DiscordGatewayWorkerTests
     [Fact]
     public async Task Should_Answer_Status_From_Runtime_State_Without_A_Turn()
     {
-        // This test used to stub the turn runner and assert the runner's answer came back,
-        // so it passed whether or not the operational path fired — mutation testing found
-        // it. What matters is that "status" is answered WITHOUT assembling context, since
+        // What matters is that "status" is answered WITHOUT assembling context, since
         // doing so would retrieve Steve's memories in order to report service health.
         var harness = Listening(From("status"));
-        Answers(harness, Answer(PrivacyClass.Egressable, withMemory: false));
+        FrontierAnswers(harness, "should not be asked");
 
         await RunAsync(harness.Build());
 
-        await harness.Turns.DidNotReceive().RunTracedAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<ConversationWindow>(), Arg.Any<CancellationToken>());
+        await harness.Augmented.DidNotReceive().StreamAsync(
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -194,12 +198,14 @@ public sealed class DiscordGatewayWorkerTests
         // ADR-0025. Under ADR-0024 this refused, which meant "hi there" was answered with
         // a citation of a decision record. The recipient is the subject; it goes.
         var harness = Listening(From("where was I?"));
-        Answers(harness, Answer(PrivacyClass.LocalOnly, withMemory: true));
+        FrontierAnswers(harness, "the answer text");
 
         await RunAsync(harness.Build());
 
-        await harness.Channel.Received(1).SendAsync(
-            Arg.Is<OutboundContent>(content => content.Text.Contains("the answer text", StringComparison.Ordinal)),
+        await harness.Progressive.Received(1).BeginAsync(
+            Arg.Is<OutboundContent>(content =>
+                content.Text == "the answer text"
+                && content.Provenance == ContentProvenance.ProfileDerived),
             Arg.Any<CancellationToken>());
     }
 
@@ -209,16 +215,16 @@ public sealed class DiscordGatewayWorkerTests
         // A future channel whose reader is not Steve still refuses. He must be told why
         // rather than watch the message disappear.
         var harness = Listening(From("where was I?"));
-        harness.Channel.SendAsync(
-                Arg.Is<OutboundContent>(c => c.Provenance == ContentProvenance.ProfileDerived),
-                Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new EgressRefusedException("not addressed to the subject")));
-        Answers(harness, Answer(PrivacyClass.LocalOnly, withMemory: true));
+        FrontierAnswers(harness, "the answer text");
+        harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
+            .Returns<Task<string>>(_ => throw new EgressRefusedException("not addressed to the subject"));
 
         await RunAsync(harness.Build());
 
         await harness.Channel.Received(1).SendAsync(
-            Arg.Is<OutboundContent>(content => content.Provenance == ContentProvenance.Operational),
+            Arg.Is<OutboundContent>(content =>
+                content.Provenance == ContentProvenance.Operational
+                && content.Text.Contains("ADR-0025", StringComparison.Ordinal)),
             Arg.Any<CancellationToken>());
     }
 
@@ -228,9 +234,16 @@ public sealed class DiscordGatewayWorkerTests
         // The tool loop learned this the expensive way: one failure killed every turn
         // after it. A gateway that dies on a bad question is worse than useless.
         var harness = Listening(From("boom"));
-        harness.Turns.RunTracedAsync(
-                Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<ConversationWindow>(), Arg.Any<CancellationToken>())
-            .Returns<Task<TurnResult>>(_ => throw new InvalidOperationException("model died"));
+        FrontierFails(harness, new InvalidOperationException("model died"));
+
+        await RunAsync(harness.Build());
+    }
+
+    [Fact]
+    public async Task Should_Survive_A_Canceled_Turn_When_The_Host_Is_Not_Stopping()
+    {
+        var harness = Listening(From("time out"));
+        FrontierFails(harness, new OperationCanceledException("turn deadline elapsed"));
 
         await RunAsync(harness.Build());
     }
@@ -240,67 +253,137 @@ public sealed class DiscordGatewayWorkerTests
     {
         // ADR-0026, the whole point: the local model feeds the answer, it does not write it.
         var harness = Listening(From("what should I do about the valve"));
-        harness.Options = Configured(frontier: true);
-        harness.Augmented
-            .RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new AugmentedTurnResult(Guid.NewGuid(), "the frontier's answer", 6, 800));
-        Answers(harness, Answer(PrivacyClass.LocalOnly, withMemory: true));
+        FrontierAnswers(harness, "the frontier's answer");
 
         await RunAsync(harness.Build());
 
-        await harness.Channel.Received(1).SendAsync(
+        await harness.Progressive.Received(1).BeginAsync(
             Arg.Is<OutboundContent>(content => content.Text == "the frontier's answer"),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Should_Not_Run_The_Local_Model_When_The_Frontier_Answered()
+    public async Task Should_Show_Typing_Before_It_Thinks()
     {
-        var harness = Listening(From("what should I do"));
-        harness.Options = Configured(frontier: true);
+        var harness = Listening(From("take your time"));
+        harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
+            .Returns("message-1");
         harness.Augmented
-            .RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new AugmentedTurnResult(Guid.NewGuid(), "the frontier's answer", 6, 800));
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, FragmentsAsync("done")));
 
         await RunAsync(harness.Build());
 
-        await harness.Turns.DidNotReceive().RunTracedAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<ConversationWindow>(), Arg.Any<CancellationToken>());
+        Received.InOrder(() =>
+        {
+            _ = harness.Rest.PostTypingAsync("chan-1", Arg.Any<CancellationToken>());
+            _ = harness.Augmented.StreamAsync(
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+        });
     }
 
     [Fact]
-    public async Task Should_Fall_Back_To_The_Local_Model_When_The_Frontier_Fails()
+    public async Task Should_Refresh_Typing_While_The_Turn_Is_Still_Running()
     {
-        // A subscription hiccup should cost answer quality, never the gateway.
-        var harness = Listening(From("what should I do"));
-        harness.Options = Configured(frontier: true);
+        var harness = Listening(From("take longer"));
+        harness.Options.TypingRefresh = TimeSpan.FromMilliseconds(5);
+        harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
+            .Returns("message-1");
         harness.Augmented
-            .RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
-            .Returns<Task<AugmentedTurnResult>>(_ => throw new InvalidOperationException("codex down"));
-        Answers(harness, Answer(PrivacyClass.LocalOnly, withMemory: true));
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, DelayedFragmentAsync()));
 
         await RunAsync(harness.Build());
 
-        await harness.Channel.Received(1).SendAsync(
-            Arg.Is<OutboundContent>(content => content.Text.Contains("the answer text", StringComparison.Ordinal)),
+        Assert.True(harness.Rest.ReceivedCalls().Count(call =>
+            call.GetMethodInfo().Name == nameof(IDiscordRest.PostTypingAsync)) >= 2);
+    }
+
+    [Fact]
+    public async Task Should_Create_Then_Update_A_Streamed_Frontier_Reply()
+    {
+        var harness = Listening(From("write slowly"));
+        harness.Progressive.BeginAsync(
+                Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
+            .Returns("message-1");
+        harness.Augmented
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(
+                Guid.NewGuid(), 0, 0,
+                FragmentsAsync("first ", new string('x', 100), "second")));
+
+        await RunAsync(harness.Build());
+
+        await harness.Progressive.Received(1).BeginAsync(
+            Arg.Is<OutboundContent>(content => content.Text == "first "),
+            Arg.Any<CancellationToken>());
+        await harness.Progressive.Received(2).UpdateAsync(
+            "message-1",
+            Arg.Any<OutboundContent>(),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Should_Say_When_A_Fallback_Answer_Came_From_The_Local_Model()
+    public void Should_Have_No_Local_Model_To_Answer_With()
     {
-        // A worse answer must never be passed off silently as the good one.
+        // ADR-0028. The fallback was removed by taking away the seam it ran through, so
+        // that it cannot come back as "just one catch block" — this pins the constructor.
+        var dependencies = typeof(DiscordGatewayWorker).GetConstructors()
+            .SelectMany(constructor => constructor.GetParameters())
+            .Select(parameter => parameter.ParameterType);
+
+        Assert.DoesNotContain(typeof(ITracedTurnRunner), dependencies);
+    }
+
+    [Fact]
+    public async Task Should_Say_The_Frontier_Failed_Rather_Than_Answer_Locally()
+    {
+        // 2026-09-03 23:04: a Discord 429 mid-stream became a qwen3 answer. Never again.
         var harness = Listening(From("what should I do"));
-        harness.Options = Configured(frontier: true);
-        harness.Augmented
-            .RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
-            .Returns<Task<AugmentedTurnResult>>(_ => throw new InvalidOperationException("codex down"));
-        Answers(harness, Answer(PrivacyClass.LocalOnly, withMemory: true));
+        FrontierFails(harness, new InvalidOperationException("codex down"));
 
         await RunAsync(harness.Build());
 
         await harness.Channel.Received(1).SendAsync(
-            Arg.Is<OutboundContent>(content => content.Text.Contains("answered locally", StringComparison.Ordinal)),
+            Arg.Is<OutboundContent>(content =>
+                content.Provenance == ContentProvenance.Operational
+                && content.Text.Contains("did not answer", StringComparison.Ordinal)
+                && content.Text.Contains("codex down", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+        await harness.Progressive.DidNotReceive().BeginAsync(
+            Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Say_The_Frontier_Timed_Out_Rather_Than_Answer_Locally()
+    {
+        // 2026-09-03 23:19: a ten-minute Codex hang became a qwen3 answer. Never again.
+        var harness = Listening(From("what should I do"));
+        harness.Augmented
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, CanceledFragmentsAsync()));
+
+        await RunAsync(harness.Build());
+
+        await harness.Channel.Received(1).SendAsync(
+            Arg.Is<OutboundContent>(content =>
+                content.Provenance == ContentProvenance.Operational
+                && content.Text.Contains("deadline", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Not_Journal_A_Turn_The_Frontier_Did_Not_Answer()
+    {
+        // An explanation is not an exchange; journaling it would feed the next turn's
+        // window with "the frontier did not answer" as if Dami had said it.
+        var harness = Listening(From("what should I do"));
+        FrontierFails(harness, new InvalidOperationException("codex down"));
+
+        await RunAsync(harness.Build());
+
+        await harness.TurnStore.DidNotReceive().CompleteTurnAsync(
+            Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateTimeOffset>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -311,38 +394,161 @@ public sealed class DiscordGatewayWorkerTests
         {
             Attachments = [new InboundAttachment("bolt.png", "https://cdn/bolt.png", "image/png", 2048)],
         });
-        harness.Options = Configured(frontier: true);
         harness.Rest.DownloadAsync("https://cdn/bolt.png", Arg.Any<CancellationToken>())
             .Returns(new ReadOnlyMemory<byte>([1, 2, 3]));
         harness.Vision.DescribeAsync(
                 Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("a rusted hex bolt");
+        harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
+            .Returns("message-1");
         harness.Augmented
-            .RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new AugmentedTurnResult(Guid.NewGuid(), "a 1/2 inch bolt", 2, 300));
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(
+                Guid.NewGuid(), 2, 300, FragmentsAsync("a 1/2 inch bolt")));
 
         await RunAsync(harness.Build());
 
         // The caption must arrive as GATED context, never inside the question — the
         // question is appended to the frontier prompt ungated, and an image is LocalOnly
         // under D-012. An earlier version put it in the question and leaked it.
-        await harness.Augmented.Received(1).RunAsync(
+        await harness.Augmented.Received(1).StreamAsync(
             Arg.Is<string>(question => !question.Contains("a rusted hex bolt", StringComparison.Ordinal)),
             Arg.Is<IReadOnlyList<string>>(context =>
                 context.Any(line => line.Contains("a rusted hex bolt", StringComparison.Ordinal))),
+            Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Degrade_Visibly_When_Vision_Exceeds_Its_Budget()
+    {
+        var harness = Listening(new InboundMessage("owner", "chan-1", "what is this", DateTimeOffset.UnixEpoch)
+        {
+            Attachments = [new InboundAttachment("slow.png", "https://cdn/slow.png", "image/png", 2048)],
+        });
+        harness.Options.VisionTimeout = TimeSpan.FromMilliseconds(10);
+        harness.Rest.DownloadAsync("https://cdn/slow.png", Arg.Any<CancellationToken>())
+            .Returns(new ReadOnlyMemory<byte>([1, 2, 3]));
+        harness.Vision.DescribeAsync(
+                Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+                await Task.Delay(Timeout.InfiniteTimeSpan, call.ArgAt<CancellationToken>(2)));
+        harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
+            .Returns("message-1");
+        harness.Augmented
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(Guid.NewGuid(), 1, 0, FragmentsAsync("I could not see it")));
+
+        await RunAsync(harness.Build());
+
+        await harness.Augmented.Received(1).StreamAsync(
+            Arg.Any<string>(),
+            Arg.Is<IReadOnlyList<string>>(context =>
+                context.Any(line => line.Contains("could not be read", StringComparison.Ordinal))),
+            Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Generate_And_Attach_An_Explicitly_Requested_Image()
+    {
+        var harness = Listening(From("create an image of a red barn at sunset"));
+        harness.Images.GenerateAsync(Arg.Any<ImageRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new GeneratedImage(
+                "barn.png", new ReadOnlyMemory<byte>([1, 2, 3]), "image/png",
+                "a red barn at sunset"));
+
+        await RunAsync(harness.Build());
+
+        await harness.Channel.Received(1).SendAsync(
+            Arg.Is<OutboundContent>(content =>
+                content.Attachments.Count == 1
+                && content.Attachments[0].FileName == "barn.png"),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Send_A_Portrait_When_Steve_Asks_To_See_Her()
+    {
+        // 2026-09-04 20:20, Discord: "Let's see an image of you painting your toes" went
+        // to the frontier, which described a pedicure and attached nothing.
+        var harness = Listening(From("Let's see an image of you painting your toes"));
+        harness.Portraits.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new GeneratedImage(
+                "dami-1.png", new ReadOnlyMemory<byte>([1, 2, 3]), "image/png", "prompt"));
+
+        await RunAsync(harness.Build());
+
+        await harness.Portraits.Received(1).GenerateAsync(
+            "Dami painting her toes", Arg.Any<CancellationToken>());
+        await harness.Channel.Received(1).SendAsync(
+            Arg.Is<OutboundContent>(content => content.Attachments.Count == 1),
+            Arg.Any<CancellationToken>());
+        await harness.Augmented.DidNotReceive().StreamAsync(
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Offer_The_Frontier_The_Picture_Tools()
+    {
+        // ADR-0030: the frontier decides; the four-prefix grammar was the whole reason
+        // "let's see an image of you" produced prose.
+        var harness = Listening(From("what are you up to right now?"));
+        FrontierAnswers(harness, "just reading");
+
+        await RunAsync(harness.Build());
+
+        await harness.Augmented.Received(1).StreamAsync(
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<string>>(),
+            Arg.Is<FrontierToolbox>(tools =>
+                tools.Tools.Any(tool => tool.Name == DiscordToolbox.MAKE_PORTRAIT)
+                && tools.Tools.Any(tool => tool.Name == DiscordToolbox.MAKE_IMAGE)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Attach_A_Picture_The_Frontier_Made_With_Its_Tool()
+    {
+        var harness = Listening(From("show me what you're doing"));
+        harness.Portraits.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new GeneratedImage("dami-2.png", new ReadOnlyMemory<byte>([1, 2, 3]), "image/png", "p"));
+        harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
+            .Returns("message-1");
+        harness.Augmented
+            .StreamAsync(
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => new AugmentedTurnStream(
+                Guid.NewGuid(), 0, 0, CallingTheToolAsync(call.ArgAt<FrontierToolbox>(2))));
+
+        await RunAsync(harness.Build());
+
+        await harness.Portraits.Received(1).GenerateAsync("reading on the sofa", Arg.Any<CancellationToken>());
+        await harness.Channel.Received(1).SendAsync(
+            Arg.Is<OutboundContent>(content =>
+                content.Attachments.Count == 1 && content.Attachments[0].FileName == "dami-2.png"),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A frontier that calls make_portrait mid-stream, as the app-server would.</summary>
+    private static async IAsyncEnumerable<string> CallingTheToolAsync(FrontierToolbox tools)
+    {
+        using var arguments = System.Text.Json.JsonDocument.Parse("""{"scene":"reading on the sofa"}""");
+        var result = await tools.Handler.HandleAsync(
+            new FrontierToolCall("call-1", DiscordToolbox.MAKE_PORTRAIT, arguments.RootElement),
+            CancellationToken.None);
+        yield return result.Success ? "here you go" : result.Text;
     }
 
     [Fact]
     public async Task Should_Journal_The_Exchange_So_The_Next_Message_Has_A_Memory()
     {
         var harness = Listening(From("remember this"));
-        Answers(harness, Answer(PrivacyClass.LocalOnly, withMemory: false));
+        FrontierAnswers(harness, "noted");
 
         await RunAsync(harness.Build());
 
         await harness.TurnStore.Received(1).CompleteTurnAsync(
-            Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateTimeOffset>(),
+            Arg.Any<Guid>(), Arg.Any<Guid>(), "noted", Arg.Any<DateTimeOffset>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -351,21 +557,22 @@ public sealed class DiscordGatewayWorkerTests
     {
         // ConversationWindow.Empty was the old behaviour: every message was turn one.
         var harness = Listening(From("and what about tuesday"));
-        harness.Options = Configured(frontier: true);
         harness.TurnStore
             .RecentCompletedTurnsAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(OneCompletedTurnAsync("what did I lift monday", "225 for five"));
+        harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
+            .Returns("message-1");
         harness.Augmented
-            .RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new AugmentedTurnResult(Guid.NewGuid(), "you rested", 1, 100));
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(Guid.NewGuid(), 1, 100, FragmentsAsync("you rested")));
 
         await RunAsync(harness.Build());
 
-        await harness.Augmented.Received(1).RunAsync(
+        await harness.Augmented.Received(1).StreamAsync(
             Arg.Any<string>(),
             Arg.Is<IReadOnlyList<string>>(prior =>
                 prior.Any(line => line.Contains("225 for five", StringComparison.Ordinal))),
-            Arg.Any<CancellationToken>());
+            Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
     }
 
     private static async IAsyncEnumerable<ConversationTurn> OneCompletedTurnAsync(
@@ -379,5 +586,30 @@ public sealed class DiscordGatewayWorkerTests
             response,
             DateTimeOffset.UnixEpoch);
         await Task.CompletedTask;
+    }
+
+    private static async IAsyncEnumerable<string> FragmentsAsync(params string[] fragments)
+    {
+        foreach (var fragment in fragments)
+        {
+            yield return fragment;
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private static async IAsyncEnumerable<string> DelayedFragmentAsync()
+    {
+        await Task.Delay(25);
+        yield return "done";
+    }
+
+    private static async IAsyncEnumerable<string> CanceledFragmentsAsync()
+    {
+        await Task.Yield();
+        throw new OperationCanceledException("frontier deadline elapsed");
+#pragma warning disable CS0162
+        yield break;
+#pragma warning restore CS0162
     }
 }

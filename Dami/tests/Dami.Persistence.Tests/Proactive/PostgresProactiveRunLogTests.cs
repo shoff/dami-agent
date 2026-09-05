@@ -47,6 +47,32 @@ public sealed class PostgresProactiveRunLogTests
         Assert.Equal(ranAt, await log.LastRanAtAsync("scout", CancellationToken.None));
     }
 
+    [Theory]
+    [InlineData(ProactiveCadence.Nightly)]
+    [InlineData(ProactiveCadence.Weekly)]
+    [InlineData(ProactiveCadence.Quarterly)]
+    [InlineData(ProactiveCadence.EightHourly)]
+    public async Task RecordAsync_Should_Accept_Every_Cadence_The_Runtime_Can_Declare(ProactiveCadence cadence)
+    {
+        // Migration 035 enumerated the cadences of its day; EightHourly arrived later and
+        // the first enabled portrait pass died on the check constraint after drawing its
+        // picture (2026-09-04). Migration 038 widened it; this keeps the two in step.
+        await this.fixture.ResetAsync();
+        var log = this.CreateLog();
+
+        await log.RecordAsync(Guid.NewGuid(), "cadenced", Guid.NewGuid(), ranAt, ProactiveStatus.Completed, cadence, CancellationToken.None);
+
+        Assert.Equal(ranAt, await log.LastRanAtAsync("cadenced", CancellationToken.None));
+    }
+
+    [Fact]
+    public void RecordAsync_Should_Cover_The_Whole_Enum()
+    {
+        // The theory above lists values by hand; this fails the day a fifth one appears
+        // without a row in that list.
+        Assert.Equal(4, Enum.GetValues<ProactiveCadence>().Length);
+    }
+
     [Fact]
     public async Task LastRanAtAsync_Should_Count_A_Failed_Run()
     {

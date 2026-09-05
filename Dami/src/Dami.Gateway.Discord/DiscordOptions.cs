@@ -24,14 +24,14 @@ public sealed class DiscordOptions
     /// <summary>Whether the gateway should run at all.</summary>
     public bool Enabled { get; set; }
 
-    /// <summary>
-    /// Whether the frontier answers on locally-assembled context (ADR-0026). False makes
-    /// the local sidecar answer directly again, which is that decision's reversal path.
-    /// </summary>
-    public bool Frontier { get; set; } = true;
-
     /// <summary>Prior exchanges carried into a turn. The window is bounded on purpose.</summary>
     public int HistoryTurns { get; set; } = 6;
+
+    /// <summary>Maximum time one inbound image may occupy the shared vision sidecar.</summary>
+    public TimeSpan VisionTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>How often to refresh Discord's expiring typing state.</summary>
+    public TimeSpan TypingRefresh { get; set; } = TimeSpan.FromSeconds(8);
 
     /// <summary>Whether the options are complete enough to connect.</summary>
     public bool IsConfigured =>

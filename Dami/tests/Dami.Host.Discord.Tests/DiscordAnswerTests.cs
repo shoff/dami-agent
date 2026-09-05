@@ -1,59 +1,10 @@
-using Dami.Contracts.Context;
-using Dami.Contracts.Models;
 using Dami.Contracts.Privacy;
-using Dami.Core.Turns;
 using Xunit;
 
 namespace Dami.Host.Discord.Tests;
 
 public sealed class DiscordAnswerTests
 {
-    private static RetrievedItem Item(string content) =>
-        new("observation", Guid.NewGuid(), content, DateTimeOffset.UnixEpoch);
-
-    private static TurnResult Result(PrivacyClass privacy, bool withMemory)
-    {
-        var context = new AssembledContext(
-            withMemory ? [Item("he was in Chicago on Tuesday")] : [],
-            [],
-            42);
-
-        return new TurnResult(
-            Guid.NewGuid(),
-            "an answer",
-            context,
-            new ModelRoute(ModelTier.Local, privacy, "because"));
-    }
-
-    [Fact]
-    public void A_LocalOnly_Route_Should_Be_Profile_Derived()
-    {
-        // The router already made this decision under D-012. A channel that reached a
-        // different conclusion would be a boundary with two answers.
-        Assert.Equal(
-            ContentProvenance.ProfileDerived,
-            DiscordAnswer.ProvenanceOf(Result(PrivacyClass.LocalOnly, withMemory: false)));
-    }
-
-    [Fact]
-    public void Retrieved_Memory_Should_Be_Profile_Derived_Even_If_The_Route_Says_Otherwise()
-    {
-        // Belt and braces, and deliberately the conservative reading: if memory entered
-        // the prompt then the answer is shaped by it whatever the route claims.
-        Assert.Equal(
-            ContentProvenance.ProfileDerived,
-            DiscordAnswer.ProvenanceOf(Result(PrivacyClass.Egressable, withMemory: true)));
-    }
-
-    [Fact]
-    public void An_Egressable_Answer_With_No_Retrieved_Memory_Should_Be_Operational()
-    {
-        // Otherwise the gateway can never say anything and the feature is theatre.
-        Assert.Equal(
-            ContentProvenance.Operational,
-            DiscordAnswer.ProvenanceOf(Result(PrivacyClass.Egressable, withMemory: false)));
-    }
-
     [Fact]
     public void A_Refusal_Should_Itself_Be_Sendable()
     {
@@ -74,5 +25,32 @@ public sealed class DiscordAnswerTests
         var refusal = DiscordAnswer.Refusal("chan-1", Guid.NewGuid());
 
         Assert.DoesNotContain("an answer", refusal.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_Frontier_Failure_Should_Be_Said_Not_Answered_Around()
+    {
+        // ADR-0028: the only alternative to the frontier's answer is the reason there is none.
+        var trace = Guid.NewGuid();
+
+        var message = DiscordAnswer.FrontierUnavailable("chan-1", trace, "codex down");
+
+        Assert.Equal(ContentProvenance.Operational, message.Provenance);
+        Assert.Contains("codex down", message.Text, StringComparison.Ordinal);
+        Assert.Contains(trace.ToString(), message.Text, StringComparison.Ordinal);
+        Assert.Contains("Nothing was answered locally", message.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_Frontier_Failure_Should_Keep_The_Reason_To_One_Short_Line()
+    {
+        // Exception messages arrive with stack-shaped line breaks and no length limit;
+        // Discord gets one sentence, not a log excerpt.
+        var reason = "line one\nline two " + new string('x', 400);
+
+        var message = DiscordAnswer.FrontierUnavailable("chan-1", Guid.Empty, reason);
+
+        Assert.DoesNotContain('\n', message.Text);
+        Assert.True(message.Text.Length < 400, $"{message.Text.Length} characters");
     }
 }

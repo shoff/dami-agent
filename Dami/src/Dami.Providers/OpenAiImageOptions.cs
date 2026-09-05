@@ -17,6 +17,6 @@ public sealed class OpenAiImageOptions
     /// <summary>The key. Empty means the capability is absent.</summary>
     public string ApiKey { get; set; } = string.Empty;
 
-    /// <summary>The model. `gpt-image-1` is what the Hermes jobs used.</summary>
-    public string Model { get; set; } = "gpt-image-1";
+    /// <summary>The hosted image model.</summary>
+    public string Model { get; set; } = "gpt-image-2";
 }

@@ -36,6 +36,7 @@ public static class TestDdl
         "034_task_work_activity.sql",
         "035_proactive_run_cadence.sql",
         "036_fitness_domain.sql",
+        "038_proactive_run_cadence_eight_hourly.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",

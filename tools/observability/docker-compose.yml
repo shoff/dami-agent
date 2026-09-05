@@ -1,0 +1,72 @@
+name: dami-observability
+
+services:
+  elasticsearch:
+    container_name: dami-elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.2
+    environment:
+      cluster.name: dami-observability
+      discovery.type: single-node
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+      xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+    mem_limit: 2g
+    ports:
+      - 127.0.0.1:9200:9200
+    restart: unless-stopped
+    volumes:
+      - /home/steve/Data/dami-observability/elasticsearch:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - dami-observability
+
+  kibana:
+    container_name: dami-kibana
+    image: docker.elastic.co/kibana/kibana:9.5.2
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      SERVER_NAME: dami-kibana
+      TELEMETRY_ENABLED: "false"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    mem_limit: 1g
+    ports:
+      - 127.0.0.1:5601:5601
+    restart: unless-stopped
+    networks:
+      - dami-observability
+
+  filebeat:
+    cap_add:
+      - SYS_CHROOT
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    container_name: dami-filebeat
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    image: docker.elastic.co/beats/filebeat:9.5.2
+    read_only: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    user: "0:0"
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /:/hostfs:ro
+      - filebeat-data:/usr/share/filebeat/data
+    networks:
+      - dami-observability
+
+networks:
+  dami-observability:
+    name: dami-observability
+
+volumes:
+  filebeat-data:
+    name: dami-filebeat-data
