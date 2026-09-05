@@ -10093,3 +10093,11 @@ optional fields.
 construct the wider bundle. Gate: 0 warnings, 0 errors, **1,684 passed** across 21
 assemblies. Host restaged; GUI installed via `tools/install-gui.sh`.
 
+**Backlog cleared and a loop bug fixed.** Ran the curator by hand twice from `/opt` to
+caption the remaining 73 pictures: 79/79 captioned, but only 70 embedded — `EmbedAsync`
+did one batch of 32 per pass and stopped, so anything captioned beyond that waited eight
+hours. It now loops batch after batch until nothing waits
+(`A_Pass_Should_Embed_Everything_It_Captioned_Not_One_Batch`, 40 files → 40 embedded in
+one pass, two embedder calls). A third pass embedded the nine: **79/79/79**. Gate:
+0 warnings, 0 errors, 1,685 passed. Proactive restaged.
+

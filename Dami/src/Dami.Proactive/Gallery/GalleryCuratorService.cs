@@ -120,8 +120,31 @@ public sealed class GalleryCuratorService : IProactiveService
         return captioned;
     }
 
-    /// <summary>Captioned pictures get a vector under the current embedder.</summary>
+    /// <summary>Captioned pictures get a vector under the current embedder, batch after batch until none wait.</summary>
     private async Task<int> EmbedAsync(CancellationToken cancellationToken)
+    {
+        var embedded = 0;
+        while (true)
+        {
+            var pending = await this.PendingEmbeddingsAsync(cancellationToken).ConfigureAwait(false);
+            if (pending.Count == 0)
+            {
+                return embedded;
+            }
+
+            var texts = pending.Select(entry => GalleryCaption.Embeddable(entry.Caption!, entry.Tags ?? [], entry.Prompt)).ToList();
+            var vectors = await this.embeddings.EmbedAsync(texts, cancellationToken).ConfigureAwait(false);
+            for (var i = 0; i < pending.Count; i++)
+            {
+                await this.index.StoreEmbeddingAsync(pending[i].FileName, this.embeddings.ModelId, vectors[i], cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            embedded += pending.Count;
+        }
+    }
+
+    private async Task<List<GalleryEntry>> PendingEmbeddingsAsync(CancellationToken cancellationToken)
     {
         var pending = new List<GalleryEntry>();
         await foreach (var entry in this.index
@@ -130,19 +153,6 @@ public sealed class GalleryCuratorService : IProactiveService
             pending.Add(entry);
         }
 
-        if (pending.Count == 0)
-        {
-            return 0;
-        }
-
-        var texts = pending.Select(entry => GalleryCaption.Embeddable(entry.Caption!, entry.Tags ?? [], entry.Prompt)).ToList();
-        var vectors = await this.embeddings.EmbedAsync(texts, cancellationToken).ConfigureAwait(false);
-        for (var i = 0; i < pending.Count; i++)
-        {
-            await this.index.StoreEmbeddingAsync(pending[i].FileName, this.embeddings.ModelId, vectors[i], cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        return pending.Count;
+        return pending;
     }
 }

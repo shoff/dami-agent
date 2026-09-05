@@ -85,6 +85,20 @@ public sealed class GalleryCuratorServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_Pass_Should_Embed_Everything_It_Captioned_Not_One_Batch()
+    {
+        // 2026-09-05: two passes captioned 73 pictures and embedded 64; the nine left
+        // over waited eight hours for nothing. Batches are a courtesy to the embedder,
+        // not a cap on the pass.
+        await this.SeedAsync(Enumerable.Range(0, 40).Select(i => $"p{i:D2}.png").ToArray());
+
+        var result = await this.Service().RunPassAsync(Context(), CancellationToken.None);
+
+        Assert.Equal("40 indexed, 40 captioned, 40 embedded", result.Note);
+        await this.embeddings.Received(2).EmbedAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task The_Anchor_Should_Be_Marked_Canonical_When_Indexed()
     {
         await this.SeedAsync("anchor.png");
