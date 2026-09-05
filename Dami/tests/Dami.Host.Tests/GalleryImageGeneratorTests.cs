@@ -1,3 +1,4 @@
+using Dami.Contracts.Gallery;
 using Dami.Contracts.Models;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -8,6 +9,7 @@ namespace Dami.Host.Tests;
 public sealed class GalleryImageGeneratorTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), $"dami-generate-{Guid.NewGuid():N}");
+    private readonly IGalleryIndex index = Substitute.For<IGalleryIndex>();
 
     [Fact]
     public async Task Should_Generate_From_Exactly_The_Configured_Canonical_And_Save_It()
@@ -24,7 +26,7 @@ public sealed class GalleryImageGeneratorTests : IDisposable
         provider.GenerateAsync(Arg.Any<ImageRequest>(), Arg.Any<CancellationToken>())
             .Returns(new GeneratedImage("out.png", new byte[] { 7, 8 }, "image/png", "prompt"));
         var subject = new GalleryImageGenerator(
-            provider, new ImageGallery(options, TimeProvider.System), options);
+            provider, new ImageGallery(options, TimeProvider.System), this.index, options);
 
         var item = await subject.GenerateAsync("laughing over coffee", CancellationToken.None);
 
@@ -54,7 +56,7 @@ public sealed class GalleryImageGeneratorTests : IDisposable
         provider.GenerateAsync(Arg.Any<ImageRequest>(), Arg.Any<CancellationToken>())
             .Returns(new GeneratedImage("out.png", new byte[] { 7 }, "image/png", "prompt"));
         var subject = new GalleryImageGenerator(
-            provider, new ImageGallery(options, TimeProvider.System), options);
+            provider, new ImageGallery(options, TimeProvider.System), this.index, options);
 
         await subject.GenerateAsync("on the porch", CancellationToken.None);
 
@@ -75,10 +77,49 @@ public sealed class GalleryImageGeneratorTests : IDisposable
         });
         var provider = Substitute.For<IImageGenerator>();
         var subject = new GalleryImageGenerator(
-            provider, new ImageGallery(options, TimeProvider.System), options);
+            provider, new ImageGallery(options, TimeProvider.System), this.index, options);
 
         await Assert.ThrowsAsync<FileNotFoundException>(
             () => subject.GenerateAsync("on the porch", CancellationToken.None));
+        await provider.DidNotReceive().GenerateAsync(Arg.Any<ImageRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Edit_Should_Send_The_Picture_Itself_As_The_Thing_To_Change_And_Link_The_Result_To_It()
+    {
+        var galleryDir = Path.Combine(this.root, "gallery");
+        Directory.CreateDirectory(galleryDir);
+        await File.WriteAllBytesAsync(Path.Combine(galleryDir, "source.png"), [4, 5, 6]);
+        var options = Options.Create(new ImageGalleryOptions { Directory = galleryDir });
+        var provider = Substitute.For<IImageGenerator>();
+        provider.GenerateAsync(Arg.Any<ImageRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new GeneratedImage("out.png", new byte[] { 7 }, "image/png", "prompt"));
+        var subject = new GalleryImageGenerator(provider, new ImageGallery(options, TimeProvider.System), this.index, options);
+
+        var item = await subject.EditAsync("source.png", "make it golden hour", CancellationToken.None);
+
+        await provider.Received(1).GenerateAsync(
+            Arg.Is<ImageRequest>(request =>
+                request.EditReference
+                && request.Prompt == "make it golden hour"
+                && request.Reference!.FileName == "source.png"
+                && request.Reference.Bytes.ToArray().SequenceEqual(new byte[] { 4, 5, 6 })),
+            Arg.Any<CancellationToken>());
+        Assert.True(File.Exists(Path.Combine(galleryDir, item.FileName)));
+        await this.index.Received(1).UpsertAsync(
+            Arg.Is<GalleryEntry>(entry => entry.FileName == item.FileName && entry.DerivedFrom == "source.png"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Edit_Should_Refuse_A_Picture_The_Gallery_Lacks_Without_Generating()
+    {
+        var options = Options.Create(new ImageGalleryOptions { Directory = Path.Combine(this.root, "gallery") });
+        var provider = Substitute.For<IImageGenerator>();
+        var subject = new GalleryImageGenerator(provider, new ImageGallery(options, TimeProvider.System), this.index, options);
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() => subject.EditAsync("ghost.png", "anything", CancellationToken.None));
+
         await provider.DidNotReceive().GenerateAsync(Arg.Any<ImageRequest>(), Arg.Any<CancellationToken>());
     }
 

@@ -67,9 +67,19 @@ thing: the Gallery knowing what each picture is. This is that thing.
   frontier's bundle gains `find_pictures` (search, returns file names with dates and
   captions) and `show_picture` (attaches an existing file) so "the balcony one" fetches
   instead of generating.
-- Still to come on this index: source and favourite filters, "similar to this",
-  edit-from-selected with a `derived_from` link (the column exists and is unused),
-  favourites and hidden (columns exist, no UI yet).
+- **"Similar to this" and edit-from-selected followed.** `IGalleryIndex.NearestToAsync`
+  ranks the other pictures by the selected one's own caption vector;
+  `GET /gallery/{file}/similar` and a "find similar" button in the detail pane serve it.
+  `GalleryImageGenerator.EditAsync` sends the selected picture itself as the reference
+  with `ImageRequest.EditReference = true`, which switches the Codex prompt from
+  "identity anchor, new scene" to "source picture, apply this change and keep everything
+  else"; the result is saved as a new picture and recorded in the index with
+  `derived_from` pointing at its source. `POST /gallery/{file}/edit`, an edit box under
+  the detail pane, and `retouch_picture` in the bundle (nine tools now) all use it.
+  Every generation now also records itself in the index at once, so a picture is known
+  before the curator has captioned it.
+- Still to come: source and favourite filters, favourites and hidden (columns exist, no
+  UI yet), and a derivation chain view.
 
 ## Reversal path
 

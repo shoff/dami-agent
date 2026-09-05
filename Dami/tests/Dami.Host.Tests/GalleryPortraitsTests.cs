@@ -26,7 +26,7 @@ public sealed class GalleryPortraitsTests : IDisposable
             .Returns(new GeneratedImage("out.png", new byte[] { 7, 8, 9 }, "image/png", "prompt"));
         var gallery = new ImageGallery(options, TimeProvider.System);
         var subject = new GalleryPortraits(
-            new GalleryImageGenerator(provider, gallery, options), gallery);
+            new GalleryImageGenerator(provider, gallery, Substitute.For<Dami.Contracts.Gallery.IGalleryIndex>(), options), gallery);
 
         var image = await subject.GenerateAsync("Dami painting her toes", CancellationToken.None);
 

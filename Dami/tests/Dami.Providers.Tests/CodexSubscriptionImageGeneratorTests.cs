@@ -48,6 +48,33 @@ public sealed class CodexSubscriptionImageGeneratorTests : IDisposable
         Assert.DoesNotContain("API key", sent[promptIndex], StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Should_Ask_For_A_Change_To_The_Attached_Picture_When_It_Is_The_Source()
+    {
+        // The anchor rule ("create a new scene, do not edit the pose") is the opposite of
+        // what an edit wants; the prompt has to say which one this is.
+        Directory.CreateDirectory(this.root);
+        IReadOnlyList<string>? sent = null;
+        this.budget.FindRefusalAsync(Arg.Any<CancellationToken>()).Returns((string?)null);
+        this.process.RunAsync(
+                Arg.Any<string>(), Arg.Do<IReadOnlyList<string>>(value => sent = value),
+                Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(call => WriteResult(call.ArgAt<IReadOnlyList<string>>(1)));
+        var request = new ImageRequest(
+            "make it golden hour", "edit", PrivacyClass.Egressable, Guid.NewGuid(), ExecutionOrigin.UserTurn)
+        {
+            Reference = new ImageReference("source.png", "image/png", new byte[] { 1 }),
+            EditReference = true,
+        };
+
+        await this.Create().GenerateAsync(request, CancellationToken.None);
+
+        var prompt = sent!.Single(item => item.Contains("built-in image_gen tool", StringComparison.Ordinal));
+        Assert.Contains("source picture", prompt, StringComparison.Ordinal);
+        Assert.Contains("keep everything else", prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("sole identity reference", prompt, StringComparison.Ordinal);
+    }
+
     private CodexSubscriptionImageGenerator Create() => new(
         this.process,
         Options.Create(new CodexOptions

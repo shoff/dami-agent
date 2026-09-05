@@ -10101,3 +10101,25 @@ hours. It now loops batch after batch until nothing waits
 one pass, two embedder calls). A third pass embedded the nine: **79/79/79**. Gate:
 0 warnings, 0 errors, 1,685 passed. Proactive restaged.
 
+## 2026-09-05 — Claude — Gallery: similar-to-this and edit-from-selected (ADR-0031, amended)
+
+Steve: "continue."
+
+**Built.** `ImageRequest.EditReference` (Contracts) and a prompt branch in
+`CodexSubscriptionImageGenerator`: an anchor is "preserve identity, new scene"; a source is
+"apply exactly this change, keep everything else". `IPortraitGenerator.EditAsync` and
+`GalleryImageGenerator.EditAsync(fileName, instruction)`: the selected picture's bytes go as
+the reference, the result is saved to the Gallery and upserted into the index with
+`derived_from`; generation now upserts too, so new pictures are known before the curator
+captions them. `IGalleryIndex.NearestToAsync` (pgvector, excludes self and hidden) behind
+`GalleryCatalog.SimilarAsync` and `GET /gallery/{file}/similar`; `POST /gallery/{file}/edit`.
+Bundle: `retouch_picture(fileName, instruction)` — nine tools. GUI: "find similar" beside the
+date, an edit box + "edit selected" under the composer; results replace the grid with the
+selected picture kept first.
+
+**Tests.** Providers prompt branch ×1, generator edit ×2 (reference bytes, `EditReference`,
+`derived_from`; unknown file refused before generating), catalog similar ×1, index
+`NearestTo` ×1 against the live database, bundle retouch ×1; the bundle count test now
+says nine. Gate: 0 warnings, 0 errors, **1,691 passed** across 21 assemblies. Host restaged;
+GUI installed.
+

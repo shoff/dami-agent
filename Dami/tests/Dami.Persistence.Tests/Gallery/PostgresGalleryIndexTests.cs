@@ -90,6 +90,23 @@ public sealed class PostgresGalleryIndexTests
     }
 
     [Fact]
+    public async Task NearestTo_Should_Rank_Other_Pictures_By_Closeness_And_Never_Return_The_Picture_Itself()
+    {
+        await this.fixture.ResetAsync();
+        var index = this.Index();
+        foreach (var (name, vector) in new[] { ("me.png", Vector(1f)), ("twin.png", Vector(0.9f)), ("far.png", [.. Enumerable.Range(0, 1024).Select(i => i % 2 == 0 ? 1f : -1f)]) })
+        {
+            await index.UpsertAsync(Entry(name), CancellationToken.None);
+            await index.DescribeAsync(name, new GalleryDescription("c", [], "m", at), CancellationToken.None);
+            await index.StoreEmbeddingAsync(name, MODEL, vector, CancellationToken.None);
+        }
+
+        var ranked = await AllAsync(index.NearestToAsync("me.png", MODEL, 5, CancellationToken.None));
+
+        Assert.Equal(["twin.png", "far.png"], ranked.Select(hit => hit.Entry.FileName));
+    }
+
+    [Fact]
     public async Task Unembedded_Should_List_Captioned_Pictures_Without_A_Vector_Under_That_Model()
     {
         await this.fixture.ResetAsync();

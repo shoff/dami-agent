@@ -165,6 +165,10 @@ public sealed class GalleryCuratorServiceTests : IDisposable
             return Task.CompletedTask;
         }
 
+        public IAsyncEnumerable<(GalleryEntry Entry, double Distance)> NearestToAsync(
+            string fileName, string embeddingModel, int limit, CancellationToken cancellationToken) =>
+            AsyncEnumerable.Empty<(GalleryEntry, double)>();
+
         public IAsyncEnumerable<(GalleryEntry Entry, double Distance)> NearestAsync(
             float[] queryEmbedding, string embeddingModel, int limit, CancellationToken cancellationToken) =>
             AsyncEnumerable.Empty<(GalleryEntry, double)>();

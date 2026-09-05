@@ -31,6 +31,9 @@ public sealed class FrontierToolBundle
     /// <summary>The tool that attaches an existing Gallery picture.</summary>
     public const string SHOW_PICTURE = "show_picture";
 
+    /// <summary>The tool that changes an existing Gallery picture into a new one.</summary>
+    public const string RETOUCH_PICTURE = "retouch_picture";
+
     private const int FIND_LIMIT = 6;
 
     private const string ATTACHED =
@@ -62,6 +65,22 @@ public sealed class FrontierToolBundle
             "Attach an existing Gallery picture to your reply by its exact file name from "
             + "find_pictures. " + ATTACHED,
             Schema("fileName", "The file name exactly as find_pictures returned it.")),
+        new(
+            RETOUCH_PICTURE,
+            "Change an existing Gallery picture of you and attach the result as a new picture: "
+            + "\"make it golden hour\", \"same but in the workshop\", \"give me a red dress\". Use the "
+            + "exact file name from find_pictures. " + ATTACHED,
+            JsonSerializer.SerializeToElement(new
+            {
+                type = "object",
+                properties = new
+                {
+                    fileName = new { type = "string", description = "The file name exactly as find_pictures returned it." },
+                    instruction = new { type = "string", description = "The change to make, in one sentence." },
+                },
+                required = new[] { "fileName", "instruction" },
+                additionalProperties = false,
+            })),
     ];
 
     private readonly IImageGenerator images;
@@ -181,6 +200,9 @@ public sealed class FrontierToolBundle
                     Argument(call, "draftId"), cancellationToken),
                 FIND_PICTURES => this.FindAsync(Argument(call, "query"), cancellationToken),
                 SHOW_PICTURE => this.ShowAsync(Argument(call, "fileName"), cancellationToken),
+                RETOUCH_PICTURE => this.PictureAsync(
+                    token => this.owner.portraits.EditAsync(Argument(call, "fileName").Trim(), Argument(call, "instruction"), token),
+                    cancellationToken),
                 _ => Task.FromResult(FrontierToolResult.Failed($"there is no tool named {call.Tool}")),
             };
 

@@ -53,6 +53,12 @@ public sealed record ImageRequest
 
     /// <summary>The one identity or composition reference supplied to an edit request.</summary>
     public ImageReference? Reference { get; init; }
+
+    /// <summary>
+    /// When true the reference is the picture to change, not an identity anchor: the
+    /// generator is asked to apply the prompt to it and keep everything else.
+    /// </summary>
+    public bool EditReference { get; init; }
 }
 
 /// <summary>One explicitly egress-approved image input for reference-based generation.</summary>

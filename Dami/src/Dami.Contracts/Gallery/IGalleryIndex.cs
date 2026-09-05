@@ -65,6 +65,10 @@ public interface IGalleryIndex
     /// <summary>Stores the caption's vector.</summary>
     Task StoreEmbeddingAsync(string fileName, string embeddingModel, float[] embedding, CancellationToken cancellationToken);
 
+    /// <summary>The pictures most like a given one, by caption, hidden ones and itself excluded.</summary>
+    IAsyncEnumerable<(GalleryEntry Entry, double Distance)> NearestToAsync(
+        string fileName, string embeddingModel, int limit, CancellationToken cancellationToken);
+
     /// <summary>The nearest pictures to a query vector, hidden ones excluded.</summary>
     IAsyncEnumerable<(GalleryEntry Entry, double Distance)> NearestAsync(
         float[] queryEmbedding, string embeddingModel, int limit, CancellationToken cancellationToken);

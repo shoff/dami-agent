@@ -118,15 +118,23 @@ public sealed class CodexSubscriptionImageGenerator : IImageGenerator
     private static string Prompt(ImageRequest request, string target) => $$"""
         Use the imagegen skill and its built-in image_gen tool to create exactly one PNG.
         Do not use the fallback CLI. This is a project-bound asset, so after generation copy
-        the resulting file to the exact path below. If an image is attached, it is the sole
-        identity reference; preserve identity while creating a new scene rather than editing
-        the reference pose. Inspect the generated pixels before finishing.
+        the resulting file to the exact path below. {{ReferenceRule(request)}} Inspect the
+        generated pixels before finishing.
 
         {{request.Prompt}}
 
         SAVE_TO:{{target}}
         Finish only after that exact file exists and is non-empty.
         """;
+
+    /// <summary>What the attached image means: an anchor to preserve, or the picture to change.</summary>
+    private static string ReferenceRule(ImageRequest request) =>
+        request.EditReference
+            ? "The attached image is the source picture. Apply exactly the change described below "
+              + "and keep everything else — the person, her identity, the composition, lighting and "
+              + "setting — as it is."
+            : "If an image is attached, it is the sole identity reference; preserve identity while "
+              + "creating a new scene rather than editing the reference pose.";
 
     private static async Task<string?> WriteReferenceAsync(
         ImageReference? reference, CancellationToken cancellationToken)

@@ -39,12 +39,12 @@ public sealed class FrontierToolBundleTests
             NullLogger<FrontierToolBundle>.Instance).ForTurn(Guid.NewGuid(), channel);
 
     [Fact]
-    public void The_Bundle_Should_Be_Eight_Tools_With_Object_Schemas()
+    public void The_Bundle_Should_Be_Nine_Tools_With_Object_Schemas()
     {
         var tools = this.Tools().Toolbox.Tools;
 
         Assert.Equal(
-            ["make_portrait", "make_image", "find_pictures", "show_picture", "recall", "remember", "schedule", "confirm_schedule"],
+            ["make_portrait", "make_image", "find_pictures", "show_picture", "retouch_picture", "recall", "remember", "schedule", "confirm_schedule"],
             tools.Select(tool => tool.Name));
         Assert.All(tools, tool => Assert.Equal("object", tool.InputSchema.GetProperty("type").GetString()));
     }
@@ -137,6 +137,20 @@ public sealed class FrontierToolBundleTests
         Assert.True(result.Success);
         Assert.Equal("dami-1.png", Assert.Single(tools.Pictures).FileName);
         await this.portraits.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Retouch_Should_Change_An_Existing_Picture_And_Attach_The_New_One()
+    {
+        this.portraits.EditAsync("dami-1.png", "make it golden hour", Arg.Any<CancellationToken>())
+            .Returns(new GeneratedImage("dami-2.png", new ReadOnlyMemory<byte>([2]), "image/png", "p"));
+        var tools = this.Tools();
+
+        var result = await tools.HandleAsync(
+            Call("retouch_picture", """{"fileName":"dami-1.png","instruction":"make it golden hour"}"""), CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal("dami-2.png", Assert.Single(tools.Pictures).FileName);
     }
 
     [Fact]

@@ -23,9 +23,18 @@ public sealed class GalleryPortraits : IPortraitGenerator
     }
 
     /// <inheritdoc />
-    public async Task<GeneratedImage> GenerateAsync(string scene, CancellationToken cancellationToken)
+    public async Task<GeneratedImage> GenerateAsync(string scene, CancellationToken cancellationToken) =>
+        await this.KeptAsync(await this.generator.GenerateAsync(scene, cancellationToken).ConfigureAwait(false), cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task<GeneratedImage> EditAsync(string fileName, string instruction, CancellationToken cancellationToken) =>
+        await this.KeptAsync(
+            await this.generator.EditAsync(fileName, instruction, cancellationToken).ConfigureAwait(false), cancellationToken)
+            .ConfigureAwait(false);
+
+    private async Task<GeneratedImage> KeptAsync(GalleryImage saved, CancellationToken cancellationToken)
     {
-        var saved = await this.generator.GenerateAsync(scene, cancellationToken).ConfigureAwait(false);
         var path = this.gallery.Resolve(saved.FileName)
             ?? throw new InvalidOperationException($"The Gallery did not keep {saved.FileName}.");
         var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);

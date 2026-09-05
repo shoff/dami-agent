@@ -39,6 +39,7 @@ public static class ImageEndpoints
             gallery.Resolve(fileName) is { } path
                 ? Results.File(path, ContentType(path))
                 : Results.NotFound());
+        MapGalleryActions(app);
         app.MapPost("/gallery/generate", async (
             ImageGenerationRequest request,
             GalleryImageGenerator generator,
@@ -52,6 +53,18 @@ public static class ImageEndpoints
             Results.Ok(await gallery.ImportAsync(request.Images, cancellationToken)
                 .ConfigureAwait(false)))
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(256 * 1024 * 1024));
+    }
+
+    /// <summary>What can be done with one picture (ADR-0031): its neighbours, and a change to it.</summary>
+    private static void MapGalleryActions(WebApplication app)
+    {
+        app.MapGet("/gallery/{fileName}/similar", async (
+            string fileName, int? limit, GalleryCatalog catalog, CancellationToken cancellationToken) =>
+            Results.Ok(await catalog.SimilarAsync(fileName, Math.Clamp(limit ?? 12, 1, 60), cancellationToken)
+                .ConfigureAwait(false)));
+        app.MapPost("/gallery/{fileName}/edit", async (
+            string fileName, GalleryEditRequest request, GalleryImageGenerator generator, CancellationToken cancellationToken) =>
+            Results.Ok(await generator.EditAsync(fileName, request.Instruction, cancellationToken).ConfigureAwait(false)));
     }
 
     private static string ContentType(string path) =>
@@ -69,3 +82,6 @@ public sealed record ImageGenerationRequest(string Prompt);
 
 /// <summary>A local-only batch copied into Dami's gallery.</summary>
 public sealed record GalleryImportRequest(IReadOnlyList<GalleryImport> Images);
+
+/// <summary>One change to make to an existing Gallery picture.</summary>
+public sealed record GalleryEditRequest(string Instruction);

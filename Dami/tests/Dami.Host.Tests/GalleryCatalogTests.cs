@@ -1,4 +1,5 @@
 using Dami.Contracts.Gallery;
+using Dami.Contracts.Models;
 using Dami.Core.Gallery;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -11,6 +12,7 @@ public sealed class GalleryCatalogTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), $"dami-catalog-{Guid.NewGuid():N}");
     private readonly IGalleryIndex index = Substitute.For<IGalleryIndex>();
     private readonly IGallerySearch search = Substitute.For<IGallerySearch>();
+    private readonly IEmbeddingClient embeddings = Substitute.For<IEmbeddingClient>();
 
     public GalleryCatalogTests()
     {
@@ -35,7 +37,8 @@ public sealed class GalleryCatalogTests : IDisposable
     private GalleryCatalog Subject()
     {
         var options = Options.Create(new ImageGalleryOptions { Directory = this.root });
-        return new GalleryCatalog(new ImageGallery(options, TimeProvider.System), this.index, this.search);
+        this.embeddings.ModelId.Returns("bge-m3");
+        return new GalleryCatalog(new ImageGallery(options, TimeProvider.System), this.index, this.search, this.embeddings);
     }
 
     [Fact]
@@ -52,6 +55,31 @@ public sealed class GalleryCatalogTests : IDisposable
         var fresh = Assert.Single(cards, card => card.FileName == "new.png");
         Assert.Equal(("on a balcony", "discord"), (seen.Caption, seen.Source));
         Assert.Equal((null, "unknown"), (fresh.Caption, fresh.Source));
+    }
+
+    [Fact]
+    public async Task Similar_Should_Ask_The_Index_Under_The_Current_Embedder_And_Score_By_Closeness()
+    {
+        await File.WriteAllBytesAsync(Path.Combine(this.root, "twin.png"), [1]);
+        this.index.NearestToAsync("source.png", "bge-m3", 5, Arg.Any<CancellationToken>()).Returns(HitsAsync(
+            (new GalleryEntry("twin.png", DateTimeOffset.UnixEpoch, GallerySource.Chat, "p", "m", false, Caption: "c"), 0.1),
+            (new GalleryEntry("gone.png", DateTimeOffset.UnixEpoch, GallerySource.Chat, "p", "m", false, Caption: "c"), 0.2)));
+
+        var cards = await this.Subject().SimilarAsync("source.png", 5, CancellationToken.None);
+
+        var only = Assert.Single(cards);
+        Assert.Equal("twin.png", only.FileName);
+        Assert.Equal(0.9, only.Score!.Value, 6);
+    }
+
+    private static async IAsyncEnumerable<(GalleryEntry, double)> HitsAsync(params (GalleryEntry, double)[] hits)
+    {
+        foreach (var hit in hits)
+        {
+            yield return hit;
+        }
+
+        await Task.CompletedTask;
     }
 
     [Fact]

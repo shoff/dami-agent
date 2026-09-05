@@ -140,6 +140,31 @@ public sealed class PostgresGalleryIndex : IGalleryIndex
     }
 
     /// <inheritdoc />
+    public IAsyncEnumerable<(GalleryEntry Entry, double Distance)> NearestToAsync(
+        string fileName, string embeddingModel, int limit, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(embeddingModel);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(limit, 0);
+        var command = this.dataSource.CreateCommand(
+            $"""
+            with anchor as (
+                select embedding from {this.Embeddings} where file_name = @file and embedding_model = @model)
+            select {Qualified("i")}, e.embedding <=> anchor.embedding as distance
+              from {this.Embeddings} e
+              join {this.Images} i on i.file_name = e.file_name
+              cross join anchor
+             where e.embedding_model = @model and not i.hidden and e.file_name <> @file
+             order by e.embedding <=> anchor.embedding
+             limit @limit
+            """);
+        command.Parameters.AddWithValue("file", fileName);
+        command.Parameters.AddWithValue("model", embeddingModel);
+        command.Parameters.AddWithValue("limit", limit);
+        return StreamNearestAsync(command, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public IAsyncEnumerable<(GalleryEntry Entry, double Distance)> NearestAsync(
         float[] queryEmbedding, string embeddingModel, int limit, CancellationToken cancellationToken)
     {

@@ -12,6 +12,9 @@ public sealed partial class MainWindow
     private ListBox galleryList = null!;
     private TextBox galleryPrompt = null!;
     private TextBox gallerySearch = null!;
+    private TextBox galleryEdit = null!;
+    private Button galleryEditRun = null!;
+    private Button gallerySimilar = null!;
     private Button galleryGenerate = null!;
     private Button galleryRefresh = null!;
     private Button galleryImport = null!;
@@ -23,6 +26,11 @@ public sealed partial class MainWindow
         this.galleryPrompt = Require<TextBox>(this, "GalleryPrompt");
         this.gallerySearch = Require<TextBox>(this, "GallerySearch");
         this.gallerySearch.KeyDown += this.OnGallerySearchKeyDown;
+        this.galleryEdit = Require<TextBox>(this, "GalleryEdit");
+        this.galleryEditRun = Require<Button>(this, "GalleryEditRun");
+        this.gallerySimilar = Require<Button>(this, "GallerySimilar");
+        this.galleryEditRun.Click += (_, _) => _ = this.EditGalleryImageAsync();
+        this.gallerySimilar.Click += (_, _) => _ = this.SimilarGalleryImagesAsync();
         this.galleryGenerate = Require<Button>(this, "GalleryGenerate");
         this.galleryRefresh = Require<Button>(this, "GalleryRefresh");
         this.galleryImport = Require<Button>(this, "GalleryImport");
@@ -76,6 +84,66 @@ public sealed partial class MainWindow
         this.state.GalleryMessage = items.Count == 0
             ? $"nothing matches “{query}” — the curator may not have captioned everything yet"
             : $"{items.Count} match(es) for “{query}” · clear the box and press Enter for all";
+    }
+
+    /// <summary>The pictures most like the selected one (ADR-0031).</summary>
+    private async Task SimilarGalleryImagesAsync()
+    {
+        if (this.state.SelectedGalleryImage is not { } selected)
+        {
+            return;
+        }
+
+        this.state.GalleryMessage = "finding pictures like this one…";
+        using var response = await this.runtime
+            .GetAsync("/gallery/" + Uri.EscapeDataString(selected.FileName) + "/similar?limit=24", this.lifetime.Token)
+            .ConfigureAwait(true);
+        if (response is null)
+        {
+            this.state.GalleryMessage = "The runtime did not answer /gallery/{file}/similar.";
+            return;
+        }
+
+        var items = await this.CardsAsync(response).ConfigureAwait(true);
+        items.Insert(0, selected);
+        Replace(this.state.GalleryImages, items);
+        this.galleryList.SelectedItem = selected;
+        this.state.GalleryMessage = items.Count == 1
+            ? "nothing similar yet — the curator may not have captioned this one"
+            : $"{items.Count - 1} picture(s) like this one · clear the search box and press Enter for all";
+    }
+
+    /// <summary>Changes the selected picture as instructed; the result is a new picture linked to it.</summary>
+    private async Task EditGalleryImageAsync()
+    {
+        var instruction = this.galleryEdit.Text?.Trim();
+        if (this.state.SelectedGalleryImage is not { } selected || string.IsNullOrWhiteSpace(instruction))
+        {
+            this.state.GalleryMessage = "Select a picture and say what to change.";
+            return;
+        }
+
+        this.galleryEditRun.IsEnabled = false;
+        this.galleryEditRun.Content = "editing…";
+        this.SetStatus(GlobalStatus.Working("Editing the selected picture…"));
+        try
+        {
+            using var result = await this.runtime.PostAsync(
+                "/gallery/" + Uri.EscapeDataString(selected.FileName) + "/edit", new { instruction }, this.lifetime.Token)
+                .ConfigureAwait(true);
+            this.galleryEdit.Text = string.Empty;
+            await this.FinishGenerationAsync(result).ConfigureAwait(true);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            this.state.GalleryMessage = exception.Message;
+            this.SetStatus(GlobalStatus.Failure(exception.Message));
+        }
+        finally
+        {
+            this.galleryEditRun.IsEnabled = true;
+            this.galleryEditRun.Content = "edit selected";
+        }
     }
 
     private async Task<List<GalleryImageCard>> CardsAsync(System.Text.Json.JsonDocument response)

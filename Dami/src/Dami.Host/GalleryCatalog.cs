@@ -1,4 +1,5 @@
 using Dami.Contracts.Gallery;
+using Dami.Contracts.Models;
 using Dami.Core.Gallery;
 
 namespace Dami.Host;
@@ -23,17 +24,40 @@ public sealed class GalleryCatalog
     private readonly ImageGallery gallery;
     private readonly IGalleryIndex index;
     private readonly IGallerySearch search;
+    private readonly IEmbeddingClient embeddings;
 
     /// <summary>Creates the catalog.</summary>
-    public GalleryCatalog(ImageGallery gallery, IGalleryIndex index, IGallerySearch search)
+    public GalleryCatalog(ImageGallery gallery, IGalleryIndex index, IGallerySearch search, IEmbeddingClient embeddings)
     {
         ArgumentNullException.ThrowIfNull(gallery);
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(search);
+        ArgumentNullException.ThrowIfNull(embeddings);
         this.gallery = gallery;
         this.index = index;
         this.search = search;
+        this.embeddings = embeddings;
     }
+
+    /// <summary>The pictures most like one, by what is in them.</summary>
+    public async Task<IReadOnlyList<GalleryCard>> SimilarAsync(string fileName, int limit, CancellationToken cancellationToken)
+    {
+        var cards = new List<GalleryCard>();
+        await foreach (var (entry, distance) in this.index
+            .NearestToAsync(fileName, this.embeddings.ModelId, limit, cancellationToken).ConfigureAwait(false))
+        {
+            if (this.gallery.Resolve(entry.FileName) is not null)
+            {
+                cards.Add(Card(entry, 1 - distance));
+            }
+        }
+
+        return cards;
+    }
+
+    private static GalleryCard Card(GalleryEntry entry, double? score) => new(
+        entry.FileName, entry.CreatedAt, entry.Prompt, entry.Model, entry.IsCanonical,
+        entry.Caption, entry.Tags ?? [], entry.Source.ToString().ToLowerInvariant(), score);
 
     /// <summary>Every picture in the folder, newest first, enriched where the index has caught up.</summary>
     public async Task<IReadOnlyList<GalleryCard>> ListAsync(CancellationToken cancellationToken)
@@ -62,9 +86,7 @@ public sealed class GalleryCatalog
         var hits = await this.search.SearchAsync(query, limit, cancellationToken).ConfigureAwait(false);
         return hits
             .Where(hit => this.gallery.Resolve(hit.Entry.FileName) is not null)
-            .Select(hit => new GalleryCard(
-                hit.Entry.FileName, hit.Entry.CreatedAt, hit.Entry.Prompt, hit.Entry.Model, hit.Entry.IsCanonical,
-                hit.Entry.Caption, hit.Entry.Tags ?? [], hit.Entry.Source.ToString().ToLowerInvariant(), hit.Score))
+            .Select(hit => Card(hit.Entry, hit.Score))
             .ToList();
     }
 }

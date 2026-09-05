@@ -10,4 +10,7 @@ public interface IPortraitGenerator
 {
     /// <summary>Generates one portrait of Dami in the given scene.</summary>
     Task<GeneratedImage> GenerateAsync(string scene, CancellationToken cancellationToken);
+
+    /// <summary>Changes an existing Gallery picture as instructed, keeping the rest; the result is a new picture.</summary>
+    Task<GeneratedImage> EditAsync(string fileName, string instruction, CancellationToken cancellationToken);
 }
