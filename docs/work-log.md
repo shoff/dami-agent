@@ -10280,3 +10280,17 @@ early, the rest ran as shell, `sudo` refused without a terminal, and `git commit
 hung on a broken stdin for ten minutes. Nothing was committed or changed by it; the
 notes were rewritten from a script file.
 
+**First scout run, and a 422 it exposed.** Steve: "deployed and enabled, run the scout
+now." Neither drop-in had landed (`systemctl show -p Environment` carried no
+`OpportunityScout__` or `Research__` values; `dami-proactive.service.d/` holds only
+override, portrait, restart-limit), so the tier's own pass ran quiet. Run by hand with
+the runbook's profile and four queries: 40 hits, but "reranker unavailable; keeping search
+order" — TEI's `--max-client-batch-size` is 32 and the scout sent 40 in one request (422).
+`TeiRerankClient` now scores in batches of `TeiRerank:MaxBatch` (32) and merges the raw
+scores before sorting (`RankAsync_Should_Batch_At_The_Client_Limit_And_Merge_The_Scores`).
+Re-run from the restaged binary: 8 of 40 surfaced, ranked against the profile — a mix of
+a r/dotnet remote-work thread, a "what 3D prints actually sell" thread, Toptal/Guru
+PostgreSQL pages. Honest read: the ranking works; the *queries* return aggregator pages
+and need to point at postings (`site:` on the boards, "posted this week"). Gate: 0/0,
+**1,742 passed**. Both tiers restaged again.
+
