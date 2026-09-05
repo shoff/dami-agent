@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Dami.Contracts.Context;
+using Dami.Contracts.Gallery;
 using Dami.Contracts.Models;
 using Dami.Core.Frontier;
+using Dami.Core.Gallery;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -17,6 +19,8 @@ public sealed class FrontierToolBundleTests
     private readonly IFrontierRecall recall = Substitute.For<IFrontierRecall>();
     private readonly IFrontierRemember remember = Substitute.For<IFrontierRemember>();
     private readonly IFrontierScheduling scheduling = Substitute.For<IFrontierScheduling>();
+    private readonly IGallerySearch gallery = Substitute.For<IGallerySearch>();
+    private readonly IGalleryPictures pictures = Substitute.For<IGalleryPictures>();
 
     public FrontierToolBundleTests()
     {
@@ -31,16 +35,16 @@ public sealed class FrontierToolBundleTests
 
     private FrontierToolBundle.FrontierTurnTools Tools(string channel = "discord:1") =>
         new FrontierToolBundle(
-            this.images, this.portraits, this.recall, this.remember, this.scheduling,
+            this.images, this.portraits, this.recall, this.remember, this.scheduling, this.gallery, this.pictures,
             NullLogger<FrontierToolBundle>.Instance).ForTurn(Guid.NewGuid(), channel);
 
     [Fact]
-    public void The_Bundle_Should_Be_Six_Tools_With_Object_Schemas()
+    public void The_Bundle_Should_Be_Eight_Tools_With_Object_Schemas()
     {
         var tools = this.Tools().Toolbox.Tools;
 
         Assert.Equal(
-            ["make_portrait", "make_image", "recall", "remember", "schedule", "confirm_schedule"],
+            ["make_portrait", "make_image", "find_pictures", "show_picture", "recall", "remember", "schedule", "confirm_schedule"],
             tools.Select(tool => tool.Name));
         Assert.All(tools, tool => Assert.Equal("object", tool.InputSchema.GetProperty("type").GetString()));
     }
@@ -104,6 +108,44 @@ public sealed class FrontierToolBundleTests
         var result = await this.Tools().HandleAsync(Call("confirm_schedule", """{"draftId":"abcd1234"}"""), CancellationToken.None);
 
         Assert.Equal("Active", result.Text);
+    }
+
+    [Fact]
+    public async Task Find_Pictures_Should_List_Matches_With_Captions_And_Point_At_Show_Picture()
+    {
+        this.gallery.SearchAsync("balcony at dusk", Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([new GalleryHit(
+                new GalleryEntry("dami-1.png", new DateTimeOffset(2026, 9, 4, 23, 0, 0, TimeSpan.Zero), GallerySource.Proactive, "p", "m", false,
+                    Caption: "on a balcony at dusk"), 0.9)]);
+
+        var result = await this.Tools().HandleAsync(Call("find_pictures", """{"query":"balcony at dusk"}"""), CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Contains("dami-1.png | 2026-09-04 23:00 | on a balcony at dusk", result.Text, StringComparison.Ordinal);
+        Assert.Contains("show_picture", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Show_Picture_Should_Attach_An_Existing_Picture_Without_Generating()
+    {
+        this.pictures.LoadAsync("dami-1.png", Arg.Any<CancellationToken>())
+            .Returns(new GeneratedImage("dami-1.png", new ReadOnlyMemory<byte>([9]), "image/png", string.Empty));
+        var tools = this.Tools();
+
+        var result = await tools.HandleAsync(Call("show_picture", """{"fileName":"dami-1.png"}"""), CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal("dami-1.png", Assert.Single(tools.Pictures).FileName);
+        await this.portraits.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Show_Picture_Should_Fail_In_Words_For_A_Name_The_Gallery_Lacks()
+    {
+        var result = await this.Tools().HandleAsync(Call("show_picture", """{"fileName":"ghost.png"}"""), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("ghost.png", result.Text, StringComparison.Ordinal);
     }
 
     [Fact]

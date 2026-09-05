@@ -1,8 +1,10 @@
+using Dami.Contracts.Gallery;
 using Dami.Contracts.Models;
 using Dami.Contracts.Privacy;
 using Dami.Contracts.Scheduling;
 using Dami.Contracts.Sessions;
 using Dami.Core.Frontier;
+using Dami.Core.Gallery;
 using Dami.Gateway.Discord;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -51,6 +53,7 @@ public sealed class DiscordScheduledDeliveryTests
             this.channel, this.augmented, new DiscordReplyStreamer(this.progressive),
             new FrontierToolBundle(
                 Substitute.For<IImageGenerator>(), Substitute.For<IPortraitGenerator>(), recall, remember, scheduling,
+                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(),
                 NullLogger<FrontierToolBundle>.Instance),
             new DiscordVision(Substitute.For<IVisionClient>(), Substitute.For<IDiscordRest>(), options, NullLogger<DiscordVision>.Instance),
             Substitute.For<IConversationSessionStore>(), this.turnStore, TimeProvider.System, options,

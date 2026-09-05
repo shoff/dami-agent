@@ -1,9 +1,11 @@
 using Dami.Contracts.Gateways;
+using Dami.Contracts.Gallery;
 using Dami.Contracts.Models;
 using Dami.Contracts.Privacy;
 using Dami.Contracts.Proactive;
 using Dami.Contracts.Sessions;
 using Dami.Core.Frontier;
+using Dami.Core.Gallery;
 using Dami.Core.Turns;
 using Dami.Gateway.Discord;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -127,6 +129,7 @@ public sealed class DiscordGatewayWorkerTests
         {
             var bundle = new FrontierToolBundle(
                 this.Images, this.Portraits, this.Recall, this.Remember, this.Scheduling,
+                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(),
                 NullLogger<FrontierToolBundle>.Instance);
             var vision = new DiscordVision(
                 this.Vision, this.Rest, this.Options, NullLogger<DiscordVision>.Instance);

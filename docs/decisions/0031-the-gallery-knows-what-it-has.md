@@ -58,9 +58,18 @@ thing: the Gallery knowing what each picture is. This is that thing.
   stop it. Captioning is capped per pass (`MaxCaptionsPerPass`, 40) because the vision
   model shares the card. Nothing it does leaves the host.
 - The `EightHourly` cadence now has two users; the 038 constraint already allows it.
-- What this unlocks, in the order planned: search and filters in the GUI, a `gallery`
-  tool in the bundle, "similar to this", edit-from-selected with a `derived_from` link
-  (the column exists and is unused), favourites and hidden (columns exist, no UI yet).
+- **Search landed the same day.** `GallerySearch` (Core) embeds the phrase, takes the
+  nearest captions from the index, and lets the TEI cross-encoder order them — the same
+  retrieval shape as memory, over pictures; if the reranker is down, cosine order stands.
+  `GET /gallery/search?q=` serves it; `GET /gallery` now carries caption, tags and source
+  beside each file. The GUI has a search box (Enter searches, empty Enter is the full
+  list again), shows the caption under every card, and the tags in the detail pane. The
+  frontier's bundle gains `find_pictures` (search, returns file names with dates and
+  captions) and `show_picture` (attaches an existing file) so "the balcony one" fetches
+  instead of generating.
+- Still to come on this index: source and favourite filters, "similar to this",
+  edit-from-selected with a `derived_from` link (the column exists and is unused),
+  favourites and hidden (columns exist, no UI yet).
 
 ## Reversal path
 

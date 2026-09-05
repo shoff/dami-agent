@@ -27,8 +27,14 @@ public static class ImageEndpoints
     private static void MapGallery(WebApplication app)
     {
         app.MapGet("/gallery", async (
-            ImageGallery gallery, CancellationToken cancellationToken) =>
-            Results.Ok(await gallery.ListAsync(cancellationToken).ConfigureAwait(false)));
+            GalleryCatalog catalog, CancellationToken cancellationToken) =>
+            Results.Ok(await catalog.ListAsync(cancellationToken).ConfigureAwait(false)));
+        app.MapGet("/gallery/search", async (
+            string q, int? limit, GalleryCatalog catalog, CancellationToken cancellationToken) =>
+            string.IsNullOrWhiteSpace(q)
+                ? Results.BadRequest(new { error = "q is required" })
+                : Results.Ok(await catalog.SearchAsync(q, Math.Clamp(limit ?? 12, 1, 60), cancellationToken)
+                    .ConfigureAwait(false)));
         app.MapGet("/gallery/{fileName}", (string fileName, ImageGallery gallery) =>
             gallery.Resolve(fileName) is { } path
                 ? Results.File(path, ContentType(path))

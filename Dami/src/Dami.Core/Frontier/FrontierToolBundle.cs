@@ -1,7 +1,10 @@
+using System.Globalization;
 using System.Text.Json;
 using Dami.Contracts.Context;
 using Dami.Contracts.Events;
+using Dami.Contracts.Gallery;
 using Dami.Contracts.Models;
+using Dami.Core.Gallery;
 using Microsoft.Extensions.Logging;
 
 namespace Dami.Core.Frontier;
@@ -22,6 +25,14 @@ public sealed class FrontierToolBundle
     /// <summary>The tool that draws anything else.</summary>
     public const string MAKE_IMAGE = "make_image";
 
+    /// <summary>The tool that searches the Gallery by what is in the pictures.</summary>
+    public const string FIND_PICTURES = "find_pictures";
+
+    /// <summary>The tool that attaches an existing Gallery picture.</summary>
+    public const string SHOW_PICTURE = "show_picture";
+
+    private const int FIND_LIMIT = 6;
+
     private const string ATTACHED =
         "The picture is attached to your reply automatically. Describe it in one short "
         + "line if you like; do not write a file name, path, or link.";
@@ -39,6 +50,18 @@ public sealed class FrontierToolBundle
             "Create a picture of anything that is not you: an object, a place, a diagram, an "
             + "illustration. " + ATTACHED,
             Schema("prompt", "What to draw, in one or two sentences.")),
+        new(
+            FIND_PICTURES,
+            "Search the Gallery of existing pictures of you by what is in them: setting, mood, "
+            + "wardrobe, activity, time of day, or when they were made. Use it before making a new "
+            + "picture when Steve asks for one that may already exist (\"the balcony one\", "
+            + "\"yesterday's\", \"that red dress\"). Returns file names with dates and captions.",
+            Schema("query", "A short search phrase describing the picture.")),
+        new(
+            SHOW_PICTURE,
+            "Attach an existing Gallery picture to your reply by its exact file name from "
+            + "find_pictures. " + ATTACHED,
+            Schema("fileName", "The file name exactly as find_pictures returned it.")),
     ];
 
     private readonly IImageGenerator images;
@@ -46,6 +69,8 @@ public sealed class FrontierToolBundle
     private readonly IFrontierRecall recall;
     private readonly IFrontierRemember remember;
     private readonly IFrontierScheduling scheduling;
+    private readonly IGallerySearch gallery;
+    private readonly IGalleryPictures pictures;
     private readonly IReadOnlyList<FrontierTool> tools;
     private readonly ILogger<FrontierToolBundle> logger;
 
@@ -56,6 +81,8 @@ public sealed class FrontierToolBundle
         IFrontierRecall recall,
         IFrontierRemember remember,
         IFrontierScheduling scheduling,
+        IGallerySearch gallery,
+        IGalleryPictures pictures,
         ILogger<FrontierToolBundle> logger)
     {
         ArgumentNullException.ThrowIfNull(images);
@@ -63,12 +90,16 @@ public sealed class FrontierToolBundle
         ArgumentNullException.ThrowIfNull(recall);
         ArgumentNullException.ThrowIfNull(remember);
         ArgumentNullException.ThrowIfNull(scheduling);
+        ArgumentNullException.ThrowIfNull(gallery);
+        ArgumentNullException.ThrowIfNull(pictures);
         ArgumentNullException.ThrowIfNull(logger);
         this.images = images;
         this.portraits = portraits;
         this.recall = recall;
         this.remember = remember;
         this.scheduling = scheduling;
+        this.gallery = gallery;
+        this.pictures = pictures;
         this.tools = [.. pictureTools, recall.Tool, remember.Tool, scheduling.ScheduleTool, scheduling.ConfirmTool];
         this.logger = logger;
     }
@@ -148,6 +179,8 @@ public sealed class FrontierToolBundle
                     this.channel, call.Arguments, cancellationToken),
                 ScheduleTools.CONFIRM => this.owner.scheduling.ConfirmAsync(
                     Argument(call, "draftId"), cancellationToken),
+                FIND_PICTURES => this.FindAsync(Argument(call, "query"), cancellationToken),
+                SHOW_PICTURE => this.ShowAsync(Argument(call, "fileName"), cancellationToken),
                 _ => Task.FromResult(FrontierToolResult.Failed($"there is no tool named {call.Tool}")),
             };
 
@@ -157,6 +190,34 @@ public sealed class FrontierToolBundle
             var image = await generate(cancellationToken).ConfigureAwait(false);
             this.pictures.Add(image);
             return FrontierToolResult.Ok($"Done: {image.FileName} is attached to your reply. {ATTACHED}");
+        }
+
+        private async Task<FrontierToolResult> FindAsync(string query, CancellationToken cancellationToken)
+        {
+            var hits = await this.owner.gallery.SearchAsync(query, FIND_LIMIT, cancellationToken).ConfigureAwait(false);
+            if (hits.Count == 0)
+            {
+                return FrontierToolResult.Ok("No Gallery picture matches that.");
+            }
+
+            var lines = hits.Select(hit =>
+                $"{hit.Entry.FileName} | {hit.Entry.CreatedAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)} | "
+                + (hit.Entry.Caption ?? hit.Entry.Prompt));
+            return FrontierToolResult.Ok(
+                "Matches, best first (file | made | what is in it):\n" + string.Join('\n', lines)
+                + $"\nCall {SHOW_PICTURE} with a file name to attach one.");
+        }
+
+        private async Task<FrontierToolResult> ShowAsync(string fileName, CancellationToken cancellationToken)
+        {
+            var picture = await this.owner.pictures.LoadAsync(fileName.Trim(), cancellationToken).ConfigureAwait(false);
+            if (picture is null)
+            {
+                return FrontierToolResult.Failed($"the Gallery has no picture named {fileName}");
+            }
+
+            this.pictures.Add(picture);
+            return FrontierToolResult.Ok($"Done: {picture.FileName} is attached to your reply. {ATTACHED}");
         }
 
         private static string Argument(FrontierToolCall call, string name)

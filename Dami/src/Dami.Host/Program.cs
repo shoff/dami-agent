@@ -164,6 +164,10 @@ builder.Services.Configure<ImageGalleryOptions>(
     builder.Configuration.GetSection(ImageGalleryOptions.SECTION_NAME));
 builder.Services.AddSingleton<ImageGallery>();
 builder.Services.AddSingleton<GalleryImageGenerator>();
+// ADR-0031: the Gallery's index, searched the way memory is, and its bytes behind a seam.
+builder.Services.AddSingleton<Dami.Core.Gallery.IGallerySearch, Dami.Core.Gallery.GallerySearch>();
+builder.Services.AddSingleton<Dami.Contracts.Gallery.IGalleryPictures, GalleryPictures>();
+builder.Services.AddSingleton<GalleryCatalog>();
 // Discord asks for pictures of Dami through this seam; the Gallery answers.
 builder.Services.AddSingleton<IPortraitGenerator, GalleryPortraits>();
 

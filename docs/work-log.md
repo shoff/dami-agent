@@ -10074,3 +10074,22 @@ assemblies (Proactive 250 → 263, Persistence 291 → 296). Proactive restaged;
 `sudo rsync … /opt/dami/proactive/` and `systemctl restart dami-proactive`. The old
 binary running now does not know the tables, so nothing breaks in the meantime.
 
+## 2026-09-05 — Claude — Gallery search, in the GUI and in the bundle (ADR-0031, amended)
+
+Steve: "ok deployed, go on search."
+
+**Built.** `GallerySearch` in Core (`IGallerySearch`): embed → `IGalleryIndex.NearestAsync`
+(3× the asked limit) → `IRerankClient` over caption/tags/prompt passages → top N; reranker
+failure keeps embedding order and logs. `IGalleryPictures` in Contracts (`GalleryPictures`
+in the Host over `ImageGallery.Resolve`). `GalleryCatalog` in the Host joins the folder
+listing to the index and serves search; `/gallery` now returns `GalleryCard` with caption,
+tags, source; `/gallery/search?q=&limit=` is new. `FrontierToolBundle` gains
+`find_pictures` and `show_picture` (bundle is eight tools). GUI: search box in the Gallery
+header, captions on cards, caption + tags in the detail pane, `GalleryImageCard` reads the
+optional fields.
+
+**Tests.** `GallerySearchTests` ×4, bundle find/show ×3, `GalleryCatalogTests` ×2,
+`GalleryPicturesTests` ×2, card mapping ×2; the worker, delivery and composition tests
+construct the wider bundle. Gate: 0 warnings, 0 errors, **1,684 passed** across 21
+assemblies. Host restaged; GUI installed via `tools/install-gui.sh`.
+

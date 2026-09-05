@@ -11,6 +11,7 @@ public sealed partial class MainWindow
 {
     private ListBox galleryList = null!;
     private TextBox galleryPrompt = null!;
+    private TextBox gallerySearch = null!;
     private Button galleryGenerate = null!;
     private Button galleryRefresh = null!;
     private Button galleryImport = null!;
@@ -20,6 +21,8 @@ public sealed partial class MainWindow
     {
         this.galleryList = Require<ListBox>(this, "GalleryList");
         this.galleryPrompt = Require<TextBox>(this, "GalleryPrompt");
+        this.gallerySearch = Require<TextBox>(this, "GallerySearch");
+        this.gallerySearch.KeyDown += this.OnGallerySearchKeyDown;
         this.galleryGenerate = Require<Button>(this, "GalleryGenerate");
         this.galleryRefresh = Require<Button>(this, "GalleryRefresh");
         this.galleryImport = Require<Button>(this, "GalleryImport");
@@ -39,6 +42,54 @@ public sealed partial class MainWindow
 
     private void OnGalleryGenerate(object? sender, RoutedEventArgs e) =>
         _ = this.GenerateGalleryImageAsync();
+
+    private void OnGallerySearchKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        var query = this.gallerySearch.Text?.Trim() ?? string.Empty;
+        _ = query.Length == 0 ? this.LoadGalleryAsync(announce: true) : this.SearchGalleryAsync(query);
+    }
+
+    /// <summary>Search by what is in the pictures (ADR-0031); an empty box is the full list again.</summary>
+    private async Task SearchGalleryAsync(string query)
+    {
+        this.state.GalleryMessage = $"searching for “{query}”…";
+        using var response = await this.runtime
+            .GetAsync("/gallery/search?q=" + Uri.EscapeDataString(query) + "&limit=24", this.lifetime.Token)
+            .ConfigureAwait(true);
+        if (response is null)
+        {
+            this.state.GalleryMessage = "The runtime did not answer /gallery/search.";
+            this.SetStatus(GlobalStatus.Failure(this.state.GalleryMessage));
+            return;
+        }
+
+        var items = await this.CardsAsync(response).ConfigureAwait(true);
+        Replace(this.state.GalleryImages, items);
+        this.galleryList.SelectedItem = items.FirstOrDefault();
+        this.state.SelectedGalleryImage = items.FirstOrDefault();
+        this.state.GalleryMessage = items.Count == 0
+            ? $"nothing matches “{query}” — the curator may not have captioned everything yet"
+            : $"{items.Count} match(es) for “{query}” · clear the box and press Enter for all";
+    }
+
+    private async Task<List<GalleryImageCard>> CardsAsync(System.Text.Json.JsonDocument response)
+    {
+        var items = new List<GalleryImageCard>();
+        foreach (var element in response.RootElement.EnumerateArray())
+        {
+            var item = GalleryImageCard.From(element);
+            item.Image = await this.LoadGalleryBitmapAsync(item.FileName).ConfigureAwait(true);
+            items.Add(item);
+        }
+
+        return items;
+    }
 
     private void OnGalleryRefresh(object? sender, RoutedEventArgs e) =>
         _ = this.LoadGalleryAsync(true);
@@ -72,14 +123,7 @@ public sealed partial class MainWindow
             return;
         }
 
-        var items = new List<GalleryImageCard>();
-        foreach (var element in response.RootElement.EnumerateArray())
-        {
-            var item = GalleryImageCard.From(element);
-            item.Image = await this.LoadGalleryBitmapAsync(item.FileName).ConfigureAwait(true);
-            items.Add(item);
-        }
-
+        var items = await this.CardsAsync(response).ConfigureAwait(true);
         this.ShowGallery(items);
         if (announce)
         {
