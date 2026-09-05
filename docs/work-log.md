@@ -10176,3 +10176,22 @@ database, bundle dispatch ×1; bundle count now eleven. Gate: 0 warnings, 0 erro
 **1,702 passed** across 21 assemblies. Host restaged. Not yet proven live — needs the
 restart, then the same photo again.
 
+## 2026-09-05 — Claude — Elasticsearch retention: 14 days by lifecycle, 50 GB by guard
+
+Steve: "set some pretty aggressive index retention policies in our elasticsearch no more
+than 50gb retained for now."
+
+**Found.** The whole observability stack had been stopped for three days (`Exited (0)` /
+`(143)` — an explicit stop, not a crash; `unless-stopped` honours that). Restarted it.
+Filebeat writes one *data stream* per day (`dami-runtime-YYYY.MM.dd`, backing index
+`.ds-…-000001`); 8 MB in total so far.
+
+**Age.** Cluster setting `data_streams.lifecycle.retention.default: 14d` (`max: 30d`) so
+every future daily stream inherits it without touching Filebeat's template; explicit `14d`
+lifecycle put on the existing streams. **Size.** `tools/observability/dami-es-retention`
+(hourly timer, `Persistent=true`): while `dami-runtime-*` backing indices exceed the cap,
+delete the oldest stream, never today's; `--dry-run`; `DAMI_ES_CAP_GB`. `test-retention.sh`
+drives it through a curl shim — and its first run caught my own fixture at exactly the
+cap (80 − 30 = 50 is *at* the cap, not over it), which is the boundary the script should
+stop on. Live: 8 MB, nothing to delete. Timer install needs sudo (README §Retention).
+

@@ -1,0 +1,13 @@
+# Dami Core - keep the local Elasticsearch runtime-log store under its size cap.
+#   sudo cp tools/observability/dami-es-retention /usr/local/bin/
+#   sudo cp tools/systemd/dami-es-retention.{service,timer} /etc/systemd/system/
+#   sudo systemctl enable --now dami-es-retention.timer
+[Unit]
+Description=Cap the Elasticsearch runtime-log store (dami-runtime-*) at 50 GB
+After=docker.service
+
+[Service]
+Type=oneshot
+User=steve
+Environment=DAMI_ES_CAP_GB=50
+ExecStart=/usr/local/bin/dami-es-retention

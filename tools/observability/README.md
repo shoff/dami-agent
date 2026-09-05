@@ -46,3 +46,35 @@ Stop it without deleting persisted data:
 ```bash
 docker compose -f tools/observability/docker-compose.yml stop
 ```
+
+## Retention
+
+Two limits, both deliberately tight for now:
+
+- **Age — 14 days**, enforced by Elasticsearch itself. Every `dami-runtime-*` data stream
+  carries a data stream lifecycle of `14d`, and the cluster default
+  (`data_streams.lifecycle.retention.default: 14d`, `max: 30d`) gives the same to every
+  new daily stream Filebeat creates. Check with
+  `curl -s 'http://127.0.0.1:9200/_data_stream/dami-runtime-*/_lifecycle?pretty'`.
+- **Size — 50 GB hard cap**, enforced by `dami-es-retention` on an hourly timer: while
+  the backing indices of `dami-runtime-*` total more than the cap, the oldest stream is
+  deleted, oldest first, never today's. `--dry-run` says what would go;
+  `DAMI_ES_CAP_GB` overrides the cap. `test-retention.sh` exercises it against a curl shim.
+
+Install the timer (the script has no sudo of its own):
+
+```bash
+sudo cp tools/observability/dami-es-retention /usr/local/bin/
+sudo cp tools/systemd/dami-es-retention.{service,timer} /etc/systemd/system/
+sudo systemctl enable --now dami-es-retention.timer
+```
+
+To re-apply the age policy after a rebuild of the stack:
+
+```bash
+curl -s -X PUT http://127.0.0.1:9200/_cluster/settings -H 'Content-Type: application/json' \
+  -d '{"persistent":{"data_streams.lifecycle.retention.default":"14d","data_streams.lifecycle.retention.max":"30d"}}'
+curl -s -X PUT 'http://127.0.0.1:9200/_data_stream/dami-runtime-*/_lifecycle' -H 'Content-Type: application/json' \
+  -d '{"data_retention":"14d"}'
+```
+

@@ -25,7 +25,7 @@ network, and that is deliberate — remote access is SSH first, then talk to loc
 | Embeddings | `127.0.0.1:8080` | `dami-embed` | `ghcr.io/huggingface/text-embeddings-inference:89-1.9.0` | `BAAI/bge-m3`, 1024 dims |
 | Reranker | `127.0.0.1:8081` | `dami-rerank` | same image | `BAAI/bge-reranker-v2-m3`, cross-encoder |
 | LLM sidecar | `127.0.0.1:11434` | `dami-llm` | `ollama/ollama:0.32.15` | `qwen3:8b` pulled |
-| Elasticsearch | `127.0.0.1:9200` | `dami-elasticsearch` | `docker.elastic.co/elasticsearch/elasticsearch:9.5.2` | local runtime-log index; data in `/home/steve/Data/dami-observability/elasticsearch` |
+| Elasticsearch | `127.0.0.1:9200` | `dami-elasticsearch` | `docker.elastic.co/elasticsearch/elasticsearch:9.5.2` | local runtime-log index; data in `/home/steve/Data/dami-observability/elasticsearch`; **retention 14 days by data stream lifecycle and a 50 GB hard cap by `dami-es-retention.timer`** (`tools/observability/README.md` §Retention) |
 | Kibana | `127.0.0.1:5601` | `dami-kibana` | `docker.elastic.co/kibana/kibana:9.5.2` | Discover data view `dami-runtime-*` |
 | Runtime log shipper | systemd journal → Elasticsearch | `dami-filebeat` | `docker.elastic.co/beats/filebeat:9.5.2` | reads only `dami-host.service` and `dami-proactive.service`; no published port |
 | pgAdmin | desktop app | — native | `pgadmin4-desktop 9.17` | the container was removed; do not recreate it |

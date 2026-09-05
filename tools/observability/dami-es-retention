@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Keeps the local Elasticsearch runtime-log store under a hard size cap.
+#
+# Age is Elasticsearch's job: every dami-runtime-* data stream carries a 14-day data
+# stream lifecycle, and the cluster default (data_streams.lifecycle.retention.default)
+# gives the same to any new daily stream Filebeat creates. Size is this script's job,
+# because a lifecycle cannot count bytes: while the backing indices of dami-runtime-*
+# total more than the cap, the oldest stream is deleted, oldest first, until they do not.
+#
+#   dami-es-retention              enforce (default cap 50 GB)
+#   dami-es-retention --dry-run    say what would go, delete nothing
+#   DAMI_ES_CAP_GB=20 dami-es-retention
+#
+# Loopback only, no auth: the stack is a local diagnostic (tools/observability/README.md).
+# Source of truth: tools/observability/ in the dami-agent repository.
+set -euo pipefail
+
+ES="${DAMI_ES_URL:-http://127.0.0.1:9200}"
+CAP_GB="${DAMI_ES_CAP_GB:-50}"
+DRY_RUN=0
+[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
+
+cap_bytes=$((CAP_GB * 1024 * 1024 * 1024))
+
+# One line per backing index: "<stream> <bytes>", oldest stream first. The stream name
+# carries its day (dami-runtime-2026.09.05), so lexical order is date order.
+listing() {
+    curl -sf -m 10 "$ES/_cat/indices/.ds-dami-runtime-*?h=index,store.size&bytes=b" \
+        | awk '{ name=$1; sub(/^\.ds-/, "", name); sub(/-[0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9]+$/, "", name); print name, $2 }' \
+        | sort
+}
+
+if ! rows=$(listing); then
+    echo "dami-es-retention: elasticsearch at $ES did not answer; nothing done" >&2
+    exit 0     # a stopped stack is not this guard's problem
+fi
+
+total=$(printf '%s\n' "$rows" | awk '{ t += $2 } END { print t + 0 }')
+echo "dami-es-retention: $((total / 1024 / 1024)) MB in dami-runtime-*; cap $CAP_GB GB"
+
+if (( total <= cap_bytes )); then
+    exit 0
+fi
+
+# Sum per stream, oldest first; delete until under the cap. Never the newest stream:
+# that is today's, and Filebeat is writing into it.
+newest=$(printf '%s\n' "$rows" | awk '{ print $1 }' | sort -u | tail -n 1)
+printf '%s\n' "$rows" | awk '{ s[$1] += $2 } END { for (k in s) print k, s[k] }' | sort \
+| while read -r stream bytes; do
+    (( total <= cap_bytes )) && break
+    [[ "$stream" == "$newest" ]] && break
+    if (( DRY_RUN )); then
+        echo "dami-es-retention: would delete $stream ($((bytes / 1024 / 1024)) MB)"
+    else
+        curl -sf -m 30 -X DELETE "$ES/_data_stream/$stream" > /dev/null
+        echo "dami-es-retention: deleted $stream ($((bytes / 1024 / 1024)) MB)"
+    fi
+    total=$((total - bytes))
+done
