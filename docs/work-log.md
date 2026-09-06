@@ -10415,3 +10415,26 @@ the original — the service knows who it is talking to. The caption line now re
 attached to this message, described locally:". Tests for the mask, the longer-name case,
 and the prefix. Gate: 0 warnings, 0 errors, **1,765 passed**. Both tiers restaged.
 
+## 2026-09-06 — Claude — Sixth attempt logged the set; then why she sounded like a receipt (ADR-0034)
+
+Steve: "deployed, sent the photo again, what did the journal say. Also previously, Dami …
+was WAY more personal … This current agent we've created feels sterile, corporate."
+
+**The set logged.** 15:37: caption right, 27 sent / 4 disguised / 5 withheld, `log_sets`
+ok, reply "Logged: Hammer Strength biceps curl — 4×12 at 110 lb, RPE 7. Try 115 lb next
+time." First live write from a photo since the migration.
+
+**Why sterile — three things in the code.** The frontier got three sentences of persona
+while the identity file went to the local model; the `log_sets` description said "confirm
+in one short line". The exercise was minted as a new name beside seven curl entries, so
+there was no history and "115 lb" was a guess. The gate withheld the heart condition, the
+anticoagulant and the recent hospitalization on a gym turn. Steve: "make it so" on all
+three, the third being his D-012 call.
+
+**Done.** `FrontierVoice` = identity file + persona. `FitnessHistory` (Contracts, pure):
+known names most-recent first, exact-after-squash resolve, last three sessions and the
+best before today. `log_sets` is built per turn with the names (`ForTurnAsync`) and returns
+the history; its description asks for a comparison with numbers and a question about how
+he feels when the weight drops or the RPE climbs. One gate rule added. ADR-0034. Gate: 0
+warnings, 0 errors, **1,774 passed** (Core 300 → 309). Both tiers restaged.
+

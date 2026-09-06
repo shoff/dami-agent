@@ -54,7 +54,7 @@ public sealed class DiscordScheduledDeliveryTests
         scheduling.ScheduleTool.Returns(new FrontierTool("schedule", "s", schema));
         scheduling.ConfirmTool.Returns(new FrontierTool("confirm_schedule", "c", schema));
         var fitness = Substitute.For<IFrontierFitness>();
-        fitness.SetsTool.Returns(new FrontierTool("log_sets", "l", schema));
+        fitness.SetsToolAsync(Arg.Any<CancellationToken>()).Returns(new FrontierTool("log_sets", "l", schema));
         fitness.CardioTool.Returns(new FrontierTool("log_cardio", "l", schema));
         var research = Substitute.For<IFrontierResearch>();
         research.SearchTool.Returns(new FrontierTool("search_web", "s", schema));

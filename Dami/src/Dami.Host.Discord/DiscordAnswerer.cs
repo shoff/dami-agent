@@ -198,7 +198,8 @@ public sealed class DiscordAnswerer
         Guid traceId,
         CancellationToken cancellationToken)
     {
-        var tools = this.bundle.ForTurn(traceId, DeliveryFor(conversationId));
+        var tools = await this.bundle.ForTurnAsync(traceId, DeliveryFor(conversationId), cancellationToken)
+            .ConfigureAwait(false);
         var stream = await this.augmented
             .StreamAsync(question, localContext, tools.Toolbox, cancellationToken).ConfigureAwait(false);
         var answer = await this.replyStreamer

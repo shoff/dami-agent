@@ -715,6 +715,13 @@ evicted it); the gate had no exception handling. Guard now samples twice 30 s ap
 fails closed, and the bundle gains `log_sets`/`log_cardio` writing to the fitness tables with
 a vision prompt that reads machine labels and displays. Staged, not yet proven live. 1,702 tests.
 
+**The frontier reads the identity file; gym turns are health questions (ADR-0034,
+2026-09-06, signed by Steve).** `FrontierVoice` is the whole identity file plus the persona.
+`log_sets` names the exercises the log already uses and returns the last sessions and the
+best, so the reply compares with numbers. The gate disguises the heart condition, the
+anticoagulant and recent hospitalizations on training turns instead of withholding them.
+1,774 tests.
+
 **Research egress (ADR-0033, 2026-09-05, signed by Steve).** A private SearXNG on loopback, a
 public-only page reader as a new egress seam (private addresses refused by resolution, GET
 only, capped, metered, recorded), `search_web`/`read_page` in the bundle with the query

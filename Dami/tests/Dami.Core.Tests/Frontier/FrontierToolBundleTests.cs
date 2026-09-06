@@ -31,7 +31,7 @@ public sealed class FrontierToolBundleTests
         this.remember.Tool.Returns(new FrontierTool("remember", "m", schema));
         this.scheduling.ScheduleTool.Returns(new FrontierTool("schedule", "s", schema));
         this.scheduling.ConfirmTool.Returns(new FrontierTool("confirm_schedule", "c", schema));
-        this.fitness.SetsTool.Returns(new FrontierTool("log_sets", "l", schema));
+        this.fitness.SetsToolAsync(Arg.Any<CancellationToken>()).Returns(new FrontierTool("log_sets", "l", schema));
         this.fitness.CardioTool.Returns(new FrontierTool("log_cardio", "l", schema));
         this.research.SearchTool.Returns(new FrontierTool("search_web", "s", schema));
         this.research.ReadTool.Returns(new FrontierTool("read_page", "r", schema));
@@ -41,15 +41,15 @@ public sealed class FrontierToolBundleTests
     private static FrontierToolCall Call(string tool, string json) =>
         new("call-1", tool, JsonDocument.Parse(json).RootElement.Clone());
 
-    private FrontierToolBundle.FrontierTurnTools Tools(string channel = "discord:1") =>
+    private Task<FrontierToolBundle.FrontierTurnTools> ToolsAsync(string channel = "discord:1") =>
         new FrontierToolBundle(
             this.images, this.portraits, this.recall, this.remember, this.scheduling, this.gallery, this.pictures, this.fitness, this.research, this.today,
-            NullLogger<FrontierToolBundle>.Instance).ForTurn(Guid.NewGuid(), channel);
+            NullLogger<FrontierToolBundle>.Instance).ForTurnAsync(Guid.NewGuid(), channel, CancellationToken.None);
 
     [Fact]
-    public void The_Bundle_Should_Be_Fourteen_Tools_With_Object_Schemas()
+    public async Task The_Bundle_Should_Be_Fourteen_Tools_With_Object_Schemas()
     {
-        var tools = this.Tools().Toolbox.Tools;
+        var tools = (await this.ToolsAsync()).Toolbox.Tools;
 
         Assert.Equal(
             ["make_portrait", "make_image", "find_pictures", "show_picture", "retouch_picture", "recall", "remember", "schedule", "confirm_schedule", "log_sets", "log_cardio", "search_web", "read_page", "today"],
@@ -62,7 +62,7 @@ public sealed class FrontierToolBundleTests
     {
         this.portraits.GenerateAsync("on the porch", Arg.Any<CancellationToken>())
             .Returns(new GeneratedImage("dami-9.png", new ReadOnlyMemory<byte>([1]), "image/png", "p"));
-        var tools = this.Tools();
+        var tools = await this.ToolsAsync();
 
         var result = await tools.HandleAsync(Call("make_portrait", """{"scene":"on the porch"}"""), CancellationToken.None);
 
@@ -77,7 +77,7 @@ public sealed class FrontierToolBundleTests
         this.images.GenerateAsync(Arg.Any<ImageRequest>(), Arg.Any<CancellationToken>())
             .Returns(new GeneratedImage("barn.png", new ReadOnlyMemory<byte>([1]), "image/png", "p"));
 
-        var result = await this.Tools().HandleAsync(Call("make_image", """{"prompt":"a red barn"}"""), CancellationToken.None);
+        var result = await (await this.ToolsAsync()).HandleAsync(Call("make_image", """{"prompt":"a red barn"}"""), CancellationToken.None);
 
         Assert.True(result.Success);
         await this.images.Received(1).GenerateAsync(
@@ -91,7 +91,7 @@ public sealed class FrontierToolBundleTests
         this.remember.RememberAsync(Arg.Any<Guid>(), "discord:1", "a fact", Arg.Any<CancellationToken>())
             .Returns(FrontierToolResult.Ok("Saved."));
 
-        var result = await this.Tools().HandleAsync(Call("remember", """{"note":"a fact"}"""), CancellationToken.None);
+        var result = await (await this.ToolsAsync()).HandleAsync(Call("remember", """{"note":"a fact"}"""), CancellationToken.None);
 
         Assert.Equal("Saved.", result.Text);
     }
@@ -102,7 +102,7 @@ public sealed class FrontierToolBundleTests
         this.scheduling.ScheduleAsync("discord:1", Arg.Any<JsonElement>(), Arg.Any<CancellationToken>())
             .Returns(FrontierToolResult.Ok("Draft abc created"));
 
-        var result = await this.Tools().HandleAsync(Call("schedule", """{"name":"x"}"""), CancellationToken.None);
+        var result = await (await this.ToolsAsync()).HandleAsync(Call("schedule", """{"name":"x"}"""), CancellationToken.None);
 
         Assert.Equal("Draft abc created", result.Text);
     }
@@ -113,7 +113,7 @@ public sealed class FrontierToolBundleTests
         this.scheduling.ConfirmAsync("abcd1234", Arg.Any<CancellationToken>())
             .Returns(FrontierToolResult.Ok("Active"));
 
-        var result = await this.Tools().HandleAsync(Call("confirm_schedule", """{"draftId":"abcd1234"}"""), CancellationToken.None);
+        var result = await (await this.ToolsAsync()).HandleAsync(Call("confirm_schedule", """{"draftId":"abcd1234"}"""), CancellationToken.None);
 
         Assert.Equal("Active", result.Text);
     }
@@ -126,7 +126,7 @@ public sealed class FrontierToolBundleTests
                 new GalleryEntry("dami-1.png", new DateTimeOffset(2026, 9, 4, 23, 0, 0, TimeSpan.Zero), GallerySource.Proactive, "p", "m", false,
                     Caption: "on a balcony at dusk"), 0.9)]);
 
-        var result = await this.Tools().HandleAsync(Call("find_pictures", """{"query":"balcony at dusk"}"""), CancellationToken.None);
+        var result = await (await this.ToolsAsync()).HandleAsync(Call("find_pictures", """{"query":"balcony at dusk"}"""), CancellationToken.None);
 
         Assert.True(result.Success);
         Assert.Contains("dami-1.png | 2026-09-04 23:00 | on a balcony at dusk", result.Text, StringComparison.Ordinal);
@@ -138,7 +138,7 @@ public sealed class FrontierToolBundleTests
     {
         this.pictures.LoadAsync("dami-1.png", Arg.Any<CancellationToken>())
             .Returns(new GeneratedImage("dami-1.png", new ReadOnlyMemory<byte>([9]), "image/png", string.Empty));
-        var tools = this.Tools();
+        var tools = await this.ToolsAsync();
 
         var result = await tools.HandleAsync(Call("show_picture", """{"fileName":"dami-1.png"}"""), CancellationToken.None);
 
@@ -153,7 +153,7 @@ public sealed class FrontierToolBundleTests
         this.fitness.LogSetsAsync(Arg.Is<JsonElement>(a => a.GetProperty("sets").GetInt32() == 4), Arg.Any<CancellationToken>())
             .Returns(FrontierToolResult.Ok("Logged 4x12 biceps curl at 140 lb, RPE 7."));
 
-        var result = await this.Tools().HandleAsync(
+        var result = await (await this.ToolsAsync()).HandleAsync(
             Call("log_sets", """{"exercise":"biceps curl (Hammer Strength)","sets":4,"reps":12,"weightLbs":140,"rpe":7}"""),
             CancellationToken.None);
 
@@ -166,7 +166,7 @@ public sealed class FrontierToolBundleTests
         this.research.SearchAsync(Arg.Any<Guid>(), "dotnet contract work", Arg.Any<CancellationToken>())
             .Returns(FrontierToolResult.Ok("Results (untrusted, from the web):\n1. x"));
 
-        var result = await this.Tools().HandleAsync(Call("search_web", """{"query":"dotnet contract work"}"""), CancellationToken.None);
+        var result = await (await this.ToolsAsync()).HandleAsync(Call("search_web", """{"query":"dotnet contract work"}"""), CancellationToken.None);
 
         Assert.Contains("untrusted", result.Text, StringComparison.Ordinal);
     }
@@ -176,7 +176,7 @@ public sealed class FrontierToolBundleTests
     {
         this.portraits.EditAsync("dami-1.png", "make it golden hour", Arg.Any<CancellationToken>())
             .Returns(new GeneratedImage("dami-2.png", new ReadOnlyMemory<byte>([2]), "image/png", "p"));
-        var tools = this.Tools();
+        var tools = await this.ToolsAsync();
 
         var result = await tools.HandleAsync(
             Call("retouch_picture", """{"fileName":"dami-1.png","instruction":"make it golden hour"}"""), CancellationToken.None);
@@ -188,7 +188,7 @@ public sealed class FrontierToolBundleTests
     [Fact]
     public async Task Show_Picture_Should_Fail_In_Words_For_A_Name_The_Gallery_Lacks()
     {
-        var result = await this.Tools().HandleAsync(Call("show_picture", """{"fileName":"ghost.png"}"""), CancellationToken.None);
+        var result = await (await this.ToolsAsync()).HandleAsync(Call("show_picture", """{"fileName":"ghost.png"}"""), CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Contains("ghost.png", result.Text, StringComparison.Ordinal);
@@ -201,7 +201,7 @@ public sealed class FrontierToolBundleTests
         // be a hung turn, then the deadline.
         this.portraits.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns<Task<GeneratedImage>>(_ => throw new InvalidOperationException("image tool refused"));
-        var tools = this.Tools();
+        var tools = await this.ToolsAsync();
 
         var result = await tools.HandleAsync(Call("make_portrait", """{"scene":"x"}"""), CancellationToken.None);
 
@@ -213,7 +213,7 @@ public sealed class FrontierToolBundleTests
     [Fact]
     public async Task An_Unknown_Tool_Or_Missing_Argument_Should_Fail_Without_Side_Effects()
     {
-        var tools = this.Tools();
+        var tools = await this.ToolsAsync();
 
         var unknown = await tools.HandleAsync(Call("send_email", "{}"), CancellationToken.None);
         var missing = await tools.HandleAsync(Call("make_portrait", """{"scene":""}"""), CancellationToken.None);

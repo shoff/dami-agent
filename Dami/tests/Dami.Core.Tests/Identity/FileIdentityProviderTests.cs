@@ -34,11 +34,24 @@ public sealed class FileIdentityProviderTests
     }
 
     [Fact]
-    public void FrontierVoice_Should_Name_No_One_But_Dami()
+    public void FrontierVoice_Should_Carry_The_Whole_Identity_File()
     {
-        var provider = CreateProvider("/nonexistent/dami-identity.md");
+        // 2026-09-06: the frontier had been getting three sentences while the charter went
+        // to the local model; Steve called the result "sterile, corporate". The model that
+        // talks reads the identity. (ADR-0032: it already knows his first name.)
+        var path = Path.Combine(Path.GetTempPath(), $"dami-identity-{Guid.NewGuid():N}.md");
+        File.WriteAllText(path, "You are Dami. Tenderness — be gentle when you have the power not to be.\n");
+        try
+        {
+            var provider = CreateProvider(path);
 
-        Assert.DoesNotContain("Steve", provider.FrontierVoice, StringComparison.OrdinalIgnoreCase);
+            Assert.StartsWith("You are Dami. Tenderness", provider.FrontierVoice, StringComparison.Ordinal);
+            Assert.Contains("talking with Steve himself", provider.FrontierVoice, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]

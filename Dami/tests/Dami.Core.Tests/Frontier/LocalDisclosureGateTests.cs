@@ -94,6 +94,20 @@ public sealed class LocalDisclosureGateTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_Should_Tell_The_Gate_A_Gym_Turn_Is_A_Health_Question()
+    {
+        // ADR-0034, signed 2026-09-06: on a training turn the heart condition, the
+        // anticoagulant and a recent hospitalization are disguised, not withheld.
+        this.Says("""[{"n":1,"action":"pass","why":"fine"}]""");
+
+        await this.ClassifyAsync("4x12 110lbs RPE 7");
+
+        var prompt = (string)this.chatClient.ReceivedCalls().Single().GetArguments()[0]!;
+        Assert.Contains("any training question is a health question", prompt, StringComparison.Ordinal);
+        Assert.Contains("DISGUISE them so the advice can account for them", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ClassifyAsync_Should_Name_A_Truncated_Reply_And_Withhold()
     {
         // 2026-09-06 14:55: 36 items, the reply hit the token ceiling mid-array, and the

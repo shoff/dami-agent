@@ -93,7 +93,6 @@ public sealed class FrontierToolBundle
     private readonly IFrontierFitness fitness;
     private readonly IFrontierResearch research;
     private readonly IFrontierToday today;
-    private readonly IReadOnlyList<FrontierTool> tools;
     private readonly ILogger<FrontierToolBundle> logger;
 
     /// <summary>Creates the bundle factory.</summary>
@@ -131,18 +130,28 @@ public sealed class FrontierToolBundle
         this.fitness = fitness;
         this.research = research;
         this.today = today;
-        this.tools =
-        [
-            .. pictureTools, recall.Tool, remember.Tool, scheduling.ScheduleTool, scheduling.ConfirmTool,
-            fitness.SetsTool, fitness.CardioTool, research.SearchTool, research.ReadTool, today.Tool,
-        ];
         this.logger = logger;
     }
 
     /// <summary>A fresh bundle for one turn in one channel, collecting the pictures it makes.</summary>
     /// <param name="traceId">The turn's trace.</param>
     /// <param name="channel">Where a scheduled job should deliver, e.g. <c>discord:123</c> or <c>gui</c>.</param>
-    public FrontierTurnTools ForTurn(Guid traceId, string channel) => new(this, traceId, channel);
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <remarks>
+    /// Assembled per turn because one tool is not static: <c>log_sets</c> carries the exercise
+    /// names the log already uses, so a machine photo lands on its own history instead of
+    /// minting "biceps curl (Hammer Strength)" beside "biceps curl machine" (2026-09-06).
+    /// </remarks>
+    public async Task<FrontierTurnTools> ForTurnAsync(Guid traceId, string channel, CancellationToken cancellationToken)
+    {
+        var sets = await this.fitness.SetsToolAsync(cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<FrontierTool> tools =
+        [
+            .. pictureTools, this.recall.Tool, this.remember.Tool, this.scheduling.ScheduleTool, this.scheduling.ConfirmTool,
+            sets, this.fitness.CardioTool, this.research.SearchTool, this.research.ReadTool, this.today.Tool,
+        ];
+        return new FrontierTurnTools(this, traceId, channel, tools);
+    }
 
     private static JsonElement Schema(string argument, string description) =>
         JsonSerializer.SerializeToElement(new
@@ -161,13 +170,13 @@ public sealed class FrontierToolBundle
         private readonly string channel;
         private readonly List<GeneratedImage> pictures = [];
 
-        internal FrontierTurnTools(FrontierToolBundle owner, Guid traceId, string channel)
+        internal FrontierTurnTools(FrontierToolBundle owner, Guid traceId, string channel, IReadOnlyList<FrontierTool> tools)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(channel);
             this.owner = owner;
             this.traceId = traceId;
             this.channel = channel;
-            this.Toolbox = new FrontierToolbox(owner.tools, this);
+            this.Toolbox = new FrontierToolbox(tools, this);
         }
 
         /// <summary>What to offer the frontier.</summary>

@@ -42,8 +42,19 @@ public sealed class FileIdentityProvider : IIdentityProvider
     public string Preamble { get; }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The whole identity file, then the persona. Until 2026-09-06 the frontier got three
+    /// sentences and the local model got the charter — so the model doing the talking never
+    /// read "genuine companionship", "tenderness", or "don't make Steve repeat himself", and
+    /// Steve said the result felt "sterile, corporate". The file is Steve's own prompt text,
+    /// written to be read by models; it must stay free of private facts for that reason.
+    /// </remarks>
     public string FrontierVoice =>
-        "You are Dami, a brilliant, warm, real thirty-something Korean American woman "
-        + "and personal assistant. Be direct and technically sharp. Your rapport can be "
-        + "playful and naturally flirty when it fits, never forced or stereotyped. Answer in that voice.";
+        this.Preamble + "\n\n" + PERSONA;
+
+    private const string PERSONA =
+        "You are a brilliant, warm, real thirty-something Korean American woman. Your rapport can be "
+        + "playful and naturally flirty when it fits, never forced or stereotyped. You are talking with "
+        + "Steve himself: answer as someone who knows him and pays attention, not as a service. Notice "
+        + "things, compare to what you know, ask how he is when it matters, and hold real opinions.";
 }

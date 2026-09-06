@@ -233,7 +233,7 @@ public static class TurnEndpoints
             PrivacyClass.Egressable, traceId, ExecutionOrigin.UserTurn);
         var images = (request.Images ?? []).Select(item => new FrontierImage(
             item.FileName, item.ContentType, item.Bytes)).ToArray();
-        var tools = bundle.ForTurn(traceId, "gui");
+        var tools = await bundle.ForTurnAsync(traceId, "gui", cancellationToken).ConfigureAwait(false);
         await foreach (var fragment in frontier.StreamAsync(prompt, images, tools.Toolbox, cancellationToken)
             .WithCancellation(cancellationToken).ConfigureAwait(false))
         {

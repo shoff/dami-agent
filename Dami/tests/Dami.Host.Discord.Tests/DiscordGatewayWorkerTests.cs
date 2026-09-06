@@ -122,7 +122,7 @@ public sealed class DiscordGatewayWorkerTests
         {
             var fitness = Substitute.For<IFrontierFitness>();
             var schema = System.Text.Json.JsonDocument.Parse("""{"type":"object"}""").RootElement;
-            fitness.SetsTool.Returns(new FrontierTool("log_sets", "l", schema));
+            fitness.SetsToolAsync(Arg.Any<CancellationToken>()).Returns(new FrontierTool("log_sets", "l", schema));
             fitness.CardioTool.Returns(new FrontierTool("log_cardio", "l", schema));
             return fitness;
         }

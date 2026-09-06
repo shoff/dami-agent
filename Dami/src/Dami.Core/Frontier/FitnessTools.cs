@@ -15,8 +15,8 @@ namespace Dami.Core.Frontier;
 /// </remarks>
 public interface IFrontierFitness
 {
-    /// <summary>The resistance tool.</summary>
-    FrontierTool SetsTool { get; }
+    /// <summary>The resistance tool for one turn, naming the exercises the log already uses.</summary>
+    Task<FrontierTool> SetsToolAsync(CancellationToken cancellationToken);
 
     /// <summary>The cardio tool.</summary>
     FrontierTool CardioTool { get; }
@@ -39,12 +39,42 @@ public sealed class FitnessTools : IFrontierFitness
 
     private const string SOURCE = "claude_chat";
 
+    private const string SETS_DESCRIPTION =
+        "Record sets of one exercise in Steve's workout log. Use it whenever he reports lifting — a "
+        + "photo of a machine or rack with a line like '4x12 140 lbs RPE 7', or just the words. Take "
+        + "the exercise name from the machine or his words. '4x12' means 4 sets of 12 reps; weight is "
+        + "in pounds unless he says kg; RPE is 1–10. Log each exercise separately. The result tells "
+        + "you what the log already held on that exercise: compare today to it with the numbers, say "
+        + "whether it is a best, and if the weight dropped or the RPE climbed, ask how he is feeling. "
+        + "Two or three sentences in your own voice, not a receipt.";
+
+    private static readonly TimeSpan knownExercisesFor = TimeSpan.FromMinutes(5);
+
+    private static readonly JsonElement setsSchema = JsonSerializer.SerializeToElement(new
+    {
+        type = "object",
+        properties = new
+        {
+            exercise = new { type = "string", description = "Exercise or machine name." },
+            sets = new { type = "integer", description = "Number of sets." },
+            reps = new { type = "integer", description = "Reps per set." },
+            weightLbs = new { type = "number", description = "Weight per set in pounds." },
+            rpe = new { type = "integer", description = "Rate of perceived exertion, 1–10, if given." },
+            muscleGroup = new { type = "string", description = "Primary muscle group, if obvious." },
+            equipment = new { type = "string", description = "barbell, dumbbell, cable, machine, bodyweight, kettlebell, band, or other." },
+            notes = new { type = "string", description = "Anything else he said." },
+        },
+        required = new[] { "exercise", "sets", "reps" },
+        additionalProperties = false,
+    });
+
     private static readonly string[] modalities =
         ["treadmill", "elliptical", "rowing", "cycling", "walking", "swimming", "sauna", "yard_work", "other_cardio"];
 
     private readonly IFitnessStore store;
     private readonly TimeProvider clock;
     private readonly ILogger<FitnessTools> logger;
+    private (IReadOnlyList<string> Names, DateTimeOffset At)? knownExercises;
 
     /// <summary>Creates the tools.</summary>
     public FitnessTools(IFitnessStore store, TimeProvider clock, ILogger<FitnessTools> logger)
@@ -58,30 +88,15 @@ public sealed class FitnessTools : IFrontierFitness
     }
 
     /// <inheritdoc />
-    public FrontierTool SetsTool { get; } = new(
-        LOG_SETS,
-        "Record sets of one exercise in Steve's workout log. Use it whenever he reports lifting — a "
-        + "photo of a machine or rack with a line like '4x12 140 lbs RPE 7', or just the words. Take "
-        + "the exercise name from the machine or his words (e.g. 'biceps curl (Hammer Strength)'). "
-        + "'4x12' means 4 sets of 12 reps; weight is in pounds unless he says kg; RPE is 1–10. Log "
-        + "each exercise separately. Confirm in one short line what you logged.",
-        JsonSerializer.SerializeToElement(new
-        {
-            type = "object",
-            properties = new
-            {
-                exercise = new { type = "string", description = "Exercise or machine name." },
-                sets = new { type = "integer", description = "Number of sets." },
-                reps = new { type = "integer", description = "Reps per set." },
-                weightLbs = new { type = "number", description = "Weight per set in pounds." },
-                rpe = new { type = "integer", description = "Rate of perceived exertion, 1–10, if given." },
-                muscleGroup = new { type = "string", description = "Primary muscle group, if obvious." },
-                equipment = new { type = "string", description = "barbell, dumbbell, cable, machine, bodyweight, kettlebell, band, or other." },
-                notes = new { type = "string", description = "Anything else he said." },
-            },
-            required = new[] { "exercise", "sets", "reps" },
-            additionalProperties = false,
-        }));
+    public async Task<FrontierTool> SetsToolAsync(CancellationToken cancellationToken)
+    {
+        var known = await this.KnownExercisesAsync(cancellationToken).ConfigureAwait(false);
+        var names = known.Count == 0
+            ? string.Empty
+            : " Exercises already in his log — when the machine is one of these use this exact spelling, "
+              + "so today lands on its history: " + string.Join("; ", known) + ".";
+        return new FrontierTool(LOG_SETS, SETS_DESCRIPTION + names, setsSchema);
+    }
 
     /// <inheritdoc />
     public FrontierTool CardioTool { get; } = new(
@@ -119,34 +134,61 @@ public sealed class FitnessTools : IFrontierFitness
             throw new ArgumentException($"{count} sets is not a workout");
         }
 
+        var requested = Text(arguments, "exercise") ?? throw new ArgumentException("the tool needs 'exercise'");
+        var known = await this.KnownExercisesAsync(cancellationToken).ConfigureAwait(false);
         var set = new FitnessSetEntry((short)reps, Number(arguments, "weightLbs"), (short?)Int(arguments, "rpe"));
         var entry = new FitnessResistanceEntry(
-            this.clock.GetUtcNow(), Text(arguments, "exercise") ?? throw new ArgumentException("the tool needs 'exercise'"),
+            this.clock.GetUtcNow(), FitnessHistory.Resolve(known, requested),
             Enumerable.Repeat(set, count).ToList(), SOURCE,
             Text(arguments, "muscleGroup"), Equipment(Text(arguments, "equipment")), Text(arguments, "notes"));
         var id = await this.store.RecordResistanceAsync(entry, cancellationToken).ConfigureAwait(false);
+        this.knownExercises = null;
         this.logger.LogInformation("Logged {Sets}x{Reps} {Exercise} as {Id}", count, reps, entry.Exercise, id);
         var weight = set.WeightLbs is { } lbs ? $" at {lbs.ToString("0.#", CultureInfo.InvariantCulture)} lb" : string.Empty;
         var rpe = set.Rpe is { } r ? $", RPE {r}" : string.Empty;
-        var noticed = await this.NoticedAsync(entry.Exercise, cancellationToken).ConfigureAwait(false);
-        return FrontierToolResult.Ok($"Logged {count}x{reps} {entry.Exercise}{weight}{rpe}.{noticed}");
+        var history = await this.HistoryAsync(entry.Exercise, id, cancellationToken).ConfigureAwait(false);
+        return FrontierToolResult.Ok($"Logged {count}x{reps} {entry.Exercise}{weight}{rpe}.{history}");
     }
 
-    /// <summary>What the log now says about this exercise — a record, a plateau, a next weight — for the reply.</summary>
-    private async Task<string> NoticedAsync(string exercise, CancellationToken cancellationToken)
+    /// <summary>The names the log already uses, read at most every few minutes; empty when it cannot be read.</summary>
+    private async Task<IReadOnlyList<string>> KnownExercisesAsync(CancellationToken cancellationToken)
+    {
+        var now = this.clock.GetUtcNow();
+        if (this.knownExercises is { } cached && now - cached.At < knownExercisesFor)
+        {
+            return cached.Names;
+        }
+
+        try
+        {
+            var snapshot = await this.store.SnapshotAsync(cancellationToken).ConfigureAwait(false);
+            var names = FitnessHistory.KnownExercises(snapshot);
+            this.knownExercises = (names, now);
+            return names;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            this.logger.LogWarning(exception, "Could not read the exercise names from the log");
+            return [];
+        }
+    }
+
+    /// <summary>What the log held on this exercise before today, then what it now notices; a courtesy, never a failure.</summary>
+    private async Task<string> HistoryAsync(string exercise, Guid justLogged, CancellationToken cancellationToken)
     {
         try
         {
             var snapshot = await this.store.SnapshotAsync(cancellationToken).ConfigureAwait(false);
+            var before = FitnessHistory.Describe(snapshot, exercise, justLogged);
             var insights = FitnessInsights.ForExercise(snapshot, exercise, this.clock.GetUtcNow());
-            return insights.Count == 0
+            var noticed = insights.Count == 0
                 ? string.Empty
                 : " Noticed (say this to Steve, with the numbers): " + string.Join(' ', insights.Select(insight => insight.Text));
+            return $" {before}{noticed}";
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            // The set is recorded; the commentary is a courtesy.
-            this.logger.LogWarning(exception, "Could not read the log back for insights");
+            this.logger.LogWarning(exception, "Could not read the log back for history");
             return string.Empty;
         }
     }

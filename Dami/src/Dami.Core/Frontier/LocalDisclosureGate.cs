@@ -303,6 +303,10 @@ public sealed class DisclosureOptions
         "Health facts about the user may be DISGUISED when the question needs them; "
             + "the clinical detail matters, the identity does not.",
         "Health or personal facts about OTHER people are withheld, not disguised.",
+        "A gym log line like '4x12 110 lbs RPE 7', a machine photo, or any training question is a "
+            + "health question: the user's heart condition, anticoagulant, and any hospitalization in "
+            + "the last two months bear on it — DISGUISE them so the advice can account for them; "
+            + "do not withhold them.",
         "Technical facts about code, tools, and public knowledge pass.",
     ];
 

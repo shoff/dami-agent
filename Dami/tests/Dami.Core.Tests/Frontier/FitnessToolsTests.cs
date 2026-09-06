@@ -29,7 +29,7 @@ public sealed class FitnessToolsTests
             CancellationToken.None);
 
         Assert.True(result.Success);
-        Assert.Equal("Logged 4x12 biceps curl (Hammer Strength) at 140 lb, RPE 7.", result.Text);
+        Assert.StartsWith("Logged 4x12 biceps curl (Hammer Strength) at 140 lb, RPE 7.", result.Text, StringComparison.Ordinal);
         await this.store.Received(1).RecordResistanceAsync(
             Arg.Is<FitnessResistanceEntry>(entry =>
                 entry.Exercise == "biceps curl (Hammer Strength)"
@@ -54,6 +54,64 @@ public sealed class FitnessToolsTests
         Assert.Contains("Noticed", result.Text, StringComparison.Ordinal);
         Assert.Contains("New best on biceps curl: 140 lb × 12", result.Text, StringComparison.Ordinal);
         Assert.Contains("try 145 lb next time", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Log_Sets_Should_Land_On_The_Logs_Own_Spelling_Of_The_Exercise()
+    {
+        // 2026-09-06: "biceps curl (Hammer Strength)" was minted beside seven curl entries and
+        // the history never lined up. Same name, different case or spacing, is the same row.
+        var earlier = new FitnessSet(Guid.NewGuid(), Guid.NewGuid(), now.AddDays(-7), "Biceps Curl Machine", "biceps", 1, 12, 100m, 7, false);
+        this.store.SnapshotAsync(Arg.Any<CancellationToken>()).Returns(new FitnessSnapshot([], [earlier], []));
+        this.store.RecordResistanceAsync(Arg.Any<FitnessResistanceEntry>(), Arg.Any<CancellationToken>()).Returns(Guid.NewGuid());
+
+        await this.Subject().LogSetsAsync(Args("""{"exercise":"biceps  curl machine","sets":3,"reps":12,"weightLbs":105}"""), CancellationToken.None);
+
+        await this.store.Received(1).RecordResistanceAsync(
+            Arg.Is<FitnessResistanceEntry>(entry => entry.Exercise == "Biceps Curl Machine"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Log_Sets_Should_Hand_Back_What_The_Log_Held_Before_Today()
+    {
+        // "Try 115 lb next time" with no history in hand is a guess. The result carries the
+        // last sessions and the best, so the comparison is numbers.
+        var justLogged = Guid.NewGuid();
+        var lastWeek = new FitnessSet(Guid.NewGuid(), Guid.NewGuid(), now.AddDays(-7), "leg press", null, 1, 10, 300m, 7, false);
+        var today = new FitnessSet(Guid.NewGuid(), justLogged, now, "leg press", null, 1, 10, 320m, 7, false);
+        this.store.SnapshotAsync(Arg.Any<CancellationToken>()).Returns(new FitnessSnapshot([], [lastWeek, today], []));
+        this.store.RecordResistanceAsync(Arg.Any<FitnessResistanceEntry>(), Arg.Any<CancellationToken>()).Returns(justLogged);
+
+        var result = await this.Subject().LogSetsAsync(Args("""{"exercise":"leg press","sets":1,"reps":10,"weightLbs":320}"""), CancellationToken.None);
+
+        Assert.Contains("Before today on leg press (1 session(s)): 2026-08-29: 1x10 at 300 lb RPE 7.", result.Text, StringComparison.Ordinal);
+        Assert.Contains("Best before today: 300 lb × 10 on 2026-08-29.", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Sets_Tool_Should_Name_The_Exercises_The_Log_Already_Uses()
+    {
+        var older = new FitnessSet(Guid.NewGuid(), Guid.NewGuid(), now.AddDays(-9), "hammer curl", null, 1, 12, 30m, null, false);
+        var newer = new FitnessSet(Guid.NewGuid(), Guid.NewGuid(), now.AddDays(-2), "biceps curl machine", null, 1, 12, 100m, null, false);
+        this.store.SnapshotAsync(Arg.Any<CancellationToken>()).Returns(new FitnessSnapshot([], [older, newer], []));
+
+        var tool = await this.Subject().SetsToolAsync(CancellationToken.None);
+
+        Assert.Equal("log_sets", tool.Name);
+        Assert.Contains("biceps curl machine; hammer curl", tool.Description, StringComparison.Ordinal);
+        Assert.DoesNotContain("one short line", tool.Description, StringComparison.Ordinal);
+        Assert.Contains("ask how he is feeling", tool.Description, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Sets_Tool_Should_Still_Exist_When_The_Log_Cannot_Be_Read()
+    {
+        this.store.SnapshotAsync(Arg.Any<CancellationToken>()).Returns<Task<FitnessSnapshot>>(_ => throw new InvalidOperationException("db down"));
+
+        var tool = await this.Subject().SetsToolAsync(CancellationToken.None);
+
+        Assert.Equal("log_sets", tool.Name);
+        Assert.DoesNotContain("already in his log", tool.Description, StringComparison.Ordinal);
     }
 
     [Fact]
