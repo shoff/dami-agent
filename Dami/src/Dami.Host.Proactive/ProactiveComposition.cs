@@ -17,6 +17,7 @@ using Dami.Proactive.Recalls;
 using Dami.Proactive.Security;
 using Dami.Proactive.Weather;
 using Dami.Proactive.Embedder;
+using Dami.Proactive.FitnessReview;
 using Dami.Proactive.Gallery;
 using Dami.Proactive.Librarian;
 using Dami.Proactive.Opportunities;
@@ -222,6 +223,9 @@ public static class ProactiveComposition
         services.AddSingleton<IProactiveService, GalleryCuratorService>();
 
         AddOpportunityScout(services, configuration);
+
+        // The log talks back once a week: records, plateaus, skipped groups, the week's numbers.
+        services.AddSingleton<IProactiveService, FitnessReviewService>();
     }
 
     /// <summary>

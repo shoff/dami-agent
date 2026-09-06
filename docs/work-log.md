@@ -10316,5 +10316,35 @@ tools are logged, so Codex's own tool use is visible.
 lookup aren't available… I won't guess." It still tried its bundled connectors and shell
 commands, all of which fail under the read-only sandbox (no network); the extra
 `features.*` / `mcp_servers` config keys were accepted but changed nothing, hence the
-instructions. Gate: 0 warnings, 0 errors, **1,745 passed**. Host restaged.
+instructions. Gate: 0 warnings, 0 errors, **1,744 passed**. Host restaged.
+
+## 2026-09-05 — Claude — The log talks back, and a real morning (charter §1, ADR-0030 tools)
+
+Steve: "ok do 1 then 2."
+
+**1. Fitness insights.** `FitnessInsights` (Contracts.Domains, pure): Epley estimated 1RM
+over working sets; a personal record when a session ≤2 days old beats every earlier best
+on that exercise; a plateau when four or more sessions in 84 days show no ≥2.5% gain over
+the last 42; a neglected muscle group when trained ≥2 times in 90 days but not in 14; a
+next-weight suggestion from the last session's RPE (all ≤7 → +5 lb, any ≥9 → hold); and the
+week against the week before (sessions, sets, pounds moved, cardio minutes). Every sentence
+carries its numbers. Eight rule tests. Delivered three ways: `log_sets` appends "Noticed:
+…" for that exercise the moment a set is logged; `fitness-review` (Proactive, Weekly)
+surfaces "Your week in the gym"; and `DiscordAnswerer` now reads up to five pending
+surfacings, hands them to the frontier as "Dami noticed since you last spoke" lines, and
+marks them delivered only if she answered. That is pull on the next message, not push —
+ADR-0014 stays unsigned.
+
+**2. A real morning.** `TodayTool` (`today` in the bundle, fourteen tools): the local
+date/time, weather facts on record for today, the last gym session and every insight,
+what she has noticed and not yet mentioned, jobs due in the next 24 h, and observations
+from a year ago today — all through the disclosure gate with the memo, recorded in the
+ledger under `today`. The morning itself is a scheduled job Steve creates in chat ("every
+morning at 7, give me my briefing"), delivered to Discord, where the frontier calls
+`today` and writes it in her voice. No weather facts exist yet (the weather domain is
+empty), so that line is absent until the collector is configured.
+
+**Also.** Bundle constructions and the answerer gained `ISurfacingQueue`/`IFrontierToday`
+everywhere. Gate: 0 warnings, 0 errors, **1,759 passed** across 21 assemblies. Both tiers
+restaged. First review against the real log recorded below.
 

@@ -721,6 +721,13 @@ only, capped, metered, recorded), `search_web`/`read_page` in the bundle with th
 gated, and a weekly `opportunity-scout` that ranks hits against a profile and surfaces a
 digest. Off until `Research__Enabled` / `OpportunityScout__Enabled`. 1,741 tests.
 
+**The log talks back (2026-09-05).** `FitnessInsights` (records, plateaus, neglected groups,
+next weight, the week vs last) is said three ways: in the `log_sets` reply, as a weekly
+"Your week in the gym" surfacing, and as "Dami noticed since you last spoke" context on the
+next Discord message (pull, not push — ADR-0014 unsigned). A `today` tool assembles the
+morning from every local source, gated; the morning is a scheduled job Steve creates in chat.
+1,759 tests.
+
 The charter's fourteen cutover items, scored against what has actually been
 demonstrated. "partial" means a real demonstration exists for part of the item's scope.
 

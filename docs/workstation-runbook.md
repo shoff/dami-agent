@@ -478,6 +478,19 @@ cd /opt/dami/proactive && ./Dami.Host.Proactive --run opportunity-scout
 
 The digest lands in the inbox as "Opportunities this week".
 
+### The morning briefing
+
+There is no morning service; the morning is a job Steve makes in chat, so it runs when he
+wants and stops when he says. On Discord:
+
+> every morning at 7, give me my morning briefing
+
+She drafts the job and gives a short id; "yes" activates it. At 07:00 the job runs as a
+Discord turn with the tool bundle, the frontier calls `today` (date, weather on record, the
+gym and what the log noticed, what she has noticed and not yet mentioned, what is scheduled,
+a year ago today — gated), and writes the brief in her voice. `dami inbox` shows the same
+surfacings; the Jobs window shows the job.
+
 ### Rebuilding /opt/dami from nothing
 
 Everything under `/opt/dami` is reproducible; none of it is a source of truth.

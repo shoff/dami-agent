@@ -89,6 +89,8 @@ public sealed class DiscordGatewayWorkerTests
         /// <summary>Empty history by default; a test that wants some overrides it.</summary>
         public IConversationTurnStore TurnStore { get; init; } = EmptyHistory();
 
+        public ISurfacingQueue Surfacings { get; init; } = NothingNoticed();
+
         public DiscordOptions Options { get; set; } = Configured();
 
         private static IFrontierRecall RecallStub()
@@ -134,6 +136,26 @@ public sealed class DiscordGatewayWorkerTests
             return research;
         }
 
+        private static IFrontierToday TodayStub()
+        {
+            var today = Substitute.For<IFrontierToday>();
+            today.Tool.Returns(new FrontierTool("today", "t", System.Text.Json.JsonDocument.Parse("""{"type":"object"}""").RootElement));
+            return today;
+        }
+
+        private static ISurfacingQueue NothingNoticed()
+        {
+            var queue = Substitute.For<ISurfacingQueue>();
+            queue.PendingAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(NoSurfacingsAsync());
+            return queue;
+        }
+
+        private static async IAsyncEnumerable<Surfacing> NoSurfacingsAsync()
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
         private static IConversationTurnStore EmptyHistory()
         {
             var store = Substitute.For<IConversationTurnStore>();
@@ -147,7 +169,7 @@ public sealed class DiscordGatewayWorkerTests
         {
             var bundle = new FrontierToolBundle(
                 this.Images, this.Portraits, this.Recall, this.Remember, this.Scheduling,
-                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), FitnessStub(), ResearchStub(),
+                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), FitnessStub(), ResearchStub(), TodayStub(),
                 NullLogger<FrontierToolBundle>.Instance);
             var vision = new DiscordVision(
                 this.Vision, this.Rest, this.Options, NullLogger<DiscordVision>.Instance);
@@ -159,6 +181,7 @@ public sealed class DiscordGatewayWorkerTests
                 vision,
                 this.Sessions,
                 this.TurnStore,
+                this.Surfacings,
                 TimeProvider.System,
                 this.Options,
                 NullLogger<DiscordAnswerer>.Instance);
@@ -600,6 +623,44 @@ public sealed class DiscordGatewayWorkerTests
             new FrontierToolCall("call-1", FrontierToolBundle.MAKE_PORTRAIT, arguments.RootElement),
             CancellationToken.None);
         yield return result.Success ? "here you go" : result.Text;
+    }
+
+    [Fact]
+    public async Task Should_Tell_The_Frontier_What_She_Noticed_And_Mark_It_Delivered_Once_Answered()
+    {
+        // The charter's sentence, delivered: a surfacing rides the next message rather than
+        // being pushed (ADR-0014 unsigned), and counts as delivered once she answered.
+        var harness = Listening(From("morning"));
+        var surfacing = new Surfacing(Guid.NewGuid(), "fitness-review", "Your week in the gym", "3 sessions, 40 sets", 0.7, DateTimeOffset.UnixEpoch);
+        harness.Surfacings.PendingAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(OneSurfacingAsync(surfacing));
+        FrontierAnswers(harness, "morning! good week in the gym");
+
+        await RunAsync(harness.Build());
+
+        await harness.Augmented.Received(1).StreamAsync(
+            Arg.Any<string>(),
+            Arg.Is<IReadOnlyList<string>>(lines => lines.Any(line => line.Contains("Dami noticed", StringComparison.Ordinal) && line.Contains("40 sets", StringComparison.Ordinal))),
+            Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+        await harness.Surfacings.Received(1).DeliverAsync(surfacing.SurfacingId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Not_Mark_Noticed_Things_Delivered_When_The_Frontier_Failed()
+    {
+        var harness = Listening(From("morning"));
+        var surfacing = new Surfacing(Guid.NewGuid(), "fitness-review", "t", "b", 0.7, DateTimeOffset.UnixEpoch);
+        harness.Surfacings.PendingAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(OneSurfacingAsync(surfacing));
+        FrontierFails(harness, new InvalidOperationException("codex down"));
+
+        await RunAsync(harness.Build());
+
+        await harness.Surfacings.DidNotReceive().DeliverAsync(Arg.Any<Guid>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    private static async IAsyncEnumerable<Surfacing> OneSurfacingAsync(Surfacing surfacing)
+    {
+        yield return surfacing;
+        await Task.CompletedTask;
     }
 
     [Fact]

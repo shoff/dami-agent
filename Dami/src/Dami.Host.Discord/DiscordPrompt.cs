@@ -6,7 +6,7 @@ namespace Dami.Host.Discord;
 /// <remarks>
 /// The split is the privacy boundary, not a formatting choice. <see cref="Question"/> is
 /// Steve's own words, which he chose to send and which the augmented turn appends to the
-/// frontier prompt ungated. <see cref="LocalContext"/> is everything this host derived —
+/// frontier prompt ungated. <c>LocalContext</c> is everything this host derived —
 /// prior exchanges and image captions — and it goes through
 /// <c>LocalDisclosureGate</c> with retrieved memory.
 ///
@@ -41,12 +41,29 @@ public static class DiscordPrompt
     /// </summary>
     public static IReadOnlyList<string> LocalContext(
         IReadOnlyList<(string Message, string Response)> turns,
-        IReadOnlyList<string> captions)
+        IReadOnlyList<string> captions) =>
+        LocalContext(turns, captions, []);
+
+    /// <summary>
+    /// The recent conversation, captions of any images, and what the proactive tier has
+    /// noticed since Steve last heard from her — as context the frontier may bring up.
+    /// </summary>
+    public static IReadOnlyList<string> LocalContext(
+        IReadOnlyList<(string Message, string Response)> turns,
+        IReadOnlyList<string> captions,
+        IReadOnlyList<string> noticed)
     {
         ArgumentNullException.ThrowIfNull(turns);
         ArgumentNullException.ThrowIfNull(captions);
+        ArgumentNullException.ThrowIfNull(noticed);
 
-        var lines = new List<string>((turns.Count * 2) + captions.Count);
+        var lines = new List<string>((turns.Count * 2) + captions.Count + noticed.Count);
+        foreach (var item in noticed)
+        {
+            // Labelled as hers to raise, so the frontier mentions it rather than answering it.
+            lines.Add("Dami noticed since you last spoke (mention it if it fits, briefly): " + item.Trim());
+        }
+
         foreach (var (message, response) in turns)
         {
             lines.Add("Earlier — Steve: " + message.Trim());

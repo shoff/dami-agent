@@ -2,6 +2,7 @@ using System.Text.Json;
 using Dami.Contracts.Domains;
 using Dami.Core.Frontier;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
 
@@ -10,9 +11,11 @@ namespace Dami.Core.Tests.Frontier;
 /// <summary>"4x12 140 lbs RPE 7" plus a photo becomes rows in the exercise log.</summary>
 public sealed class FitnessToolsTests
 {
+    private static readonly DateTimeOffset now = new(2026, 9, 5, 20, 0, 0, TimeSpan.Zero);
+
     private readonly IFitnessStore store = Substitute.For<IFitnessStore>();
 
-    private FitnessTools Subject() => new(this.store, TimeProvider.System, NullLogger<FitnessTools>.Instance);
+    private FitnessTools Subject() => new(this.store, new FakeTimeProvider(now), NullLogger<FitnessTools>.Instance);
 
     private static JsonElement Args(string json) => JsonDocument.Parse(json).RootElement.Clone();
 
@@ -35,6 +38,22 @@ public sealed class FitnessToolsTests
                 && entry.Equipment == "machine"
                 && entry.Source == "claude_chat"),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Log_Sets_Should_Say_What_The_Log_Noticed_About_That_Exercise()
+    {
+        // A record announced the moment it is logged, with the numbers.
+        var earlier = new FitnessSet(Guid.NewGuid(), Guid.NewGuid(), now.AddDays(-20), "biceps curl", "biceps", 1, 12, 120m, 7, false);
+        var today = new FitnessSet(Guid.NewGuid(), Guid.NewGuid(), now, "biceps curl", "biceps", 1, 12, 140m, 7, false);
+        this.store.RecordResistanceAsync(Arg.Any<FitnessResistanceEntry>(), Arg.Any<CancellationToken>()).Returns(Guid.NewGuid());
+        this.store.SnapshotAsync(Arg.Any<CancellationToken>()).Returns(new FitnessSnapshot([], [earlier, today], []));
+
+        var result = await this.Subject().LogSetsAsync(Args("""{"exercise":"biceps curl","sets":4,"reps":12,"weightLbs":140,"rpe":7}"""), CancellationToken.None);
+
+        Assert.Contains("Noticed", result.Text, StringComparison.Ordinal);
+        Assert.Contains("New best on biceps curl: 140 lb × 12", result.Text, StringComparison.Ordinal);
+        Assert.Contains("try 145 lb next time", result.Text, StringComparison.Ordinal);
     }
 
     [Fact]

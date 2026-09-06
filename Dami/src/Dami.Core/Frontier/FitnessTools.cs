@@ -128,7 +128,27 @@ public sealed class FitnessTools : IFrontierFitness
         this.logger.LogInformation("Logged {Sets}x{Reps} {Exercise} as {Id}", count, reps, entry.Exercise, id);
         var weight = set.WeightLbs is { } lbs ? $" at {lbs.ToString("0.#", CultureInfo.InvariantCulture)} lb" : string.Empty;
         var rpe = set.Rpe is { } r ? $", RPE {r}" : string.Empty;
-        return FrontierToolResult.Ok($"Logged {count}x{reps} {entry.Exercise}{weight}{rpe}.");
+        var noticed = await this.NoticedAsync(entry.Exercise, cancellationToken).ConfigureAwait(false);
+        return FrontierToolResult.Ok($"Logged {count}x{reps} {entry.Exercise}{weight}{rpe}.{noticed}");
+    }
+
+    /// <summary>What the log now says about this exercise — a record, a plateau, a next weight — for the reply.</summary>
+    private async Task<string> NoticedAsync(string exercise, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var snapshot = await this.store.SnapshotAsync(cancellationToken).ConfigureAwait(false);
+            var insights = FitnessInsights.ForExercise(snapshot, exercise, this.clock.GetUtcNow());
+            return insights.Count == 0
+                ? string.Empty
+                : " Noticed (say this to Steve, with the numbers): " + string.Join(' ', insights.Select(insight => insight.Text));
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // The set is recorded; the commentary is a courtesy.
+            this.logger.LogWarning(exception, "Could not read the log back for insights");
+            return string.Empty;
+        }
     }
 
     /// <inheritdoc />

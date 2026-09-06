@@ -1,6 +1,7 @@
 using Dami.Contracts.Gallery;
 using Dami.Contracts.Models;
 using Dami.Contracts.Privacy;
+using Dami.Contracts.Proactive;
 using Dami.Contracts.Scheduling;
 using Dami.Contracts.Sessions;
 using Dami.Core.Frontier;
@@ -30,13 +31,19 @@ public sealed class DiscordScheduledDeliveryTests
         await Task.CompletedTask;
     }
 
+    private static async IAsyncEnumerable<Surfacing> NoSurfacingsAsync()
+    {
+        await Task.CompletedTask;
+        yield break;
+    }
+
     private static async IAsyncEnumerable<ConversationTurn> NoneAsync()
     {
         await Task.CompletedTask;
         yield break;
     }
 
-    private DiscordScheduledDelivery Subject()
+    private static FrontierToolBundle Bundle()
     {
         var schema = System.Text.Json.JsonDocument.Parse("""{"type":"object"}""").RootElement;
         var recall = Substitute.For<IFrontierRecall>();
@@ -52,17 +59,26 @@ public sealed class DiscordScheduledDeliveryTests
         var research = Substitute.For<IFrontierResearch>();
         research.SearchTool.Returns(new FrontierTool("search_web", "s", schema));
         research.ReadTool.Returns(new FrontierTool("read_page", "r", schema));
+        var today = Substitute.For<IFrontierToday>();
+        today.Tool.Returns(new FrontierTool("today", "t", schema));
+        return new FrontierToolBundle(
+            Substitute.For<IImageGenerator>(), Substitute.For<IPortraitGenerator>(), recall, remember, scheduling,
+            Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), fitness, research, today,
+            NullLogger<FrontierToolBundle>.Instance);
+    }
+
+    private DiscordScheduledDelivery Subject()
+    {
+        var queue = Substitute.For<ISurfacingQueue>();
+        queue.PendingAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(NoSurfacingsAsync());
         var options = new DiscordOptions { Token = "t", OwnerUserId = "1", Enabled = true };
         this.turnStore.RecentCompletedTurnsAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(NoneAsync());
         var answerer = new DiscordAnswerer(
             this.channel, this.augmented, new DiscordReplyStreamer(this.progressive),
-            new FrontierToolBundle(
-                Substitute.For<IImageGenerator>(), Substitute.For<IPortraitGenerator>(), recall, remember, scheduling,
-                Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), fitness, research,
-                NullLogger<FrontierToolBundle>.Instance),
+            Bundle(),
             new DiscordVision(Substitute.For<IVisionClient>(), Substitute.For<IDiscordRest>(), options, NullLogger<DiscordVision>.Instance),
-            Substitute.For<IConversationSessionStore>(), this.turnStore, TimeProvider.System, options,
+            Substitute.For<IConversationSessionStore>(), this.turnStore, queue, TimeProvider.System, options,
             NullLogger<DiscordAnswerer>.Instance);
         return new DiscordScheduledDelivery(answerer);
     }

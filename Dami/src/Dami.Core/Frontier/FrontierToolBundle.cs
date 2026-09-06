@@ -92,6 +92,7 @@ public sealed class FrontierToolBundle
     private readonly IGalleryPictures pictures;
     private readonly IFrontierFitness fitness;
     private readonly IFrontierResearch research;
+    private readonly IFrontierToday today;
     private readonly IReadOnlyList<FrontierTool> tools;
     private readonly ILogger<FrontierToolBundle> logger;
 
@@ -106,6 +107,7 @@ public sealed class FrontierToolBundle
         IGalleryPictures pictures,
         IFrontierFitness fitness,
         IFrontierResearch research,
+        IFrontierToday today,
         ILogger<FrontierToolBundle> logger)
     {
         ArgumentNullException.ThrowIfNull(images);
@@ -117,6 +119,7 @@ public sealed class FrontierToolBundle
         ArgumentNullException.ThrowIfNull(pictures);
         ArgumentNullException.ThrowIfNull(fitness);
         ArgumentNullException.ThrowIfNull(research);
+        ArgumentNullException.ThrowIfNull(today);
         ArgumentNullException.ThrowIfNull(logger);
         this.images = images;
         this.portraits = portraits;
@@ -127,10 +130,11 @@ public sealed class FrontierToolBundle
         this.pictures = pictures;
         this.fitness = fitness;
         this.research = research;
+        this.today = today;
         this.tools =
         [
             .. pictureTools, recall.Tool, remember.Tool, scheduling.ScheduleTool, scheduling.ConfirmTool,
-            fitness.SetsTool, fitness.CardioTool, research.SearchTool, research.ReadTool,
+            fitness.SetsTool, fitness.CardioTool, research.SearchTool, research.ReadTool, today.Tool,
         ];
         this.logger = logger;
     }
@@ -210,6 +214,7 @@ public sealed class FrontierToolBundle
                     this.channel, call.Arguments, cancellationToken),
                 ScheduleTools.CONFIRM => this.owner.scheduling.ConfirmAsync(
                     Argument(call, "draftId"), cancellationToken),
+                TodayTool.NAME => this.owner.today.TodayAsync(this.traceId, cancellationToken),
                 ResearchTools.SEARCH_WEB => this.owner.research.SearchAsync(this.traceId, Argument(call, "query"), cancellationToken),
                 ResearchTools.READ_PAGE => this.owner.research.ReadAsync(this.traceId, Argument(call, "url"), cancellationToken),
                 FitnessTools.LOG_SETS => this.owner.fitness.LogSetsAsync(call.Arguments, cancellationToken),

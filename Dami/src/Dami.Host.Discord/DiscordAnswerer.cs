@@ -1,4 +1,5 @@
 using Dami.Contracts.Privacy;
+using Dami.Contracts.Proactive;
 using Dami.Contracts.Sessions;
 using Dami.Core.Frontier;
 using Dami.Gateway.Discord;
@@ -24,6 +25,7 @@ public sealed class DiscordAnswerer
     private readonly DiscordVision vision;
     private readonly IConversationSessionStore sessions;
     private readonly IConversationTurnStore turnStore;
+    private readonly ISurfacingQueue surfacings;
     private readonly TimeProvider clock;
     private readonly DiscordOptions options;
     private readonly ILogger<DiscordAnswerer> logger;
@@ -37,6 +39,7 @@ public sealed class DiscordAnswerer
         DiscordVision vision,
         IConversationSessionStore sessions,
         IConversationTurnStore turnStore,
+        ISurfacingQueue surfacings,
         TimeProvider clock,
         DiscordOptions options,
         ILogger<DiscordAnswerer> logger)
@@ -48,6 +51,7 @@ public sealed class DiscordAnswerer
         ArgumentNullException.ThrowIfNull(vision);
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(turnStore);
+        ArgumentNullException.ThrowIfNull(surfacings);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -58,10 +62,14 @@ public sealed class DiscordAnswerer
         this.vision = vision;
         this.sessions = sessions;
         this.turnStore = turnStore;
+        this.surfacings = surfacings;
         this.clock = clock;
         this.options = options;
         this.logger = logger;
     }
+
+    private const int NOTICED_LIMIT = 5;
+    private const int NOTICED_BODY_CHARS = 400;
 
     /// <summary>The channel key a scheduled job carries to come back here.</summary>
     public static string DeliveryFor(string conversationId) => "discord:" + conversationId;
@@ -90,13 +98,59 @@ public sealed class DiscordAnswerer
             .EnsureAsync(this.sessions, sessionId, this.clock.GetUtcNow(), cancellationToken)
             .ConfigureAwait(false);
         var prior = await this.PriorExchangesAsync(sessionId, cancellationToken).ConfigureAwait(false);
-        var localContext = DiscordPrompt.LocalContext(prior, captions);
+        var pending = await this.PendingAsync(cancellationToken).ConfigureAwait(false);
+        var localContext = DiscordPrompt.LocalContext(prior, captions, pending.Select(Line).ToList());
 
         var answer = await this.FrontierAsync(conversationId, question, localContext, cancellationToken)
             .ConfigureAwait(false);
         if (answer is not null)
         {
             await this.JournalAsync(sessionId, question, answer, cancellationToken).ConfigureAwait(false);
+            await this.MarkDeliveredAsync(pending, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// What the proactive tier has queued for Steve. It rides his next message rather than
+    /// being pushed (ADR-0014 is unsigned): the frontier is told, and if it answered, the
+    /// surfacings count as delivered.
+    /// </summary>
+    private async Task<List<Surfacing>> PendingAsync(CancellationToken cancellationToken)
+    {
+        var pending = new List<Surfacing>();
+        try
+        {
+            await foreach (var surfacing in this.surfacings.PendingAsync(NOTICED_LIMIT, cancellationToken).ConfigureAwait(false))
+            {
+                pending.Add(surfacing);
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            this.logger.LogWarning(exception, "Could not read pending surfacings; answering without them");
+        }
+
+        return pending;
+    }
+
+    private static string Line(Surfacing surfacing)
+    {
+        var body = surfacing.Body.Trim().ReplaceLineEndings(" ");
+        return $"{surfacing.Title}: {(body.Length > NOTICED_BODY_CHARS ? body[..NOTICED_BODY_CHARS] + "…" : body)}";
+    }
+
+    private async Task MarkDeliveredAsync(List<Surfacing> pending, CancellationToken cancellationToken)
+    {
+        foreach (var surfacing in pending)
+        {
+            try
+            {
+                await this.surfacings.DeliverAsync(surfacing.SurfacingId, this.clock.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                this.logger.LogWarning(exception, "Could not mark surfacing {Id} delivered", surfacing.SurfacingId);
+            }
         }
     }
 

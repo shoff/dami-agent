@@ -23,6 +23,7 @@ public sealed class FrontierToolBundleTests
     private readonly IGalleryPictures pictures = Substitute.For<IGalleryPictures>();
     private readonly IFrontierFitness fitness = Substitute.For<IFrontierFitness>();
     private readonly IFrontierResearch research = Substitute.For<IFrontierResearch>();
+    private readonly IFrontierToday today = Substitute.For<IFrontierToday>();
 
     public FrontierToolBundleTests()
     {
@@ -34,6 +35,7 @@ public sealed class FrontierToolBundleTests
         this.fitness.CardioTool.Returns(new FrontierTool("log_cardio", "l", schema));
         this.research.SearchTool.Returns(new FrontierTool("search_web", "s", schema));
         this.research.ReadTool.Returns(new FrontierTool("read_page", "r", schema));
+        this.today.Tool.Returns(new FrontierTool("today", "t", schema));
     }
 
     private static FrontierToolCall Call(string tool, string json) =>
@@ -41,16 +43,16 @@ public sealed class FrontierToolBundleTests
 
     private FrontierToolBundle.FrontierTurnTools Tools(string channel = "discord:1") =>
         new FrontierToolBundle(
-            this.images, this.portraits, this.recall, this.remember, this.scheduling, this.gallery, this.pictures, this.fitness, this.research,
+            this.images, this.portraits, this.recall, this.remember, this.scheduling, this.gallery, this.pictures, this.fitness, this.research, this.today,
             NullLogger<FrontierToolBundle>.Instance).ForTurn(Guid.NewGuid(), channel);
 
     [Fact]
-    public void The_Bundle_Should_Be_Thirteen_Tools_With_Object_Schemas()
+    public void The_Bundle_Should_Be_Fourteen_Tools_With_Object_Schemas()
     {
         var tools = this.Tools().Toolbox.Tools;
 
         Assert.Equal(
-            ["make_portrait", "make_image", "find_pictures", "show_picture", "retouch_picture", "recall", "remember", "schedule", "confirm_schedule", "log_sets", "log_cardio", "search_web", "read_page"],
+            ["make_portrait", "make_image", "find_pictures", "show_picture", "retouch_picture", "recall", "remember", "schedule", "confirm_schedule", "log_sets", "log_cardio", "search_web", "read_page", "today"],
             tools.Select(tool => tool.Name));
         Assert.All(tools, tool => Assert.Equal("object", tool.InputSchema.GetProperty("type").GetString()));
     }

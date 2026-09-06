@@ -153,6 +153,7 @@ builder.Services.AddHttpClient<Dami.Contracts.Research.ISearchEngine, SearxngSea
 builder.Services.AddHttpClient<Dami.Contracts.Research.IResearchReader, Dami.Privacy.ResearchReader>()
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddSingleton<IFrontierResearch, ResearchTools>();
+builder.Services.AddSingleton<IFrontierToday, TodayTool>();
 builder.Services.AddSingleton<FrontierToolBundle>();
 
 // Frontier: subscription door (ADR-0011) behind the C5 egress budget.
