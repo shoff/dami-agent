@@ -78,6 +78,43 @@ public sealed class CodexAppServerTests
     }
 
     [Fact]
+    public void Thread_Start_Should_Be_Ephemeral_Read_Only_Unapproved_And_Without_Codex_Web_Search()
+    {
+        // 2026-09-05: a chat turn "verified postings at the source" through Codex's own
+        // search, around the gated research door; and approvals nobody answers are the
+        // likeliest shape of the ten-minute silences.
+        var json = JsonSerializer.Serialize(CodexAppServer.ThreadStartParams("/x", FrontierToolbox.Empty, new CodexOptions()));
+
+        Assert.Contains("\"ephemeral\":true", json);
+        Assert.Contains("\"sandbox\":\"read-only\"", json);
+        Assert.Contains("\"approvalPolicy\":\"never\"", json);
+        Assert.Contains("\"config\":{\"web_search\":\"disabled\"}", json);
+        Assert.Contains("no browser, no shell", json);
+    }
+
+    [Fact]
+    public async Task An_Unserved_Server_Request_Is_Declined_So_The_Turn_Goes_On()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        var (root, script, _) = await CreateFakeServerAsync(asksApproval: true);
+        try
+        {
+            var fragments = await StreamAllAsync(script, root, FrontierToolbox.Empty);
+
+            // The fake only completes the turn after it has read an error reply on id 9.
+            Assert.Equal(["declined"], fragments);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Thread_Start_Without_Tools_Should_Not_Mention_Them()
     {
         var json = JsonSerializer.Serialize(CodexAppServer.ThreadStartParams("/x", FrontierToolbox.Empty));
@@ -234,7 +271,7 @@ public sealed class CodexAppServerTests
     }
 
     private static async Task<(string Root, string Script, string PidFile)> CreateFakeServerAsync(
-        bool callsTool = false)
+        bool callsTool = false, bool asksApproval = false)
     {
         if (!OperatingSystem.IsLinux())
         {
@@ -245,26 +282,36 @@ public sealed class CodexAppServerTests
         Directory.CreateDirectory(root);
         var script = Path.Combine(root, "fake-codex");
         var pidFile = Path.Combine(root, "fake.pid");
-        await File.WriteAllTextAsync(script, FakeServerScript(pidFile, callsTool));
+        await File.WriteAllTextAsync(script, FakeServerScript(pidFile, callsTool, asksApproval));
         File.SetUnixFileMode(
             script,
             UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return (root, script, pidFile);
     }
 
-    private static string FakeServerScript(string pidFile, bool callsTool)
+    private const string TOOL_CALL_CASE = """
+        *'"method":"turn/start"'*)
+          printf '%s\n' '{"id":7,"method":"item/tool/call","params":{"threadId":"thread-1","turnId":"u","callId":"c1","namespace":null,"tool":"make_portrait","arguments":{"scene":"kitchen"}}}'
+          ;;
+        *'"id":7'*'"success":true'*)
+          printf '%s\n' '{"method":"item/agentMessage/delta","params":{"delta":"answered"}}'
+          printf '%s\n' '{"method":"turn/completed","params":{"turn":{"error":null}}}'
+          ;;
+      """;
+
+    private const string APPROVAL_CASE = """
+        *'"method":"turn/start"'*)
+          printf '%s\n' '{"id":9,"method":"item/commandExecution/requestApproval","params":{"threadId":"thread-1","turnId":"u","itemId":"c1","command":"rm -rf /"}}'
+          ;;
+        *'"id":9'*'"error"'*)
+          printf '%s\n' '{"method":"item/agentMessage/delta","params":{"delta":"declined"}}'
+          printf '%s\n' '{"method":"turn/completed","params":{"turn":{"error":null}}}'
+          ;;
+      """;
+
+    private static string FakeServerScript(string pidFile, bool callsTool, bool asksApproval = false)
     {
-        var toolCall = callsTool
-            ? """
-                *'"method":"turn/start"'*)
-                  printf '%s\n' '{"id":7,"method":"item/tool/call","params":{"threadId":"thread-1","turnId":"u","callId":"c1","namespace":null,"tool":"make_portrait","arguments":{"scene":"kitchen"}}}'
-                  ;;
-                *'"id":7'*'"success":true'*)
-                  printf '%s\n' '{"method":"item/agentMessage/delta","params":{"delta":"answered"}}'
-                  printf '%s\n' '{"method":"turn/completed","params":{"turn":{"error":null}}}'
-                  ;;
-              """
-            : string.Empty;
+        var cases = (callsTool ? TOOL_CALL_CASE : string.Empty) + (asksApproval ? APPROVAL_CASE : string.Empty);
         return """
             #!/bin/sh
             printf '%s' "$$" > "__PID_FILE__"
@@ -276,7 +323,7 @@ public sealed class CodexAppServerTests
             __TOOL_CALL__  esac
             done
             """.Replace("__PID_FILE__", pidFile, StringComparison.Ordinal)
-            .Replace("__TOOL_CALL__", toolCall, StringComparison.Ordinal);
+            .Replace("__TOOL_CALL__", cases, StringComparison.Ordinal);
     }
 
     private static bool IsRunning(int pid)

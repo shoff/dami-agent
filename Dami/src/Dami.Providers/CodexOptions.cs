@@ -35,4 +35,18 @@ public sealed class CodexOptions
     /// saying anything is a hang for a chat turn, whatever it is for a coding one.
     /// </summary>
     public int FirstTokenTimeoutSeconds { get; set; } = 90;
+
+    /// <summary>
+    /// The app-server's sandbox for chat threads. Read-only: a chat turn has no business
+    /// writing files, and the "workspace-write" the image generator uses is a separate
+    /// <c>codex exec</c> with its own working directory.
+    /// </summary>
+    public string Sandbox { get; set; } = "read-only";
+
+    /// <summary>
+    /// Whether Codex may use its own built-in web search on chat threads. Off: on
+    /// 2026-09-05 a turn "verified postings at the source" through it, bypassing the
+    /// gated research door entirely (ADR-0033). Research goes through search_web.
+    /// </summary>
+    public bool BuiltInWebSearch { get; set; }
 }

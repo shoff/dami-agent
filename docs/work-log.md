@@ -10294,3 +10294,27 @@ PostgreSQL pages. Honest read: the ranking works; the *queries* return aggregato
 and need to point at postings (`site:` on the boards, "posted this week"). Gate: 0/0,
 **1,742 passed**. Both tiers restaged again.
 
+## 2026-09-05 — Claude — Chat threads on Codex: read-only, unapproved, no built-in search
+
+Two findings while checking the first research turn. **(1)** The 18:56 Discord turn
+"verified postings at the source" without ever calling `search_web` (the journal shows only
+`recall`): Codex used its own browsing, around the gated door — the exact alternative
+ADR-0033 rejected. **(2)** Since the fitness build was deployed there has been *no* completed
+Discord photo turn and no `Logged` line; the fitness log's newest `claude_chat` row is from
+August. Whatever "the gym photo worked" showed, nothing was logged. That path is still
+unproven live.
+
+**Change.** `thread/start` now sends `ephemeral: true`, `sandbox: "read-only"`,
+`approvalPolicy: "never"`, `config.web_search: "disabled"` (`Codex:BuiltInWebSearch`,
+`Codex:Sandbox`), and developer instructions saying the thread has no browser, shell, files
+or connectors. Any other server request carrying an id (approvals, questions, elicitations)
+is declined with a JSON-RPC error instead of being ignored — an unanswered approval is the
+likeliest shape of the ten-minute silences. `item/started` kinds other than messages and our
+tools are logged, so Codex's own tool use is visible.
+
+**Probe.** With search disabled, asked for today's weather: "the browser and direct network
+lookup aren't available… I won't guess." It still tried its bundled connectors and shell
+commands, all of which fail under the read-only sandbox (no network); the extra
+`features.*` / `mcp_servers` config keys were accepted but changed nothing, hence the
+instructions. Gate: 0 warnings, 0 errors, **1,745 passed**. Host restaged.
+

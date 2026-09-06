@@ -34,6 +34,17 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
 {
     private static readonly JsonSerializerOptions wire = new(JsonSerializerDefaults.Web);
 
+    /// <summary>
+    /// What a chat thread is, said to the model. The sandbox and the approval policy make
+    /// its own tools fail; this stops it spending a minute discovering that, one failed
+    /// connector at a time, before answering.
+    /// </summary>
+    public const string CHAT_THREAD_INSTRUCTIONS =
+        "This is a chat turn inside Dami's runtime, not a coding session. You have no browser, "
+        + "no shell, no file access, and no connectors here, and attempts to use them fail. The "
+        + "only tools that work are the ones declared on this thread; use those, or answer from "
+        + "what you were given. Never claim to have searched, browsed, or run anything you did not.";
+
     private readonly SemaphoreSlim oneTurnAtATime = new(1, 1);
     private readonly CodexOptions options;
     private readonly ILogger<CodexAppServer> logger;
@@ -111,7 +122,7 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
     {
         await this.SendAsync(live, "initialize", InitializeParams(), cancellationToken).ConfigureAwait(false);
 
-        await this.SendAsync(live, "thread/start", ThreadStartParams(workingDirectory, tools), cancellationToken)
+        await this.SendAsync(live, "thread/start", ThreadStartParams(workingDirectory, tools, this.options), cancellationToken)
             .ConfigureAwait(false);
 
         // The thread id lives at result.thread.id, not result.threadId — a detail that
@@ -139,10 +150,28 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
     };
 
     /// <summary>A thread in the working directory, offering the bundle's tools if any.</summary>
-    public static object ThreadStartParams(string workingDirectory, FrontierToolbox tools)
+    /// <remarks>
+    /// Ephemeral, read-only, never asking for approval, and without Codex's own web
+    /// search: a chat turn that could write files, wait on an approval nobody answers
+    /// (the ten-minute silences), or browse around the gated door is not a chat turn.
+    /// </remarks>
+    public static object ThreadStartParams(string workingDirectory, FrontierToolbox tools) =>
+        ThreadStartParams(workingDirectory, tools, new CodexOptions());
+
+    /// <summary>A thread in the working directory, offering the bundle's tools if any.</summary>
+    public static object ThreadStartParams(string workingDirectory, FrontierToolbox tools, CodexOptions options)
     {
         ArgumentNullException.ThrowIfNull(tools);
-        var parameters = new Dictionary<string, object> { ["cwd"] = workingDirectory };
+        ArgumentNullException.ThrowIfNull(options);
+        var parameters = new Dictionary<string, object>
+        {
+            ["cwd"] = workingDirectory,
+            ["ephemeral"] = true,
+            ["sandbox"] = options.Sandbox,
+            ["approvalPolicy"] = "never",
+            ["config"] = new Dictionary<string, object> { ["web_search"] = options.BuiltInWebSearch ? "live" : "disabled" },
+            ["developerInstructions"] = CHAT_THREAD_INSTRUCTIONS,
+        };
         if (!tools.IsEmpty)
         {
             parameters["dynamicTools"] = tools.Tools.Select(tool => new
@@ -212,26 +241,54 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
                 continue;
             }
 
-            var name = method.GetString();
-            if (name == "item/tool/call")
+            var (fragment, done) = await this.HandleAsync(live, message, method.GetString(), tools, quiet, cancellationToken)
+                .ConfigureAwait(false);
+            if (fragment is not null)
             {
-                quiet.CancelAfter(Timeout.InfiniteTimeSpan);
-                await this.AnswerToolCallAsync(live, message, tools, cancellationToken).ConfigureAwait(false);
-            }
-            else if (name == "item/agentMessage/delta" && Delta(message) is { } fragment)
-            {
-                quiet.CancelAfter(Timeout.InfiniteTimeSpan);
                 yield return fragment;
             }
-            else if (name == "turn/failed")
+
+            if (done)
             {
-                throw new InvalidOperationException("the subscription turn failed");
-            }
-            else if (name == "turn/completed")
-            {
-                ThrowIfTurnFailed(message);
                 yield break;
             }
+        }
+    }
+
+    /// <summary>One protocol message: a fragment to yield, the end of the turn, or nothing.</summary>
+    private async Task<(string? Fragment, bool Done)> HandleAsync(
+        Process live, JsonElement message, string? name, FrontierToolbox tools, CancellationTokenSource quiet,
+        CancellationToken cancellationToken)
+    {
+        switch (name)
+        {
+            case "item/tool/call":
+                quiet.CancelAfter(Timeout.InfiniteTimeSpan);
+                await this.AnswerToolCallAsync(live, message, tools, cancellationToken).ConfigureAwait(false);
+                return (null, false);
+            case "item/agentMessage/delta":
+                var fragment = Delta(message);
+                if (fragment is not null)
+                {
+                    quiet.CancelAfter(Timeout.InfiniteTimeSpan);
+                }
+
+                return (fragment, false);
+            case "turn/failed":
+                throw new InvalidOperationException("the subscription turn failed");
+            case "turn/completed":
+                ThrowIfTurnFailed(message);
+                return (null, true);
+            case "item/started":
+                this.NoteItem(message);
+                return (null, false);
+            default:
+                if (message.TryGetProperty("id", out _))
+                {
+                    await this.DeclineAsync(live, message, name, cancellationToken).ConfigureAwait(false);
+                }
+
+                return (null, false);
         }
     }
 
@@ -263,6 +320,28 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
             new { jsonrpc = "2.0", id = request.GetProperty("id"), result = ToolCallResponse(result) }, wire);
         await live.StandardInput.WriteLineAsync(frame.AsMemory(), cancellationToken).ConfigureAwait(false);
         await live.StandardInput.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Answers a server request we do not serve with a JSON-RPC error, so nothing waits.</summary>
+    private async Task DeclineAsync(Process live, JsonElement request, string? method, CancellationToken cancellationToken)
+    {
+        this.logger.LogWarning("codex app-server asked {Method}; declined — chat threads never approve or answer prompts", method);
+        var frame = JsonSerializer.Serialize(
+            new { jsonrpc = "2.0", id = request.GetProperty("id"), error = new { code = -32601, message = $"dami does not serve {method}" } }, wire);
+        await live.StandardInput.WriteLineAsync(frame.AsMemory(), cancellationToken).ConfigureAwait(false);
+        await live.StandardInput.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Says what Codex started on its own — a command, a search — so its tool use is visible in the journal.</summary>
+    private void NoteItem(JsonElement message)
+    {
+        if (message.TryGetProperty("params", out var parameters)
+            && parameters.TryGetProperty("item", out var item)
+            && item.TryGetProperty("type", out var type)
+            && type.GetString() is { } kind && kind != "agentMessage" && kind != "dynamicToolCall")
+        {
+            this.logger.LogInformation("codex item started: {Kind}", kind);
+        }
     }
 
     /// <summary>One line, or a named failure when the turn stayed silent too long.</summary>
