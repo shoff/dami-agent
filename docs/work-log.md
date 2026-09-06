@@ -10348,3 +10348,25 @@ empty), so that line is absent until the collector is configured.
 everywhere. Gate: 0 warnings, 0 errors, **1,759 passed** across 21 assemblies. Both tiers
 restaged. First review against the real log recorded below.
 
+## 2026-09-05 — Claude — The photo turn, third attempt: the text model was living on the CPU
+
+Steve: "deployed, sent the photo again, what did the journal say."
+
+**21:50:53** CDN download 200 in 150 ms. **21:50:56** Ollama answered the caption request
+**400 "Failed to load image or audio file"** — not a timeout. **21:51:28** planner ran.
+Then nothing for four minutes: the disclosure gate was waiting on qwen3, which `ollama ps`
+showed as **9.2 GB, 100% CPU, keep-alive Forever**. Loading the vision model had pushed the
+pinned text model off the card, and with an infinite keep-alive it never came back; every
+local call after any photo then ran at CPU speed, and the starved vision load is the
+likeliest cause of the 400. `keep_alive: 0` on the vision request was verified fine against
+Ollama with a valid image. Restarting `dami-llm` by hand (the guard's own remedy) freed the
+gate: "gate unavailable; withholding all 36", the frontier answered at 21:55:56 with no
+caption and no context. Nothing was logged.
+
+**Fix.** `Vision:EvictFirst` (default `qwen3:8b`): the vision client asks Ollama to unload
+each listed model (`keep_alive: 0`) before the caption, so the vision model gets the whole
+card and the text model reloads *onto the GPU* for the next call. Cost: two model loads
+per photo turn, seconds each; the alternative was a text model on the CPU until someone
+noticed. Test pins the order of the two requests. Gate: 0 warnings, 0 errors, **1,760
+passed**. Both tiers restaged. Fourth attempt is Steve's.
+

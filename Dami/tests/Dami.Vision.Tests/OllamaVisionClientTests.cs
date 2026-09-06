@@ -38,6 +38,22 @@ public sealed class OllamaVisionClientTests
     }
 
     [Fact]
+    public async Task DescribeAsync_Should_Unload_The_Text_Model_Before_Loading_The_Vision_Model()
+    {
+        // 2026-09-05 21:50: qwen3 pinned "100% CPU, Forever" after the vision model took the
+        // card; every local call crawled and the image decode returned 400.
+        var client = CreateClient(out var handler);
+
+        await client.DescribeAsync(new byte[] { 1 }, "caption this", CancellationToken.None);
+
+        Assert.Equal(2, handler.Bodies.Count);
+        var evict = JsonDocument.Parse(handler.Bodies[0]).RootElement;
+        Assert.Equal("qwen3:8b", evict.GetProperty("model").GetString());
+        Assert.Equal(0, evict.GetProperty("keep_alive").GetInt32());
+        Assert.Equal("qwen2.5vl:7b", JsonDocument.Parse(handler.Bodies[1]).RootElement.GetProperty("model").GetString());
+    }
+
+    [Fact]
     public async Task DescribeAsync_Should_Return_The_Trimmed_Response()
     {
         var client = CreateClient(out _);
@@ -72,12 +88,15 @@ public sealed class OllamaVisionClientTests
 
         public Uri? LastUri { get; private set; }
 
+        public List<string> Bodies { get; } = [];
+
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             this.LastUri = request.RequestUri;
             this.LastBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            this.Bodies.Add(this.LastBody);
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("""{"response":"  a scale model on a workbench \n"}"""),

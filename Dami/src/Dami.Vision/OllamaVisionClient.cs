@@ -40,6 +40,7 @@ public sealed class OllamaVisionClient : IVisionClient
         ArgumentNullException.ThrowIfNull(prompt);
 
         var endpoint = new Uri(new Uri(this.visionOptions.BaseUrl), "/api/generate");
+        await this.EvictAsync(endpoint, cancellationToken).ConfigureAwait(false);
         var request = new
         {
             model = this.visionOptions.Model,
@@ -64,5 +65,25 @@ public sealed class OllamaVisionClient : IVisionClient
 
         this.logger.LogDebug("Vision described {Bytes} bytes in {Chars} chars", imageBytes.Length, text.Length);
         return text.Trim();
+    }
+
+    /// <summary>Hands the card over: each listed model is asked to unload before the vision model loads.</summary>
+    private async Task EvictAsync(Uri endpoint, CancellationToken cancellationToken)
+    {
+        foreach (var model in this.visionOptions.EvictFirst)
+        {
+            try
+            {
+                using var response = await this.httpClient
+                    .PostAsJsonAsync(endpoint, new { model, keep_alive = 0 }, serializerOptions, cancellationToken)
+                    .ConfigureAwait(false);
+                this.logger.LogInformation("Vision: asked Ollama to unload {Model} first ({Status})", model, (int)response.StatusCode);
+            }
+            catch (HttpRequestException exception)
+            {
+                // Not fatal: the caption may still work, just on a crowded card.
+                this.logger.LogWarning(exception, "Vision: could not unload {Model} first", model);
+            }
+        }
     }
 }
