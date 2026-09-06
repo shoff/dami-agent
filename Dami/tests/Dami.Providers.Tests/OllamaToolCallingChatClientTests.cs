@@ -35,7 +35,7 @@ public sealed class OllamaToolCallingChatClientTests
         Assert.Equal("qwen3:8b", request.RootElement.GetProperty("model").GetString());
         Assert.True(request.RootElement.GetProperty("think").GetBoolean());
         Assert.False(request.RootElement.GetProperty("stream").GetBoolean());
-        Assert.Equal(1200, request.RootElement.GetProperty("options").GetProperty("num_predict").GetInt32());
+        Assert.Equal(2400, request.RootElement.GetProperty("options").GetProperty("num_predict").GetInt32());
     }
 
     [Fact]

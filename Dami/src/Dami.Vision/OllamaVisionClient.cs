@@ -48,7 +48,7 @@ public sealed class OllamaVisionClient : IVisionClient
             images = new[] { Convert.ToBase64String(imageBytes.Span) },
             stream = false,
             keep_alive = this.visionOptions.KeepAliveSeconds,
-            options = new { num_predict = this.visionOptions.MaxTokens },
+            options = new { num_predict = this.visionOptions.MaxTokens, num_ctx = this.visionOptions.ContextTokens },
         };
 
         using var response = await this.httpClient

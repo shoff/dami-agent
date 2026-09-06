@@ -23,8 +23,13 @@ public sealed class OllamaOptions
     /// </remarks>
     public bool Think { get; set; } = true;
 
-    /// <summary>Cap on generated tokens per completion.</summary>
-    public int MaxTokens { get; set; } = 1200;
+    /// <summary>
+    /// Cap on generated tokens per completion. A ceiling, not a target: generation stops
+    /// at the model's end token. Raised from 1,200 on 2026-09-06 after the disclosure
+    /// gate's verdict on 36 items was cut off at exactly 1,200 and the turn lost its
+    /// whole history.
+    /// </summary>
+    public int MaxTokens { get; set; } = 2400;
 
     /// <summary>
     /// Seconds the sidecar keeps the model resident: <c>-1</c> never unloads (the

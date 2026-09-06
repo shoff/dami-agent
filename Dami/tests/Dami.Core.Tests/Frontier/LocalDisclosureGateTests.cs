@@ -94,6 +94,33 @@ public sealed class LocalDisclosureGateTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_Should_Name_A_Truncated_Reply_And_Withhold()
+    {
+        // 2026-09-06 14:55: 36 items, the reply hit the token ceiling mid-array, and the
+        // journal said only "unreadable". Still fail closed, but say what happened.
+        this.Says("""[{"n":1,"action":"pass","why":"fine"},{"n":2,"action":"pa""");
+
+        var decided = await this.ClassifyAsync("one", "two");
+
+        Assert.All(decided, item => Assert.Equal(Disclosure.Withhold, item.Disclosure));
+        Assert.All(decided, item => Assert.StartsWith("gate output truncated", item.Reason, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_Should_Not_Ask_The_Model_To_Echo_Passed_Items()
+    {
+        // Echoing 36 items back is what spent the ceiling. Pass needs only the number.
+        this.Says("""[{"n":1,"action":"pass","why":"fine"}]""");
+
+        var decided = await this.ClassifyAsync("pgvector uses HNSW");
+
+        Assert.Equal(Disclosure.Pass, decided[0].Disclosure);
+        Assert.Equal("pgvector uses HNSW", decided[0].Sendable);
+        var prompt = (string)this.chatClient.ReceivedCalls().Single().GetArguments()[0]!;
+        Assert.Contains("omit text entirely", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ClassifyAsync_Should_Not_Call_The_Model_With_No_Context()
     {
         await this.ClassifyAsync();

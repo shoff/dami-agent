@@ -10370,3 +10370,29 @@ per photo turn, seconds each; the alternative was a text model on the CPU until 
 noticed. Test pins the order of the two requests. Gate: 0 warnings, 0 errors, **1,760
 passed**. Both tiers restaged. Fourth attempt is Steve's.
 
+## 2026-09-06 — Claude — The photo turn, fourth attempt: two ceilings, both exact
+
+Steve: "deployed, sent the photo again, what did the journal say."
+
+**14:54:43** qwen3 unloaded on request (200); the vision model loaded onto the GPU in 1.3 s
+— the card was clean this time. **14:54:45** Ollama still answered 400. Its own log says why:
+`request (4131 tokens) exceeds the available context size (4096 tokens)`. qwen2.5-vl spends
+up to 4,096 tokens on the picture (3,211,264-pixel ceiling at 28×28 per token), Ollama's
+default window is exactly 4,096, and the gym prompt tipped it over. A gallery PNG captions
+fine (1.3 MP); a 4032×3024 JPEG reproduced the failure and passed with `num_ctx: 8192`.
+Every phone photo since 09-05 died here, including the "Failed to load image" one — the
+CPU-starved model was real but was not the reason.
+
+**14:55:01** the disclosure gate: "gate output unreadable; withholding all 36 item(s)".
+Ollama's log: `eval time … 1200 tokens` — the verdict hit `MaxTokens` mid-array. The prompt
+said "for pass, repeat the item in text", so 36 items meant 36 echoes. The frontier then
+had no caption and no history, and asked "what exercise was that?" — correctly, since the
+message itself was `4x12 110lbs RPE 7` and the machine was in the photo.
+
+**Fixes.** `Vision:ContextTokens` (default 8,192) sent as `num_ctx`. Gate prompt: only
+disguise carries text, pass and withhold omit it, why under eight words; a reply that opens
+its array and never closes it is reported as "gate output truncated at N chars" instead of
+"unreadable". `Ollama:MaxTokens` 1,200 → 2,400 (a ceiling; generation stops at the end
+token). Tests for all three. Gate: 0 warnings, 0 errors, **1,763 passed** across 21
+assemblies. Both tiers restaged. Fifth attempt is Steve's.
+

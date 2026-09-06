@@ -64,7 +64,7 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
         var decisions = reply is null ? null : Parse(reply, context);
         if (decisions is null)
         {
-            var reason = reply is null ? "gate unavailable" : "gate output unreadable";
+            var reason = FailureReason(reply);
             this.logger.LogWarning(
                 "Disclosure gate {Reason}; withholding all {Count} item(s)", reason, context.Count);
             return [.. context.Select(item => new DisclosedItem(item, Disclosure.Withhold, string.Empty, reason))];
@@ -157,7 +157,9 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
         prompt.AppendLine();
         prompt.AppendLine(
             """Answer with ONLY a JSON array: [{"n":1,"action":"pass|disguise|withhold","text":"...","why":"..."}]""");
-        prompt.AppendLine("For pass, repeat the item in text. For withhold, use an empty text.");
+        prompt.AppendLine(
+            "Only disguise carries text (the rewrite). For pass and withhold omit text entirely. "
+            + "Keep why under eight words.");
         return prompt.ToString();
     }
 
@@ -174,6 +176,24 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
         {
             prompt.Append("- ").AppendLine(example);
         }
+    }
+
+    /// <summary>
+    /// Why nothing could be read. A reply that opens its array and never closes it ran
+    /// into the token ceiling: 2026-09-06 14:55, 36 items, "repeat the item in text",
+    /// exactly 1,200 tokens generated and the whole turn's history withheld.
+    /// </summary>
+    private static string FailureReason(string? reply)
+    {
+        if (reply is null)
+        {
+            return "gate unavailable";
+        }
+
+        var opened = reply.IndexOf('[', StringComparison.Ordinal);
+        return opened >= 0 && reply.LastIndexOf(']') <= opened
+            ? $"gate output truncated at {reply.Length} chars"
+            : "gate output unreadable";
     }
 
     private static List<DisclosedItem>? Parse(string reply, IReadOnlyList<string> context)

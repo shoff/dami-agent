@@ -16,6 +16,15 @@ public sealed class OllamaVisionOptions
     public int MaxTokens { get; set; } = 300;
 
     /// <summary>
+    /// The context window asked for per caption. Ollama's default is 4,096 tokens, and
+    /// qwen2.5-vl spends up to 4,096 of them on the picture alone (its ceiling of
+    /// 3,211,264 pixels at 28×28 per token): a phone photo plus the gym prompt came to
+    /// 4,131 and the sidecar refused it with 400 "exceeds the available context size" —
+    /// four gym photos in a row, 2026-09-05 to 09-06, every one "could not be read".
+    /// </summary>
+    public int ContextTokens { get; set; } = 8192;
+
+    /// <summary>
     /// How long Ollama keeps the vision model loaded after a caption, in seconds. Zero
     /// unloads it at once: on a 16 GiB card it cannot sit beside the text model and the
     /// embedders, and a model left half on the CPU is what the LLM guard restarts.

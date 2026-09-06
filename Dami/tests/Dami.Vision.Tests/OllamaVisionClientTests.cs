@@ -54,6 +54,20 @@ public sealed class OllamaVisionClientTests
     }
 
     [Fact]
+    public async Task DescribeAsync_Should_Ask_For_A_Context_A_Phone_Photo_Fits_In()
+    {
+        // 2026-09-06 14:54:45: "request (4131 tokens) exceeds the available context size
+        // (4096 tokens)". The picture alone is up to 4,096 tokens; Ollama's default
+        // window is exactly that, and the prompt tipped it over. Every gym photo failed.
+        var client = CreateClient(out var handler);
+
+        await client.DescribeAsync(new byte[] { 1 }, "caption this", CancellationToken.None);
+
+        var options = JsonDocument.Parse(handler.LastBody!).RootElement.GetProperty("options");
+        Assert.Equal(8192, options.GetProperty("num_ctx").GetInt32());
+    }
+
+    [Fact]
     public async Task DescribeAsync_Should_Return_The_Trimmed_Response()
     {
         var client = CreateClient(out _);
