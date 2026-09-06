@@ -121,6 +121,36 @@ public sealed class LocalDisclosureGateTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_Should_Never_Show_The_Gate_The_Owners_Name()
+    {
+        // 2026-09-06 15:28: the caption "Image Steve sent, described locally: ... Hammer
+        // Strength biceps curl machine" was withheld, reason "Steve's name identifies", and
+        // the set went unlogged for the fifth time. The name is masked before the gate
+        // reads the item; what passes is still the original.
+        this.Says("""[{"n":1,"action":"pass","why":"fine"},{"n":2,"action":"pass","why":"fine"}]""");
+
+        var decided = await this.ClassifyAsync("Image Steve sent: a curl machine", "Steve's chest press: 4x12");
+
+        var prompt = (string)this.chatClient.ReceivedCalls().Single().GetArguments()[0]!;
+        Assert.Contains("1. Image the user sent: a curl machine", prompt, StringComparison.Ordinal);
+        Assert.Contains("2. the user's chest press: 4x12", prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("Stevens", prompt, StringComparison.Ordinal);
+        Assert.Equal("Image Steve sent: a curl machine", decided[0].Sendable);
+        Assert.Equal("Steve's chest press: 4x12", decided[1].Sendable);
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_Should_Leave_Longer_Names_Alone()
+    {
+        this.Says("""[{"n":1,"action":"pass","why":"fine"}]""");
+
+        await this.ClassifyAsync("Stevenson Drive is closed");
+
+        var prompt = (string)this.chatClient.ReceivedCalls().Single().GetArguments()[0]!;
+        Assert.Contains("1. Stevenson Drive is closed", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ClassifyAsync_Should_Not_Call_The_Model_With_No_Context()
     {
         await this.ClassifyAsync();

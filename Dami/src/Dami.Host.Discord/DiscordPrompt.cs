@@ -73,7 +73,7 @@ public static class DiscordPrompt
         foreach (var caption in captions)
         {
             // Labelled so the gate is judging a described image rather than a loose noun.
-            lines.Add("Image Steve sent, described locally: " + caption.Trim());
+            lines.Add("Photo attached to this message, described locally: " + caption.Trim());
         }
 
         return lines;

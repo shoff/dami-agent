@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using Dami.Contracts.Models;
 using Dami.Contracts.Privacy;
@@ -26,6 +27,7 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
     private readonly IDisclosureLedger ledger;
     private readonly DisclosureOptions gateOptions;
     private readonly ILogger<LocalDisclosureGate> logger;
+    private readonly Regex nameMask;
 
     /// <summary>Creates the gate.</summary>
     public LocalDisclosureGate(
@@ -43,6 +45,9 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
         this.ledger = ledger;
         this.gateOptions = gateOptions.Value;
         this.logger = logger;
+        this.nameMask = new Regex(
+            $@"\b{Regex.Escape(this.gateOptions.OwnerFirstName)}('s)?\b",
+            RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
     }
 
     /// <inheritdoc />
@@ -95,7 +100,8 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
         """
         You decide what may be sent to an external AI service on the user's behalf.
         The service already knows it is talking to the user and knows his first name, Steve.
-        The name by itself never makes an item identifying; judge the rest of the item.
+        The name by itself never makes an item identifying; the items below call him
+        "the user". Judge the rest of the item.
         Items beginning "Earlier —" are what the user and the assistant already said to each
         other in this same chat: pass them unless they name another person or carry specific
         health, financial, or address details.
@@ -151,7 +157,7 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
         prompt.AppendLine("Items:");
         for (var index = 0; index < context.Count; index++)
         {
-            prompt.Append(index + 1).Append(". ").AppendLine(context[index]);
+            prompt.Append(index + 1).Append(". ").AppendLine(this.Presented(context[index]));
         }
 
         prompt.AppendLine();
@@ -161,6 +167,19 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
             "Only disguise carries text (the rewrite). For pass and withhold omit text entirely. "
             + "Keep why under eight words.");
         return prompt.ToString();
+    }
+
+    /// <summary>
+    /// The item as the gate reads it: the owner's first name replaced by "the user". The
+    /// instructions already said the name alone never identifies, and ADR-0032 measured the
+    /// improvement — yet on 2026-09-06 15:28 the gate withheld the gym-machine caption and
+    /// two chat lines with "Steve's name identifies", and the log went unwritten again.
+    /// A name the model never sees cannot be the reason. What is sent is still the
+    /// original: the service knows who it is talking to.
+    /// </summary>
+    private string Presented(string item)
+    {
+        return this.nameMask.Replace(item, match => match.Groups[1].Success ? "the user's" : "the user");
     }
 
     private static void AppendExamples(StringBuilder prompt, IList<string> examples)
@@ -266,6 +285,12 @@ public sealed class DisclosureOptions
 {
     /// <summary>Configuration section.</summary>
     public const string SECTION_NAME = "Disclosure";
+
+    /// <summary>
+    /// The owner's first name, which the external service already knows. Masked out of
+    /// every item before the gate reads it, so it can never be the reason for a verdict.
+    /// </summary>
+    public string OwnerFirstName { get; set; } = "Steve";
 
     /// <summary>
     /// What counts as private. Defaults are a starting point, not a policy — Steve is

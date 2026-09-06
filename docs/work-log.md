@@ -10396,3 +10396,22 @@ its array and never closes it is reported as "gate output truncated at N chars" 
 token). Tests for all three. Gate: 0 warnings, 0 errors, **1,763 passed** across 21
 assemblies. Both tiers restaged. Fifth attempt is Steve's.
 
+## 2026-09-06 — Claude — The photo turn, fifth attempt: the caption arrived and the gate threw it away
+
+Steve: "deployed, sent the photo again, what did the journal say."
+
+**15:28:35** the vision call returned 200 in 5.5 s with 4,190 tokens in the window — the
+context fix held. The caption was right: "a Hammer Strength biceps curl machine". The gate
+then read 36 items, passed 26, withheld 10, and among the ten was the caption, reason
+**"Steve's name identifies"**, because the line began "Image Steve sent, described
+locally:". Two chat lines went the same way. The frontier asked "which exercise was that?"
+for the third time, with the answer sitting in the withheld pile.
+
+ADR-0032's instruction ("the name by itself never makes an item identifying") measurably
+helped and was still not enough. **Fix:** the gate never sees the name. Every item is
+presented with the owner's first name replaced by "the user" (`Disclosure:OwnerFirstName`,
+default Steve; `Steve's` → `the user's`; `Stevenson` untouched), and what passes is still
+the original — the service knows who it is talking to. The caption line now reads "Photo
+attached to this message, described locally:". Tests for the mask, the longer-name case,
+and the prefix. Gate: 0 warnings, 0 errors, **1,765 passed**. Both tiers restaged.
+

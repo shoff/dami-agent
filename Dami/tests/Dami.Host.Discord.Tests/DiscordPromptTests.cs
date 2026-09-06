@@ -43,7 +43,7 @@ public sealed class DiscordPromptTests
         // Steve sent is the difference between judging a caption and judging a stray noun.
         var context = DiscordPrompt.LocalContext([], ["a lab report showing a value"]);
 
-        Assert.StartsWith("Image Steve sent", Assert.Single(context), StringComparison.Ordinal);
+        Assert.StartsWith("Photo attached to this message", Assert.Single(context), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class DiscordPromptTests
             [("what did I lift", "225")], ["a photo of a barbell"]);
 
         Assert.StartsWith("Earlier", context[0], StringComparison.Ordinal);
-        Assert.StartsWith("Image", context[^1], StringComparison.Ordinal);
+        Assert.StartsWith("Photo", context[^1], StringComparison.Ordinal);
     }
 
     [Fact]
