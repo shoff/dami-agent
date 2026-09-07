@@ -110,8 +110,10 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
                      first name
           disguise - the FACT is needed to answer, the identity is not. Rewrite it about
                      an unnamed third party ("a friend", "someone I know") keeping every
-                     clinical or technical detail intact. Prefer this over withhold whenever
-                     the fact bears on the question.
+                     clinical or technical detail intact: every number, date, exercise or
+                     machine name, medication, condition and note stays; only who it is
+                     about goes. Prefer this over withhold whenever the fact bears on the
+                     question.
           withhold - too personal to send AND not needed to answer this question
 
         """;
@@ -303,6 +305,8 @@ public sealed class DisclosureOptions
         "Health facts about the user may be DISGUISED when the question needs them; "
             + "the clinical detail matters, the identity does not.",
         "Health or personal facts about OTHER people are withheld, not disguised.",
+        "The user's own gym log entries — an exercise or machine, sets, reps, weight, RPE, and any "
+            + "note on them — identify no one: pass them as written.",
         "A gym log line like '4x12 110 lbs RPE 7', a machine photo, or any training question is a "
             + "health question: the user's heart condition, anticoagulant, and any hospitalization in "
             + "the last two months bear on it — DISGUISE them so the advice can account for them; "

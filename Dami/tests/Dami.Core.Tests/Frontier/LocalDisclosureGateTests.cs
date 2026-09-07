@@ -105,6 +105,12 @@ public sealed class LocalDisclosureGateTests
         var prompt = (string)this.chatClient.ReceivedCalls().Single().GetArguments()[0]!;
         Assert.Contains("any training question is a health question", prompt, StringComparison.Ordinal);
         Assert.Contains("DISGUISE them so the advice can account for them", prompt, StringComparison.Ordinal);
+        // 20:11 the same day: 18 disguised, and "Torso Rotation 3x24 115 lb" came out as
+        // "3×24 at 115 lb" — the machine gone, the hospitalization note gone. Entries pass;
+        // a disguise keeps every detail.
+        Assert.Contains("gym log entries", prompt, StringComparison.Ordinal);
+        Assert.Contains("pass them as written", prompt, StringComparison.Ordinal);
+        Assert.Contains("only who it is\n             about goes", prompt.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
     }
 
     [Fact]

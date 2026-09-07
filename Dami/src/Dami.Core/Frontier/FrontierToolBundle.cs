@@ -193,7 +193,8 @@ public sealed class FrontierToolBundle
             {
                 var result = await this.DispatchAsync(call, cancellationToken).ConfigureAwait(false);
                 this.owner.logger.LogInformation(
-                    "Turn {Trace}: {Tool} {Outcome}", this.traceId, call.Tool, result.Success ? "ok" : "failed");
+                    "Turn {Trace}: {Tool} {Outcome} — {Result}", this.traceId, call.Tool,
+                    result.Success ? "ok" : "failed", result.Text.Length > 400 ? result.Text[..400] + "…" : result.Text);
                 return result;
             }
             catch (Exception exception) when (exception is not OperationCanceledException)

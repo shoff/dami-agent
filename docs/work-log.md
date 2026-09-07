@@ -10438,3 +10438,23 @@ the history; its description asks for a comparison with numbers and a question a
 he feels when the weight drops or the RPE climbs. One gate rule added. ADR-0034. Gate: 0
 warnings, 0 errors, **1,774 passed** (Core 300 → 309). Both tiers restaged.
 
+## 2026-09-06 — Claude — Seventh attempt: compared with numbers, and the gate over-rotated
+
+Steve: "deployed, sent the photo again, what did the journal say."
+
+**20:11** caption right, `log_sets` ok under the log's existing name, reply: "Logged:
+Hammer Strength biceps curl, 4×12 at 110 lb, RPE 7. That matches your previous best; 115 lb
+is reasonable next time." The history reached it (the only prior session is 15:37, the same
+numbers). Gate: **14 sent, 18 disguised, 4 withheld** — the four health facts went out
+disguised for the first time.
+
+**But** the disguise stripped what it was told to keep: "Torso Rotation 3x24 115 lb RPE4"
+became "3×24 at 115 lb, RPE 4", and the "<2 weeks out from hospitalization for SBO" note
+vanished from the abdominal entry. Gym entries were being disguised at all because the new
+rule called every training turn a health question. **Fix:** a rule that the user's own gym
+entries identify no one and pass as written; the disguise instruction now spells out what
+stays (every number, date, exercise or machine name, medication, condition and note — only
+who it is about goes). The bundle journals the first 400 chars of every tool result, so the
+next check can quote what the frontier was handed. Gate: 0 warnings, 0 errors, **1,774
+passed**. Both tiers restaged.
+
