@@ -10,6 +10,16 @@
   returns the last sessions and the best, so the frontier compares against real numbers.
 - **Date:** 2026-09-06
 - **Status:** accepted — Steve, after the diagnosis named item 3 as his call: "make it so."
+  **Amended the same evening.** The first cut said *disguise* the heart condition, the
+  anticoagulant and recent hospitalizations on training turns. In practice the gate then
+  disguised the workouts too, dropped the machine names and the hospitalization note from
+  the rewrites, and turned a note's date into "installed April 17" for a surgery that was on
+  March 11. Steve: "which is completely wrong. I am not concerned about privacy of my
+  workouts, nor my stenosis." The rule now reads: the user's own health facts and workouts
+  PASS as written, never disguised or withheld. Facts about other people are still withheld;
+  names, addresses, accounts and hostnames still never go. The corpus also carries his
+  correction of the surgery date, and fact lines say "noted <date>" so a note's date is
+  never read as the event's.
 - **Extends:** D-012 (privacy as an architectural boundary), ADR-0032 (the frontier knows
   his first name), ADR-0030 (the tool bundle)
 

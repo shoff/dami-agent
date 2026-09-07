@@ -94,22 +94,21 @@ public sealed class LocalDisclosureGateTests
     }
 
     [Fact]
-    public async Task ClassifyAsync_Should_Tell_The_Gate_A_Gym_Turn_Is_A_Health_Question()
+    public async Task ClassifyAsync_Should_Tell_The_Gate_The_Users_Own_Health_And_Workouts_Pass()
     {
-        // ADR-0034, signed 2026-09-06: on a training turn the heart condition, the
-        // anticoagulant and a recent hospitalization are disguised, not withheld.
+        // ADR-0034 as amended 2026-09-06. First cut disguised his health facts on gym
+        // turns; the gate then disguised the workouts too, dropped the machine names and
+        // the hospitalization note, and turned a note's date into "installed April 17".
+        // Steve: "I am not concerned about privacy of my workouts, nor my stenosis."
         this.Says("""[{"n":1,"action":"pass","why":"fine"}]""");
 
         await this.ClassifyAsync("4x12 110lbs RPE 7");
 
         var prompt = (string)this.chatClient.ReceivedCalls().Single().GetArguments()[0]!;
-        Assert.Contains("any training question is a health question", prompt, StringComparison.Ordinal);
-        Assert.Contains("DISGUISE them so the advice can account for them", prompt, StringComparison.Ordinal);
-        // 20:11 the same day: 18 disguised, and "Torso Rotation 3x24 115 lb" came out as
-        // "3×24 at 115 lb" — the machine gone, the hospitalization note gone. Entries pass;
-        // a disguise keeps every detail.
-        Assert.Contains("gym log entries", prompt, StringComparison.Ordinal);
-        Assert.Contains("pass them as written", prompt, StringComparison.Ordinal);
+        Assert.Contains("OWN health facts", prompt, StringComparison.Ordinal);
+        Assert.Contains("and his workouts PASS as written", prompt, StringComparison.Ordinal);
+        Assert.Contains("a disguise of his own health fact is a mistake", prompt, StringComparison.Ordinal);
+        Assert.Contains("OTHER people are withheld", prompt, StringComparison.Ordinal);
         Assert.Contains("only who it is\n             about goes", prompt.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
     }
 

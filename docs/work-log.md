@@ -10458,3 +10458,22 @@ who it is about goes). The bundle journals the first 400 chars of every tool res
 next check can quote what the frontier was handed. Gate: 0 warnings, 0 errors, **1,774
 passed**. Both tiers restaged.
 
+## 2026-09-06 — Claude — "Completely wrong": his own health facts pass, and a note's date is a note's date
+
+Steve: "which is completely wrong. I am not concerned about privacy of my workouts, nor my
+stenosis. Also my surgery was march 11, not april."
+
+Two mistakes of mine. The ADR-0034 rule told the gate to *disguise* his heart facts on gym
+turns when he does not want them hidden at all; the disguise then invented a date. And the
+context line `[diagnosis 2026-04-17] Mechanical valve` presents the date of the note the
+fact was pulled from as if it were the diagnosis date — every `health_events.event_date` is
+the observation's date (the valve row is dated 2026-03-02, a week before the surgery, and
+"Mechanical valve implanted" is dated 2026-02-15).
+
+**Done.** Gate rule: the user's OWN health facts and workouts PASS as written, never
+disguised or withheld (other people's still withheld; names, addresses, accounts, hostnames
+still never). Context lines now read `[diagnosis, noted 2026-04-17]`. His correction is in
+the corpus as observation `1665c440…` ("surgery was on 2026-03-11, not in April"), which
+the health pass will extract with its own date. ADR-0034 amended in place. Gate: 0
+warnings, 0 errors, **1,775 passed**. Both tiers restaged; the gate memo clears on restart.
+

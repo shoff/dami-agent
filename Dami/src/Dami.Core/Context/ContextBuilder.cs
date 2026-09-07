@@ -124,11 +124,12 @@ public sealed class ContextBuilder : IContextBuilder
 
             kept.Add(words);
 
-            // An undated fact says so. Stamping it with a stand-in date would read to the
-            // frontier as a dated one, and the epoch reads as 1970.
+            // An undated fact says so (the epoch reads as 1970). A dated one says "noted":
+            // the date is the note's, and "[diagnosis 2026-04-17] Mechanical valve" came
+            // back as "installed April 17" for a surgery that was on March 11 (2026-09-06).
             var when = fact.AsOf is null
                 ? $"{fact.Kind}, date unknown"
-                : $"{fact.Kind} {fact.AsOf:yyyy-MM-dd}";
+                : $"{fact.Kind}, noted {fact.AsOf:yyyy-MM-dd}";
 
             facts.Add(new RetrievedItem(
                 "fact",

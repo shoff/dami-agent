@@ -302,15 +302,11 @@ public sealed class DisclosureOptions
     [
         "Never send names of people, employers, doctors, or private projects.",
         "Never send addresses, account numbers, credentials, or hostnames.",
-        "Health facts about the user may be DISGUISED when the question needs them; "
-            + "the clinical detail matters, the identity does not.",
+        "The user's OWN health facts — conditions, procedures, medications, symptoms, appointments, "
+            + "test results — and his workouts PASS as written. He said so himself on 2026-09-06: he "
+            + "is not concerned about their privacy, and the service needs them to look after him. "
+            + "Never disguise or withhold them; a disguise of his own health fact is a mistake.",
         "Health or personal facts about OTHER people are withheld, not disguised.",
-        "The user's own gym log entries — an exercise or machine, sets, reps, weight, RPE, and any "
-            + "note on them — identify no one: pass them as written.",
-        "A gym log line like '4x12 110 lbs RPE 7', a machine photo, or any training question is a "
-            + "health question: the user's heart condition, anticoagulant, and any hospitalization in "
-            + "the last two months bear on it — DISGUISE them so the advice can account for them; "
-            + "do not withhold them.",
         "Technical facts about code, tools, and public knowledge pass.",
     ];
 

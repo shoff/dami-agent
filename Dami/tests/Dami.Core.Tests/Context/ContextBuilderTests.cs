@@ -385,6 +385,22 @@ public sealed class ContextBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsync_Should_Say_A_Facts_Date_Is_When_It_Was_Noted()
+    {
+        // 2026-09-06: "[diagnosis 2026-04-17] Mechanical valve" reached the frontier and
+        // came back as "installed April 17, 2026". The surgery was March 11; the date is
+        // the note's.
+        this.Observe("we talked about it");
+
+        var context = await this.CreateBuilder(
+                planner: Planner(["heart condition"], ["health"], ["Mechanical valve"], new DateOnly(2026, 4, 17)))
+            .BuildAsync("what should I ask the surgeon", CancellationToken.None);
+
+        var fact = Assert.Single(context.Memories, item => item.Kind == "fact");
+        Assert.Equal("[diagnosis, noted 2026-04-17] Mechanical valve", fact.Content);
+    }
+
+    [Fact]
     public async Task BuildAsync_Should_Drop_A_Fact_That_Restates_One_Already_Kept()
     {
         this.Observe("we talked about it");
