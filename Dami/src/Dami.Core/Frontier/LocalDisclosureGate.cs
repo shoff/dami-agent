@@ -71,7 +71,8 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
         {
             var reason = FailureReason(reply);
             this.logger.LogWarning(
-                "Disclosure gate {Reason}; withholding all {Count} item(s)", reason, context.Count);
+                "Disclosure gate {Reason}; withholding all {Count} item(s). Reply began: {Reply}",
+                reason, context.Count, reply is null ? string.Empty : reply[..Math.Min(reply.Length, 600)]);
             return [.. context.Select(item => new DisclosedItem(item, Disclosure.Withhold, string.Empty, reason))];
         }
 
