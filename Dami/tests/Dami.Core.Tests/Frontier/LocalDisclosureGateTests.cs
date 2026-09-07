@@ -113,6 +113,24 @@ public sealed class LocalDisclosureGateTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_Should_Find_The_Verdict_Behind_Prose_That_Quotes_A_Bracketed_Item()
+    {
+        // 2026-09-07 18:00: the reply restated "[diagnosis, noted 2026-04-17] Mechanical
+        // valve" before its JSON; "first '[' to last ']'" was never JSON, every item was
+        // withheld, and the gym caption with them.
+        this.Says(
+            "Item 1 is \"[diagnosis, noted 2026-04-17] Mechanical valve\", the user's own health fact, so it passes.\n"
+            + """[{"n":1,"action":"pass","why":"own health"},{"n":2,"action":"withhold","why":"other person [name]"}]"""
+            + "\nThat is my answer [end].");
+
+        var decided = await this.ClassifyAsync("[diagnosis, noted 2026-04-17] Mechanical valve", "Dr Harrison's note");
+
+        Assert.Equal(Disclosure.Pass, decided[0].Disclosure);
+        Assert.Equal(Disclosure.Withhold, decided[1].Disclosure);
+        Assert.Equal("other person [name]", decided[1].Reason);
+    }
+
+    [Fact]
     public async Task ClassifyAsync_Should_Name_A_Truncated_Reply_And_Withhold()
     {
         // 2026-09-06 14:55: 36 items, the reply hit the token ceiling mid-array, and the

@@ -220,21 +220,64 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
 
     private static List<DisclosedItem>? Parse(string reply, IReadOnlyList<string> context)
     {
-        var start = reply.IndexOf('[', StringComparison.Ordinal);
-        var end = reply.LastIndexOf(']');
-        if (start < 0 || end <= start)
+        foreach (var candidate in Arrays(reply))
         {
-            return null;
+            try
+            {
+                using var document = JsonDocument.Parse(candidate);
+                var decisions = Read(document, context);
+                if (decisions is not null)
+                {
+                    return decisions;
+                }
+            }
+            catch (JsonException)
+            {
+                // Not the array; the next '[' may be.
+            }
         }
 
+        return null;
+    }
+
+    /// <summary>
+    /// Every complete JSON array in the reply, in order, however much prose surrounds it.
+    /// The first '[' is not always the verdict: since fact lines began "[diagnosis, noted
+    /// 2026-04-17]" a model that restates an item before answering starts its reply with a
+    /// bracket, and "first '[' to last ']'" (2026-09-07 18:00: 439 tokens, "unreadable",
+    /// the caption withheld, "which machine?" again) cut a slice that was never JSON.
+    /// </summary>
+    private static IEnumerable<string> Arrays(string reply)
+    {
+        var bytes = Encoding.UTF8.GetBytes(reply);
+        for (var start = 0; start < bytes.Length; start++)
+        {
+            if (bytes[start] != (byte)'[')
+            {
+                continue;
+            }
+
+            var length = ArrayLength(bytes.AsSpan(start));
+            if (length > 0)
+            {
+                yield return Encoding.UTF8.GetString(bytes, start, length);
+            }
+        }
+    }
+
+    /// <summary>Bytes of the complete array beginning at the span's start, or 0 when it is not one.</summary>
+    private static int ArrayLength(ReadOnlySpan<byte> json)
+    {
         try
         {
-            using var document = JsonDocument.Parse(reply[start..(end + 1)]);
-            return Read(document, context);
+            var reader = new Utf8JsonReader(json, new JsonReaderOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+            return reader.Read() && reader.TokenType == JsonTokenType.StartArray && reader.TrySkip()
+                ? (int)reader.BytesConsumed
+                : 0;
         }
         catch (JsonException)
         {
-            return null;
+            return 0;
         }
     }
 

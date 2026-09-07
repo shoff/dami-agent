@@ -10523,3 +10523,22 @@ Tests: a silent socket is cut and the second socket sees op 6; a socket that ack
 message. Gate: 0 warnings, 0 errors, **1,777 passed**. Both tiers restaged — this time the
 deploy needs to actually run.
 
+## 2026-09-07 — Claude — Eighth attempt: the gate could not read its own verdict because the items now start with '['
+
+Steve: "deployed, sent the photo again, what did the journal say."
+
+The deploy landed (17:59:38, staged build in place). The photo arrived at 18:00 — into the
+same second as the six-hourly portrait job, so the two turns ran together and the photo
+waited three minutes on the codex semaphore. Vision read it in 5.4 s (4,131 tokens in the
+8,192 window). Then: "Disclosure gate gate output unreadable; withholding all 18 item(s)".
+Ollama's log says the reply was 439 tokens, not truncated. The frontier, with the caption
+in the withheld pile, asked "Which exercise or machine is this for?" — again.
+
+**Cause.** Fact lines now begin "[diagnosis, noted 2026-04-17]". A model that restates an
+item before its JSON starts its reply with a bracket, and the parser took "first '[' to
+last ']'" — a slice that was never JSON. **Fix:** the gate walks every '[' in the reply and
+takes the first complete JSON array (`Utf8JsonReader.TrySkip` finds its end whatever prose
+follows). Unreadable replies are journaled (first 600 chars) so the next one is quotable.
+Test with prose quoting a bracketed item on both sides of the array. Gate: 0 warnings, 0
+errors, **1,778 passed**. Both tiers restaged.
+
