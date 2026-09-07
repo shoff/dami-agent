@@ -66,6 +66,39 @@ public sealed class DiscordEgressChannelTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
+    /// <summary>A socket that answers the handshake and then goes silent: TCP up, nothing arriving.</summary>
+    private sealed class SilentSocket : IDiscordSocket
+    {
+        private readonly Queue<string> frames;
+
+        public SilentSocket(params string[] frames) => this.frames = new Queue<string>(frames);
+
+        public List<string> Sent { get; } = [];
+
+        public DiscordClose? CloseReason => null;
+
+        public Task ConnectAsync(Uri gateway, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SendAsync(string json, CancellationToken cancellationToken)
+        {
+            this.Sent.Add(json);
+            return Task.CompletedTask;
+        }
+
+        public async Task<string?> ReceiveAsync(CancellationToken cancellationToken)
+        {
+            if (this.frames.Count > 0)
+            {
+                return this.frames.Dequeue();
+            }
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return null;
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     private static DiscordOptions Options() => new()
     {
         Token = "a-token",
@@ -164,6 +197,39 @@ public sealed class DiscordEgressChannelTests
         var heard = await HeardAsync(Channel(socket), 1, TimeSpan.FromSeconds(2));
 
         Assert.Empty(heard);
+    }
+
+    [Fact]
+    public async Task ListenAsync_Should_Cut_A_Zombie_Connection_And_Resume()
+    {
+        // 2026-09-07: the socket to Discord stayed established for hours while nothing
+        // arrived on it — Steve's photo never reached the host and the journal was silent.
+        // Discord's rule: a heartbeat with no HEARTBEAT_ACK before the next one means the
+        // session is dead; cut it and resume.
+        var zombie = new SilentSocket("""{"op":10,"d":{"heartbeat_interval":150}}""", ready);
+        var second = new ScriptedSocket(HELLO);
+        var sockets = new Queue<IDiscordSocket>([zombie, second]);
+
+        await HeardAsync(
+            Channel(() => sockets.Count > 0 ? sockets.Dequeue() : new ScriptedSocket()),
+            1,
+            TimeSpan.FromSeconds(4));
+
+        Assert.Contains(zombie.Sent, sent => sent.Contains("\"op\":1,", StringComparison.Ordinal));
+        Assert.Contains(second.Sent, sent => sent.Contains("\"op\":6", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ListenAsync_Should_Keep_A_Connection_Whose_Heartbeats_Are_Answered()
+    {
+        // The ack must actually count, or every healthy connection is cut on the second beat.
+        var acked = new ScriptedSocket(
+            """{"op":10,"d":{"heartbeat_interval":120}}""", ready,
+            """{"op":11}""", """{"op":11}""", DirectMessage(OWNER, "still here"));
+
+        var heard = await HeardAsync(Channel(acked), 1, TimeSpan.FromSeconds(4));
+
+        Assert.Single(heard);
     }
 
     [Fact]

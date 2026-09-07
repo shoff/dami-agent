@@ -132,6 +132,9 @@ public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressCha
         await pump.ConfigureAwait(false);
     }
 
+    /// <summary>1 once Discord has answered the last heartbeat, 0 while one is outstanding.</summary>
+    private int heartbeatAnswered = 1;
+
     /// <summary>Reconnects for as long as the caller is listening.</summary>
     /// <remarks>
     /// Exponential backoff capped at a minute. A gateway that reconnects in a tight loop
@@ -228,13 +231,13 @@ public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressCha
         }
 
         using var connection = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var beat = Task.Run(
-            () => this.HeartbeatAsync(socket, interval.Value, connection.Token), CancellationToken.None);
+        Interlocked.Exchange(ref this.heartbeatAnswered, 1);
+        var beat = Task.Run(() => this.HeartbeatAsync(socket, interval.Value, connection), CancellationToken.None);
 
         try
         {
-            await this.ReceiveLoopAsync(socket, writer, connection, cancellationToken).ConfigureAwait(false);
-            return Fatal(socket);
+            return await this.ReceiveUntilClosedAsync(socket, writer, connection.Token, cancellationToken)
+                .ConfigureAwait(false);
         }
         finally
         {
@@ -247,6 +250,29 @@ public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressCha
             {
                 // Expected: the heartbeat is cancelled when the connection ends.
             }
+        }
+    }
+
+    /// <summary>Receives until the peer closes or the heartbeat loop cuts a zombie.</summary>
+    private async Task<DiscordClose?> ReceiveUntilClosedAsync(
+        IDiscordSocket socket,
+        ChannelWriter<InboundMessage> writer,
+        CancellationToken connection,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await this.ReceiveLoopAsync(socket, writer, connection).ConfigureAwait(false);
+            this.logger.LogWarning(
+                "Discord gateway closed ({Code} {Description}); reconnecting",
+                socket.CloseReason?.Code ?? 0, socket.CloseReason?.Description ?? "no close frame");
+            return Fatal(socket);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The heartbeat loop cut a zombie connection; the session is intact, so the
+            // next attempt resumes and Discord replays what was missed.
+            return null;
         }
     }
 
@@ -302,8 +328,8 @@ public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressCha
 
         await socket.SendAsync(send, cancellationToken).ConfigureAwait(false);
         this.logger.LogInformation(
-            "Discord gateway {Action}; heartbeat every {Seconds:F0}s",
-            resuming ? "resumed" : "identified",
+            "Discord gateway {Action} sent; heartbeat every {Seconds:F0}s",
+            resuming ? "resume" : "identify",
             interval.TotalSeconds);
 
         return interval;
@@ -326,22 +352,37 @@ public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressCha
         this.lastIdentify = this.clock.GetUtcNow();
     }
 
+    /// <summary>
+    /// Beats on Discord's interval, and cuts the connection when a beat goes unanswered.
+    /// Discord's own rule: no HEARTBEAT_ACK before the next beat means the session is a
+    /// zombie — the TCP socket lives, nothing arrives on it. Until 2026-09-07 nothing
+    /// checked: the gateway sat "identified" on a dead socket for up to two hours while
+    /// Steve's photos went unanswered, and the journal showed nothing at all.
+    /// </summary>
     private async Task HeartbeatAsync(
-        IDiscordSocket socket, TimeSpan interval, CancellationToken cancellationToken)
+        IDiscordSocket socket, TimeSpan interval, CancellationTokenSource connection)
     {
         using var timer = new PeriodicTimer(interval, this.clock);
 
-        while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+        while (await timer.WaitForNextTickAsync(connection.Token).ConfigureAwait(false))
         {
+            if (Interlocked.Exchange(ref this.heartbeatAnswered, 0) == 0)
+            {
+                this.logger.LogWarning(
+                    "Discord gateway zombie: no heartbeat ack in {Seconds:F0}s; reconnecting to resume",
+                    interval.TotalSeconds);
+                await connection.CancelAsync().ConfigureAwait(false);
+                return;
+            }
+
             var beat = DiscordGatewayProtocol.Heartbeat(this.session.LastSequence);
-            await socket.SendAsync(beat, cancellationToken).ConfigureAwait(false);
+            await socket.SendAsync(beat, connection.Token).ConfigureAwait(false);
         }
     }
 
     private async Task ReceiveLoopAsync(
         IDiscordSocket socket,
         ChannelWriter<InboundMessage> writer,
-        CancellationTokenSource connection,
         CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -355,6 +396,12 @@ public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressCha
             var frame = DiscordGatewayProtocol.ReadFrame(raw);
             if (frame is null)
             {
+                continue;
+            }
+
+            if (frame.Opcode == DiscordOpcode.HeartbeatAck)
+            {
+                Interlocked.Exchange(ref this.heartbeatAnswered, 1);
                 continue;
             }
 

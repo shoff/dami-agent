@@ -10496,3 +10496,30 @@ Its first run was brought forward by hand to prove the path: dispatcher picked i
 asks for anything on a rhythm rather than promise it. Gate: 0 warnings, 0 errors, **1,775
 passed**. Both tiers restaged.
 
+## 2026-09-07 — Claude — The photo that never arrived: a zombie gateway, and a deploy that did not happen
+
+Steve: "deployed, sent the photo again, what did the journal say."
+
+**Nothing.** No inbound Discord turn today except the noon portrait job; the last inbound
+from Steve is 2026-09-06 20:11. And the deploy had not landed: `dami-host` last started
+2026-09-06 20:10, `/opt/dami/host/Dami.Core.dll` is the 15:53 build, the staged one is
+20:29 — the health-rule and "noted date" changes were still not running.
+
+**The gateway.** 37 "invalidated the session" lines in three days. The pattern every one to
+two hours: the socket ends, a resume is sent (and logged as "resumed" before Discord had
+answered), Discord answers INVALID_SESSION, a fresh identify follows. Between 17:03 and
+Steve's photo the socket was ESTABLISHED to a Cloudflare address and nothing arrived on it.
+The heartbeat loop sent beats and never looked for HEARTBEAT_ACK — Discord's documented
+zombie check — so a dead session sat "identified" until the far end got round to closing
+TCP. The reason for each close was never logged either.
+
+**Fix.** `heartbeatAnswered` flag: cleared on each beat, set on op 11; a beat that finds the
+last one unanswered logs "Discord gateway zombie: no heartbeat ack in 41s; reconnecting to
+resume", cancels the connection, and the next attempt resumes with the session intact so
+Discord replays what was missed. The receive loop runs on the connection token; the
+zombie cancel is caught and returns "retry", the outer cancel still stops. Every close now
+logs its code and description; the handshake log says "resume sent" / "identify sent".
+Tests: a silent socket is cut and the second socket sees op 6; a socket that acks keeps its
+message. Gate: 0 warnings, 0 errors, **1,777 passed**. Both tiers restaged — this time the
+deploy needs to actually run.
+
