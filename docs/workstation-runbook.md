@@ -491,6 +491,26 @@ gym and what the log noticed, what she has noticed and not yet mentioned, what i
 a year ago today — gated), and writes the brief in her voice. `dami inbox` shows the same
 surfacings; the Jobs window shows the job.
 
+### Pausing and resuming the whole stack
+
+Two scripts, both idempotent, both with `--dry-run`:
+
+```bash
+tools/dami-down    # stop dami-host, dami-proactive, dami-tts and the LLM-guard timer, then every dami-* container
+tools/dami-up      # start the containers, wait until each answers, then the services, then `dami health`
+```
+
+Order is the point. Down stops the services before their sidecars so no turn is cut
+mid-flight, and disarms `dami-llm-guard.timer` first — armed, it would try to restart the
+Ollama container the script had just stopped. Containers stop consumers first (filebeat
+and Kibana before Elasticsearch). Up starts sidecars first and waits on each one's own
+readiness endpoint (TEI `/health`, Ollama `/api/version`, Elasticsearch `_cluster/health`
+yellow, Kibana `/api/status`, SearXNG `/healthz`, Whisper `:8090/health`) for up to three
+minutes (`DAMI_UP_WAIT`) before starting `dami-host`, so the host's first turn does not
+land on a sidecar that is still loading. PostgreSQL is bare metal (D-004) and is left
+running by both. `sudo` is asked for the `systemctl` calls only.
+`bash tools/tests/dami-updown-tests.sh` exercises both against shims.
+
 ### Rebuilding /opt/dami from nothing
 
 Everything under `/opt/dami` is reproducible; none of it is a source of truth.

@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Pauses Dami on this workstation: stops the runtime services, then every dami-* container.
+#
+# Order matters. The services go first so nothing is mid-turn when its sidecar vanishes,
+# and the LLM guard timer goes with them — left armed, it would see Ollama gone and try to
+# restart a container this script just stopped. Containers stop consumers-first (filebeat
+# before Elasticsearch, Kibana before Elasticsearch). PostgreSQL is bare metal (D-004) and
+# is not touched: the data stays available to psql and backups.
+#
+# Run: tools/dami-down            (sudo is asked for the systemctl calls)
+#      tools/dami-down --dry-run  (print what would run)
+# Reverse: tools/dami-up. Source of truth: tools/ in the dami-agent repository.
+set -euo pipefail
+
+DRY_RUN=no
+[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=yes
+
+UNITS=(dami-llm-guard.timer dami-host.service dami-proactive.service dami-tts.service)
+CONTAINERS=(dami-filebeat dami-kibana dami-elasticsearch dami-searxng dami-stt dami-llm dami-rerank dami-embed)
+
+run() {
+    if [[ "$DRY_RUN" == yes ]]; then
+        echo "would: $*"
+    else
+        "$@" >/dev/null
+    fi
+}
+
+echo "== stopping services"
+for unit in "${UNITS[@]}"; do
+    if systemctl list-unit-files "$unit" --no-legend 2>/dev/null | grep -q "$unit"; then
+        run sudo systemctl stop "$unit"
+        echo "stopped $unit"
+    else
+        echo "skip $unit (not installed)"
+    fi
+done
+
+echo "== stopping containers"
+for container in "${CONTAINERS[@]}"; do
+    state=$(docker inspect -f '{{.State.Status}}' "$container" 2>/dev/null || echo missing)
+    case "$state" in
+        running) run docker stop "$container"; echo "stopped $container" ;;
+        missing) echo "skip $container (no such container)" ;;
+        *) echo "skip $container (already $state)" ;;
+    esac
+done
+
+echo "== paused. PostgreSQL is still up; tools/dami-up brings the rest back."
