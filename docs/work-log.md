@@ -10477,3 +10477,22 @@ the corpus as observation `1665c440…` ("surgery was on 2026-03-11, not in Apri
 the health pass will extract with its own date. ADR-0034 amended in place. Gate: 0
 warnings, 0 errors, **1,775 passed**. Both tiers restaged; the gate memo clears on restart.
 
+## 2026-09-06 — Claude — The six-hourly portrait, finally scheduled
+
+Steve: "I've asked her at least 10 times to send me an image of herself every 6 hours.
+Still hasn't done it."
+
+The turn store holds 31 turns since 2026-08-24 and one of those asks — 2026-09-03, "Why
+are you not generating daily images of yourself?", answered by the local fallback with "I
+don't have the capability" (ADR-0028 removed that path two days later). The rest went to
+the agent this one replaces, or to turns nobody stored. `scheduled_jobs` was empty; the
+`schedule` tool had never been called.
+
+**Done.** Job `portrait every six hours` created through the runtime's own draft → confirm
+path: Prompt kind, cron `0 */6 * * *` America/Chicago, delivery `discord:1543678906748641310`.
+Its first run was brought forward by hand to prove the path: dispatcher picked it up within
+30 s, `make_portrait` ok, "answered by the frontier … 1 picture(s)", job status Succeeded
+20:28:17. The `schedule` tool's description now tells the frontier to draft the moment he
+asks for anything on a rhythm rather than promise it. Gate: 0 warnings, 0 errors, **1,775
+passed**. Both tiers restaged.
+

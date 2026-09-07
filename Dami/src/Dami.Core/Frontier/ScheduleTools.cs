@@ -60,10 +60,12 @@ public sealed class ScheduleTools : IFrontierScheduling
     public FrontierTool ScheduleTool { get; } = new(
         SCHEDULE,
         "Draft a recurring job that will run one of Steve's requests on a schedule and deliver "
-        + "the result to this channel — a daily picture, a weekly summary, a reminder. It is NOT "
-        + "active until Steve confirms: tell him the draft's short id, exactly what will run and "
-        + "when, and ask him to confirm. Cron is five fields; Steve is in America/Chicago unless "
-        + "he says otherwise.",
+        + "the result to this channel — a daily picture, a weekly summary, a reminder. Call it the "
+        + "moment he asks for anything on a rhythm ('every 6 hours', 'daily', 'each morning', 'send "
+        + "me a picture of yourself every…'), even in passing; never promise it and not draft it. "
+        + "It is NOT active until Steve confirms: tell him the draft's short id, exactly what will "
+        + "run and when, and ask him to confirm. Cron is five fields; Steve is in America/Chicago "
+        + "unless he says otherwise.",
         JsonSerializer.SerializeToElement(new
         {
             type = "object",
