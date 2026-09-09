@@ -66,7 +66,7 @@ public sealed class DiscordRest : IDiscordRest
     }
 
     /// <summary>An authenticated request to Discord's own API.</summary>
-    private HttpRequestMessage Api(HttpMethod method, string url, HttpContent content) =>
+    private HttpRequestMessage Api(HttpMethod method, string url, HttpContent? content = null) =>
         new(method, new Uri(url)) { Headers = { Authorization = this.credential }, Content = content };
 
     private static HttpContent Json(string text) =>
@@ -214,6 +214,26 @@ public sealed class DiscordRest : IDiscordRest
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         return await ReadCappedAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Discord's channel type for a one-to-one direct message.</summary>
+    private const int DM_CHANNEL_TYPE = 1;
+
+    /// <inheritdoc />
+    public async Task<bool> IsDirectMessageAsync(string channelId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelId);
+
+        using var request = this.Api(HttpMethod.Get, $"{API}/channels/{channelId}");
+        using var response = await this.http
+            .SendAsync(request, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        using var body = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
+        return body.RootElement.TryGetProperty("type", out var type)
+            && type.ValueKind == JsonValueKind.Number
+            && type.GetInt32() == DM_CHANNEL_TYPE;
     }
 
     /// <summary>Reads at most the ceiling, measuring what arrives rather than what was claimed.</summary>

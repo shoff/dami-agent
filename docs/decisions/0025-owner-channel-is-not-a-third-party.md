@@ -70,6 +70,23 @@ The channel now learns each conversation's audience from inbound traffic — Dis
 `guild_id` on a DM, which is the only available signal — and an unseen conversation fails
 safe as *not* private. Operational content is unaffected and still flows anywhere.
 
+## Correction, 2026-09-08
+
+Learning the audience only from inbound traffic had a hole a restart fell through. The
+host restarted at 21:59 on 2026-09-07; Steve did not write in his DM afterwards; and the
+six-hourly portrait job (ADR-0030, delivered to `discord:<channel>`) was refused into that
+DM four times on 2026-09-08 — the channel had never been seen since the restart, so it
+was "not private", and the refusal message told Steve his own DM was not addressed to
+him. Each run was then recorded on `scheduled_jobs` as `Succeeded`, because the answerer
+explained the refusal in the channel and swallowed it.
+
+The channel now asks Discord — `GET /channels/{id}`, type 1 is a one-to-one DM — the
+first time profile-derived content needs to leave into a conversation it has not heard
+from, and caches the answer. A group DM or a guild channel is still not private; a lookup
+that fails is still not private; operational content never triggers the lookup. And a
+scheduled delivery whose answer did not reach Discord now fails the run with the same
+reason the channel saw. The recipient rule is unchanged; only the evidence for it is.
+
 ## Reversal path
 
 One boolean at one call site: `ChannelDisclosurePolicy.EnsureMayLeave` takes whether the

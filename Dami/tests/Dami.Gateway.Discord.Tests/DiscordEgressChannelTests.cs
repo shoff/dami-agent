@@ -386,15 +386,88 @@ public sealed class DiscordEgressChannelTests
     }
 
     [Fact]
-    public async Task SendAsync_Should_Refuse_Profile_Derived_Content_To_An_Unknown_Conversation()
+    public async Task SendAsync_Should_Refuse_Profile_Derived_Content_To_A_Conversation_Discord_Calls_Shared()
     {
-        // Nothing has been received from this conversation, so nothing is known about its
-        // audience. Fail safe rather than assume privacy.
-        var channel = Channel(new ScriptedSocket());
+        // Nothing has been received from this conversation, so Discord is asked; it says
+        // the channel is not a DM. Fail safe rather than assume privacy.
+        var rest = Substitute.For<IDiscordRest>();
+        rest.IsDirectMessageAsync("never-seen", Arg.Any<CancellationToken>()).Returns(false);
+        var channel = Channel(new ScriptedSocket(), rest);
 
         await Assert.ThrowsAsync<EgressRefusedException>(() => channel.SendAsync(
             new OutboundContent(
                 "never-seen", "You were in Chicago", ContentProvenance.ProfileDerived, Guid.NewGuid()),
             CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Ask_Discord_About_A_Conversation_It_Has_Not_Heard_From()
+    {
+        // 2026-09-08: the host restarted at 21:59 the night before, Steve did not write in
+        // his DM, and the six-hourly portrait was refused into that DM four times running —
+        // the audience was only ever learned from inbound traffic. Discord knows the type.
+        var rest = Substitute.For<IDiscordRest>();
+        rest.IsDirectMessageAsync("steve-dm", Arg.Any<CancellationToken>()).Returns(true);
+        var channel = Channel(new ScriptedSocket(), rest);
+        var content = new OutboundContent(
+            "steve-dm", "You were in Chicago on Tuesday", ContentProvenance.ProfileDerived, Guid.NewGuid());
+
+        await channel.SendAsync(content, CancellationToken.None);
+
+        await rest.Received(1).PostMessageWithFilesAsync(
+            "steve-dm", "You were in Chicago on Tuesday",
+            Arg.Any<IReadOnlyList<OutboundAttachment>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BeginAsync_Should_Ask_Discord_Once_And_Remember_The_Answer()
+    {
+        // Progressive replies edit every ~80 characters; a lookup per edit would be a
+        // rate-limit of its own making.
+        var rest = Substitute.For<IDiscordRest>();
+        rest.IsDirectMessageAsync("steve-dm", Arg.Any<CancellationToken>()).Returns(true);
+        rest.CreateMessageAsync("steve-dm", Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns("m1");
+        var channel = Channel(new ScriptedSocket(), rest);
+        OutboundContent Content(string text) =>
+            new("steve-dm", text, ContentProvenance.ProfileDerived, Guid.NewGuid());
+
+        var messageId = await channel.BeginAsync(Content("You were"), CancellationToken.None);
+        await channel.UpdateAsync(messageId, Content("You were in Chicago"), CancellationToken.None);
+        await channel.UpdateAsync(messageId, Content("You were in Chicago on Tuesday"), CancellationToken.None);
+
+        await rest.Received(1).IsDirectMessageAsync("steve-dm", Arg.Any<CancellationToken>());
+        await rest.Received(2).EditMessageAsync("steve-dm", "m1", Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Not_Ask_Discord_For_Operational_Content()
+    {
+        // Board state and service status may go anywhere; the audience is irrelevant.
+        var rest = Substitute.For<IDiscordRest>();
+        var channel = Channel(new ScriptedSocket(), rest);
+
+        await channel.SendAsync(
+            new OutboundContent("anywhere", "3 tasks open", ContentProvenance.Operational, Guid.NewGuid()),
+            CancellationToken.None);
+
+        await rest.DidNotReceive().IsDirectMessageAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SendAsync_Should_Refuse_When_Discord_Cannot_Say_Who_Reads()
+    {
+        // A lookup that fails leaves the audience unknown, and unknown is not private.
+        var rest = Substitute.For<IDiscordRest>();
+        rest.IsDirectMessageAsync("steve-dm", Arg.Any<CancellationToken>())
+            .Returns<bool>(_ => throw new HttpRequestException("503"));
+        var channel = Channel(new ScriptedSocket(), rest);
+
+        await Assert.ThrowsAsync<EgressRefusedException>(() => channel.SendAsync(
+            new OutboundContent(
+                "steve-dm", "You were in Chicago", ContentProvenance.ProfileDerived, Guid.NewGuid()),
+            CancellationToken.None));
+        await rest.DidNotReceive().PostMessageWithFilesAsync(
+            Arg.Any<string>(), Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<OutboundAttachment>>(), Arg.Any<CancellationToken>());
     }
 }

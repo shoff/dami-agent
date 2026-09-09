@@ -62,6 +62,29 @@ public sealed class DiscordRestTests
             handler);
     }
 
+    [Theory]
+    [InlineData("""{"id":"1543678906748641310","type":1,"recipients":[{"id":"1"}]}""", true)]
+    [InlineData("""{"id":"1543678906748641310","type":0,"guild_id":"1465847432570077402"}""", false)]
+    [InlineData("""{"id":"1543678906748641310","type":3,"recipients":[{"id":"1"},{"id":"2"}]}""", false)]
+    [InlineData("""{"id":"1543678906748641310"}""", false)]
+    public async Task IsDirectMessageAsync_Should_Read_The_Channel_Type_Discord_Reports(
+        string channel, bool expected)
+    {
+        // Type 1 is a one-to-one DM. A group DM (3) has other readers; a guild text channel
+        // (0) has many; a body without a type says nothing, and nothing is not private.
+        var (rest, handler) = Create();
+        handler.Payload = Encoding.UTF8.GetBytes(channel);
+
+        var isDirect = await rest.IsDirectMessageAsync("1543678906748641310", CancellationToken.None);
+
+        Assert.Equal(expected, isDirect);
+        Assert.Equal(HttpMethod.Get, handler.Request!.Method);
+        Assert.Equal(
+            "https://discord.com/api/v10/channels/1543678906748641310",
+            handler.Request.RequestUri!.ToString());
+        Assert.Equal("Bot", handler.Request.Headers.Authorization!.Scheme);
+    }
+
     [Fact]
     public async Task PostMessageWithFilesAsync_Should_Send_Multipart_When_There_Is_A_File()
     {

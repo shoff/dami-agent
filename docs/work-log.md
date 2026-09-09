@@ -10542,3 +10542,40 @@ follows). Unreadable replies are journaled (first 600 chars) so the next one is 
 Test with prose quoting a bracketed item on both sides of the array. Gate: 0 warnings, 0
 errors, **1,778 passed**. Both tiers restaged.
 
+
+## 2026-09-08 — Claude — The six-hourly portrait was refused into Steve's own DM four times, and every run said Succeeded
+
+Steve: "image job failing check the elastic logs please" with a screenshot of four
+identical refusals at 12:00 AM, 6:00 AM, 12:00 PM and 6:00 PM.
+
+**What Elasticsearch showed.** The job's five runs on 2026-09-07 each posted one picture
+(`answered by the frontier on 27 local item(s), 1 picture(s)`). The host restarted at
+21:59 that night. Every run on 2026-09-08 then followed the same shape: query plan,
+disclosure gate (15 sent, 11 withheld), codex started, reasoning started, and seven seconds
+later `Discord refused a reply: discord refused profile-derived content addressed to
+someone other than its subject (ADR-0025)`. The refusal's own trace id is what Discord
+shows, not the turn's, which is why the ids in the screenshot are not in the index. No
+inbound Discord message had arrived since the restart.
+
+**Cause.** `DiscordEgressChannel` learned whether a conversation is a DM only from
+inbound frames (`guild_id` absent). A scheduled delivery has no inbound frame, so after a
+restart the DM was an unseen conversation, and unseen fails safe as shared. The refusal
+text then told Steve his own DM was not addressed to him. Second defect: `DiscordAnswerer`
+explained the refusal in the channel and returned null, so `ScheduledJobDispatcher` saw
+no exception and wrote `Succeeded` on the row.
+
+**Fix.** `IDiscordRest.IsDirectMessageAsync` — `GET /channels/{id}`, type 1 — asked the
+first time profile-derived content needs to leave into a conversation the channel has not
+heard from, cached per channel; a lookup that fails logs and stays "not private";
+operational content never asks. `DiscordAnswerer.AnswerAsync` returns a
+`DiscordAnswerOutcome` (answer, or the failure it already explained);
+`DiscordScheduledDelivery` throws on a failed outcome so the job records
+`Failed: <reason>`. The live-message path is unchanged. Tests: the unseen-DM case, one
+lookup across a begin and two edits, no lookup for operational content, a failed lookup
+refuses, the REST client's read of types 1/0/3/absent, and a refused scheduled run failing
+with the refusal in the channel. Gate: `dotnet build` 0 warnings, 0 errors; `dotnet test`
+**1,787 passed, 0 failed** across 21 assemblies. ADR-0025 carries the correction.
+
+**Not deployed.** The running host is still the 2026-09-07 build; the next run is
+2026-09-09 00:00 CDT and will be refused again until `tools/deploy.sh` runs (it asks for
+sudo). Board M1e (`b633775f`) stays claimed until the live criterion is met.

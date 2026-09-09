@@ -23,13 +23,16 @@ public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressCha
     private static readonly TimeSpan identifyFloor = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// Conversations known to be direct messages, learned from inbound traffic.
+    /// Conversations known to be direct messages: learned from inbound traffic, or asked of
+    /// Discord the first time profile-derived content needs to leave into one.
     /// </summary>
     /// <remarks>
     /// The audience, not the author. `ShouldAnswer` establishes who ASKED; it says nothing
     /// about who can READ, and a guild text channel has readers who are not Steve. Discord
-    /// omits `guild_id` on a DM, which is the only signal that a conversation is private.
-    /// Absent knowledge the answer is "not private" — an unseen conversation fails safe.
+    /// omits `guild_id` on a DM, and `GET /channels/{id}` names the type outright. Until
+    /// 2026-09-08 only the first was consulted, so a restart forgot every DM and refused
+    /// scheduled deliveries into Steve's own conversation until he happened to speak in it.
+    /// Absent knowledge the answer is still "not private" — a lookup that fails fails safe.
     /// </remarks>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> privateConversations =
         new(StringComparer.Ordinal);
@@ -69,15 +72,7 @@ public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressCha
     /// <inheritdoc />
     public async Task SendAsync(OutboundContent content, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(content);
-
-        // ADR-0025 permits profile-derived content only where the reader IS the subject.
-        // That is true of a DM and false of a guild channel, and this used to be hardcoded
-        // true on the strength of the author filter — which proves who asked, not who reads.
-        var isPrivate = this.privateConversations.TryGetValue(content.ConversationId, out var known)
-            && known;
-        ChannelDisclosurePolicy.EnsureMayLeave(
-            content, this.ChannelName, recipientIsDataSubject: isPrivate);
+        await this.EnsureMayLeaveAsync(content, cancellationToken).ConfigureAwait(false);
         await this.rest
             .PostMessageWithFilesAsync(
                 content.ConversationId, content.Text, content.Attachments, cancellationToken)
@@ -88,7 +83,7 @@ public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressCha
     public async Task<string> BeginAsync(
         OutboundContent content, CancellationToken cancellationToken)
     {
-        this.EnsureMayLeave(content);
+        await this.EnsureMayLeaveAsync(content, cancellationToken).ConfigureAwait(false);
         return await this.rest
             .CreateMessageAsync(content.ConversationId, content.Text, cancellationToken)
             .ConfigureAwait(false);
@@ -99,20 +94,51 @@ public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressCha
         string messageId, OutboundContent content, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
-        this.EnsureMayLeave(content);
+        await this.EnsureMayLeaveAsync(content, cancellationToken).ConfigureAwait(false);
         await this.rest
             .EditMessageAsync(
                 content.ConversationId, messageId, content.Text, cancellationToken)
             .ConfigureAwait(false);
     }
 
-    private void EnsureMayLeave(OutboundContent content)
+    /// <summary>
+    /// ADR-0025 permits profile-derived content only where the reader IS the subject. That
+    /// is true of a DM and false of a guild channel. Operational content never needs the
+    /// answer, so the lookup is only made when something personal is about to leave.
+    /// </summary>
+    private async Task EnsureMayLeaveAsync(OutboundContent content, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(content);
-        var isPrivate = this.privateConversations.TryGetValue(content.ConversationId, out var known)
-            && known;
+        var isPrivate = content.Provenance is ContentProvenance.ProfileDerived
+            && await this.IsPrivateAsync(content.ConversationId, cancellationToken).ConfigureAwait(false);
         ChannelDisclosurePolicy.EnsureMayLeave(
             content, this.ChannelName, recipientIsDataSubject: isPrivate);
+    }
+
+    /// <summary>What is known about the audience, asking Discord once when nothing is.</summary>
+    private async Task<bool> IsPrivateAsync(string conversationId, CancellationToken cancellationToken)
+    {
+        if (this.privateConversations.TryGetValue(conversationId, out var known))
+        {
+            return known;
+        }
+
+        try
+        {
+            var isDirect = await this.rest.IsDirectMessageAsync(conversationId, cancellationToken)
+                .ConfigureAwait(false);
+            this.privateConversations[conversationId] = isDirect;
+            return isDirect;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // Not cached: the next attempt may reach Discord. Until then, fail safe.
+            this.logger.LogWarning(
+                exception,
+                "Could not learn whether Discord conversation {Conversation} is private; treating it as shared",
+                conversationId);
+            return false;
+        }
     }
 
     /// <inheritdoc />

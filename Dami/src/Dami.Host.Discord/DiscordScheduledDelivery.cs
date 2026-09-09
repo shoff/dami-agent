@@ -26,7 +26,12 @@ public sealed class DiscordScheduledDelivery : IScheduledPromptDelivery
         delivery is not null && delivery.StartsWith(PREFIX, StringComparison.Ordinal) && delivery.Length > PREFIX.Length;
 
     /// <inheritdoc />
-    public Task DeliverAsync(ScheduledJob job, CancellationToken cancellationToken)
+    /// <remarks>
+    /// A run whose answer never reached Discord is a failed run, whatever the conversation
+    /// was told. The dispatcher records the exception's message on the job, so the reason
+    /// is the same one the channel saw.
+    /// </remarks>
+    public async Task DeliverAsync(ScheduledJob job, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(job);
         if (!this.Handles(job.Delivery))
@@ -34,7 +39,12 @@ public sealed class DiscordScheduledDelivery : IScheduledPromptDelivery
             throw new ArgumentException($"job {job.JobId} is not a Discord delivery", nameof(job));
         }
 
-        return this.answerer.AnswerAsync(
-            job.Delivery![PREFIX.Length..], $"[scheduled job '{job.Name}'] {job.Payload}", [], cancellationToken);
+        var outcome = await this.answerer.AnswerAsync(
+                job.Delivery![PREFIX.Length..], $"[scheduled job '{job.Name}'] {job.Payload}", [], cancellationToken)
+            .ConfigureAwait(false);
+        if (!outcome.IsAnswered)
+        {
+            throw new InvalidOperationException(outcome.Failure);
+        }
     }
 }

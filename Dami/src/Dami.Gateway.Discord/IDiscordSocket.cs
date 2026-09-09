@@ -91,4 +91,16 @@ public interface IDiscordRest
     /// it is a GET of a URL Discord itself just handed us.
     /// </remarks>
     Task<ReadOnlyMemory<byte>> DownloadAsync(string url, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether a channel is a direct message between the bot and one person, asked of
+    /// Discord rather than inferred from traffic.
+    /// </summary>
+    /// <remarks>
+    /// ADR-0025's test is who reads, and Discord is the only authority on that. Learning it
+    /// from inbound frames alone meant a restart forgot every DM until Steve next spoke,
+    /// and four scheduled portraits in a row were refused into his own DM on 2026-09-08.
+    /// A group DM (type 3) has readers who are not Steve and is not private here.
+    /// </remarks>
+    Task<bool> IsDirectMessageAsync(string channelId, CancellationToken cancellationToken);
 }

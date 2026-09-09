@@ -115,6 +115,29 @@ public sealed class DiscordScheduledDeliveryTests
     }
 
     [Fact]
+    public async Task Deliver_Should_Fail_The_Run_When_The_Channel_Refused_The_Answer()
+    {
+        // 2026-09-08: four portraits in a row were refused into Steve's DM and every one
+        // was recorded as Succeeded, because the refusal was explained and swallowed. The
+        // conversation still gets the explanation; the job gets the failure.
+        this.progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
+            .Returns<string>(_ => throw new EgressRefusedException(
+                "discord refused profile-derived content addressed to someone other than its subject (ADR-0025)."));
+        this.augmented.StreamAsync(
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, OneAsync("a portrait")));
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => this.Subject().DeliverAsync(Job("discord:1543678906748641310"), CancellationToken.None));
+
+        Assert.Contains("ADR-0025", failure.Message, StringComparison.Ordinal);
+        await this.channel.Received(1).SendAsync(
+            Arg.Is<OutboundContent>(content => content.Provenance == ContentProvenance.Operational
+                && content.Text.Contains("ADR-0025", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Deliver_Should_Refuse_A_Job_That_Is_Not_Its_Own()
     {
         await Assert.ThrowsAsync<ArgumentException>(
