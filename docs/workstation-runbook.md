@@ -559,8 +559,8 @@ Codex's sandbox decides what the agent may touch outside the worktree; a NuGet r
 that needs to write `~/.nuget` may fail inside it, in which case the agent's own build
 fails and this host's build after it is the one that counts.
 
-**Not yet run** (2026-09-16): `CodeWork__Enabled` is unset and no task has hit the real
-CLI. The first branch is the proof; record it here.
+**Enabled** 2026-09-16 19:24 CDT (`CodeWork__Enabled=true` in `~/.config/dami/host.env`).
+No task has hit the real CLI yet; the first branch is the proof, record it here.
 
 ### Enabling web research and the opportunity scout (ADR-0033)
 

@@ -1095,7 +1095,9 @@ Proof: `GeminiImageGeneratorTests` 26/26, `ProactiveCompositionTests` selection 
 warnings, 0 errors and `dotnet test Dami.sln` 2,061 passed, 0 failed, 0 skipped across
 21 assemblies (2026-09-16); `dotnet format --verify-no-changes` over the changed files
 exited 0. Deployed in commit `49bf0db` (19:19 CDT). **Not verified live:** no Gemini key
-exists on this host and `Images__Provider` is unset, so Codex still draws. Enabling it is
+exists on this host; `generativelanguage.googleapis.com` is allowlisted on both tiers and the
+`Images__Provider`/`GeminiImages__ApiKey` pair sits commented in both env files awaiting the
+key, so Codex still draws. Enabling it is
 three env-file lines per unit (runbook §"Choosing the image provider"); the first real
 call is the proof and is not yet recorded.
 
@@ -1130,5 +1132,6 @@ door, `CodeTools` the vocabulary; every run is an `execution_events` row for act
 codex CLI. Proof: `CodeToolsTests` 12/12, `CodexCodeWorkerTests` 26/26, bundle and Discord
 composition tests updated and green; full gate 0 warnings, 0 errors, 2,105 passed,
 0 failed across 21 assemblies; `dotnet format --verify-no-changes` on the 20 changed files
-exited 0. Deployed in commit `49bf0db` (19:19 CDT) with `CodeWork__Enabled` unset, so the
-tools are not offered. **Not verified live:** no task has hit the real CLI.
+exited 0. Deployed in commit `49bf0db` (19:19 CDT); `CodeWork__Enabled=true` set in
+`~/.config/dami/host.env` and the Host restarted at 19:24 CDT, so the three tools are now
+offered on every frontier turn. **Not verified live:** no task has hit the real CLI yet.
