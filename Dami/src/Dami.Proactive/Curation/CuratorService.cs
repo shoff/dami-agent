@@ -77,12 +77,7 @@ public sealed class CuratorService : IProactiveService
             pending.Add(observation);
         }
 
-        var curated = 0;
-        foreach (var observation in pending)
-        {
-            curated += await this.CurateOneAsync(observation, cancellationToken)
-                .ConfigureAwait(false);
-        }
+        var curated = await this.CurateAllAsync(pending, cancellationToken).ConfigureAwait(false);
 
         if (curated > 0)
         {
@@ -91,6 +86,35 @@ public sealed class CuratorService : IProactiveService
         }
 
         return ProactiveResult.quiet;
+    }
+
+    /// <summary>
+    /// Curates in order and stops at the first sign the sidecar is gone. A dead sidecar
+    /// fails every note the same way in the same millisecond (58 of them at 19:25:11 on
+    /// 2026-09-16, while dami-llm-guard restarted it); the notes are not lost, they are
+    /// still uncurated for the next pass.
+    /// </summary>
+    private async Task<int> CurateAllAsync(List<Observation> pending, CancellationToken cancellationToken)
+    {
+        var curated = 0;
+        var examined = 0;
+        foreach (var observation in pending)
+        {
+            examined++;
+            try
+            {
+                curated += await this.CurateOneAsync(observation, cancellationToken).ConfigureAwait(false);
+            }
+            catch (HttpRequestException exception)
+            {
+                this.logger.LogWarning(
+                    exception, "Curator: the sidecar is unreachable; leaving {Remaining} note(s) for the next pass",
+                    pending.Count - examined);
+                break;
+            }
+        }
+
+        return curated;
     }
 
     private async Task<int> CurateOneAsync(
@@ -113,7 +137,7 @@ public sealed class CuratorService : IProactiveService
                 .ConfigureAwait(false);
             return 1;
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (exception is not OperationCanceledException and not HttpRequestException)
         {
             this.logger.LogWarning(
                 exception, "Curating {Observation} failed; leaving it alone",

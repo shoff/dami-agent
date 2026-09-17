@@ -32,6 +32,21 @@ public sealed class OllamaOptions
     public int MaxTokens { get; set; } = 2400;
 
     /// <summary>
+    /// The context window asked for per request, in tokens.
+    /// </summary>
+    /// <remarks>
+    /// Without this the sidecar uses its own default, and on this host that was 2,050
+    /// tokens per slot: <c>docker logs dami-llm</c> held 122 "truncating input prompt"
+    /// warnings in the 14 days to 2026-09-16, every one <c>keep=4</c> — the instructions
+    /// at the head of the prompt were the first thing dropped. The weekly reflection of
+    /// 2026-09-13 sent 332,874 tokens and the model saw a random 2,050 of them, which is
+    /// why it "proposed nothing" twice. qwen3:8b supports 40,960; 12,288 costs about
+    /// 1.7 GiB of KV cache on top of the weights and leaves room for the vision model
+    /// under the 16 GiB card. The vision client pins its own window the same way.
+    /// </remarks>
+    public int ContextTokens { get; set; } = 12288;
+
+    /// <summary>
     /// Seconds the sidecar keeps the model resident: <c>-1</c> never unloads (the
     /// default here, deliberately), <c>0</c> unloads immediately.
     /// </summary>

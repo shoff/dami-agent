@@ -26,6 +26,7 @@ public sealed class ReflectionServiceTests
     private readonly IChatClient chatClient = Substitute.For<IChatClient>();
     private readonly List<Observation> observations = [];
     private readonly List<Conclusion> believed = [];
+    private readonly ReflectionOptions reflectionOptions = new();
 
     [Fact]
     public async Task RunPassAsync_Should_Stay_Quiet_Below_The_Observation_Floor()
@@ -179,6 +180,51 @@ public sealed class ReflectionServiceTests
         Assert.Empty(result.Conclusions);
     }
 
+    [Fact]
+    public async Task RunPassAsync_Should_Bound_Each_Observation_In_The_Prompt()
+    {
+        this.ObserveThree();
+        this.Observe(new string('x', 5000));
+        this.reflectionOptions.MaximumObservationCharacters = 600;
+        string? prompt = null;
+        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+            .Returns("nothing");
+
+        await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        Assert.DoesNotContain(new string('x', 601), prompt);
+    }
+
+    [Fact]
+    public async Task RunPassAsync_Should_Stop_Listing_Observations_At_The_Prompt_Budget()
+    {
+        this.ObserveThree();
+        this.Observe("the one that does not fit " + new string('y', 300));
+        this.reflectionOptions.MaximumPromptCharacters = 700;
+        string? prompt = null;
+        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+            .Returns("nothing");
+
+        await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        Assert.DoesNotContain("the one that does not fit", prompt);
+    }
+
+    [Fact]
+    public async Task RunPassAsync_Should_Keep_The_Instructions_When_The_Window_Overflows()
+    {
+        this.ObserveThree();
+        this.Observe(new string('x', 5000));
+        this.reflectionOptions.MaximumPromptCharacters = 700;
+        string? prompt = null;
+        this.chatClient.CompleteAsync(Arg.Do<string>(text => prompt = text), Arg.Any<CancellationToken>())
+            .Returns("nothing");
+
+        await this.CreateService().RunPassAsync(Context(), CancellationToken.None);
+
+        Assert.StartsWith("You are the weekly reflection pass", prompt, StringComparison.Ordinal);
+    }
+
     private readonly List<Observation> related = [];
 
     [Fact]
@@ -270,7 +316,7 @@ public sealed class ReflectionServiceTests
 
         return new ReflectionService(
             this.observationCorpus, this.conclusionLedger, this.healthStore, this.domainStore, this.embeddingStore,
-            this.embeddingClient, this.chatClient, Options.Create(new ReflectionOptions()),
+            this.embeddingClient, this.chatClient, Options.Create(this.reflectionOptions),
             new FakeTimeProvider(now), NullLogger<ReflectionService>.Instance);
     }
 

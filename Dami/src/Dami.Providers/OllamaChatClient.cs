@@ -44,7 +44,7 @@ public sealed class OllamaChatClient : IChatClient
             think = this.ollamaOptions.Think,
             stream = false,
             keep_alive = this.ollamaOptions.KeepAliveSeconds,
-            options = new { num_predict = this.ollamaOptions.MaxTokens },
+            options = new { num_predict = this.ollamaOptions.MaxTokens, num_ctx = this.ollamaOptions.ContextTokens },
         };
 
         using var response = await this.httpClient
@@ -96,7 +96,7 @@ public sealed class OllamaChatClient : IChatClient
             think = this.ollamaOptions.Think,
             stream = true,
             keep_alive = this.ollamaOptions.KeepAliveSeconds,
-            options = new { num_predict = this.ollamaOptions.MaxTokens },
+            options = new { num_predict = this.ollamaOptions.MaxTokens, num_ctx = this.ollamaOptions.ContextTokens },
         };
 
         using var message = new HttpRequestMessage(HttpMethod.Post, endpoint)

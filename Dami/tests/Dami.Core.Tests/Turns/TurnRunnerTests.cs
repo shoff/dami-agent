@@ -329,6 +329,18 @@ public sealed class TurnRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_Should_Bound_The_Request_It_Records()
+    {
+        this.Arrange();
+
+        await this.CreateRunner().RunAsync(new string('x', 5000), CancellationToken.None);
+
+        await this.observationCorpus.Received(1).RecordAsync(
+            Arg.Is<Observation>(item => item.Body.Length < 1000),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RunAsync_Should_Not_Record_A_Failed_Turn_As_An_Interaction()
     {
         this.Arrange();

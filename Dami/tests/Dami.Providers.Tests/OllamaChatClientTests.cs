@@ -65,11 +65,36 @@ public sealed class OllamaChatClientTests
         Assert.Contains("\"keep_alive\":-1", handler.LastBody, StringComparison.Ordinal);
     }
 
-    private static OllamaChatClient CreateClient(StreamHandler? handler = null)
+    [Fact]
+    public async Task CompleteAsync_Should_Ask_For_The_Configured_Context_Window()
+    {
+        var handler = new StreamHandler("""{"response":"hi","done":true}""");
+        var client = CreateClient(handler, new OllamaOptions { ContextTokens = 12288 });
+
+        await client.CompleteAsync("hi", CancellationToken.None);
+
+        Assert.Contains("\"num_ctx\":12288", handler.LastBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StreamAsync_Should_Ask_For_The_Configured_Context_Window()
+    {
+        var handler = new StreamHandler(STREAM);
+        var client = CreateClient(handler, new OllamaOptions { ContextTokens = 12288 });
+
+        await foreach (var _ in client.StreamAsync("hi", CancellationToken.None))
+        {
+            // drain
+        }
+
+        Assert.Contains("\"num_ctx\":12288", handler.LastBody, StringComparison.Ordinal);
+    }
+
+    private static OllamaChatClient CreateClient(StreamHandler? handler = null, OllamaOptions? options = null)
     {
         return new OllamaChatClient(
             new HttpClient(handler ?? new StreamHandler(STREAM)),
-            Options.Create(new OllamaOptions()),
+            Options.Create(options ?? new OllamaOptions()),
             NullLogger<OllamaChatClient>.Instance);
     }
 

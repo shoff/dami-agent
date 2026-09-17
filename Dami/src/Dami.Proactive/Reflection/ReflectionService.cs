@@ -131,9 +131,8 @@ public sealed class ReflectionService : IProactiveService
     {
         var believed = await this.CollectBelievedAsync(cancellationToken).ConfigureAwait(false);
         var health = await this.CollectHealthAsync(cancellationToken).ConfigureAwait(false);
-        var reply = await this.chatClient
-            .CompleteAsync(BuildPrompt(observations, believed, health), cancellationToken)
-            .ConfigureAwait(false);
+        var prompt = this.BuildPrompt(observations, believed, health);
+        var reply = await this.chatClient.CompleteAsync(prompt, cancellationToken).ConfigureAwait(false);
 
         var conclusion = this.ParseProposal(reply, observations, now);
 
@@ -260,12 +259,35 @@ public sealed class ReflectionService : IProactiveService
         return timeline;
     }
 
-    private static string BuildPrompt(
+    /// <summary>
+    /// The prompt, bounded. Instructions, beliefs and the timeline go first and always
+    /// fit; observations follow in order until the next would cross the budget, and the
+    /// list is trimmed to what was shown so a cited number always maps to a shown note.
+    /// </summary>
+    private string BuildPrompt(
         List<Observation> observations,
         List<string> believed,
         List<string> health)
     {
         var prompt = new StringBuilder();
+        AppendInstructions(prompt);
+        AppendBelieved(prompt, believed);
+        AppendHealth(prompt, health);
+
+        var listed = this.AppendObservations(prompt, observations);
+        if (listed < observations.Count)
+        {
+            this.logger.LogWarning(
+                "Reflection: {Listed} of {Count} observation(s) fit the {Budget}-character prompt; the rest were left out",
+                listed, observations.Count, this.reflectionOptions.MaximumPromptCharacters);
+            observations.RemoveRange(listed, observations.Count - listed);
+        }
+
+        return prompt.ToString();
+    }
+
+    private static void AppendInstructions(StringBuilder prompt)
+    {
         prompt.AppendLine(
             "You are the weekly reflection pass of a personal assistant. Below are numbered");
         prompt.AppendLine(
@@ -280,17 +302,34 @@ public sealed class ReflectionService : IProactiveService
         prompt.AppendLine(
             "where supporting lists the observation numbers that justify the statement.");
         prompt.AppendLine();
+    }
 
-        AppendBelieved(prompt, believed);
-        AppendHealth(prompt, health);
-
+    private int AppendObservations(StringBuilder prompt, List<Observation> observations)
+    {
+        var listed = 0;
         for (var index = 0; index < observations.Count; index++)
         {
-            prompt.Append(index + 1).Append(". [").Append(observations[index].Source).Append("] ")
-                .AppendLine(observations[index].Body);
+            var line = FormatObservation(index, observations[index], this.reflectionOptions.MaximumObservationCharacters);
+            if (prompt.Length + line.Length > this.reflectionOptions.MaximumPromptCharacters)
+            {
+                break;
+            }
+
+            prompt.Append(line);
+            listed++;
         }
 
-        return prompt.ToString();
+        return listed;
+    }
+
+    private static string FormatObservation(int index, Observation observation, int maximumCharacters)
+    {
+        return $"{index + 1}. [{observation.Source}] {Bound(observation.Body, maximumCharacters)}{Environment.NewLine}";
+    }
+
+    private static string Bound(string text, int maximumCharacters)
+    {
+        return text.Length <= maximumCharacters ? text : text[..maximumCharacters] + "…";
     }
 
     private static void AppendBelieved(StringBuilder prompt, List<string> believed)
@@ -335,7 +374,8 @@ public sealed class ReflectionService : IProactiveService
 
         if (start < 0 || end <= start)
         {
-            this.logger.LogInformation("Reflection: the model proposed nothing");
+            this.logger.LogInformation(
+                "Reflection: the model proposed nothing; it said: {Reply}", Bound(reply.Trim(), 240));
             return null;
         }
 
