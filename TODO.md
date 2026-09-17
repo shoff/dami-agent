@@ -199,6 +199,9 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [x] G9a (Claude 2026-08-25; migration 032, `dami disclosures`, `dami disclose-correct`, `dami chat --augmented`; live: a passed item carrying "Steve" was corrected to withhold and the next turn withheld it; completed on the board) Capture Steve's corrections to gate decisions and feed them back as examples (the gate learns *his* boundaries, like the taste model)
 - [STEVE] ~~G9~~ posture — the mechanism shipped (C4 briefs + server-side execution); what remains is the posture ADR-0013 deferred: should `dami chat` ever offer a brief unprompted? Steve's call
 - [x] G10 Identity/prompt: charter reconstructed from migrated identity data (docs/identity/); §9.1 stable block installed at /opt/dami/identity-prompt.md; identity demonstrated across qwen3 + codex — acceptance item 9. SOUL.md reconciles at M4.
+- [~ Claude 2026-09-17] G30 Web view from LAN workstations: loopback API behind a password-protected TLS proxy, chat defaults to the frontier, non-loopback bind refused without auth
+  <!-- criterion: the web view is opened from another machine on the LAN through the proxy with the password, and a frontier chat turn streams in it -->
+  <!-- criterion: Dami.Host refuses a non-loopback URL while Authentication:Enabled is false, shown by a test -->
 
 ## H · Proactive tier (D-001/D-019/D-020/D-021) — running unattended
 
@@ -228,6 +231,13 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
   - criterion: a Kp threshold crossing surfaces once with the forecast window; quiet space weather produces nothing
 - [ ] H18 **NuGet deprecation watch**: api.nuget.org against Dami.sln's own dependency closure — deprecations and unlisted packages surface with the replacement named. Pairs with H11. Steve accepted 2026-08-30
   - criterion: a deprecated dependency of Dami.sln surfaces once, naming the package and the registry's stated alternative
+- [~ Claude 2026-09-17] H19 Reflection actually reflects: the local sidecar gets an explicit context window, the weekly reflection prompt is bounded so its instructions survive, chat observations record what was asked rather than pasted tab dumps, and the curator stops a pass when the sidecar is unreachable
+- [~ Claude 2026-09-17] H20 Lessons ledger: a correction Steve makes becomes a standing lesson the frontier sees on every turn
+  <!-- criterion: a correction given on Discord is recorded as a lesson and the next turn's prompt carries it, shown live -->
+- [~ Claude 2026-09-17] H21 Signals: a nightly single-fact nudge (lowest/highest in N weeks) and a weekly cross-domain correlation card over daily series already on this host
+  <!-- criterion: a nightly pass surfaces at most one extreme with its window and n, and a weekly pass surfaces at most one correlation with r and n, both from real rows -->
+- [~ Claude 2026-09-17] H22 INR cadence: a heads-up when the interval between recorded INR checks lapses, from the health timeline, phrased as evidence not a nag
+  <!-- criterion: the pass computes the kept interval from health_events and surfaces once per lapse, never twice for the same last check -->
 
 ## I · CLI (18 verbs, on PATH)
 
@@ -267,6 +277,8 @@ happens when the fourteen acceptance items (charter §14, scoreboard in
 - [~ Claude 2026-08-24] M1 Discord gateway (single authoritative instance rule) — acceptance item 11
   - [x] M1a **Gateway authority** — the charter's "no second authoritative gateway" made structural: `IGatewayAuthority` over a Postgres session advisory lock (migration 017). A second instance cannot acquire it and must refuse to serve; a crashed holder releases automatically (its session dies) with no stale flag to clear. 5 tests incl. handover-after-release. Found and fixed a real trap: disposing an `NpgsqlConnection` returns it to the *pool* rather than ending the session, so the lock survived graceful shutdown until released explicitly
   - [ ] M1b Discord client binding + message→session-turn mapping `[STEVE: bot token]`
+  - [~ Claude 2026-09-17] M1f Four portraits in one turn: tool time no longer spends the turn deadline, finished pictures are delivered when the turn fails, and the trace in the error line is the trace with the events
+    <!-- criterion: a Discord turn that makes more than three portraits ends with the pictures and an answer, not a deadline message -->
 - [ ] M2 Hermes instrumentation for the §7.3 comparison (TTFT/round-trips) `[BLOCKED: Mac access]`
 - [ ] M3 Shadow mode: identical inputs to Hermes and Dami Core, compare
 - [ ] M4 Remaining Phase 0: non-Weaviate Mac backups (config, plugins, scripts, launchd inventory) `[BLOCKED: Mac access]`

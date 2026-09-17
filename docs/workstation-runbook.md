@@ -345,6 +345,31 @@ Used on 2026-08-28 to apply §4.7.
 ---
 
 
+### 4.9 The local sidecar truncates prompts silently, and keeps the wrong end
+
+Ollama does not reject a prompt that exceeds the context window; it logs a `WARN`
+inside the container and keeps the *tail*, dropping the instructions at the head
+(`keep=4` tokens). The request still returns 200 with a plausible answer. On 2026-09-16
+`docker logs dami-llm | grep "truncating input prompt"` held 122 lines from 14 days,
+every one `limit=2050`; the weekly reflection of 09-13 sent `prompt=332874` and the model
+saw 2,050 tokens of observations with no question in front of them, which is why the
+ledger had not gained a belief since August. Nothing in the runtime logs said so.
+
+- The per-request window is whatever the client asks for. `OllamaChatClient` now sends
+  `num_ctx` from `OllamaOptions.ContextTokens` (12,288; `Ollama__ContextTokens` to change),
+  the vision client sends 8,192. The sidecar reloads the model when a request asks for
+  more than it is loaded with — `n_ctx = 12288` appears once in the container log, then
+  `n_ctx_slot = 12288` per request.
+- Cost: KV cache is ~144 KiB per token on qwen3:8b, so 12,288 tokens is ~1.7 GiB on top of
+  the 5.2 GiB of weights. Measured after the reload: `llama-server` 6,880 MiB, TEI ×2
+  2,816 MiB. The vision model still fits when the gallery curator unloads first.
+- Check for it: `docker logs --since 24h dami-llm 2>&1 | grep -c "truncating input"`
+  should be 0. A non-zero count names a caller building a prompt bigger than its window;
+  the reflection pass now bounds its own to 30,000 characters and logs how many
+  observations were left out.
+- The container runs with `OLLAMA_KEEP_ALIVE=-1` and no `OLLAMA_NUM_PARALLEL`; the
+  `5m` and `NUM_PARALLEL=1` statements in §1 and §5 predate that and are stale.
+
 ### dami-host — the interactive runtime API (G5, D-005)
 
 `dami-host.service` runs `/opt/dami/host/Dami.Host` as steve, bound to
@@ -401,6 +426,32 @@ approved exact artifacts into the in-memory handler, schema, and search registri
 any recovery failure prevents readiness. Verify the journal line `Sandboxed tool
 recovery completed: <succeeded>/<found>` before `/health`.
 
+### Reaching the web view from another workstation (G30, 2026-09-16)
+
+The runtime stays on `127.0.0.1:5810` (D-005), and since 2026-09-16 `HostUrls.Resolve`
+refuses a non-loopback `Host__Urls` while `Authentication__Enabled` is false — the deferred
+exposure decision (ADR-0020, board G5a) enforced in code. Two ways in from the LAN, neither
+of which moves the API:
+
+1. **The LAN proxy** (`tools/lan-proxy/`): Caddy on the host network, `https://192.168.4.45:8443/`,
+   one basic-auth credential, TLS from Caddy's internal CA (accept the certificate once per
+   browser). Credential: `tools/lan-proxy/set-password.sh` writes the bcrypt hash to
+   `~/.config/dami/lan-proxy.env` (with `$` doubled — Compose interpolates env files) and the
+   plaintext to `~/.config/dami/lan-proxy.password`, both 0600; `--prompt` to choose your own.
+   Start/stop: `docker compose -f tools/lan-proxy/docker-compose.yml up -d` / `down`;
+   `tools/dami-up` and `tools/dami-down` include it. `/lan-proxy/health` is the only
+   unauthenticated path. Verified 2026-09-16: from a bridge container to the LAN address,
+   `/` and `/events` answer 401 without the credential and 200 with it; ufw's config says
+   `ENABLED=no`, and the traffic crossed the host's INPUT chain untouched.
+2. **An SSH tunnel**, nothing to install: `ssh -N -L 5810:127.0.0.1:5810 steve@192.168.4.45`,
+   then `http://localhost:5810/` on the workstation.
+
+The page's chat now sends `frontier: true` by default (a selector offers the gated-memory
+and local-model paths), so what you test there is what Discord answers — after the next
+deploy; the deployed page still defaults to the local model until then. One shared
+password is not identities or revocation; when G5a's OIDC cutover lands, set `Host__Urls`
+and retire the proxy.
+
 ### Deploying without sudo (bootstrap once, 2026-09-16)
 
 Steve is usually remote and no agent has a sudo password. Three things in a deploy ever
@@ -437,6 +488,26 @@ scanning both the drop-ins and the file for the next free index. Unit-file chang
 
 **Run** 2026-09-16 19:17 CDT. The first sudo-free deploy followed at 19:19 from an agent
 shell: no prompt, gate green, restart, `/health` 200.
+
+### dami-proactive — the signals, lessons and INR passes (H20–H22, 2026-09-16)
+
+All three are on by default and local-only; nothing to allowlist. Run one by hand from a
+deployed build with `dotnet /opt/dami/proactive/Dami.Host.Proactive.dll --run <name>` and the
+service's connection string in `ConnectionStrings__Dami` (a run row is written, so the
+schedule moves).
+
+| Service | Cadence | Keys (env form) | Defaults |
+|---|---|---|---|
+| `signal-nudge` | nightly | `Signals__NudgeWindowDays`, `Signals__NudgeMinimumPoints`, `Signals__TimeZone` | 42, 12, America/Chicago |
+| `correlation-card` | weekly | `Signals__CorrelationWindowDays`, `Signals__CorrelationMinimumDays`, `Signals__CorrelationMinimumActiveDays`, `Signals__MinimumCorrelation`, `Signals__RepoPath` | 84, 28, 8, 0.5, this repo |
+| `inr-cadence` | nightly | `InrCadence__MinimumChecks`, `InrCadence__LapseFactor`, `InrCadence__TimeZone` | 3, 1.5, America/Chicago |
+
+The lessons ledger has no configuration: the frontier's `lesson` tool writes a `lesson`
+observation, and every Discord turn carries the newest 20 as "Standing lesson from Steve
+(follow it): …" through the disclosure gate. To see what Dami has been taught:
+`select occurred_at, body from dami.observations where source = 'lesson' order by 1 desc;`.
+The INR pass stays quiet until the health timeline holds three Vital rows with a value
+("INR 2.4"); on 2026-09-16 it held none.
 
 ### dami-proactive — enabling the daily portrait (ADR-0029)
 
