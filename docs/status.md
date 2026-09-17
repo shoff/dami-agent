@@ -1094,10 +1094,16 @@ Proof: `GeminiImageGeneratorTests` 26/26, `ProactiveCompositionTests` selection 
 2/2, `EgressSeamTests` pins the new holder; full gate `dotnet build Dami.sln` 0
 warnings, 0 errors and `dotnet test Dami.sln` 2,061 passed, 0 failed, 0 skipped across
 21 assemblies (2026-09-16); `dotnet format --verify-no-changes` over the changed files
-exited 0. Deployed in commit `49bf0db` (19:19 CDT). **Not verified live:** no Gemini key
-exists on this host; `generativelanguage.googleapis.com` is allowlisted on both tiers and the
-`Images__Provider`/`GeminiImages__ApiKey` pair sits commented in both env files awaiting the
-key, so Codex still draws. Enabling it is
+exited 0. **Codex stays primary; Gemini is the backup** (`Images__Backup=Gemini` on both
+tiers, key in the env files, commit `fc368ca`, deployed 19:44 CDT): `FallbackImageGenerator`
+retries the same request on Gemini when Codex refuses, returns no file, or times out — never
+for a local-only prompt. **Verified live 19:44:51 CDT** by forcing a one-second Codex
+ceiling: the ledger shows Codex requested, then Gemini requested one second later. Gemini
+itself answered 429 `RESOURCE_EXHAUSTED`, "free_tier_requests, limit: 0": the key's Google
+Cloud project has no billing, and image output has no free tier. Until Steve links a billing
+account, the backup refuses and the failure is recorded; Codex draws as before. The two
+gaps the drill exposed are closed: Google's error text now reaches the exception, and the
+Codex door records `EgressFailed` when its tool dies. Enabling it is
 three env-file lines per unit (runbook §"Choosing the image provider"); the first real
 call is the proof and is not yet recorded.
 

@@ -94,6 +94,25 @@ public sealed class CodexSubscriptionImageGeneratorTests : IDisposable
         Assert.Equal(TimeSpan.FromSeconds(480), timeout);
     }
 
+    [Fact]
+    public async Task Should_Record_EgressFailed_When_The_Tool_Dies()
+    {
+        // 2026-09-16 drill: the tool timed out and the ledger held an EgressRequested with
+        // no outcome — indistinguishable from a call that never happened, on the one door
+        // whose failure is what sends the request to the paid backup.
+        Directory.CreateDirectory(this.root);
+        this.budget.FindRefusalAsync(Arg.Any<CancellationToken>()).Returns((string?)null);
+        this.process.RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns<string>(_ => throw new TimeoutException("codex exceeded 1s"));
+        var request = new ImageRequest("a cube", "drill", PrivacyClass.Egressable, Guid.NewGuid(), ExecutionOrigin.UserTurn);
+
+        await Assert.ThrowsAsync<TimeoutException>(() => this.Create().GenerateAsync(request, CancellationToken.None));
+
+        await this.events.Received().AppendAsync(
+            Arg.Is<ExecutionEvent>(e => e.Type == ExecutionEventType.EgressFailed && !e.Label.Contains("cube", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+    }
+
     private CodexSubscriptionImageGenerator Create() => new(
         this.process,
         Options.Create(new CodexOptions

@@ -380,6 +380,23 @@ public sealed class GeminiImageGeneratorTests
     }
 
     [Fact]
+    public async Task Should_Say_What_The_Provider_Said_When_It_Refuses()
+    {
+        // 2026-09-16 drill: a bare "429" hid that the key was on the free tier, where image
+        // output has a quota of zero. Google's own words belong in the exception.
+        var (generator, handler, _) = Create(body: """
+            {"error":{"code":429,"message":"You exceeded your current quota, please check your plan and billing details. Quota exceeded for metric: generate_content_free_tier_requests, limit: 0","status":"RESOURCE_EXHAUSTED"}}
+            """);
+        handler.Status = HttpStatusCode.TooManyRequests;
+
+        var exception = await Assert.ThrowsAsync<HttpRequestException>(
+            () => generator.GenerateAsync(Request(), CancellationToken.None));
+
+        Assert.Contains("RESOURCE_EXHAUSTED", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("limit: 0", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Read_Should_Accept_The_Snake_Case_Field_Names_Too()
     {
         // The REST reference documents inline_data; the live API emits inlineData.

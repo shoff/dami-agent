@@ -55,18 +55,32 @@ public sealed class CodexSubscriptionImageGenerator : IImageGenerator
             .ConfigureAwait(false);
         try
         {
-            await this.RunAsync(request, target, reference, cancellationToken).ConfigureAwait(false);
-            var bytes = await ReadResultAsync(target, cancellationToken).ConfigureAwait(false);
-            await this.EmitAsync(request, ExecutionEventType.EgressCompleted,
-                ExecutionStatus.Succeeded, $"{request.Purpose}: {bytes.Length} bytes returned",
-                cancellationToken).ConfigureAwait(false);
-            return new GeneratedImage(Path.GetFileName(target), bytes, "image/png", request.Prompt);
+            return await this.DrawAsync(request, target, reference, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // A dangling EgressRequested reads as a call that never happened — on the one
+            // door whose failure is what sends the request to a paid backup (2026-09-16).
+            await this.EmitAsync(request, ExecutionEventType.EgressFailed, ExecutionStatus.Failed,
+                $"{request.Purpose}: {exception.GetType().Name}", cancellationToken).ConfigureAwait(false);
+            throw;
         }
         finally
         {
             Delete(target);
             Delete(reference);
         }
+    }
+
+    private async Task<GeneratedImage> DrawAsync(
+        ImageRequest request, string target, string? reference, CancellationToken cancellationToken)
+    {
+        await this.RunAsync(request, target, reference, cancellationToken).ConfigureAwait(false);
+        var bytes = await ReadResultAsync(target, cancellationToken).ConfigureAwait(false);
+        await this.EmitAsync(request, ExecutionEventType.EgressCompleted,
+            ExecutionStatus.Succeeded, $"{request.Purpose}: {bytes.Length} bytes returned",
+            cancellationToken).ConfigureAwait(false);
+        return new GeneratedImage(Path.GetFileName(target), bytes, "image/png", request.Prompt);
     }
 
     private async Task RunAsync(

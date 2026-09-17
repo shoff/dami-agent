@@ -169,10 +169,38 @@ public sealed class GeminiImageGenerator : IImageGenerator
         message.Headers.Add("x-goog-api-key", this.imageOptions.ApiKey);
         using var response = await this.httpClient
             .SendAsync(message, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            // Google's body says why — "free tier, limit: 0" on 2026-09-16 — where the
+            // status code alone says only that it did not draw.
+            throw new HttpRequestException(
+                $"Gemini answered {(int)response.StatusCode} {response.StatusCode}: {ErrorMessage(body)}",
+                null, response.StatusCode);
+        }
+
         return Read(body, request);
+    }
+
+    /// <summary>The provider's own explanation from an error body, bounded, or the raw body.</summary>
+    private static string ErrorMessage(string body)
+    {
+        string text;
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            text = document.RootElement.TryGetProperty("error", out var error)
+                ? (error.TryGetProperty("status", out var status) ? status.GetString() : null)
+                    + ": " + (error.TryGetProperty("message", out var message) ? message.GetString() : null)
+                : body;
+        }
+        catch (JsonException)
+        {
+            text = body;
+        }
+
+        var flat = text.ReplaceLineEndings(" ").Trim();
+        return flat.Length <= 400 ? flat : flat[..400] + "…";
     }
 
     private HttpRequestMessage CreateMessage(ImageRequest request)
