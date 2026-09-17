@@ -110,6 +110,14 @@ public sealed class TaskWorkServiceTests
             string question,
             IReadOnlyList<string> localContext,
             Dami.Contracts.Models.FrontierToolbox tools,
+            Guid traceId,
+            CancellationToken cancellationToken) =>
+            this.StreamAsync(question, localContext, tools, cancellationToken);
+
+        public Task<Dami.Core.Frontier.AugmentedTurnStream> StreamAsync(
+            string question,
+            IReadOnlyList<string> localContext,
+            Dami.Contracts.Models.FrontierToolbox tools,
             CancellationToken cancellationToken) =>
             this.StreamAsync(question, localContext, cancellationToken);
 

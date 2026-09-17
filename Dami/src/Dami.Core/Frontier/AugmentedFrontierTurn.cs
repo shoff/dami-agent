@@ -53,6 +53,17 @@ public interface IAugmentedTurn
         IReadOnlyList<string> localContext,
         FrontierToolbox tools,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Streams under a trace the caller already holds — the one its tool bundle and its
+    /// error message carry — so every id a person is shown replays to the same events.
+    /// </summary>
+    Task<AugmentedTurnStream> StreamAsync(
+        string question,
+        IReadOnlyList<string> localContext,
+        FrontierToolbox tools,
+        Guid traceId,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>A streaming augmented turn: what was assembled, and the answer as it arrives.</summary>
@@ -173,17 +184,25 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
         this.StreamAsync(question, localContext, FrontierToolbox.Empty, cancellationToken);
 
     /// <inheritdoc />
+    public Task<AugmentedTurnStream> StreamAsync(
+        string question,
+        IReadOnlyList<string> localContext,
+        FrontierToolbox tools,
+        CancellationToken cancellationToken) =>
+        this.StreamAsync(question, localContext, tools, Guid.NewGuid(), cancellationToken);
+
+    /// <inheritdoc />
     public async Task<AugmentedTurnStream> StreamAsync(
         string question,
         IReadOnlyList<string> localContext,
         FrontierToolbox tools,
+        Guid traceId,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(question);
         ArgumentNullException.ThrowIfNull(localContext);
         ArgumentNullException.ThrowIfNull(tools);
 
-        var traceId = Guid.NewGuid();
         var context = await this.RetrieveAsync(traceId, question, cancellationToken)
             .ConfigureAwait(false);
         var lines = localContext

@@ -233,14 +233,14 @@ public sealed class DiscordGatewayWorkerTests
         harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
             .Returns("message-1");
         harness.Augmented
-            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(Guid.NewGuid(), 6, 800, FragmentsAsync(fragments)));
     }
 
     private static void FrontierFails(Harness harness, Exception exception)
     {
         harness.Augmented
-            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns<Task<AugmentedTurnStream>>(_ => throw exception);
     }
 
@@ -282,7 +282,7 @@ public sealed class DiscordGatewayWorkerTests
         await RunAsync(harness.Build());
 
         await harness.Augmented.DidNotReceive().StreamAsync(
-            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -345,6 +345,53 @@ public sealed class DiscordGatewayWorkerTests
     }
 
     [Fact]
+    public async Task Should_Deliver_The_Pictures_It_Finished_When_The_Turn_Times_Out()
+    {
+        // 2026-09-16 21:52–22:02: four portraits in one turn, three finished (eight minutes
+        // of generation), the 600 s deadline fired on the fourth, and none reached Discord.
+        var harness = Listening(From("do the four yoga scenes we discussed"));
+        harness.Portraits.GenerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new GeneratedImage("dami-1.png", new byte[] { 1, 2, 3 }, "image/png", "yoga"));
+        harness.Augmented
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns<Task<AugmentedTurnStream>>(async call =>
+            {
+                var toolbox = call.ArgAt<FrontierToolbox>(2);
+                await toolbox.Handler.HandleAsync(
+                    new FrontierToolCall("c1", "make_portrait", System.Text.Json.JsonDocument.Parse("""{"scene":"yoga"}""").RootElement.Clone()),
+                    CancellationToken.None);
+                throw new OperationCanceledException("turn deadline elapsed");
+            });
+
+        await RunAsync(harness.Build());
+
+        await harness.Channel.Received(1).SendAsync(
+            Arg.Is<OutboundContent>(content =>
+                content.Attachments.Count == 1
+                && content.Text.Contains("did not answer", StringComparison.Ordinal)
+                && content.Text.Contains("1 picture", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Give_The_Error_Message_The_Trace_That_Has_The_Events()
+    {
+        // The Discord line said "Trace 5caf2a25…" and `dami trace 5caf2a25` was empty: the
+        // answerer minted one id for the tools and the turn minted another for its events.
+        var harness = Listening(From("what should I do"));
+        Guid? streamed = null;
+        harness.Augmented
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Do<Guid>(id => streamed = id), Arg.Any<CancellationToken>())
+            .Returns<Task<AugmentedTurnStream>>(_ => throw new InvalidOperationException("codex down"));
+
+        await RunAsync(harness.Build());
+
+        await harness.Channel.Received(1).SendAsync(
+            Arg.Is<OutboundContent>(content => content.TraceId == streamed!.Value),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Should_Survive_A_Canceled_Turn_When_The_Host_Is_Not_Stopping()
     {
         var harness = Listening(From("time out"));
@@ -374,7 +421,7 @@ public sealed class DiscordGatewayWorkerTests
         harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
             .Returns("message-1");
         harness.Augmented
-            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, FragmentsAsync("done")));
 
         await RunAsync(harness.Build());
@@ -383,7 +430,7 @@ public sealed class DiscordGatewayWorkerTests
         {
             _ = harness.Rest.PostTypingAsync("chan-1", Arg.Any<CancellationToken>());
             _ = harness.Augmented.StreamAsync(
-                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         });
     }
 
@@ -395,7 +442,7 @@ public sealed class DiscordGatewayWorkerTests
         harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
             .Returns("message-1");
         harness.Augmented
-            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, DelayedFragmentAsync()));
 
         await RunAsync(harness.Build());
@@ -412,7 +459,7 @@ public sealed class DiscordGatewayWorkerTests
                 Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
             .Returns("message-1");
         harness.Augmented
-            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(
                 Guid.NewGuid(), 0, 0,
                 FragmentsAsync("first ", new string('x', 100), "second")));
@@ -465,7 +512,7 @@ public sealed class DiscordGatewayWorkerTests
         // 2026-09-03 23:19: a ten-minute Codex hang became a qwen3 answer. Never again.
         var harness = Listening(From("what should I do"));
         harness.Augmented
-            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, CanceledFragmentsAsync()));
 
         await RunAsync(harness.Build());
@@ -507,7 +554,7 @@ public sealed class DiscordGatewayWorkerTests
         harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
             .Returns("message-1");
         harness.Augmented
-            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(
                 Guid.NewGuid(), 2, 300, FragmentsAsync("a 1/2 inch bolt")));
 
@@ -520,7 +567,7 @@ public sealed class DiscordGatewayWorkerTests
             Arg.Is<string>(question => !question.Contains("a rusted hex bolt", StringComparison.Ordinal)),
             Arg.Is<IReadOnlyList<string>>(context =>
                 context.Any(line => line.Contains("a rusted hex bolt", StringComparison.Ordinal))),
-            Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+            Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -540,7 +587,7 @@ public sealed class DiscordGatewayWorkerTests
         harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
             .Returns("message-1");
         harness.Augmented
-            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(Guid.NewGuid(), 1, 0, FragmentsAsync("I could not see it")));
 
         await RunAsync(harness.Build());
@@ -549,7 +596,7 @@ public sealed class DiscordGatewayWorkerTests
             Arg.Any<string>(),
             Arg.Is<IReadOnlyList<string>>(context =>
                 context.Any(line => line.Contains("could not be read", StringComparison.Ordinal))),
-            Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+            Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -588,7 +635,7 @@ public sealed class DiscordGatewayWorkerTests
             Arg.Is<OutboundContent>(content => content.Attachments.Count == 1),
             Arg.Any<CancellationToken>());
         await harness.Augmented.DidNotReceive().StreamAsync(
-            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -608,6 +655,7 @@ public sealed class DiscordGatewayWorkerTests
                 tools.Tools.Any(tool => tool.Name == FrontierToolBundle.MAKE_PORTRAIT)
                 && tools.Tools.Any(tool => tool.Name == FrontierToolBundle.MAKE_IMAGE)
                 && tools.Tools.Any(tool => tool.Name == "recall")),
+            Arg.Any<Guid>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -621,7 +669,7 @@ public sealed class DiscordGatewayWorkerTests
             .Returns("message-1");
         harness.Augmented
             .StreamAsync(
-                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(),
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(),
                 Arg.Any<CancellationToken>())
             .Returns(call => new AugmentedTurnStream(
                 Guid.NewGuid(), 0, 0, CallingTheToolAsync(call.ArgAt<FrontierToolbox>(2))));
@@ -660,7 +708,7 @@ public sealed class DiscordGatewayWorkerTests
         await harness.Augmented.Received(1).StreamAsync(
             Arg.Any<string>(),
             Arg.Is<IReadOnlyList<string>>(lines => lines.Any(line => line.Contains("Dami noticed", StringComparison.Ordinal) && line.Contains("40 sets", StringComparison.Ordinal))),
-            Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+            Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         await harness.Surfacings.Received(1).DeliverAsync(surfacing.SurfacingId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
     }
 
@@ -707,7 +755,7 @@ public sealed class DiscordGatewayWorkerTests
         harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>())
             .Returns("message-1");
         harness.Augmented
-            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(Guid.NewGuid(), 1, 100, FragmentsAsync("you rested")));
 
         await RunAsync(harness.Build());
@@ -716,7 +764,7 @@ public sealed class DiscordGatewayWorkerTests
             Arg.Any<string>(),
             Arg.Is<IReadOnlyList<string>>(prior =>
                 prior.Any(line => line.Contains("225 for five", StringComparison.Ordinal))),
-            Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+            Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     private static async IAsyncEnumerable<ConversationTurn> OneCompletedTurnAsync(

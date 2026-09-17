@@ -1,3 +1,4 @@
+using Dami.Contracts.Models;
 using Dami.Contracts.Privacy;
 using Dami.Contracts.Proactive;
 using Dami.Contracts.Sessions;
@@ -175,11 +176,16 @@ public sealed class DiscordAnswerer
         IReadOnlyList<string> localContext,
         CancellationToken cancellationToken)
     {
+        // One trace for the tools, the turn's events, and the line Steve is shown: on
+        // 2026-09-16 the answerer minted one id and the turn another, and the id in the
+        // error message replayed to nothing.
         var traceId = Guid.NewGuid();
+        var tools = await this.bundle.ForTurnAsync(traceId, DeliveryFor(conversationId), cancellationToken)
+            .ConfigureAwait(false);
         try
         {
             var answer = await this
-                .StreamReplyAsync(conversationId, question, localContext, traceId, cancellationToken)
+                .StreamReplyAsync(conversationId, question, localContext, tools, traceId, cancellationToken)
                 .ConfigureAwait(false);
             return DiscordAnswerOutcome.Answered(answer);
         }
@@ -192,19 +198,32 @@ public sealed class DiscordAnswerer
         }
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
-            const string reason = "it did not answer within its deadline";
-            this.logger.LogWarning(exception, "Frontier turn timed out; nothing was answered");
-            await this.ExplainAsync(conversationId, traceId, reason, cancellationToken)
+            return await this.ReportAsync(
+                conversationId, traceId, "it did not answer within its deadline", tools, exception, cancellationToken)
                 .ConfigureAwait(false);
-            return DiscordAnswerOutcome.Failed($"the frontier {reason} (trace {traceId})");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            this.logger.LogWarning(exception, "Frontier turn failed; nothing was answered");
-            await this.ExplainAsync(conversationId, traceId, exception.Message, cancellationToken)
+            return await this.ReportAsync(
+                conversationId, traceId, "did not answer: " + exception.Message, tools, exception, cancellationToken)
                 .ConfigureAwait(false);
-            return DiscordAnswerOutcome.Failed($"the frontier did not answer: {exception.Message} (trace {traceId})");
         }
+    }
+
+    private async Task<DiscordAnswerOutcome> ReportAsync(
+        string conversationId,
+        Guid traceId,
+        string reason,
+        FrontierToolBundle.FrontierTurnTools tools,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        this.logger.LogWarning(
+            exception, "Frontier turn failed ({Reason}); {Pictures} finished picture(s) delivered with the explanation",
+            reason, tools.Pictures.Count);
+        var explained = reason.StartsWith("did not answer: ", StringComparison.Ordinal) ? reason["did not answer: ".Length..] : reason;
+        await this.ExplainAsync(conversationId, traceId, explained, tools.Pictures, cancellationToken).ConfigureAwait(false);
+        return DiscordAnswerOutcome.Failed($"the frontier {reason} (trace {traceId})");
     }
 
     /// <summary>The frontier answers with the turn's bundle in hand; pictures follow the text.</summary>
@@ -212,13 +231,12 @@ public sealed class DiscordAnswerer
         string conversationId,
         string question,
         IReadOnlyList<string> localContext,
+        FrontierToolBundle.FrontierTurnTools tools,
         Guid traceId,
         CancellationToken cancellationToken)
     {
-        var tools = await this.bundle.ForTurnAsync(traceId, DeliveryFor(conversationId), cancellationToken)
-            .ConfigureAwait(false);
         var stream = await this.augmented
-            .StreamAsync(question, localContext, tools.Toolbox, cancellationToken).ConfigureAwait(false);
+            .StreamAsync(question, localContext, tools.Toolbox, traceId, cancellationToken).ConfigureAwait(false);
         var answer = await this.replyStreamer
             .StreamAsync(conversationId, stream, cancellationToken).ConfigureAwait(false);
         this.logger.LogInformation(
@@ -240,10 +258,31 @@ public sealed class DiscordAnswerer
         return answer;
     }
 
+    /// <summary>
+    /// Says why there is no answer — and hands over whatever pictures the turn had
+    /// already finished. Eight minutes of portraits were lost to a deadline on 2026-09-16
+    /// because they were attached only after a successful stream.
+    /// </summary>
     private Task ExplainAsync(
-        string conversationId, Guid traceId, string reason, CancellationToken cancellationToken) =>
-        this.channel.SendAsync(
-            DiscordAnswer.FrontierUnavailable(conversationId, traceId, reason), cancellationToken);
+        string conversationId, Guid traceId, string reason, IReadOnlyList<GeneratedImage> pictures,
+        CancellationToken cancellationToken)
+    {
+        var explanation = DiscordAnswer.FrontierUnavailable(conversationId, traceId, reason);
+        if (pictures.Count == 0)
+        {
+            return this.channel.SendAsync(explanation, cancellationToken);
+        }
+
+        return this.channel.SendAsync(
+            explanation with
+            {
+                Text = explanation.Text + $" The {pictures.Count} picture(s) it had finished are attached.",
+                Attachments = pictures
+                    .Select(picture => new OutboundAttachment(picture.FileName, picture.Bytes, picture.ContentType))
+                    .ToList(),
+            },
+            cancellationToken);
+    }
 
     private async Task<IReadOnlyList<(string Message, string Response)>> PriorExchangesAsync(
         Guid sessionId, CancellationToken cancellationToken)

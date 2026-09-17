@@ -41,6 +41,22 @@ public sealed class AugmentedFrontierTurnToolTests
     }
 
     [Fact]
+    public async Task A_Caller_Supplied_Trace_Should_Be_The_Turns_Trace()
+    {
+        var trace = Guid.NewGuid();
+        this.frontier.StreamAsync(Arg.Any<FrontierPrompt>(), Arg.Any<IReadOnlyList<FrontierImage>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(WordsAsync("hi"));
+
+        var stream = await this.Subject().StreamAsync("q", [], FrontierToolbox.Empty, trace, CancellationToken.None);
+        await foreach (var unused in stream.Tokens)
+        {
+        }
+
+        _ = this.frontier.Received(1).StreamAsync(
+            Arg.Is<FrontierPrompt>(prompt => prompt.TraceId == trace), Arg.Any<IReadOnlyList<FrontierImage>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task The_Gate_Should_Judge_Only_Lines_It_Has_Not_Seen_Lately()
     {
         // Every turn re-sent the same dozen history lines to the local model. Now a line

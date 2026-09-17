@@ -166,6 +166,39 @@ public sealed class CodexAppServerTests
     }
 
     [Fact]
+    public async Task Tool_Time_Should_Not_Count_Against_The_Turn_Deadline()
+    {
+        // 2026-09-16 21:52: three portraits at ~3 min each ate the whole 600 s turn budget
+        // and the fourth was cancelled with the answer. The deadline bounds the model, not
+        // the tools it waits on — each tool has its own ceiling.
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        var (root, script, _) = await CreateFakeServerAsync(callsTool: true);
+        var handler = Substitute.For<IFrontierToolHandler>();
+        handler.HandleAsync(Arg.Any<FrontierToolCall>(), Arg.Any<CancellationToken>())
+            .Returns<Task<FrontierToolResult>>(async _ =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2));
+                return FrontierToolResult.Ok("dami-1.png attached");
+            });
+        var toolbox = new FrontierToolbox(OneTool().Tools, handler);
+
+        try
+        {
+            var fragments = await StreamAllAsync(script, root, toolbox, TimeSpan.FromSeconds(1));
+
+            Assert.Equal(["answered"], fragments);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task A_Silent_Turn_Ends_At_The_First_Token_Deadline_Not_The_Overall_One()
     {
         // 2026-09-03 23:09 → 23:19: nothing for the full 600 s. The overall deadline is
@@ -201,13 +234,14 @@ public sealed class CodexAppServerTests
         }
     }
 
-    private static async Task<List<string>> StreamAllAsync(string script, string root, FrontierToolbox toolbox)
+    private static async Task<List<string>> StreamAllAsync(
+        string script, string root, FrontierToolbox toolbox, TimeSpan? timeout = null)
     {
         await using var server = new CodexAppServer(
             new CodexOptions { BinaryPath = script }, NullLogger<CodexAppServer>.Instance);
         var fragments = new List<string>();
         await foreach (var fragment in server.StreamAsync(
-            "draw", root, TimeSpan.FromSeconds(10), [], toolbox, CancellationToken.None))
+            "draw", root, timeout ?? TimeSpan.FromSeconds(10), [], toolbox, CancellationToken.None))
         {
             fragments.Add(fragment);
         }

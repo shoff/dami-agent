@@ -102,7 +102,7 @@ public sealed class DiscordScheduledDeliveryTests
     {
         this.progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>()).Returns("m1");
         this.augmented.StreamAsync(
-                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, OneAsync("here is your morning")));
 
         await this.Subject().DeliverAsync(Job("discord:1543678906748641310"), CancellationToken.None);
@@ -112,6 +112,7 @@ public sealed class DiscordScheduledDeliveryTests
                 && question.Contains("starting the day", StringComparison.Ordinal)),
             Arg.Any<IReadOnlyList<string>>(),
             Arg.Is<FrontierToolbox>(tools => tools.Tools.Any(tool => tool.Name == FrontierToolBundle.MAKE_PORTRAIT)),
+            Arg.Any<Guid>(),
             Arg.Any<CancellationToken>());
         await this.progressive.Received(1).BeginAsync(
             Arg.Is<OutboundContent>(content => content.ConversationId == "1543678906748641310"),
@@ -128,7 +129,7 @@ public sealed class DiscordScheduledDeliveryTests
             .Returns<string>(_ => throw new EgressRefusedException(
                 "discord refused profile-derived content addressed to someone other than its subject (ADR-0025)."));
         this.augmented.StreamAsync(
-                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, OneAsync("a portrait")));
 
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(

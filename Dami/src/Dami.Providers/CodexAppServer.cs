@@ -84,12 +84,12 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
         try
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            deadline.CancelAfter(timeout);
+            using var budget = new TurnBudget(deadline, timeout);
             live = this.Ensure(workingDirectory);
             await this.OpenTurnAsync(live, prompt, imagePaths, workingDirectory, tools, deadline.Token)
                 .ConfigureAwait(false);
 
-            await foreach (var fragment in this.ReadDeltasAsync(live, tools, deadline.Token)
+            await foreach (var fragment in this.ReadDeltasAsync(live, tools, budget)
                 .ConfigureAwait(false))
             {
                 yield return fragment;
@@ -230,18 +230,20 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
     private async IAsyncEnumerable<string> ReadDeltasAsync(
         Process live,
         FrontierToolbox tools,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        TurnBudget budget,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        using var quiet = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var quiet = CancellationTokenSource.CreateLinkedTokenSource(budget.Token);
         quiet.CancelAfter(TimeSpan.FromSeconds(this.options.FirstTokenTimeoutSeconds));
-        while (await this.ReadLineAsync(live, quiet, cancellationToken).ConfigureAwait(false) is { } line)
+        while (await this.ReadLineAsync(live, quiet, budget.Token).ConfigureAwait(false) is { } line)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (Read(line) is not { } message || !message.TryGetProperty("method", out var method))
             {
                 continue;
             }
 
-            var (fragment, done) = await this.HandleAsync(live, message, method.GetString(), tools, quiet, cancellationToken)
+            var (fragment, done) = await this.HandleAsync(live, message, method.GetString(), tools, quiet, budget)
                 .ConfigureAwait(false);
             if (fragment is not null)
             {
@@ -258,13 +260,13 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
     /// <summary>One protocol message: a fragment to yield, the end of the turn, or nothing.</summary>
     private async Task<(string? Fragment, bool Done)> HandleAsync(
         Process live, JsonElement message, string? name, FrontierToolbox tools, CancellationTokenSource quiet,
-        CancellationToken cancellationToken)
+        TurnBudget budget)
     {
         switch (name)
         {
             case "item/tool/call":
                 quiet.CancelAfter(Timeout.InfiniteTimeSpan);
-                await this.AnswerToolCallAsync(live, message, tools, cancellationToken).ConfigureAwait(false);
+                await this.AnswerToolCallAsync(live, message, tools, budget).ConfigureAwait(false);
                 return (null, false);
             case "item/agentMessage/delta":
                 var fragment = Delta(message);
@@ -285,7 +287,7 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
             default:
                 if (message.TryGetProperty("id", out _))
                 {
-                    await this.DeclineAsync(live, message, name, cancellationToken).ConfigureAwait(false);
+                    await this.DeclineAsync(live, message, name, budget.Token).ConfigureAwait(false);
                 }
 
                 return (null, false);
@@ -296,15 +298,23 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
     /// Runs the call and replies on the request's id. The turn is blocked until this
     /// answers, so a handler failure becomes a failed result, never a missing reply.
     /// </summary>
+    /// <summary>
+    /// Runs a tool the model asked for and answers on its id. The turn's clock stops
+    /// while the tool runs: on 2026-09-16 three portraits at ~3 min each spent the whole
+    /// 600 s budget and the fourth was cancelled together with the answer. The budget
+    /// bounds the model's time; each tool carries its own ceiling.
+    /// </summary>
     private async Task AnswerToolCallAsync(
-        Process live, JsonElement request, FrontierToolbox tools, CancellationToken cancellationToken)
+        Process live, JsonElement request, FrontierToolbox tools, TurnBudget budget)
     {
+        var cancellationToken = budget.Token;
         var parameters = request.GetProperty("params");
         var call = new FrontierToolCall(
             parameters.GetProperty("callId").GetString() ?? string.Empty,
             parameters.GetProperty("tool").GetString() ?? string.Empty,
             parameters.GetProperty("arguments"));
         FrontierToolResult result;
+        budget.Pause();
         try
         {
             result = await tools.Handler.HandleAsync(call, cancellationToken).ConfigureAwait(false);
@@ -313,6 +323,10 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
         {
             this.logger.LogWarning(exception, "Frontier tool {Tool} failed", call.Tool);
             result = FrontierToolResult.Failed(exception.Message);
+        }
+        finally
+        {
+            budget.Resume();
         }
 
         this.logger.LogInformation("Frontier tool {Tool} answered (success: {Success})", call.Tool, result.Success);
@@ -469,5 +483,40 @@ public sealed class CodexAppServer : ICodexAppServer, IAsyncDisposable
 
             live.Dispose();
         }
+    }
+
+    /// <summary>
+    /// The turn's wall-clock budget, spent only while the model is on the clock. A
+    /// pause stops the clock for a tool; a resume re-arms the deadline with what is left.
+    /// </summary>
+    private sealed class TurnBudget : IDisposable
+    {
+        private readonly CancellationTokenSource source;
+        private readonly TimeSpan total;
+        private readonly Stopwatch onTheClock = new();
+
+        public TurnBudget(CancellationTokenSource source, TimeSpan total)
+        {
+            this.source = source;
+            this.total = total;
+            this.Resume();
+        }
+
+        public CancellationToken Token => this.source.Token;
+
+        public void Pause()
+        {
+            this.onTheClock.Stop();
+            this.source.CancelAfter(Timeout.InfiniteTimeSpan);
+        }
+
+        public void Resume()
+        {
+            var remaining = this.total - this.onTheClock.Elapsed;
+            this.onTheClock.Start();
+            this.source.CancelAfter(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero);
+        }
+
+        public void Dispose() => this.onTheClock.Stop();
     }
 }
