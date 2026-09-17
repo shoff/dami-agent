@@ -64,7 +64,7 @@ public sealed class DiscordScheduledDeliveryTests
         var code = Substitute.For<IFrontierCode>();
         code.Tools.Returns(Array.Empty<FrontierTool>());
         return new FrontierToolBundle(
-            Substitute.For<IImageGenerator>(), Substitute.For<IPortraitGenerator>(), recall, remember, scheduling,
+            Substitute.For<IImageGenerator>(), Substitute.For<IPortraitGenerator>(), recall, remember, Substitute.For<IFrontierLesson>(), scheduling,
             Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), fitness, research, today,
             code, NullLogger<FrontierToolBundle>.Instance);
     }
@@ -73,6 +73,8 @@ public sealed class DiscordScheduledDeliveryTests
     {
         var queue = Substitute.For<ISurfacingQueue>();
         queue.PendingAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(NoSurfacingsAsync());
+        var lessons = Substitute.For<IStandingLessons>();
+        lessons.LinesAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<string>());
         var options = new DiscordOptions { Token = "t", OwnerUserId = "1", Enabled = true };
         this.turnStore.RecentCompletedTurnsAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(NoneAsync());
@@ -80,7 +82,7 @@ public sealed class DiscordScheduledDeliveryTests
             this.channel, this.augmented, new DiscordReplyStreamer(this.progressive),
             Bundle(),
             new DiscordVision(Substitute.For<IVisionClient>(), Substitute.For<IDiscordRest>(), options, NullLogger<DiscordVision>.Instance),
-            Substitute.For<IConversationSessionStore>(), this.turnStore, queue, TimeProvider.System, options,
+            Substitute.For<IConversationSessionStore>(), this.turnStore, queue, lessons, TimeProvider.System, options,
             NullLogger<DiscordAnswerer>.Instance);
         return new DiscordScheduledDelivery(answerer);
     }

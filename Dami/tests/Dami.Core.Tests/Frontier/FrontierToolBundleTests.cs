@@ -18,6 +18,7 @@ public sealed class FrontierToolBundleTests
     private readonly IPortraitGenerator portraits = Substitute.For<IPortraitGenerator>();
     private readonly IFrontierRecall recall = Substitute.For<IFrontierRecall>();
     private readonly IFrontierRemember remember = Substitute.For<IFrontierRemember>();
+    private readonly IFrontierLesson lesson = Substitute.For<IFrontierLesson>();
     private readonly IFrontierScheduling scheduling = Substitute.For<IFrontierScheduling>();
     private readonly IGallerySearch gallery = Substitute.For<IGallerySearch>();
     private readonly IGalleryPictures pictures = Substitute.For<IGalleryPictures>();
@@ -31,6 +32,7 @@ public sealed class FrontierToolBundleTests
         this.code.Tools.Returns(new[] { new FrontierTool("change_code", "c", schema) });
         this.recall.Tool.Returns(new FrontierTool("recall", "r", schema));
         this.remember.Tool.Returns(new FrontierTool("remember", "m", schema));
+        this.lesson.Tool.Returns(new FrontierTool("lesson", "l", schema));
         this.scheduling.ScheduleTool.Returns(new FrontierTool("schedule", "s", schema));
         this.scheduling.ConfirmTool.Returns(new FrontierTool("confirm_schedule", "c", schema));
         this.fitness.SetsToolAsync(Arg.Any<CancellationToken>()).Returns(new FrontierTool("log_sets", "l", schema));
@@ -46,7 +48,7 @@ public sealed class FrontierToolBundleTests
 
     private Task<FrontierToolBundle.FrontierTurnTools> ToolsAsync(string channel = "discord:1") =>
         new FrontierToolBundle(
-            this.images, this.portraits, this.recall, this.remember, this.scheduling, this.gallery, this.pictures, this.fitness, this.research, this.today,
+            this.images, this.portraits, this.recall, this.remember, this.lesson, this.scheduling, this.gallery, this.pictures, this.fitness, this.research, this.today,
             this.code, NullLogger<FrontierToolBundle>.Instance).ForTurnAsync(Guid.NewGuid(), channel, CancellationToken.None);
 
     [Fact]
@@ -119,13 +121,13 @@ public sealed class FrontierToolBundleTests
     }
 
     [Fact]
-    public async Task The_Bundle_Should_Be_Sixteen_Tools_With_Object_Schemas()
+    public async Task The_Bundle_Should_Be_Seventeen_Tools_With_Object_Schemas()
     {
-        // Fifteen fixed tools plus whatever the code worker offers (one here; none when off).
+        // Sixteen fixed tools plus whatever the code worker offers (one here; none when off).
         var tools = (await this.ToolsAsync()).Toolbox.Tools;
 
         Assert.Equal(
-            ["make_portrait", "make_image", "find_pictures", "show_picture", "retouch_picture", "recall", "remember", "schedule", "confirm_schedule", "log_sets", "log_cardio", "search_web", "read_page", "deep_research", "today", "change_code"],
+            ["make_portrait", "make_image", "find_pictures", "show_picture", "retouch_picture", "recall", "remember", "lesson", "schedule", "confirm_schedule", "log_sets", "log_cardio", "search_web", "read_page", "deep_research", "today", "change_code"],
             tools.Select(tool => tool.Name));
         Assert.All(tools, tool => Assert.Equal("object", tool.InputSchema.GetProperty("type").GetString()));
     }
@@ -167,6 +169,25 @@ public sealed class FrontierToolBundleTests
         var result = await (await this.ToolsAsync()).HandleAsync(Call("remember", """{"note":"a fact"}"""), CancellationToken.None);
 
         Assert.Equal("Saved.", result.Text);
+    }
+
+    [Fact]
+    public async Task Lesson_Should_Carry_The_Channel_So_Provenance_Says_Where_It_Came_From()
+    {
+        this.lesson.LearnAsync(Arg.Any<Guid>(), "discord:1", "be brief", Arg.Any<CancellationToken>())
+            .Returns(FrontierToolResult.Ok("Noted."));
+
+        var result = await (await this.ToolsAsync()).HandleAsync(Call("lesson", """{"lesson":"be brief"}"""), CancellationToken.None);
+
+        Assert.Equal("Noted.", result.Text);
+    }
+
+    [Fact]
+    public async Task The_Lesson_Tool_Should_Be_Offered_On_Every_Turn()
+    {
+        var tools = await this.ToolsAsync();
+
+        Assert.Contains(tools.Toolbox.Tools, tool => tool.Name == "lesson");
     }
 
     [Fact]

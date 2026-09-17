@@ -27,6 +27,14 @@ public sealed class DiscordPromptTests
     }
 
     [Fact]
+    public void LocalContext_Should_Put_Standing_Lessons_First_As_Instructions()
+    {
+        var context = DiscordPrompt.LocalContext([], [], ["noticed thing"], ["Be brief about the weather."]);
+
+        Assert.Equal("Standing lesson from Steve (follow it): Be brief about the weather.", context[0]);
+    }
+
+    [Fact]
     public void LocalContext_Should_Carry_Captions_As_Gateable_Lines()
     {
         var context = DiscordPrompt.LocalContext([], ["a rusted hex bolt on a workbench"]);

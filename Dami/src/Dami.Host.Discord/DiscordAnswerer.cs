@@ -26,6 +26,7 @@ public sealed class DiscordAnswerer
     private readonly IConversationSessionStore sessions;
     private readonly IConversationTurnStore turnStore;
     private readonly ISurfacingQueue surfacings;
+    private readonly IStandingLessons lessons;
     private readonly TimeProvider clock;
     private readonly DiscordOptions options;
     private readonly ILogger<DiscordAnswerer> logger;
@@ -40,6 +41,7 @@ public sealed class DiscordAnswerer
         IConversationSessionStore sessions,
         IConversationTurnStore turnStore,
         ISurfacingQueue surfacings,
+        IStandingLessons lessons,
         TimeProvider clock,
         DiscordOptions options,
         ILogger<DiscordAnswerer> logger)
@@ -52,6 +54,7 @@ public sealed class DiscordAnswerer
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(turnStore);
         ArgumentNullException.ThrowIfNull(surfacings);
+        ArgumentNullException.ThrowIfNull(lessons);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -63,6 +66,7 @@ public sealed class DiscordAnswerer
         this.sessions = sessions;
         this.turnStore = turnStore;
         this.surfacings = surfacings;
+        this.lessons = lessons;
         this.clock = clock;
         this.options = options;
         this.logger = logger;
@@ -106,7 +110,8 @@ public sealed class DiscordAnswerer
             .ConfigureAwait(false);
         var prior = await this.PriorExchangesAsync(sessionId, cancellationToken).ConfigureAwait(false);
         var pending = await this.PendingAsync(cancellationToken).ConfigureAwait(false);
-        var localContext = DiscordPrompt.LocalContext(prior, captions, pending.Select(Line).ToList());
+        var lessons = await this.lessons.LinesAsync(cancellationToken).ConfigureAwait(false);
+        var localContext = DiscordPrompt.LocalContext(prior, captions, pending.Select(Line).ToList(), lessons);
 
         var outcome = await this.FrontierAsync(conversationId, question, localContext, cancellationToken)
             .ConfigureAwait(false);

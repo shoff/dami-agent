@@ -87,6 +87,7 @@ public sealed class FrontierToolBundle
     private readonly IPortraitGenerator portraits;
     private readonly IFrontierRecall recall;
     private readonly IFrontierRemember remember;
+    private readonly IFrontierLesson lesson;
     private readonly IFrontierScheduling scheduling;
     private readonly IGallerySearch gallery;
     private readonly IGalleryPictures pictures;
@@ -102,6 +103,7 @@ public sealed class FrontierToolBundle
         IPortraitGenerator portraits,
         IFrontierRecall recall,
         IFrontierRemember remember,
+        IFrontierLesson lesson,
         IFrontierScheduling scheduling,
         IGallerySearch gallery,
         IGalleryPictures pictures,
@@ -115,6 +117,7 @@ public sealed class FrontierToolBundle
         ArgumentNullException.ThrowIfNull(portraits);
         ArgumentNullException.ThrowIfNull(recall);
         ArgumentNullException.ThrowIfNull(remember);
+        ArgumentNullException.ThrowIfNull(lesson);
         ArgumentNullException.ThrowIfNull(scheduling);
         ArgumentNullException.ThrowIfNull(gallery);
         ArgumentNullException.ThrowIfNull(pictures);
@@ -127,6 +130,7 @@ public sealed class FrontierToolBundle
         this.portraits = portraits;
         this.recall = recall;
         this.remember = remember;
+        this.lesson = lesson;
         this.scheduling = scheduling;
         this.gallery = gallery;
         this.pictures = pictures;
@@ -151,7 +155,7 @@ public sealed class FrontierToolBundle
         var sets = await this.fitness.SetsToolAsync(cancellationToken).ConfigureAwait(false);
         IReadOnlyList<FrontierTool> tools =
         [
-            .. pictureTools, this.recall.Tool, this.remember.Tool, this.scheduling.ScheduleTool, this.scheduling.ConfirmTool,
+            .. pictureTools, this.recall.Tool, this.remember.Tool, this.lesson.Tool, this.scheduling.ScheduleTool, this.scheduling.ConfirmTool,
             sets, this.fitness.CardioTool, this.research.SearchTool, this.research.ReadTool, this.research.DeepTool, this.today.Tool,
             .. this.code.Tools, // ADR-0036: empty unless CodeWork:Enabled
         ];
@@ -234,6 +238,8 @@ public sealed class FrontierToolBundle
                     cancellationToken),
                 FrontierRecallTool.NAME => this.owner.recall.RecallAsync(
                     this.traceId, Argument(call, "query"), cancellationToken),
+                LessonTool.NAME => this.owner.lesson.LearnAsync(
+                    this.traceId, this.channel, Argument(call, "lesson"), cancellationToken),
                 RememberTool.NAME => this.owner.remember.RememberAsync(
                     this.traceId, this.channel, Argument(call, "note"), cancellationToken),
                 ScheduleTools.SCHEDULE => this.owner.scheduling.ScheduleAsync(

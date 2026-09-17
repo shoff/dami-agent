@@ -9,6 +9,8 @@ using Dami.Proactive.CodeAudit;
 using Dami.Proactive.Hygiene;
 using Dami.Proactive.Curation;
 using Dami.Proactive.Health;
+using Dami.Contracts.Domains;
+using Dami.Proactive.Signals;
 using Dami.Proactive.Civic;
 using Dami.Proactive.Network;
 using Dami.Proactive.Portrait;
@@ -187,6 +189,27 @@ public static class ProactiveComposition
         services.AddSingleton<IProactiveService, WeatherWindowService>();
     }
 
+    /// <summary>
+    /// H21/H22: daily series on this host (gym, conversations, commits) feed a nightly
+    /// single-fact nudge and a weekly correlation card, and the health timeline feeds an
+    /// INR-interval heads-up. All local-only; each surfaces at most one thing per pass.
+    /// </summary>
+    private static void AddSignals(IServiceCollection services, IConfiguration configuration)
+    {
+        // The log talks back once a week: records, plateaus, skipped groups, the week's numbers.
+        services.AddSingleton<IProactiveService, FitnessReviewService>();
+
+        services.Configure<SignalsOptions>(configuration.GetSection(SignalsOptions.SECTION_NAME));
+        services.AddSingleton<IDailySeriesSource, GymSeriesSource>();
+        services.AddSingleton<IDailySeriesSource, CommitsSeriesSource>();
+        services.AddSingleton<IProactiveService, SignalNudgeService>();
+        services.AddSingleton<IProactiveService, CorrelationCardService>();
+
+        services.Configure<InrCadenceOptions>(configuration.GetSection(InrCadenceOptions.SECTION_NAME));
+        services.AddSingleton<IProactiveService, InrCadenceService>();
+    }
+
+
     private static void AddModelBacked(
         IServiceCollection services,
         IConfiguration configuration,
@@ -224,8 +247,7 @@ public static class ProactiveComposition
 
         AddOpportunityScout(services, configuration);
 
-        // The log talks back once a week: records, plateaus, skipped groups, the week's numbers.
-        services.AddSingleton<IProactiveService, FitnessReviewService>();
+        AddSignals(services, configuration);
     }
 
     /// <summary>

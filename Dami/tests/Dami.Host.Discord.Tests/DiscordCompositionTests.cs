@@ -59,6 +59,8 @@ public sealed class DiscordCompositionTests
         services.AddSingleton(Substitute.For<IPortraitGenerator>());
         services.AddSingleton(Substitute.For<IFrontierRecall>());
         services.AddSingleton(Substitute.For<IFrontierRemember>());
+        services.AddSingleton(Substitute.For<IFrontierLesson>());
+        services.AddSingleton(Substitute.For<IStandingLessons>());
         services.AddSingleton(Substitute.For<IFrontierScheduling>());
         services.AddSingleton(Substitute.For<Dami.Core.Gallery.IGallerySearch>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Gallery.IGalleryPictures>());

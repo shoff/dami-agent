@@ -51,18 +51,26 @@ public static class DiscordPrompt
     public static IReadOnlyList<string> LocalContext(
         IReadOnlyList<(string Message, string Response)> turns,
         IReadOnlyList<string> captions,
-        IReadOnlyList<string> noticed)
+        IReadOnlyList<string> noticed) =>
+        LocalContext(turns, captions, noticed, []);
+
+    /// <summary>
+    /// The locally derived lines for one turn: standing lessons first (instructions the
+    /// frontier follows), then what Dami noticed, the prior exchanges, and any captions.
+    /// </summary>
+    public static IReadOnlyList<string> LocalContext(
+        IReadOnlyList<(string Message, string Response)> turns,
+        IReadOnlyList<string> captions,
+        IReadOnlyList<string> noticed,
+        IReadOnlyList<string> lessons)
     {
         ArgumentNullException.ThrowIfNull(turns);
         ArgumentNullException.ThrowIfNull(captions);
         ArgumentNullException.ThrowIfNull(noticed);
+        ArgumentNullException.ThrowIfNull(lessons);
 
-        var lines = new List<string>((turns.Count * 2) + captions.Count + noticed.Count);
-        foreach (var item in noticed)
-        {
-            // Labelled as hers to raise, so the frontier mentions it rather than answering it.
-            lines.Add("Dami noticed since you last spoke (mention it if it fits, briefly): " + item.Trim());
-        }
+        var lines = new List<string>((turns.Count * 2) + captions.Count + noticed.Count + lessons.Count);
+        AddStanding(lines, noticed, lessons);
 
         foreach (var (message, response) in turns)
         {
@@ -77,5 +85,20 @@ public static class DiscordPrompt
         }
 
         return lines;
+    }
+
+    private static void AddStanding(List<string> lines, IReadOnlyList<string> noticed, IReadOnlyList<string> lessons)
+    {
+        foreach (var lesson in lessons)
+        {
+            // Labelled as his instruction, so the frontier follows it rather than discussing it.
+            lines.Add("Standing lesson from Steve (follow it): " + lesson.Trim());
+        }
+
+        foreach (var item in noticed)
+        {
+            // Labelled as hers to raise, so the frontier mentions it rather than answering it.
+            lines.Add("Dami noticed since you last spoke (mention it if it fits, briefly): " + item.Trim());
+        }
     }
 }

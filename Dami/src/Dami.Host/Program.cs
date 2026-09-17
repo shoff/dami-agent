@@ -143,6 +143,9 @@ builder.Services.AddSingleton<IAugmentedTurn>(services =>
 // gate, remember, and scheduling with Steve's explicit confirmation.
 builder.Services.AddSingleton<IFrontierRecall, FrontierRecallTool>();
 builder.Services.AddSingleton<IFrontierRemember, RememberTool>();
+// H20: a correction becomes a standing lesson the frontier sees on every Discord turn.
+builder.Services.AddSingleton<IFrontierLesson, LessonTool>();
+builder.Services.AddSingleton<IStandingLessons, StandingLessons>();
 builder.Services.AddSingleton<IFrontierScheduling, ScheduleTools>();
 builder.Services.AddSingleton<IFrontierFitness, FitnessTools>();
 // ADR-0033: research egress — the private SearXNG on loopback, and a reader of public

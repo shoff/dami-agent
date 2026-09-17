@@ -136,6 +136,13 @@ public sealed class DiscordGatewayWorkerTests
             return research;
         }
 
+        private static IStandingLessons LessonsStub()
+        {
+            var lessons = Substitute.For<IStandingLessons>();
+            lessons.LinesAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<string>());
+            return lessons;
+        }
+
         private static IFrontierToday TodayStub()
         {
             var today = Substitute.For<IFrontierToday>();
@@ -172,15 +179,15 @@ public sealed class DiscordGatewayWorkerTests
             return store;
         }
 
-        public DiscordGatewayWorker Build()
+        private DiscordAnswerer Answerer()
         {
             var bundle = new FrontierToolBundle(
-                this.Images, this.Portraits, this.Recall, this.Remember, this.Scheduling,
+                this.Images, this.Portraits, this.Recall, this.Remember, Substitute.For<IFrontierLesson>(), this.Scheduling,
                 Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), FitnessStub(), ResearchStub(), TodayStub(),
                 CodeStub(), NullLogger<FrontierToolBundle>.Instance);
             var vision = new DiscordVision(
                 this.Vision, this.Rest, this.Options, NullLogger<DiscordVision>.Instance);
-            var answerer = new DiscordAnswerer(
+            return new DiscordAnswerer(
                 this.Channel,
                 this.Augmented,
                 new DiscordReplyStreamer(this.Progressive),
@@ -189,9 +196,15 @@ public sealed class DiscordGatewayWorkerTests
                 this.Sessions,
                 this.TurnStore,
                 this.Surfacings,
+                LessonsStub(),
                 TimeProvider.System,
                 this.Options,
                 NullLogger<DiscordAnswerer>.Instance);
+        }
+
+        public DiscordGatewayWorker Build()
+        {
+            var answerer = this.Answerer();
             return new DiscordGatewayWorker(
                 this.Authority,
                 this.Channel,
