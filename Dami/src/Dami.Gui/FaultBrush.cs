@@ -4,14 +4,14 @@ using Avalonia.Media;
 
 namespace Dami.Gui;
 
-/// <summary>Colours a network row: red for a fault, green for a healthy fact.</summary>
+/// <summary>Colours a network row: red for a fault, periwinkle for a healthy fact.</summary>
 public sealed class FaultBrush : IValueConverter
 {
     /// <summary>The single instance the XAML binds to.</summary>
     public static readonly FaultBrush instance = new();
 
     private static readonly SolidColorBrush fault = new(Color.Parse("#E0604F"));
-    private static readonly SolidColorBrush healthy = new(Color.Parse("#4CB782"));
+    private static readonly SolidColorBrush healthy = new(Color.Parse("#ABA5FF"));
 
     /// <inheritdoc />
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)

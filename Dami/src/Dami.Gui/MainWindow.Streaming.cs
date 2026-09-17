@@ -6,43 +6,10 @@ namespace Dami.Gui;
 /// <summary>The window's behaviour: send a turn, and follow the event stream.</summary>
 public sealed partial class MainWindow
 {
-    private async Task SendAsync()
-    {
-        var images = this.state.PendingImages.Select(item => item.Request).ToArray();
-        var text = ChatImageInput.MessageOrDefault(this.input.Text, images.Length > 0);
-        if (text is null)
-        {
-            return;
-        }
-
-        this.input.Text = string.Empty;
-        this.state.PendingImages.Clear();
-        this.ClearComposerImages();
-        this.sendButton.IsEnabled = false;
-        this.SetStatus(GlobalStatus.Working("Message sent to Dami…"));
-        var reply = this.OpenExchange(text, images);
-
-        try
-        {
-            await this.AnswerAsync(reply, text, images).ConfigureAwait(true);
-        }
-        catch (Exception exception)
-        {
-            // Every exception, not a chosen few. A silent no-op is the worst failure a
-            // send button can have — it is indistinguishable from a dead control.
-            reply.Meta = $"failed: {exception.Message}";
-            this.SetStatus(GlobalStatus.Failure(exception.Message));
-        }
-        finally
-        {
-            this.sendButton.IsEnabled = true;
-        }
-    }
-
     /// <summary>Puts the question and an empty reply on screen before the model answers.</summary>
-    private Message OpenExchange(string text, IReadOnlyList<DirectChatImage> images)
+    private Message OpenExchange(string text, IReadOnlyList<PendingChatImage> images)
     {
-        this.state.Messages.Add(new Message("you", text)
+        this.state.Messages.Add(new Message("you", text, images)
         {
             Meta = images.Count == 0 ? string.Empty : $"attached {images.Count} image(s)",
         });
@@ -51,36 +18,35 @@ public sealed partial class MainWindow
             Meta = DirectChatPresentation.PENDING_META,
         };
         this.state.Messages.Add(reply);
-        ScrollLater(this.chatScroll);
+        this.ResumeChatScroll();
         return reply;
     }
 
-    /// <summary>Routes the turn to the subscription or the local sidecar.</summary>
-    private Task AnswerAsync(Message reply, string text, IReadOnlyList<DirectChatImage> images)
+    /// <summary>Routes the turn to the subscription or the requested image generator.</summary>
+    private Task AnswerAsync(
+        Message reply, string text, IReadOnlyList<DirectChatImage> images, CancellationToken cancellationToken)
     {
         var damiScene = ImageGenerationPrompt.DamiScene(text);
         if (damiScene is not null)
         {
-            return this.GenerateDamiImageAsync(reply, damiScene);
+            return this.GenerateDamiImageAsync(reply, damiScene, cancellationToken);
         }
 
         var imagePrompt = ImageGenerationPrompt.Extract(text);
         if (imagePrompt is not null)
         {
-            return this.GenerateImageAsync(reply, imagePrompt);
+            return this.GenerateImageAsync(reply, imagePrompt, cancellationToken);
         }
 
-        // Both modes stream now. The augmented one waits for retrieval and the gate
-        // before the first token, because nothing may leave until the gate has judged it —
-        // but the answer itself arrives as the frontier writes it.
-        return this.StreamIntoAsync(reply, text, images);
+        return this.StreamIntoAsync(reply, text, images, cancellationToken);
     }
 
-    private async Task GenerateImageAsync(Message reply, string prompt)
+    private async Task GenerateImageAsync(Message reply, string prompt, CancellationToken cancellationToken)
     {
         this.SetStatus(GlobalStatus.Working("Creating your image…"));
         using var response = await this.runtime.PostAsync(
-            "/images/generate", new { prompt }, this.lifetime.Token).ConfigureAwait(true);
+            "/images/generate", new { prompt }, cancellationToken).ConfigureAwait(true);
+        cancellationToken.ThrowIfCancellationRequested();
         if (response is null)
         {
             throw new InvalidOperationException("the runtime is unreachable");
@@ -93,14 +59,15 @@ public sealed partial class MainWindow
         reply.Body = "Here’s the image.";
         reply.Meta = root.GetProperty("fileName").GetString() ?? string.Empty;
         this.SetStatus(GlobalStatus.Success("Image received."));
-        ScrollLater(this.chatScroll);
+        this.QueueChatScroll();
     }
 
-    private async Task GenerateDamiImageAsync(Message reply, string scene)
+    private async Task GenerateDamiImageAsync(Message reply, string scene, CancellationToken cancellationToken)
     {
         this.SetStatus(GlobalStatus.Working("Creating a new picture of Dami…"));
         using var response = await this.runtime.PostAsync(
-            "/gallery/generate", new { prompt = scene }, this.lifetime.Token).ConfigureAwait(true);
+            "/gallery/generate", new { prompt = scene }, cancellationToken).ConfigureAwait(true);
+        cancellationToken.ThrowIfCancellationRequested();
         if (response is null)
         {
             throw new InvalidOperationException("the runtime is unreachable");
@@ -110,11 +77,11 @@ public sealed partial class MainWindow
         ThrowImageError(root);
         var fileName = root.GetProperty("fileName").GetString()
             ?? throw new InvalidOperationException("the runtime returned no image filename");
-        reply.Image = await this.LoadGalleryBitmapAsync(fileName).ConfigureAwait(true);
+        reply.Image = await this.LoadGalleryBitmapAsync(fileName, cancellationToken).ConfigureAwait(true);
         reply.Body = "For you. 😉";
         reply.Meta = fileName;
         this.SetStatus(GlobalStatus.Success("Dami's new portrait arrived and was saved."));
-        ScrollLater(this.chatScroll);
+        this.QueueChatScroll();
     }
 
     private static void ThrowImageError(JsonElement root)
@@ -160,16 +127,16 @@ public sealed partial class MainWindow
         reply.Body = root.GetProperty("answer").GetString() ?? string.Empty;
         reply.Meta = $"frontier on {root.GetProperty("memories").GetInt32()} gated local item(s) · trace "
             + $"{root.GetProperty("traceId").GetGuid().ToString("N")[..8]}";
-        ScrollLater(this.chatScroll);
-        await this.SpeakAsync(reply).ConfigureAwait(true);
+        this.QueueChatScroll();
+        await this.SpeakAsync(reply, this.lifetime.Token).ConfigureAwait(true);
     }
 
     private async Task StreamIntoAsync(
-        Message reply, string text, IReadOnlyList<DirectChatImage> images)
+        Message reply, string text, IReadOnlyList<DirectChatImage> images, CancellationToken cancellationToken)
     {
         var any = false;
         await foreach (var fragment in this.runtime
-            .StreamTurnAsync(text, images, this.lifetime.Token).ConfigureAwait(true))
+            .StreamTurnAsync(text, images, cancellationToken).ConfigureAwait(true))
         {
             if (!any)
             {
@@ -177,20 +144,18 @@ public sealed partial class MainWindow
             }
 
             any = true;
-            await this.ApplyAsync(reply, fragment).ConfigureAwait(true);
+            await this.ApplyAsync(reply, fragment, cancellationToken).ConfigureAwait(true);
             reply.Meta = string.Empty;
-            ScrollLater(this.chatScroll);
+            this.QueueChatScroll();
         }
 
         if (!any)
         {
-            reply.Meta = "the runtime returned nothing";
-            this.SetStatus(GlobalStatus.Failure(reply.Meta));
-            return;
+            throw new InvalidOperationException("the runtime returned nothing");
         }
 
         this.SetStatus(GlobalStatus.Success("Reply received."));
-        await this.SpeakAsync(reply).ConfigureAwait(true);
+        await this.SpeakAsync(reply, cancellationToken).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -200,11 +165,11 @@ public sealed partial class MainWindow
     /// to say it out loud does not undo that.
     /// </summary>
     /// <summary>Text appends; a picture the frontier made is fetched from the Gallery.</summary>
-    private async Task ApplyAsync(Message reply, StreamedFragment fragment)
+    private async Task ApplyAsync(Message reply, StreamedFragment fragment, CancellationToken cancellationToken)
     {
         if (fragment.PictureFileName is { } picture)
         {
-            reply.Image = await this.LoadGalleryBitmapAsync(picture).ConfigureAwait(true);
+            reply.Image = await this.LoadGalleryBitmapAsync(picture, cancellationToken).ConfigureAwait(true);
         }
         else
         {
@@ -212,7 +177,9 @@ public sealed partial class MainWindow
         }
     }
 
-    private async Task SpeakAsync(Message reply)
+    private Task SpeakAsync(Message reply) => this.SpeakAsync(reply, this.lifetime.Token);
+
+    private async Task SpeakAsync(Message reply, CancellationToken cancellationToken)
     {
         if (this.speakToggle.IsChecked != true || string.IsNullOrWhiteSpace(reply.Body))
         {
@@ -222,7 +189,8 @@ public sealed partial class MainWindow
         try
         {
             using var spoken = await this.runtime.PostAsync(
-                "/speak", new { text = reply.Body }, this.lifetime.Token).ConfigureAwait(true);
+                "/speak", new { text = reply.Body }, cancellationToken).ConfigureAwait(true);
+            cancellationToken.ThrowIfCancellationRequested();
             if (spoken?.RootElement.TryGetProperty("audioBase64", out var encoded) is not true)
             {
                 reply.Meta = $"{reply.Meta} · could not be spoken".TrimStart(' ', '·');
@@ -230,7 +198,7 @@ public sealed partial class MainWindow
             }
 
             var failure = await Speech
-                .PlayAsync(Convert.FromBase64String(encoded.GetString() ?? string.Empty), this.lifetime.Token)
+                .PlayAsync(Convert.FromBase64String(encoded.GetString() ?? string.Empty), cancellationToken)
                 .ConfigureAwait(true);
             if (failure is not null)
             {
@@ -293,18 +261,12 @@ public sealed partial class MainWindow
 
         this.statusLine.Text = $"live · seq {this.lastSequence}";
         Diagnostics.Write($"poll ok: {batch.Count} event(s), seq {this.lastSequence}");
+        await this.RefreshObservabilityAsync().ConfigureAwait(true);
         await this.RefreshSidebarsAsync().ConfigureAwait(true);
-    }
-
-    /// <summary>
-    /// Scrolls once the layout has settled. Calling ScrollToEnd inline forces a layout
-    /// pass from inside one, and the pass never completes — the symptom is a window
-    /// that paints its rows and then stops responding entirely.
-    /// </summary>
-    private static void ScrollLater(Avalonia.Controls.ScrollViewer viewer)
-    {
-        Avalonia.Threading.Dispatcher.UIThread.Post(
-            viewer.ScrollToEnd, Avalonia.Threading.DispatcherPriority.Background);
+        if (this.workspaceTabs.SelectedIndex == 7)
+        {
+            await this.researchWorkspace.RefreshAsync().ConfigureAwait(true);
+        }
     }
 
     /// <summary>Keeps the sequence honest even for rows the tail-window skipped.</summary>

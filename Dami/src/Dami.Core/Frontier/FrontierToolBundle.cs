@@ -93,6 +93,7 @@ public sealed class FrontierToolBundle
     private readonly IFrontierFitness fitness;
     private readonly IFrontierResearch research;
     private readonly IFrontierToday today;
+    private readonly IFrontierCode code;
     private readonly ILogger<FrontierToolBundle> logger;
 
     /// <summary>Creates the bundle factory.</summary>
@@ -107,6 +108,7 @@ public sealed class FrontierToolBundle
         IFrontierFitness fitness,
         IFrontierResearch research,
         IFrontierToday today,
+        IFrontierCode code,
         ILogger<FrontierToolBundle> logger)
     {
         ArgumentNullException.ThrowIfNull(images);
@@ -119,6 +121,7 @@ public sealed class FrontierToolBundle
         ArgumentNullException.ThrowIfNull(fitness);
         ArgumentNullException.ThrowIfNull(research);
         ArgumentNullException.ThrowIfNull(today);
+        ArgumentNullException.ThrowIfNull(code);
         ArgumentNullException.ThrowIfNull(logger);
         this.images = images;
         this.portraits = portraits;
@@ -130,6 +133,7 @@ public sealed class FrontierToolBundle
         this.fitness = fitness;
         this.research = research;
         this.today = today;
+        this.code = code;
         this.logger = logger;
     }
 
@@ -148,7 +152,8 @@ public sealed class FrontierToolBundle
         IReadOnlyList<FrontierTool> tools =
         [
             .. pictureTools, this.recall.Tool, this.remember.Tool, this.scheduling.ScheduleTool, this.scheduling.ConfirmTool,
-            sets, this.fitness.CardioTool, this.research.SearchTool, this.research.ReadTool, this.today.Tool,
+            sets, this.fitness.CardioTool, this.research.SearchTool, this.research.ReadTool, this.research.DeepTool, this.today.Tool,
+            .. this.code.Tools, // ADR-0036: empty unless CodeWork:Enabled
         ];
         return new FrontierTurnTools(this, traceId, channel, tools);
     }
@@ -169,6 +174,7 @@ public sealed class FrontierToolBundle
         private readonly Guid traceId;
         private readonly string channel;
         private readonly List<GeneratedImage> pictures = [];
+        private bool untrustedResearchSeen;
 
         internal FrontierTurnTools(FrontierToolBundle owner, Guid traceId, string channel, IReadOnlyList<FrontierTool> tools)
         {
@@ -189,9 +195,16 @@ public sealed class FrontierToolBundle
         public async Task<FrontierToolResult> HandleAsync(FrontierToolCall call, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(call);
+            if (this.untrustedResearchSeen)
+            {
+                return FrontierToolResult.Failed(
+                    $"{call.Tool} is unavailable after untrusted research entered this turn; no further tools may run until a new turn");
+            }
+
             try
             {
                 var result = await this.DispatchAsync(call, cancellationToken).ConfigureAwait(false);
+                this.untrustedResearchSeen |= result.Success && IsResearch(call.Tool);
                 this.owner.logger.LogInformation(
                     "Turn {Trace}: {Tool} {Outcome} — {Result}", this.traceId, call.Tool,
                     result.Success ? "ok" : "failed", result.Text.Length > 400 ? result.Text[..400] + "…" : result.Text);
@@ -203,6 +216,9 @@ public sealed class FrontierToolBundle
                 return FrontierToolResult.Failed($"{call.Tool} failed: {exception.Message}");
             }
         }
+
+        private static bool IsResearch(string tool) => tool is
+            ResearchTools.SEARCH_WEB or ResearchTools.READ_PAGE or ResearchTools.DEEP_RESEARCH;
 
         private Task<FrontierToolResult> DispatchAsync(FrontierToolCall call, CancellationToken cancellationToken) =>
             call.Tool switch
@@ -227,8 +243,12 @@ public sealed class FrontierToolBundle
                 TodayTool.NAME => this.owner.today.TodayAsync(this.traceId, cancellationToken),
                 ResearchTools.SEARCH_WEB => this.owner.research.SearchAsync(this.traceId, Argument(call, "query"), cancellationToken),
                 ResearchTools.READ_PAGE => this.owner.research.ReadAsync(this.traceId, Argument(call, "url"), cancellationToken),
+                ResearchTools.DEEP_RESEARCH => this.ResearchAsync(call, cancellationToken),
                 FitnessTools.LOG_SETS => this.owner.fitness.LogSetsAsync(call.Arguments, cancellationToken),
                 FitnessTools.LOG_CARDIO => this.owner.fitness.LogCardioAsync(call.Arguments, cancellationToken),
+                CodeTools.CHANGE_CODE => this.owner.code.ChangeAsync(this.traceId, Argument(call, "task"), cancellationToken),
+                CodeTools.EXPLAIN_CODE => this.owner.code.ExplainAsync(this.traceId, Argument(call, "question"), cancellationToken),
+                CodeTools.LIST_CODE_CHANGES => this.owner.code.ListAsync(cancellationToken),
                 FIND_PICTURES => this.FindAsync(Argument(call, "query"), cancellationToken),
                 SHOW_PICTURE => this.ShowAsync(Argument(call, "fileName"), cancellationToken),
                 RETOUCH_PICTURE => this.PictureAsync(
@@ -236,6 +256,12 @@ public sealed class FrontierToolBundle
                     cancellationToken),
                 _ => Task.FromResult(FrontierToolResult.Failed($"there is no tool named {call.Tool}")),
             };
+
+        private Task<FrontierToolResult> ResearchAsync(FrontierToolCall call, CancellationToken token) =>
+            call.Arguments.TryGetProperty("seedUrls", out var urls) && urls.ValueKind == JsonValueKind.Array
+                ? this.owner.research.DeepAsync(this.traceId,
+                    urls.EnumerateArray().Select(url => url.GetString() ?? "").ToArray(), Argument(call, "question"), token)
+                : this.owner.research.DeepAsync(this.traceId, Argument(call, "seedUrl"), Argument(call, "question"), token);
 
         private async Task<FrontierToolResult> PictureAsync(
             Func<CancellationToken, Task<GeneratedImage>> generate, CancellationToken cancellationToken)

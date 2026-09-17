@@ -97,6 +97,28 @@ public sealed class ProactiveCompositionTests
     }
 
     [Fact]
+    public void Enabled_DailyPortrait_Should_Draw_On_Gemini_When_Selected()
+    {
+        // ADR-0035. The provider is a configuration choice; the default stays the
+        // subscription so nothing changes until Images:Provider is set.
+        using var provider = Build(
+            new KeyValuePair<string, string?>("DailyPortrait:Enabled", "true"),
+            new KeyValuePair<string, string?>("Images:Provider", "Gemini"));
+
+        Assert.IsType<GeminiImageGenerator>(provider.GetRequiredService<IImageGenerator>());
+    }
+
+    [Fact]
+    public void Enabled_DailyPortrait_Should_Draw_On_OpenAi_When_Selected()
+    {
+        using var provider = Build(
+            new KeyValuePair<string, string?>("DailyPortrait:Enabled", "true"),
+            new KeyValuePair<string, string?>("Images:Provider", "OpenAi"));
+
+        Assert.IsType<OpenAiImageGenerator>(provider.GetRequiredService<IImageGenerator>());
+    }
+
+    [Fact]
     public void The_Scheduler_And_Runner_Should_Resolve()
     {
         using var provider = Build();

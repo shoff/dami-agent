@@ -17,9 +17,9 @@ public sealed class PassAccent : IValueConverter
     /// <summary>The single instance the XAML binds to.</summary>
     public static readonly PassAccent instance = new();
 
-    private static readonly SolidColorBrush produced = new(Color.Parse("#4CB782"));
-    private static readonly SolidColorBrush egress = new(Color.Parse("#5AA9E6"));
-    private static readonly SolidColorBrush boundary = new(Color.Parse("#7A8694"));
+    private static readonly SolidColorBrush produced = new(Color.Parse("#ABA5FF"));
+    private static readonly SolidColorBrush egress = new(Color.Parse("#8FAAFF"));
+    private static readonly SolidColorBrush boundary = new(Color.Parse("#A0A0A0"));
     private static readonly SolidColorBrush alert = new(Color.Parse("#E0604F"));
 
     /// <inheritdoc />

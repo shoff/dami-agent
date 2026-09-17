@@ -8,7 +8,7 @@
 # capped at three minutes; a sidecar that never answers is reported and the services are
 # started anyway, so a broken Kibana does not keep Discord down.
 #
-# Run: tools/dami-up            (sudo is asked for the systemctl calls)
+# Run: tools/dami-up            (no sudo once tools/bootstrap-sudoless-deploy.sh has run)
 #      tools/dami-up --dry-run  (print what would run)
 # Source of truth: tools/ in the dami-agent repository.
 set -euo pipefail
@@ -72,7 +72,7 @@ done
 echo "== starting services"
 for unit in "${UNITS[@]}"; do
     if systemctl list-unit-files "$unit" --no-legend 2>/dev/null | grep -q "$unit"; then
-        run sudo systemctl start "$unit"
+        run systemctl --no-ask-password start "$unit"
         echo "started $unit"
     else
         echo "skip $unit (not installed)"

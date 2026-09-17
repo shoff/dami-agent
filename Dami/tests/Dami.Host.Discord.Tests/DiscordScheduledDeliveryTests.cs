@@ -61,10 +61,12 @@ public sealed class DiscordScheduledDeliveryTests
         research.ReadTool.Returns(new FrontierTool("read_page", "r", schema));
         var today = Substitute.For<IFrontierToday>();
         today.Tool.Returns(new FrontierTool("today", "t", schema));
+        var code = Substitute.For<IFrontierCode>();
+        code.Tools.Returns(Array.Empty<FrontierTool>());
         return new FrontierToolBundle(
             Substitute.For<IImageGenerator>(), Substitute.For<IPortraitGenerator>(), recall, remember, scheduling,
             Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), fitness, research, today,
-            NullLogger<FrontierToolBundle>.Instance);
+            code, NullLogger<FrontierToolBundle>.Instance);
     }
 
     private DiscordScheduledDelivery Subject()

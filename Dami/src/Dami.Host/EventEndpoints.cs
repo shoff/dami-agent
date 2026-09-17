@@ -7,6 +7,7 @@ namespace Dami.Host;
 public static class EventEndpoints
 {
     private const int PAGE = 200;
+    private const int RECENT_MAX = 500;
 
     /// <summary>Maps the event routes.</summary>
     public static void Map(WebApplication app)
@@ -26,6 +27,8 @@ public static class EventEndpoints
         app.MapGet("/events", (long after, IExecutionEventStore store, CancellationToken token) =>
             Results.Ok(Collect.Async(store.ReadSinceAsync(after, PAGE, token))));
 
+        MapRecent(app);
+
         app.MapGet("/stats", async (NpgsqlDataSource dataSource, CancellationToken token) =>
         {
             var sections = new Dictionary<string, List<string>>();
@@ -36,6 +39,15 @@ public static class EventEndpoints
 
             return Results.Ok(sections);
         });
+    }
+
+    private static void MapRecent(WebApplication app)
+    {
+        app.MapGet("/events/recent", (
+            int limit, IExecutionEventStore store, CancellationToken token) =>
+            limit is < 1 or > RECENT_MAX
+                ? Results.BadRequest($"limit must be between 1 and {RECENT_MAX}")
+                : Results.Ok(Collect.Async(store.ReadRecentAsync(limit, token))));
     }
 
     private static async Task<List<string>> SectionAsync(

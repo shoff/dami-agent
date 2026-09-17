@@ -143,6 +143,13 @@ public sealed class DiscordGatewayWorkerTests
             return today;
         }
 
+        private static IFrontierCode CodeStub()
+        {
+            var code = Substitute.For<IFrontierCode>();
+            code.Tools.Returns(Array.Empty<FrontierTool>());
+            return code;
+        }
+
         private static ISurfacingQueue NothingNoticed()
         {
             var queue = Substitute.For<ISurfacingQueue>();
@@ -170,7 +177,7 @@ public sealed class DiscordGatewayWorkerTests
             var bundle = new FrontierToolBundle(
                 this.Images, this.Portraits, this.Recall, this.Remember, this.Scheduling,
                 Substitute.For<IGallerySearch>(), Substitute.For<IGalleryPictures>(), FitnessStub(), ResearchStub(), TodayStub(),
-                NullLogger<FrontierToolBundle>.Instance);
+                CodeStub(), NullLogger<FrontierToolBundle>.Instance);
             var vision = new DiscordVision(
                 this.Vision, this.Rest, this.Options, NullLogger<DiscordVision>.Instance);
             var answerer = new DiscordAnswerer(

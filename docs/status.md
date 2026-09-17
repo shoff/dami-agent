@@ -4,7 +4,7 @@
 Orientation lives in `docs/onboarding.md`; plans live in the architecture and charter.
 This file holds only observed state.
 
-- **Last updated:** 2026-08-25 18:42 CDT (`2026-08-25T23:42Z`)
+- **Last updated:** 2026-09-10 08:30 CDT (`2026-09-10T13:30Z`)
 - **Updated from:** direct workstation inspection and solution test evidence
 - **Current phases:** 0, 1, and 3 in progress
 
@@ -728,6 +728,30 @@ only, capped, metered, recorded), `search_web`/`read_page` in the bundle with th
 gated, and a weekly `opportunity-scout` that ranks hits against a profile and surfaces a
 digest. Off until `Research__Enabled` / `OpportunityScout__Enabled`. 1,741 tests.
 
+**Reference-following deep research (G27, 2026-09-09; live).** `deep_research` starts
+from a public page already encountered, preserves typed page/feed/data/API references,
+ranks them against the question, traverses them within hard page/depth/fan-out limits,
+and returns each finding with its complete source path. HTML and JSON references are
+supported; duplicates, fragments, non-HTTP schemes, obvious private targets, malformed
+JSON references, and private redirects are not followed. The reader pins the validated
+public DNS address into a cookie-free, proxy-free socket connection to prevent rebinding.
+Any successful research result taints that frontier turn and code-refuses every later
+tool call, including follow-up egress, so poisoned text has no capability path. Full gate:
+0 build warnings/errors and 1,802 tests. The first deployed-binary live probe discovered
+NWS's hidden alerts and OpenAPI endpoints through pinned connections, then exposed a PDF
+being treated as text. Binary MIME types are now refused before body parsing. The
+binary-content correction is deployed and `Research__Enabled=true` is active. Live trace
+`92ad82fc` used the installed CLI and Host, exposed all fifteen frontier tools, followed
+seven textual/API pages with HTTP 200 and provenance, and refused an eighth, a linked PDF. The
+CLI tool-route and public-API User-Agent integration defects found during activation are
+fixed and deployed. The complete gate is 0 warnings/errors and 1,804 passing tests.
+
+September 11 follow-up: the tool remains enabled and runs on demand during frontier
+chat; there is no scheduled deep-research job. J11 now persists new research artifacts
+and exposes them in Research (Ctrl+8), including the verified NWS run `4a8b9d1e`.
+The September 9 demonstration predates the archive: `dami trace 92ad82fc` still replays
+its read outcomes, but cannot recover its complete findings or source-path content.
+
 **The log talks back (2026-09-05).** `FitnessInsights` (records, plateaus, neglected groups,
 next weight, the week vs last) is said three ways: in the `log_sets` reply, as a weekly
 "Your week in the gym" surfacing, and as "Dami noticed since you last spoke" context on the
@@ -810,3 +834,299 @@ direct Serilog Elasticsearch sink that becomes inert if Elasticsearch is unavail
 while JSON console logging remains local. Filebeat is temporarily still running until the
 replacement has passed fallback and live-ingestion verification. N9 remains open on the
 task board and must not be represented as complete until then.
+
+### 2026-09-09 runtime-warning audit (N9a)
+
+The current service run contained no Error or Critical records, but its warnings exposed
+three defects: all newly added proactive internet sources were absent from the deployed
+egress allowlist; subscription image generation shared the outer turn's whole deadline;
+and every Discord resume omitted the initial gateway query, producing 14 resume attempts
+and 14 `INVALID_SESSION` replies. The corrected build is staged, with a deployment-owned
+public-source manifest, an eight-minute nested image deadline inside the ten-minute turn,
+and `v=10&encoding=json` preserved on Discord resume URLs. A live staged-binary probe
+verified every release, CVE, recall, and weather endpoint; adding the boundary-wide
+`DamiCore/1.0` User-Agent changed GitHub Advisories and NWS from 403 to 200. The full gate
+is 0 warnings, 0 errors, 1,791 passed. Steve deployed the staged artifacts at 20:27 CDT;
+both services are active, `/health` returns `ok`, and the nine-source allowlist manifest is
+present in the live proactive unit. All four affected collectors completed against the
+deployed binary with HTTP 200 responses from every upstream. Elasticsearch contains 11
+records from the restarted systemd services, all Information, with no Warning, Error, or
+Critical records. Board N9a (`98dd9f0e`) is complete.
+
+### G28 desktop observability — live
+
+The installed user-local GUI now includes a dedicated Observability tab backed by a
+bounded 200-row projection of the canonical execution-event ledger. It shows server-
+bucketed activity, traces whose newest event remains running, egress, alerts, and newest-first event
+rows with time, trace, origin, actor, type, status, and label. The Release GUI at
+`~/.local/opt/dami-gui` matches the verified build byte-for-byte. The live Host artifact
+matches the staged SHA-256, all three services are active, `/health` returns 200, the
+recent-event endpoint returns current durable rows, and requests outside its 1–500 bound
+return 400. A live GUI inspection showed 200 event rows, zero current work after the
+latest trace completed, 17 egress requests, one alert, and readable trace/origin/actor/
+type/status/label columns. The visual check exposed and drove two running-count fixes for
+the ledger's distinct event-span identities before acceptance. Post-restart Elasticsearch
+contains 104 Information records, one expected Warning from the deliberate 400 bound
+probe, and zero Error or Critical records. Full solution gate: clean build and 1,811
+tests passed. Board G28 (`0bdaa23e`) is complete.
+
+### G29 desktop conversation control — installed 2026-09-11
+
+The desktop now allows one active chat request, with Send changing to Stop and Escape
+cancelling that request. Text, image generation/loading and speech use its token; audio
+playback terminates its owned player on cancellation. Partial replies remain visible.
+Failed or stopped replies offer **restore message**, recovering the original text and
+ordered attachments for editing. Restoration preserves any newer text or images already
+in the composer and never sends automatically. Identity and subscription routing are
+unchanged.
+
+Verified by test-first regressions and 145 passing desktop tests; the full solution
+built with zero warnings/errors and passed all 1,826 tests. Live desktop interaction
+confirmed repeated-Enter protection, Escape cancellation, occupied-draft protection and
+exact text restoration. A subsequent ordinary GUI turn completed on the subscription
+route (trace `6eee55ca`, five characters streamed). `tools/install-gui.sh` installed the
+Release build; installed and built `Dami.Gui.dll` SHA-256 hashes match (`b85cec31…`).
+No Host restart or runtime configuration change was needed.
+
+### J7 desktop workspace — installed 2026-09-11
+
+The user-local Avalonia desktop now has a dedicated full-height Conversation page and
+separate Plan & tasks page, left navigation, a searchable Ctrl+K command menu,
+Ctrl+1–7 page shortcuts, and Ctrl+L to focus the composer. Focus mode expands chat;
+starter cards populate a draft for review without sending or replacing existing text
+or attachments. Message text is selectable, and Copy works for streamed text. The
+persistent status bar, workspace theme, readable message cards, wrapping task rows, Health
+summary and scrollable Gallery preview were visually checked at 1440×940 and 1100×740.
+
+Observed live: command search by multiple words, keyboard and mouse selection, no-match
+handling, draft preservation, focus mode, successful streamed `WORKSPACE READY` reply
+(trace `7b44ba8b`), exact clipboard copy/paste, and menu Escape followed by chat Escape
+and exact draft restoration. All 1,850 solution tests passed in 21 assemblies, including
+169 desktop tests; the solution built with zero warnings/errors. The installer exited
+0 and installed/Release DLL SHA-256 matches (`4daa269d…`). The installed Release was
+opened and its command menu/navigation checked. No backend service changes were needed.
+
+### J8 blue accents and conversation scrolling — installed 2026-09-11
+
+Steve's visual preference: avoid green/teal interface highlights. Workspace accents,
+selection, focus, primary actions and brand details now use cool blue. The installed
+Release was visually checked, including the Plan selection and keyboard navigation.
+
+Conversation scrolling follows new text until the reader scrolls up. Content reflow
+preserves that choice; Jump to latest, scrolling back near the bottom, or a new
+submission resumes following. A live synthetic reply grew through 156 numbered lines
+while the earlier reading position stayed fixed; Jump to latest and Stop were verified,
+including preservation of the partial reply. Blue command/focus states were checked at
+1100×740 and the main workspace at 1440×940.
+
+All 1,861 tests passed in 21 assemblies (180 GUI tests), with zero build warnings/errors.
+An existing duplicate-send test fixture was made deterministic by explicitly holding
+the first request pending through Stop; its assertion and production cancellation
+behavior remain unchanged. The user-local installer exited 0; installed and Release
+DLL hashes match (`621b34b2…`). No backend deployment was needed.
+
+### J9 charcoal workspace and conversation reader — installed 2026-09-11
+
+Steve's no-green preference applies to the entire interface, including background tint,
+borders, status marks and the app icon. Those surfaces now use neutral charcoal/gray;
+selection, primary actions and focus use periwinkle. This supersedes J8's blue accent
+palette. The existing native client and user-local launcher were updated together.
+
+Replies display headings, paragraphs, lists, quotes, bold/italic text and inline code.
+Fenced code has a monospace panel, horizontal scrolling and its own Copy code action;
+indentation and line endings are retained, including incomplete streamed code. Full
+message Copy still returns the original source. This is a bounded display renderer,
+not a complete Markdown engine; unsupported syntax remains visible as text. Earlier
+reply controls remain in place while later blocks arrive.
+
+Find (Ctrl+F) searches messages in the currently open conversation. Enter/Shift+Enter
+move through matching messages with a result count and highlighted card. Search holds
+its reading position through streaming and resize; Jump to latest or a new submission
+closes search and resumes following. Escape closes find without sending a message.
+
+Verification: all 1,900 solution tests passed across 21 assemblies, including 219 GUI
+tests, with zero warnings/errors and no skipped tests. The installed Release was
+checked at 1440x940 and 1100x740, including structured replies, code copying, next/previous
+search results and readable placement of long results. Installer exited 0; installed
+and Release DLL SHA-256 both `ae210e4c407822665b3da5809de1dc40c8346c2f43107e39b6f16ec1b5a1cf4d`.
+
+### J10 image workflow — installed 2026-09-11
+
+Conversation now has an explicit Attach picker alongside paste and drop. Staged images
+have named previews and individual removal controls. Pixel decoding happens before an
+image enters the draft; failures identify the file while preserving text and valid
+attachments. Submitted messages retain their shared image previews after the composer
+clears. The existing chat routing is unchanged.
+
+Staged, sent, returned and Gallery images share a charcoal/periwinkle viewer. It offers
+fit, actual size, bounded pointer-anchored zoom, drag and arrow-key panning, dimensions,
+and captions where available. Fit follows window resizing; explicit zoom remains fixed.
+The background is disabled while the viewer is open, and closing restores focus.
+
+Verification: 247 GUI tests and all 1,928 solution tests passed in 21 assemblies with
+zero warnings/errors and no skips. Native checks covered picker, mixed valid/corrupt
+file paste/drop, duplicate-name removal, draft preservation, a completed icon-description
+turn with retained sent preview, and Gallery viewing. The installed Release passed
+keyboard pan, fit/actual size, keyboard close, and layout checks at 1440×940 and
+1100×680. Installer exited 0; installed and Release DLL SHA-256 both
+`6f7b6e5ba6ab7819d984f4618329683e69bc7b36e35b3b1957fa168813d2d5ec`.
+
+
+### J11 research library — installed 2026-09-11
+
+Research (Ctrl+8, also available in workspace search) now lists the newest 100 saved
+runs with combined question/site/trace search and outcome filtering. Each run has a
+report and a source inspector: readable saved answer, source previews, retained text,
+discovery paths, explicit browser links, and report/source/code copying. The page
+retains the charcoal/periwinkle palette and works at 1440×940 and 1100×680. The compact
+source inspector scrolls metadata and text together, and untitled API responses use
+their URLs as labels.
+
+Migration `041_research_runs.sql` stores bounded reader output, question, seed, trace,
+revision, progress, skipped-read reasons, counts and outcomes in PostgreSQL. Snapshot
+updates and small canonical events referencing `research:<run-id>` commit together;
+replayed older revisions cannot replace newer progress. Collection completion is
+separate from answer completion. The GUI chat stream archives complete or partial
+answers, capped at 64,000 characters with an explicit truncation flag. Opening an
+unfinished artifact from a previous Host instance records an interrupted outcome.
+
+New research uses the existing frontier conversation route and research limits. The
+form refuses to overwrite draft text or attachments and refuses a second concurrent
+reply. Accepted launches close the form; Esc uses the existing stop action. History
+polls while the page is open, loads details only for changed revisions, and rejects
+late responses for another selection. Source text is inert; links open only on click.
+
+The installed Host and client were verified with NWS run `0b03006e` / trace `4a8b9d1e`:
+7 retained official sources, 8 reads, 250 encountered references, 1 refused PDF, and a
+complete 1,425-character answer. The artifact survived a Host restart unchanged and
+reopened in the installed client. Native copies matched all retained source text,
+the complete 39,619-character report, and the exact 154-character example code. A
+source-path link opened the expected official page in Firefox.
+
+Verification: 267 GUI tests and all 1,966 solution tests passed across 21 assemblies,
+with zero warnings/errors and no skips. Existing native-control tests now run on the
+shared GUI dispatcher; this fixed a reproduced Avalonia property-pool concurrency
+failure without changing their assertions. Installed and Release DLL SHA-256 both
+`534362273edb06c85d8589dcd5b9edcae88055cb1d5e19f76193a196a2a2e16a`.
+
+### J12 plans and tasks workspace — installed 2026-09-12
+
+The native Plans & tasks page now separates plan selection, task browsing, and task
+details. It opens on unfinished work, with searchable Active, In progress, Not
+started, Blocked, Needs you, Completed, and All tasks views. Search includes task
+text, owner, ancestor context and completion requirements. Plan search preserves
+the open plan; polling preserves task selection and refreshes its version, and
+late responses cannot display a previously selected board.
+
+Tasks and subtasks can be added directly, with optional details and requirements.
+The inspector shows named prerequisites, child tasks, requirement progress, and
+completion guidance. Owner-only completion is disabled for another actor. Pending
+requirement/reason drafts stay with their task; failed requests retain inputs and
+pending writes prevent duplicate clicks. Plan creation opens on demand with readable
+model/privacy choices. Advisory runs show their answer in the task inspector and
+explicitly leave task status unchanged. Advice is retained for the current window;
+the existing runtime activity API remains bounded to its first 500 records, labelled
+as such when the bound is reached.
+
+Verification: 301 GUI tests and all 2,000 solution tests passed across 21 assemblies,
+with zero failures/skips and zero build warnings/errors. Scoped format verification
+and whitespace checks passed. The installed GUI created and started J12a `dddc0ba3`,
+added a second requirement, copied a code sample exactly (including its final newline),
+verified both requirements, completed the task and found it again using Completed.
+Normal 1440×940 and compact 1100×680 layouts were inspected; empty related-task
+sections are hidden. Snapshots and task mutations survived the final GUI restart.
+
+Installed GUI DLL SHA-256:
+`6434af4e40fb931308f903448ff7afbc4d53ae759ea93205bf9edbc4391cf466`.
+This change requires no Host restart, migration, new package or new project.
+
+### J13 research editing and resilient reruns — installed 2026-09-12
+
+Research now offers **Edit and rerun** on saved reports. The editor prefills the
+question and supplied URL, supports changing or clearing either, and saves a new
+dated run without replacing earlier reports. It uses the available workspace while
+open, including at 1100×680. New research opens a clean form; rejected submissions
+preserve edits, and polling does not overwrite the editor.
+
+A starting URL is optional. With none supplied, the frontier chooses one to three
+public URLs before reading untrusted content and collects them in one bounded run.
+Automatic selection and chosen URLs are archived, so editing an automatic run
+keeps the source field empty. These are independent dated runs, without a numbered
+version hierarchy. The existing public-only reader and post-research tool lock remain.
+
+Source timeouts, HTTP failures and refused reads are recorded and skipped while
+remaining candidates continue; caller cancellation still stops the run. Failed-source
+details reach the answer generator and appear in the report, with a skipped count
+in the header. Empty outcomes explain how to rerun. Discovered image/style/script/
+font assets no longer consume the page budget. Unexpected runtime/storage failures
+retain the failed-run behavior and previously saved findings.
+
+Verification: all **2,033 tests passed** in 21 assemblies, with zero failures/skips
+and zero compiler warnings/errors; scoped format and whitespace checks passed.
+Live automatic run `c45dfc90` chose two RFC sites and continued past five refused
+images before the asset filter was added. Edited rerun `76cc5e29` saved a distinct
+report, and the first artifact remained equal field-for-field. The rerun preserved
+one source and seven refusal reasons when the existing hourly egress budget was
+reached. Page/text/hourly limits still apply, so a completed run can contain gaps;
+the hourly limit was not changed. All earlier reports survived Host redeployment.
+
+Installed GUI SHA-256: `20a1b1c2f429a9b19360c241873df9924606a65028e1c1acc8c213acc7404318`.
+Installed Host Core SHA-256: `6bb09d16baa4323435d9048d21b821c67031ac383486642a686f70543ac9284e`.
+No schema migration, package, project, commit, push or PR was added.
+
+### Gemini image provider — built 2026-09-16, not deployed (ADR-0035)
+
+`GeminiImageGenerator` (`Dami.Providers`) is a third `IImageGenerator` behind the
+ADR-0027 gate, shaped like `OpenAiImageGenerator`: a non-Egressable prompt, an
+un-allowlisted host, a missing key or a spent C5 budget is refused before any network
+call, and every request, refusal, completion and failure lands in `execution_events`
+as actor `image-gemini` with its purpose and never its prompt. The wire is
+`models/{model}:generateContent` with `responseModalities: ["IMAGE"]`; the request's
+`1024x1536` becomes aspect ratio `2:3`, the pixel count comes from
+`GeminiImages:ImageSize` (`1K`), a reference image travels as an `inlineData` part with
+the edit-or-anchor rule in front of the prompt, and the returned content type is the
+provider's (JPEG stays JPEG). **Which door draws is now one configuration value**,
+`Images:Provider` (`Codex` unset default, `OpenAi`, `Gemini`), registered by
+`AddImageGenerator` in both the Host and the proactive tier so they cannot disagree.
+Nothing changes at runtime until it is set.
+
+Proof: `GeminiImageGeneratorTests` 26/26, `ProactiveCompositionTests` selection tests
+2/2, `EgressSeamTests` pins the new holder; full gate `dotnet build Dami.sln` 0
+warnings, 0 errors and `dotnet test Dami.sln` 2,061 passed, 0 failed, 0 skipped across
+21 assemblies (2026-09-16); `dotnet format --verify-no-changes` over the changed files
+exited 0. **Not verified live:** no Gemini key exists on this host. Enabling it is three
+drop-in lines per unit (runbook §"Choosing the image provider"); the first real call is
+the proof and is not yet recorded. Not committed: the working tree carries another
+agent's uncommitted work in the same files.
+
+### Deploys without sudo — built 2026-09-16, bootstrap not yet run
+
+`tools/bootstrap-sudoless-deploy.sh` (run once as root) installs
+`tools/polkit/49-dami-units.rules` — steve may start/stop/restart `dami-*.service|timer`
+and nothing else — and gives `dami-host` and `dami-proactive` a `zz-user-config.conf`
+drop-in that reads `~/.config/dami/{host,proactive}.env` (0600, steve's) last, so any
+runtime key, secrets included, overrides the root-owned drop-ins without root.
+`tools/deploy.sh`, `tools/dami-up` and `tools/dami-down` no longer call sudo; the deploy
+script refuses until the bootstrap has run, appends allowlist hosts to the env file, and
+prints the one remaining root job (a changed unit file) instead of blocking on it.
+Evidence: `bash -n` on all four scripts; the polkit rule exercised in a JS harness
+(`dami-host.service` → YES, `postgresql.service` and `manage-unit-files` → not handled).
+**Not run:** the bootstrap needs Steve's password once, so nothing is installed and the
+sudo-free path is untested end to end. Runbook §"Deploying without sudo".
+
+### The frontier changes its own code — built 2026-09-16, not enabled (ADR-0036)
+
+`change_code`, `explain_code` and `list_code_changes` join the frontier bundle on every
+channel when `CodeWork__Enabled=true` (unset: not offered, no token cost). A task becomes
+a `git worktree` on `dami/<stamp>-<slug>` under `~/.local/share/dami/code`, a
+`codex exec --sandbox workspace-write` there, this host's own `dotnet build Dami/Dami.sln`,
+and a commit on the branch; the reply carries branch, diffstat, build verdict and the
+agent's summary and says it is not merged. Never the main working tree; never merge,
+push, or deploy. `ICodeWorker` (`Dami.Contracts.Code`) is the seam, `CodexCodeWorker` the
+door, `CodeTools` the vocabulary; every run is an `execution_events` row for actor
+`code-codex-subscription` with purpose only. `EgressSeamTests` now pins who may spawn the
+codex CLI. Proof: `CodeToolsTests` 12/12, `CodexCodeWorkerTests` 26/26, bundle and Discord
+composition tests updated and green; full gate 0 warnings, 0 errors, 2,105 passed,
+0 failed across 21 assemblies; `dotnet format --verify-no-changes` on the 20 changed files
+exited 0. **Not verified live:** no task has hit the real CLI. Not committed: the tree
+carries another agent's uncommitted work in the same files.

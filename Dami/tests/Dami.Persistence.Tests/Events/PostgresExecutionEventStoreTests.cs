@@ -162,6 +162,27 @@ public sealed class PostgresExecutionEventStoreTests
             () => store.ReadSinceAsync(0, 0, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task ReadRecentAsync_Should_Return_The_Newest_Window_In_Sequence_Order()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.CreateStore();
+        var appended = new List<long>();
+        for (var index = 0; index < 5; index++)
+        {
+            appended.Add(await store.AppendAsync(
+                Event(Guid.NewGuid(), ExecutionEventType.AgentProgressed), CancellationToken.None));
+        }
+
+        var recent = new List<ExecutionEvent>();
+        await foreach (var item in store.ReadRecentAsync(3, CancellationToken.None))
+        {
+            recent.Add(item);
+        }
+
+        Assert.Equal(appended[^3..], recent.Select(item => item.Sequence));
+    }
+
     private static ExecutionEvent Event(Guid traceId, ExecutionEventType type)
     {
         return new ExecutionEvent(

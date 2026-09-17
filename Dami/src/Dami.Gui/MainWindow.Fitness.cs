@@ -58,9 +58,9 @@ public sealed partial class MainWindow
         ReplaceSeries(this.state.WeightChart, FitnessCharts.Trend(
             "body weight",
             snapshot.WeighIns.Select(weighIn => (weighIn.OccurredAt, (double)weighIn.WeightLbs)).ToList(),
-            "#5AA9E6", "lb"));
+            "#8FAAFF", "lb"));
         ReplaceSeries(this.state.TonnageChart, FitnessCharts.Weekly(
-            "tonnage", FitnessCharts.WeeklyTonnage(snapshot.Sets, now, CHART_WEEKS), "#4CB782", "lb"));
+            "tonnage", FitnessCharts.WeeklyTonnage(snapshot.Sets, now, CHART_WEEKS), "#ABA5FF", "lb"));
         ReplaceSeries(this.state.CardioChart, FitnessCharts.Weekly(
             "cardio", FitnessCharts.WeeklyCardioMinutes(snapshot.Cardio, now, CHART_WEEKS), "#D9A441", "min"));
 

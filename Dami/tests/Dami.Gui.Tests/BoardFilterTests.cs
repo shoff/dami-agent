@@ -22,6 +22,19 @@ public sealed class BoardFilterTests
     }
 
     [Fact]
+    public void Search_Should_Find_Nested_Active_Work_Once_With_Parent_Context()
+    {
+        var roots = Tree(Task("Workshop", TaskBoardStatus.InProgress, "",
+            Task("Order timber", TaskBoardStatus.InProgress, "oak boards"),
+            Task("Old order", TaskBoardStatus.Done, "oak boards")));
+
+        var results = BoardFilter.Search(roots, BoardView.Active, " OAK ");
+
+        Assert.Equal(new[] { ("Order timber", "Workshop") },
+            results.Select(item => (item.Title, item.ParentPath)));
+    }
+
+    [Fact]
     public void All_Should_Return_The_Roots_Untouched_So_The_Tree_Still_Nests()
     {
         var roots = Tree(Task("Epic", TaskBoardStatus.Open, "", Task("Child", TaskBoardStatus.Open)));

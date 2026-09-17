@@ -20,6 +20,7 @@ public sealed class ResearchReader : IResearchReader
 {
     private const string ACTOR = "research";
     private const int MAX_REDIRECTS = 5;
+    private const string USER_AGENT = "DamiCore/1.0";
 
     private readonly HttpClient httpClient;
     private readonly IEgressBudget egressBudget;
@@ -49,6 +50,10 @@ public sealed class ResearchReader : IResearchReader
         this.eventStore = eventStore;
         this.clock = clock;
         this.logger = logger;
+        if (this.httpClient.DefaultRequestHeaders.UserAgent.Count == 0)
+        {
+            this.httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(USER_AGENT);
+        }
     }
 
     /// <inheritdoc />
@@ -68,6 +73,13 @@ public sealed class ResearchReader : IResearchReader
         try
         {
             return await this.FollowAsync(url, traceId, origin, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            var message = $"{url.Host} exceeded the source timeout ({this.researchOptions.TimeoutSeconds}s).";
+            await this.EmitAsync(traceId, origin, ExecutionEventType.EgressFailed, ExecutionStatus.Failed,
+                message, cancellationToken).ConfigureAwait(false);
+            throw new TimeoutException(message, exception);
         }
         catch (Exception exception) when (exception is HttpRequestException or IOException)
         {
@@ -112,11 +124,13 @@ public sealed class ResearchReader : IResearchReader
         var destination = url;
         for (var redirects = 0; redirects <= MAX_REDIRECTS; redirects++)
         {
-            await this.EnsurePublicAsync(destination, traceId, origin, cancellationToken).ConfigureAwait(false);
+            var address = await this.PinAsync(destination, traceId, origin, cancellationToken).ConfigureAwait(false);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(this.researchOptions.TimeoutSeconds));
+            using var request = new HttpRequestMessage(HttpMethod.Get, destination);
+            request.Options.Set(ResearchConnection.PinnedAddress, address);
             using var response = await this.httpClient
-                .GetAsync(destination, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
             if ((int)response.StatusCode is >= 300 and < 400 && response.Headers.Location is { } location)
             {
                 destination = location.IsAbsoluteUri ? location : new Uri(destination, location);
@@ -129,27 +143,35 @@ public sealed class ResearchReader : IResearchReader
         throw new HttpRequestException($"research read exceeded the redirect limit of {MAX_REDIRECTS}");
     }
 
-    private async Task EnsurePublicAsync(Uri destination, Guid traceId, ExecutionOrigin origin, CancellationToken cancellationToken)
+    private async Task<IPAddress> PinAsync(
+        Uri destination,
+        Guid traceId,
+        ExecutionOrigin origin,
+        CancellationToken cancellationToken)
     {
-        var refusal = await this.FindRefusalAsync(destination, cancellationToken).ConfigureAwait(false);
+        var (address, refusal) = await this.ResolveAsync(destination, cancellationToken).ConfigureAwait(false);
         if (refusal is not null)
         {
             await this.RefuseAsync(traceId, origin, refusal, cancellationToken).ConfigureAwait(false);
         }
+
+        return address!;
     }
 
-    private async Task<string?> FindRefusalAsync(Uri destination, CancellationToken cancellationToken)
+    private async Task<(IPAddress? Address, string? Refusal)> ResolveAsync(
+        Uri destination,
+        CancellationToken cancellationToken)
     {
         if (destination.Scheme != Uri.UriSchemeHttps && destination.Scheme != Uri.UriSchemeHttp)
         {
-            return $"scheme '{destination.Scheme}' is not readable; research reads http and https only";
+            return (null, $"scheme '{destination.Scheme}' is not readable; research reads http and https only");
         }
 
         if (this.researchOptions.BlockedHosts.Any(host =>
             destination.Host.Equals(host, StringComparison.OrdinalIgnoreCase)
             || destination.Host.EndsWith("." + host, StringComparison.OrdinalIgnoreCase)))
         {
-            return $"host '{destination.Host}' is blocked for research";
+            return (null, $"host '{destination.Host}' is blocked for research");
         }
 
         IPAddress[] addresses;
@@ -161,17 +183,25 @@ public sealed class ResearchReader : IResearchReader
         }
         catch (SocketException)
         {
-            return $"host '{destination.Host}' does not resolve";
+            return (null, $"host '{destination.Host}' does not resolve");
         }
 
         return addresses.Length == 0 || addresses.Any(address => !IsPublic(address))
-            ? $"host '{destination.Host}' is not a public address; research never reads this network"
-            : null;
+            ? (null, $"host '{destination.Host}' is not a public address; research never reads this network")
+            : (addresses[0], null);
     }
 
     private async Task<ResearchPage> CompleteAsync(
         Uri destination, HttpResponseMessage response, Guid traceId, ExecutionOrigin origin, CancellationToken cancellationToken)
     {
+        var mediaType = response.Content.Headers.ContentType?.MediaType;
+        if (!IsReadable(mediaType))
+        {
+            await this.RefuseAsync(
+                traceId, origin, $"{destination.Host} answered unsupported content type '{mediaType ?? "missing"}'",
+                cancellationToken).ConfigureAwait(false);
+        }
+
         var length = response.Content.Headers.ContentLength;
         if (length > this.researchOptions.MaxResponseBytes)
         {
@@ -184,11 +214,24 @@ public sealed class ResearchReader : IResearchReader
         using var reader = new StreamReader(bounded);
         var html = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
         var page = new ResearchPage(
-            destination, (int)response.StatusCode, HtmlText.Title(html), HtmlText.Extract(html, this.researchOptions.MaxTextChars));
+            destination, (int)response.StatusCode, HtmlText.Title(html), HtmlText.Extract(html, this.researchOptions.MaxTextChars))
+        {
+            References = ContentReferences.Extract(html, destination, mediaType),
+        };
         await this.EmitAsync(traceId, origin, ExecutionEventType.EgressCompleted, ExecutionStatus.Succeeded,
             $"{destination.Host} answered {page.StatusCode}: {page.Text.Length} chars read", cancellationToken).ConfigureAwait(false);
         return page;
     }
+
+    private static bool IsReadable(string? mediaType) => mediaType is not null
+        && (mediaType.StartsWith("text/", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase)
+            || mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("application/xml", StringComparison.OrdinalIgnoreCase)
+            || mediaType.EndsWith("+xml", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("application/csv", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("application/yaml", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("application/x-yaml", StringComparison.OrdinalIgnoreCase));
 
     private async Task RefuseAsync(Guid traceId, ExecutionOrigin origin, string refusal, CancellationToken cancellationToken)
     {

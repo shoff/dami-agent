@@ -15,8 +15,8 @@ public sealed class ViewBrush : IValueConverter
     /// <summary>The single instance the XAML binds to.</summary>
     public static readonly ViewBrush instance = new();
 
-    private static readonly SolidColorBrush selected = new(Color.Parse("#2F4A66"));
-    private static readonly SolidColorBrush idle = new(Color.Parse("#1B2229"));
+    private static readonly SolidColorBrush selected = new(Color.Parse("#45405B"));
+    private static readonly SolidColorBrush idle = new(Color.Parse("#252525"));
 
     /// <inheritdoc />
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)

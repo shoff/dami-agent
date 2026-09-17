@@ -59,6 +59,7 @@ public sealed class EgressSeamTests
     /// <summary>The types allowed to read public pages or search (ADR-0033): the research door.</summary>
     private static readonly string[] permittedResearchHolders =
     [
+        "Dami.Core.Frontier.DeepResearchService",
         "Dami.Core.Frontier.ResearchTools",
         "Dami.Proactive.Opportunities.OpportunityScoutService",
         "Dami.Privacy.ResearchReader",
@@ -92,10 +93,25 @@ public sealed class EgressSeamTests
         "Dami.Providers.OpenAiImageGenerator",
         // G25: authenticated built-in image tool; subscription-covered and API-key-free.
         "Dami.Providers.CodexSubscriptionImageGenerator",
+        // ADR-0035: the keyed Gemini door, selected by Images:Provider; same gate, same bill.
+        "Dami.Providers.GeminiImageGenerator",
         "Dami.Proactive.Portrait.DailyPortraitService",
         // M1d: explicit user image commands, still metered and enforced by the same door.
         "Dami.Host.Discord.DiscordImageResponder",
         "Dami.Core.Frontier.FrontierToolBundle", // ADR-0030: the frontier's make_image tool, any channel
+    ];
+
+    /// <summary>
+    /// The types allowed to spawn the codex CLI. Each one is a subscription egress and, in
+    /// a workspace-write sandbox, a writer of files on this host; a new holder is a decision.
+    /// </summary>
+    private static readonly string[] permittedCodexProcessHolders =
+    [
+        "Dami.Providers.CodexProcess", // the implementation itself
+        "Dami.Providers.CodexChatClient",
+        "Dami.Providers.CodexSubscriptionImageGenerator",
+        // ADR-0036: the coding agent, in its own worktree on its own branch, never the main tree.
+        "Dami.Providers.CodexCodeWorker",
     ];
 
     [Fact]
@@ -146,6 +162,18 @@ public sealed class EgressSeamTests
             unexpected.Count == 0,
             "Image generation costs money per call; new holders are a decision. Found: "
                 + string.Join(", ", unexpected));
+    }
+
+    [Fact]
+    public void Codex_Process_Holders_Should_Be_The_Pinned_Set()
+    {
+        // ADR-0036 gave the frontier a door that writes to disk. Which types may spawn the
+        // CLI that does the writing is exactly this list.
+        var unexpected = HoldersOf("ICodexProcess")
+            .Where(holder => !permittedCodexProcessHolders.Contains(holder, StringComparer.Ordinal))
+            .ToList();
+
+        Assert.True(unexpected.Count == 0, "New codex process holders are a decision. Found: " + string.Join(", ", unexpected));
     }
 
     [Fact]

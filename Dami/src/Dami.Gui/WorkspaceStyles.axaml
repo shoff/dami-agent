@@ -1,0 +1,129 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Style Selector="Button, ToggleButton">
+    <Setter Property="CornerRadius" Value="7"/>
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="Button.quiet, ToggleButton.quiet">
+    <Setter Property="Background" Value="#282828"/>
+    <Setter Property="Foreground" Value="#E1E1E1"/>
+    <Setter Property="Padding" Value="14,10"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderBrush" Value="#404040"/>
+  </Style>
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="#ABA5FF"/>
+    <Setter Property="Foreground" Value="#1C172B"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Padding" Value="16,9"/>
+  </Style>
+  <Style Selector="Button.image-preview">
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Background" Value="#202020"/>
+    <Setter Property="BorderBrush" Value="#454545"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="7"/>
+    <Setter Property="ClipToBounds" Value="True"/>
+  </Style>
+  <Style Selector="Button.image-preview:pointerover /template/ ContentPresenter">
+    <Setter Property="BorderBrush" Value="#ABA5FF"/>
+    <Setter Property="Background" Value="#37324F"/>
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#CFCAFF"/>
+    <Setter Property="Foreground" Value="#1C172B"/>
+  </Style>
+  <Style Selector="ToggleButton.quiet:checked /template/ ContentPresenter">
+    <Setter Property="Background" Value="#46405E"/>
+    <Setter Property="Foreground" Value="#E0DCFF"/>
+  </Style>
+  <Style Selector="Button.starter">
+    <Setter Property="Background" Value="#252525"/>
+    <Setter Property="Foreground" Value="#EEEEEE"/>
+    <Setter Property="BorderBrush" Value="#3A3A3A"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="10"/>
+    <Setter Property="Padding" Value="16"/>
+    <Setter Property="Margin" Value="5"/>
+    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+  </Style>
+  <Style Selector="Button.starter:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#35313F"/>
+    <Setter Property="BorderBrush" Value="#ABA5FF"/>
+  </Style>
+  <Style Selector="TextBlock.card-note">
+    <Setter Property="Foreground" Value="#AAAAAA"/>
+    <Setter Property="FontSize" Value="11"/>
+    <Setter Property="TextWrapping" Value="Wrap"/>
+  </Style>
+  <Style Selector="Border.message">
+    <Setter Property="Margin" Value="0,0,0,14"/>
+    <Setter Property="Background" Value="#222222"/>
+    <Setter Property="BorderBrush" Value="#353535"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="12"/>
+    <Setter Property="Padding" Value="16"/>
+  </Style>
+  <Style Selector="Border.message.you">
+    <Setter Property="Background" Value="#2A2833"/>
+    <Setter Property="BorderBrush" Value="#474255"/>
+    <Setter Property="Margin" Value="36,0,0,14"/>
+  </Style>
+  <Style Selector="Border.message.search-hit">
+    <Setter Property="BorderBrush" Value="#ABA5FF"/>
+    <Setter Property="Background" Value="#302C3C"/>
+  </Style>
+  <Style Selector="TabItem.workspace">
+    <Setter Property="Width" Value="154"/>
+    <Setter Property="Margin" Value="0,0,0,6"/>
+    <Setter Property="Padding" Value="12,15"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Foreground" Value="#AAAAAA"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" CornerRadius="9" Padding="{TemplateBinding Padding}">
+          <ContentPresenter Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}"/>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="TabItem.workspace:pointerover">
+    <Setter Property="Background" Value="#262626"/>
+    <Setter Property="Foreground" Value="#EEEEEE"/>
+  </Style>
+  <Style Selector="TabItem.workspace:selected">
+    <Setter Property="Background" Value="#37324F"/>
+    <Setter Property="Foreground" Value="#D6D1FF"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+  <Style Selector="TabItem.workspace:focus-visible">
+    <Setter Property="Background" Value="#514965"/>
+  </Style>
+  <Style Selector="TextBox.chat-input:focus /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+  </Style>
+  <Style Selector="TextBox.chat-input:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent"/>
+  </Style>
+  <Style Selector="Border.composer:focus-within">
+    <Setter Property="BorderBrush" Value="#ABA5FF"/>
+  </Style>
+  <Style Selector="ListBox#CommandResults ListBoxItem">
+    <Setter Property="CornerRadius" Value="8"/>
+  </Style>
+  <Style Selector="ListBox#CommandResults ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="#46405E"/>
+  </Style>
+  <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="#46405E"/>
+  </Style>
+  <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#544C72"/>
+  </Style>
+  <Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="#46405E"/>
+  </Style>
+</Styles>

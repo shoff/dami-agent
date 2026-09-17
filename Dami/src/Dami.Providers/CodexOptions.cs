@@ -29,6 +29,12 @@ public sealed class CodexOptions
     public int TimeoutSeconds { get; set; } = 600;
 
     /// <summary>
+    /// Wall-clock ceiling for a nested subscription image call. Shorter than the outer
+    /// completion deadline so a failed picture becomes a tool result the turn can explain.
+    /// </summary>
+    public int ImageTimeoutSeconds { get; set; } = 480;
+
+    /// <summary>
     /// How long a turn may stay silent before its first token or tool call. On
     /// 2026-09-03 a turn produced nothing for the full 600 s; this ends that in about
     /// a minute and resets the app-server. Reasoning that takes longer than this before

@@ -32,7 +32,7 @@ public sealed class JobsWindow : Window
         this.Title = "Dami — Scheduled Jobs";
         this.Width = 1100;
         this.Height = 720;
-        this.Background = Brush.Parse("#101418");
+        this.Background = Brush.Parse("#181818");
         this.Content = this.BuildLayout();
         this.send.Click += (_, _) => _ = this.SendAsync();
         this.confirm.Click += (_, _) => _ = this.ConfirmAsync();
@@ -65,14 +65,14 @@ public sealed class JobsWindow : Window
         {
             Text = heading,
             FontSize = 11,
-            Foreground = Brush.Parse("#7A8694"),
+            Foreground = Brush.Parse("#A0A0A0"),
             Margin = new Avalonia.Thickness(0, 0, 0, 10),
             [DockPanel.DockProperty] = Dock.Top,
         });
         content.Children.Add(body);
         var panel = new Border
         {
-            Background = Brush.Parse("#171D24"),
+            Background = Brush.Parse("#202020"),
             CornerRadius = new Avalonia.CornerRadius(8),
             Padding = new Avalonia.Thickness(14),
             Margin = column == 0 ? new Avalonia.Thickness(0, 0, 6, 0) : new Avalonia.Thickness(6, 0, 0, 0),
@@ -186,7 +186,7 @@ public sealed class JobsWindow : Window
         {
             Text = $"{who}: {text}",
             TextWrapping = TextWrapping.Wrap,
-            Foreground = Brush.Parse(who == "you" ? "#D7DDE4" : "#5AA9E6"),
+            Foreground = Brush.Parse(who == "you" ? "#E2E2E2" : "#8FAAFF"),
         });
     }
 
@@ -196,19 +196,19 @@ public sealed class JobsWindow : Window
         var last = job.LastRunAt is null ? "never" : $"{job.LastRunAt.Value.ToLocalTime():g} · {job.LastRunStatus}";
         return new Border
         {
-            Background = Brush.Parse("#0D1116"),
+            Background = Brush.Parse("#151515"),
             Padding = new Avalonia.Thickness(10),
             CornerRadius = new Avalonia.CornerRadius(5),
             Child = new TextBlock
             {
                 Text = $"{job.Name}  [{job.Status}]\n{job.Description}\n{job.Kind} · {job.CronExpression} · {job.TimeZoneId}\nnext: {next}   last: {last}",
                 TextWrapping = TextWrapping.Wrap,
-                Foreground = Brush.Parse("#D7DDE4"),
+                Foreground = Brush.Parse("#E2E2E2"),
             },
         };
     }
 
-    private TextBlock Muted(string text) => new() { Text = text, Foreground = Brush.Parse("#7A8694") };
+    private TextBlock Muted(string text) => new() { Text = text, Foreground = Brush.Parse("#A0A0A0") };
 
     private static string Quote(string value) => value.Any(char.IsWhiteSpace) ? $"\"{value}\"" : value;
 

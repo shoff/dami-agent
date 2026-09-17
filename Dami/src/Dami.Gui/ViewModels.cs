@@ -20,9 +20,21 @@ public sealed class Message : INotifyPropertyChanged
         this.body = body;
     }
 
+    /// <summary>Creates a message with a stable snapshot of its shared image previews.</summary>
+    public Message(string who, string body, IEnumerable<PendingChatImage> attachments)
+        : this(who, body)
+    {
+        ArgumentNullException.ThrowIfNull(attachments);
+        this.Attachments = attachments.ToArray();
+    }
+
+    /// <summary>Images submitted with this message, retained when the composer clears.</summary>
+    public IReadOnlyList<PendingChatImage> Attachments { get; } = [];
+
     private string body;
     private string meta = string.Empty;
     private Bitmap? image;
+    private ChatDraft? recoverableDraft;
 
     /// <summary>Who said it — "you" or "dami".</summary>
     public string Who { get; }
@@ -31,8 +43,20 @@ public sealed class Message : INotifyPropertyChanged
     public string Body
     {
         get => this.body;
-        set => this.Set(ref this.body, value);
+        set
+        {
+            if (this.body == value)
+            {
+                return;
+            }
+
+            this.Set(ref this.body, value);
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.CanCopy)));
+        }
     }
+
+    /// <summary>Whether text is available to copy, including a partial streamed reply.</summary>
+    public bool CanCopy => !string.IsNullOrEmpty(this.Body);
 
     /// <summary>Accounting shown under Dami's replies once the turn reports it.</summary>
     public string Meta
@@ -50,6 +74,26 @@ public sealed class Message : INotifyPropertyChanged
 
     /// <summary>True when this is Steve's own line, for styling.</summary>
     public bool IsYou => this.Who == "you";
+
+    /// <summary>The original submission retained after an unsuccessful reply.</summary>
+    public ChatDraft? RecoverableDraft
+    {
+        get => this.recoverableDraft;
+        set
+        {
+            if (ReferenceEquals(this.recoverableDraft, value))
+            {
+                return;
+            }
+
+            this.recoverableDraft = value;
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.RecoverableDraft)));
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.CanRecover)));
+        }
+    }
+
+    /// <summary>Whether the original message can be restored for editing.</summary>
+    public bool CanRecover => this.RecoverableDraft is not null;
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -188,14 +232,16 @@ public sealed class TaskBoardCriterionNode
     public long ExpectedTaskVersion { get; }
 
     /// <summary>Action that changes the current evidence state.</summary>
-    public string ActionLabel => this.IsSatisfied ? "reopen" : "satisfy";
+    public string ActionLabel => this.IsSatisfied ? "Undo" : "Verify";
 }
 
 /// <summary>A recursive task presentation node built only from the shared contract.</summary>
-public sealed class TaskBoardTaskNode : IEquatable<TaskBoardTaskNode>
+public sealed partial class TaskBoardTaskNode : IEquatable<TaskBoardTaskNode>
 {
-    private TaskBoardTaskNode(BoardTask task)
+    private TaskBoardTaskNode(
+        BoardTask task, string parentPath, IReadOnlyDictionary<Guid, BoardTask> index)
     {
+        this.ParentPath = parentPath;
         this.TaskId = task.TaskId;
         this.Title = task.Title;
         this.Description = task.Description;
@@ -203,22 +249,30 @@ public sealed class TaskBoardTaskNode : IEquatable<TaskBoardTaskNode>
         this.Priority = task.Priority;
         this.Version = task.Version;
         this.ClaimedBy = task.Claim?.Actor.ActorId ?? string.Empty;
+        this.ClaimedKind = task.Claim?.Actor.Kind;
+        this.Dependencies = task.PrerequisiteTaskIds.Select(id => index.TryGetValue(id, out var dependency)
+            ? new TaskBoardDependency(id, dependency.Title, dependency.Status)
+            : new TaskBoardDependency(id, $"Unavailable task {id:N}", TaskBoardStatus.Open)).ToArray();
         this.Prerequisites = string.Join(", ", task.PrerequisiteTaskIds
             .Select(id => id.ToString("N")[..8]));
         this.Criteria = task.AcceptanceCriteria
             .Select(item => new TaskBoardCriterionNode(item, task.Version)).ToArray();
-        this.SubTasks = task.SubTasks.Select(From).ToArray();
+        var path = string.IsNullOrEmpty(parentPath) ? task.Title : $"{parentPath} / {task.Title}";
+        this.SubTasks = task.SubTasks.Select(child => new TaskBoardTaskNode(child, path, index)).ToArray();
     }
 
     /// <summary>Maps one task and every descendant without changing ordering.</summary>
     public static TaskBoardTaskNode From(BoardTask task)
     {
         ArgumentNullException.ThrowIfNull(task);
-        return new TaskBoardTaskNode(task);
+        return FromBoard([task])[0];
     }
 
     /// <summary>Stable task id.</summary>
     public Guid TaskId { get; }
+
+    /// <summary>Ancestor names for flat search results.</summary>
+    public string ParentPath { get; }
 
     /// <summary>Task title.</summary>
     public string Title { get; }
@@ -238,6 +292,9 @@ public sealed class TaskBoardTaskNode : IEquatable<TaskBoardTaskNode>
     /// <summary>Current claimant, or empty.</summary>
     public string ClaimedBy { get; }
 
+    /// <summary>Claimant type, needed for owner-only transitions.</summary>
+    public TaskActorKind? ClaimedKind { get; }
+
     /// <summary>Short prerequisite ids.</summary>
     public string Prerequisites { get; }
 
@@ -248,7 +305,7 @@ public sealed class TaskBoardTaskNode : IEquatable<TaskBoardTaskNode>
     public IReadOnlyList<TaskBoardTaskNode> SubTasks { get; }
 
     /// <summary>Whether the task may be claimed.</summary>
-    public bool CanClaim => this.Status == TaskBoardStatus.Open;
+    public bool CanClaim => this.Status == TaskBoardStatus.Open && this.RemainingDependencies == 0;
 
     /// <summary>Whether completion and blocking controls apply.</summary>
     public bool CanWork => this.Status == TaskBoardStatus.InProgress;
@@ -277,6 +334,7 @@ public sealed class TaskBoardTaskNode : IEquatable<TaskBoardTaskNode>
             && this.TaskId == other.TaskId
             && this.Version == other.Version
             && this.Status == other.Status
+            && this.Dependencies.SequenceEqual(other.Dependencies)
             && this.SubTasks.SequenceEqual(other.SubTasks);
     }
 
@@ -288,14 +346,14 @@ public sealed class TaskBoardTaskNode : IEquatable<TaskBoardTaskNode>
 }
 
 /// <summary>Observable state for the desktop task-board panel.</summary>
-public sealed class TaskBoardPanelState : INotifyPropertyChanged
+public sealed partial class TaskBoardPanelState : INotifyPropertyChanged
 {
     private string title = "select a board";
     private string detail = string.Empty;
     private string message = "loading task boards…";
     private TaskBoardTaskNode? selected;
     private bool hasSelection;
-    private BoardView view = BoardView.NeedsYou;
+    private BoardView view = BoardView.Active;
     private int needsYouCount;
     private int openCount;
     private int blockedCount;
@@ -349,7 +407,7 @@ public sealed class TaskBoardPanelState : INotifyPropertyChanged
         private set => this.Set(ref this.hasSelection, value);
     }
 
-    /// <summary>Which slice of the board is listed. Opens on Steve's own decisions.</summary>
+    /// <summary>Which slice of the board is listed. Opens on unfinished work.</summary>
     public BoardView View
     {
         get => this.view;
@@ -589,6 +647,7 @@ public sealed class WindowState : INotifyPropertyChanged
 {
     private string workerTraceMessage = string.Empty;
     private string activityMessage = string.Empty;
+    private string observabilityMessage = "loading recent runtime events…";
     private string fitnessMessage = string.Empty;
     private string networkMessage = string.Empty;
     private string networkAnalysis = string.Empty;
@@ -621,6 +680,17 @@ public sealed class WindowState : INotifyPropertyChanged
         {
             this.activityMessage = value;
             this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.ActivityMessage)));
+        }
+    }
+
+    /// <summary>Freshness and availability of the bounded live event window.</summary>
+    public string ObservabilityMessage
+    {
+        get => this.observabilityMessage;
+        set
+        {
+            this.observabilityMessage = value;
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.ObservabilityMessage)));
         }
     }
 
@@ -710,6 +780,17 @@ public sealed class WindowState : INotifyPropertyChanged
     /// <summary>Images staged in the direct-chat composer, in insertion order.</summary>
     public ObservableCollection<PendingChatImage> PendingImages { get; } = [];
 
+    /// <summary>Decodes an image before accepting it so an invalid file cannot enter the draft.</summary>
+    public void StageImage(PendingChatImage image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        _ = image.Thumbnail;
+        this.PendingImages.Add(image);
+    }
+
+    /// <summary>Removes only the chosen staged image, preserving other images with the same filename.</summary>
+    public bool RemovePendingImage(PendingChatImage image) => this.PendingImages.Remove(image);
+
     /// <summary>Persisted Dami portraits, newest first.</summary>
     public ObservableCollection<GalleryImageCard> GalleryImages { get; } = [];
 
@@ -724,6 +805,12 @@ public sealed class WindowState : INotifyPropertyChanged
 
     /// <summary>The rolling activity chart's plotted series.</summary>
     public ObservableCollection<ActivitySeries> Activity { get; } = [];
+
+    /// <summary>Headline counts over the newest durable runtime events.</summary>
+    public ObservableCollection<ObservabilityTile> ObservabilityTiles { get; } = [];
+
+    /// <summary>The newest durable runtime events, newest first.</summary>
+    public ObservableCollection<ObservabilityEvent> ObservabilityEvents { get; } = [];
 
     /// <summary>What the proactive tier has been doing, most recently active first.</summary>
     public ObservableCollection<WorkerRow> Workers { get; } = [];

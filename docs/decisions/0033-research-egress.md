@@ -56,6 +56,32 @@ read the web at all.
   gate as on retrieved context, with the same ledger and corrections.
 - The scout's queries and profile are Steve's own words in the drop-in, which is why they
   may go to SearXNG ungated — the same reasoning as the portrait prompt (ADR-0027).
+- G27 extends the door with bounded reference traversal. `DeepResearchService` is a fifth
+  pinned holder of `IResearchReader`; it cannot read profile stores or invoke a frontier
+  model. It chooses links deterministically from the question, reference label/type, and
+  URL, with explicit page, depth, per-page-reference, response-byte, time, redirect, and
+  output limits. Every finding carries the complete URL path by which it was discovered.
+- A research result taints its frontier turn. From that point the bundle accepts no more
+  tool calls, including another URL or search query: even GET-only egress could encode
+  local context into an attacker-influenced address. This confines prompt injection to
+  the written answer rather than allowing page text to exercise another capability or
+  exfiltrate through a follow-up request. A new user turn restores the normal tool set.
+- J13 lets the user omit the starting URL. The frontier then chooses one to three public
+  starting URLs before receiving untrusted content and supplies them in one `deep_research`
+  call. All roots and their references share the existing page/depth budget; this does not
+  unlock tool calls after a search or page response. A supplied URL still uses the original
+  single-root path. Each rerun creates a separate dated artifact and retains the original
+  report; automatic/supplied selection and starting URLs are archived with the run.
+- Known website image, style, script and font assets are excluded from discovered
+  candidates before spending the read budget. Source HTTP failures, refused reads and
+  source timeouts are recorded as skipped reads;
+  the remaining candidate branches continue, and the final model result includes the gaps.
+  Explicit caller cancellation still stops the run. Unexpected runtime/storage failures
+  retain the existing failed-run behavior and earlier saved findings.
+- DNS policy and transport are joined: the reader resolves and validates every address,
+  stores the chosen public address on the request, and the socket connects to that exact
+  address with redirects, cookies, proxies, and connection reuse disabled. A second DNS
+  answer therefore cannot rebind a validated hostname into loopback or a private network.
 - SearXNG itself talks to Brave, DuckDuckGo, Wikipedia and whatever else its defaults
   enable. Those engines see the query and this host's address. That is the price of
   search and it is stated here rather than hidden.

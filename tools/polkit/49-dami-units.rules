@@ -1,0 +1,19 @@
+// Dami Core — let the service account manage its own units without a password.
+// Installed by tools/bootstrap-sudoless-deploy.sh; source of truth is this file.
+//
+// Scope is deliberately narrow: start/stop/restart/reload of units named dami-*,
+// for the one user the units run as. Not manage-unit-files (enable/disable/mask),
+// not reload-daemon, not any other unit. Unit-file changes still take sudo, once.
+polkit.addRule(function (action, subject) {
+    if (action.id !== "org.freedesktop.systemd1.manage-units") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    if (subject.user !== "steve") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    var unit = action.lookup("unit") || "";
+    if (/^dami-[a-z0-9-]+\.(service|timer)$/.test(unit)) {
+        return polkit.Result.YES;
+    }
+    return polkit.Result.NOT_HANDLED;
+});

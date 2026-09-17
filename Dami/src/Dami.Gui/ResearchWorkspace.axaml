@@ -1,0 +1,143 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:Dami.Gui"
+             x:Class="Dami.Gui.ResearchWorkspace" Background="#171717">
+  <Grid RowDefinitions="Auto,Auto,*" Margin="24,20,24,24">
+    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,18">
+      <StackPanel Spacing="5">
+        <TextBlock Text="RESEARCH LIBRARY" FontSize="10" LetterSpacing="2" Foreground="#ABA5FF"/>
+        <TextBlock Text="Follow the evidence." FontSize="26" FontWeight="SemiBold" Foreground="#EEEEEE"/>
+        <TextBlock Text="Saved answers, original sources, and the paths between them." FontSize="12" Foreground="#A6A6A6" TextWrapping="Wrap"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
+        <Button x:Name="RefreshResearch" Content="Refresh" Classes="quiet"/>
+        <Button x:Name="NewResearch" Content="+ New research" Classes="primary"/>
+      </StackPanel>
+    </Grid>
+    <Border x:Name="ResearchForm" Grid.Row="1" Grid.RowSpan="2" IsVisible="False" Padding="16" Margin="0,0,0,16"
+            Background="#242424" BorderBrush="#45405B" BorderThickness="1" CornerRadius="12">
+      <Grid RowDefinitions="Auto,*,Auto,Auto" ColumnDefinitions="*,Auto">
+        <TextBlock x:Name="ResearchFormTitle" Text="New research" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
+        <Button x:Name="CloseResearchForm" Grid.Column="1" Content="Close" Classes="quiet" HorizontalAlignment="Right"/>
+        <TextBox x:Name="ResearchQuestion" Grid.Row="1" Grid.ColumnSpan="2" Margin="0,10,0,0" AutomationProperties.Name="Research question" PlaceholderText="What would you like to find out?"
+                 MaxLength="4000" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="100" VerticalContentAlignment="Top"/>
+        <TextBox x:Name="ResearchSeed" Grid.Row="2" PlaceholderText="Starting URL (optional) · leave empty for Dami to choose" AutomationProperties.Name="Starting URL, optional" MaxLength="2048" Margin="0,10,12,0"/>
+        <Button x:Name="StartResearch" Grid.Row="2" Grid.Column="1" Content="Start research" Classes="primary" Margin="0,10,0,0"/>
+        <TextBlock x:Name="LaunchMessage" Grid.Row="3" Grid.ColumnSpan="2" Margin="0,10,0,0" FontSize="11" Foreground="#B7B3DC" TextWrapping="Wrap"
+                   Text="Leave the starting URL empty for Dami to choose relevant sites. Each run saves a separate report; Esc stops the active reply."/>
+      </Grid>
+    </Border>
+    <Grid x:Name="ResearchResults" Grid.Row="2" ColumnDefinitions="280,16,*">
+      <Border Background="#202020" CornerRadius="12" BorderBrush="#373737" BorderThickness="1" Padding="14">
+        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+            <TextBlock Text="Saved runs" FontSize="15" FontWeight="SemiBold"/>
+            <TextBlock x:Name="HistoryCount" Grid.Column="1" Foreground="#ABA5FF" FontSize="12" VerticalAlignment="Center"/>
+          </Grid>
+          <TextBox x:Name="ResearchSearch" Grid.Row="1" PlaceholderText="Search question, site, or trace…" FontSize="12"/>
+          <ComboBox x:Name="ResearchFilter" Grid.Row="2" SelectedIndex="0" HorizontalAlignment="Stretch" Margin="0,8,0,10" FontSize="12">
+            <ComboBoxItem Content="All outcomes"/>
+            <ComboBoxItem Content="Collecting sources"/>
+            <ComboBoxItem Content="Sources collected"/>
+            <ComboBoxItem Content="Stopped or failed"/>
+          </ComboBox>
+          <Grid Grid.Row="3">
+            <ListBox x:Name="RunList" Background="Transparent" BorderThickness="0" Padding="0">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="local:ResearchRunRow">
+                  <StackPanel Margin="4,8" Spacing="6">
+                    <TextBlock Text="{Binding Question}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding State}" FontSize="11" Foreground="#BAB5F3"/>
+                    <TextBlock Text="{Binding Details}" FontSize="10" Foreground="#AAAAAA" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock x:Name="HistoryEmpty" Text="Waiting for research history…"
+                       Margin="10,20" Foreground="#A6A6A6" TextWrapping="Wrap" FontSize="12"/>
+          </Grid>
+          <TextBlock x:Name="ResearchSync" Grid.Row="4" Text="Connecting to research history…" Margin="0,12,0,0"
+                     FontSize="10" Foreground="#A6A6A6" TextWrapping="Wrap"/>
+        </Grid>
+      </Border>
+      <Border Grid.Column="2" Background="#202020" CornerRadius="12" BorderBrush="#373737" BorderThickness="1" Padding="20">
+        <Grid>
+          <StackPanel x:Name="ResearchWelcome" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="420" Spacing="16" Margin="20">
+            <TextBlock Text="A trail you can return to." FontSize="24" FontWeight="SemiBold" Foreground="#D7D3FF" TextWrapping="Wrap"/>
+            <TextBlock Text="Each new investigation keeps its question, source text, discovery paths, and outcome. Select a run to inspect the evidence or copy the whole report."
+                       TextWrapping="Wrap" Foreground="#B0B0B0" FontSize="13" LineHeight="22"/>
+            <TextBlock Text="Earlier research traces remain in Activity and the CLI. Their full findings were not archived."
+                       TextWrapping="Wrap" Foreground="#8F8F8F" FontSize="11" LineHeight="18"/>
+          </StackPanel>
+          <Grid x:Name="RunContent" RowDefinitions="Auto,Auto,*" IsVisible="False">
+            <Grid RowDefinitions="Auto,Auto" Margin="0,0,0,12">
+              <TextBlock x:Name="RunTitle" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Margin="0,0,16,0"/>
+              <WrapPanel Grid.Row="1" Margin="0,10,0,0">
+                <Button x:Name="EditResearch" Content="Edit and rerun" Classes="primary" Margin="0,0,8,0"/>
+                <Button x:Name="CopyReport" Content="Copy report" Classes="quiet" IsEnabled="False"/>
+              </WrapPanel>
+            </Grid>
+            <StackPanel Grid.Row="1" Spacing="5" Margin="0,0,0,12">
+              <TextBlock x:Name="RunProgress" Foreground="#BAB5F3" FontSize="12" TextWrapping="Wrap"/>
+              <SelectableTextBlock x:Name="RunTrace" Foreground="#919191" FontSize="10" TextWrapping="Wrap"/>
+            </StackPanel>
+            <TabControl Grid.Row="2">
+              <TabItem Header="Report" FontSize="13">
+                <ScrollViewer Margin="0,14,0,0" HorizontalScrollBarVisibility="Disabled">
+                  <StackPanel Spacing="14">
+                    <TextBlock x:Name="AnswerStatus" Foreground="#B7B3DC" FontSize="11" TextWrapping="Wrap"/>
+                    <local:ReplyView x:Name="ResearchAnswer"/>
+                    <Border x:Name="RunNoticePanel" Background="#29272F" CornerRadius="8" Padding="12">
+                      <SelectableTextBlock x:Name="RunNotice" Foreground="#C8C3D8" TextWrapping="Wrap" FontSize="12"/>
+                    </Border>
+                    <TextBlock Text="SOURCE NOTES" FontSize="10" LetterSpacing="1.5" Foreground="#ABA5FF" Margin="0,8,0,0"/>
+                    <ItemsControl x:Name="SourceCards">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="local:ResearchSourceRow">
+                          <Button Classes="starter" Tag="inspect-source" CommandParameter="{Binding Index}" Margin="0,0,0,8">
+                            <StackPanel Spacing="5">
+                              <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                              <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="#BAB5F3" TextWrapping="Wrap"/>
+                              <TextBlock Text="{Binding Preview}" FontSize="12" Foreground="#AAAAAA" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <SelectableTextBlock x:Name="SkippedSources" TextWrapping="Wrap" Foreground="#C2ADB0" FontSize="11"/>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+              <TabItem x:Name="SourcesTab" Header="Source inspector" FontSize="13">
+                <ScrollViewer Margin="0,12,0,0" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="12">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <ComboBox x:Name="SourceChoice" HorizontalAlignment="Stretch" Margin="0,0,10,0">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="local:ResearchSourceRow"><TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/></DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button x:Name="CopySource" Grid.Column="1" Content="Copy source" Classes="quiet" IsEnabled="False"/>
+                  </Grid>
+                  <SelectableTextBlock x:Name="SourceMeta" FontSize="11" Foreground="#B7B3DC" TextWrapping="Wrap"/>
+                  <ItemsControl x:Name="SourcePath">
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="local:ResearchPathRow">
+                        <Button Content="{Binding Label}" Tag="open-source" CommandParameter="{Binding Url}" Classes="quiet" FontSize="10" Padding="8,5" Margin="0,0,6,6" ToolTip.Tip="{Binding Url}"/>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <Border Background="#191919" Padding="14" CornerRadius="8">
+                    <SelectableTextBlock x:Name="SourceText" FontSize="12" LineHeight="20" TextWrapping="Wrap" Foreground="#D4D4D4"/>
+                  </Border>
+                </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+            </TabControl>
+          </Grid>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

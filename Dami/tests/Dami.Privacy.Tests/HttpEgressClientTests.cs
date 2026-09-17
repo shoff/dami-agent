@@ -61,6 +61,16 @@ public sealed class HttpEgressClientTests
     }
 
     [Fact]
+    public async Task SendAsync_Should_Identify_Dami_To_Public_Apis()
+    {
+        var client = this.CreateClient(out var handler, allowed: "api.weather.gov");
+
+        await client.SendAsync(Ask("https://api.weather.gov/alerts"), CancellationToken.None);
+
+        Assert.Equal(["DamiCore/1.0"], handler.UserAgents);
+    }
+
+    [Fact]
     public async Task SendAsync_Should_Refuse_A_Host_That_Is_Not_Allowlisted()
     {
         var client = this.CreateClient(out _, allowed: "news.ycombinator.com");

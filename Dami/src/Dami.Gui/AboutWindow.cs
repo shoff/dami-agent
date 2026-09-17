@@ -12,19 +12,19 @@ public sealed class AboutWindow : Window
         this.Title = "About Dami";
         this.Width = 420;
         this.Height = 220;
-        this.Background = Brush.Parse("#101418");
+        this.Background = Brush.Parse("#181818");
         this.Content = new StackPanel
         {
             Margin = new Avalonia.Thickness(24),
             Spacing = 10,
             Children =
             {
-                new TextBlock { Text = "Dami", FontSize = 24, Foreground = Brush.Parse("#D7DDE4") },
+                new TextBlock { Text = "Dami", FontSize = 24, Foreground = Brush.Parse("#E2E2E2") },
                 new TextBlock
                 {
                     Text = "A continuous modeling system with a conversational surface.",
                     TextWrapping = TextWrapping.Wrap,
-                    Foreground = Brush.Parse("#7A8694"),
+                    Foreground = Brush.Parse("#A0A0A0"),
                 },
             },
         };

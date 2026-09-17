@@ -35,7 +35,7 @@ public static class ChatImageInput
         return new DirectChatImage(file.Name, ContentType(file.Name), output.ToArray());
     }
 
-    /// <summary>Encodes clipboard pixels as PNG for local vision.</summary>
+    /// <summary>Encodes clipboard pixels as a PNG attachment.</summary>
     public static DirectChatImage FromBitmap(Bitmap bitmap)
     {
         ArgumentNullException.ThrowIfNull(bitmap);

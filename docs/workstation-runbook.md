@@ -401,6 +401,43 @@ approved exact artifacts into the in-memory handler, schema, and search registri
 any recovery failure prevents readiness. Verify the journal line `Sandboxed tool
 recovery completed: <succeeded>/<found>` before `/health`.
 
+### Deploying without sudo (bootstrap once, 2026-09-16)
+
+Steve is usually remote and no agent has a sudo password. Three things in a deploy ever
+needed root: restarting the units, installing a unit file, and appending to the
+root-owned drop-ins that hold runtime configuration. `/opt/dami` has been steve-owned
+since the first deploy. One root run fixes the first and third for good:
+
+```bash
+sudo bash tools/bootstrap-sudoless-deploy.sh
+```
+
+It installs `tools/polkit/49-dami-units.rules` (steve may start/stop/restart any
+`dami-*.service` or `.timer`, nothing else — not enable/disable, not daemon-reload, no
+other unit), and adds `zz-user-config.conf` to `dami-host` and `dami-proactive` with
+`EnvironmentFile=-/home/steve/.config/dami/{host,proactive}.env`. systemd reads
+`EnvironmentFile=` after every `Environment=`, so a line in those files overrides the
+same key in the root-owned drop-ins. They are 0600 and steve's: keys go there, never in
+`override.conf` (0644, world-readable) and never in the repository.
+
+After that, from any SSH session, no sudo:
+
+```bash
+tools/deploy.sh                      # gate, publish, rsync, allowlist, restart
+tools/deploy.sh --no-build           # deploy what is staged in ~/.cache/dami-pub
+printf 'Some__Key=value\n' >> ~/.config/dami/host.env && systemctl restart dami-host
+tools/dami-down && tools/dami-up     # pause and resume the stack
+```
+
+`deploy.sh` refuses to run until the bootstrap has (it checks for the `EnvironmentFile`
+line) and appends new proactive allowlist hosts to `~/.config/dami/proactive.env`,
+scanning both the drop-ins and the file for the next free index. Unit-file changes
+(`tools/systemd/*.service`) are the one remaining root job; the script prints the exact
+`sudo install …` line and carries on rather than blocking a remote run.
+
+**Not yet run** (2026-09-16): the bootstrap needs Steve's password once. Until then
+`deploy.sh` stops at its first check and says so.
+
 ### dami-proactive — enabling the daily portrait (ADR-0029)
 
 The portrait pass is off by default and, until 2026-09-04, was wired to a keyed OpenAI
@@ -444,6 +481,86 @@ tier writing the run row.
 A pass that could not draw completes with the reason in its run-log note ("… portrait not
 produced: …") rather than failing the tier; `journalctl -u dami-proactive | grep -i portrait`
 has the exception.
+
+### Choosing the image provider (ADR-0035)
+
+Both tiers draw through one `IImageGenerator`, chosen by `Images__Provider`: `Codex`
+(the default — the subscription's image tool, no key, no bill), `OpenAi`, or `Gemini`.
+Unset, nothing changes. To move the Host (Gallery, Discord, the frontier's `make_image`)
+and the proactive tier (the daily portrait) onto Gemini, each unit needs three lines in
+its steve-owned env file (§"Deploying without sudo"; no sudo), and the key must never be
+pasted into a shell history or this repository. The key comes from Google AI Studio
+(aistudio.google.com/apikey) under the Google account — the Gemini API takes a key, and
+a Google sign-in on its own feeds nothing here:
+
+```bash
+read -rs GEMINI_KEY     # paste the key; it never reaches the shell history
+for unit in host proactive; do
+  printf 'Images__Provider=Gemini\nGeminiImages__ApiKey=%s\n' "$GEMINI_KEY" >> ~/.config/dami/$unit.env
+done
+printf 'Egress__AllowedHosts__0=generativelanguage.googleapis.com\n' >> ~/.config/dami/host.env        # the Host has no allowlist yet
+printf 'Egress__AllowedHosts__10=generativelanguage.googleapis.com\n' >> ~/.config/dami/proactive.env  # indices 0–9 are in override.conf
+unset GEMINI_KEY
+systemctl --no-ask-password restart dami-host dami-proactive
+```
+
+The allowlist line is not optional: a configured provider whose host is not allowlisted
+is refused (`EgressRefused` in `dami.execution_events`, actor `image-gemini`, label
+"provider host … is not on the egress allowlist"). `GeminiImages__Model` overrides the
+default `gemini-3.1-flash-image`; `GeminiImages__ImageSize` (`512px`, `1K`, `2K`, `4K`)
+sets the pixel count, since Gemini has no width-by-height vocabulary — the request's
+`1024x1536` survives only as aspect ratio `2:3`.
+
+Verify with one portrait pass, exactly as in the section above; then confirm the door
+that drew it:
+
+```bash
+psql "host=127.0.0.1 dbname=dami-data user=dami_app" -c   "select occurred_at, type, status, label from dami.execution_events where actor_id='image-gemini' order by occurred_at desc limit 5"
+```
+
+**Not yet verified live** (2026-09-16): no Gemini key exists on this host. The first
+real call is the proof; record it here when it happens.
+
+### Letting Dami change her own code (ADR-0036)
+
+Off by default. One line in the Host's env file (§"Deploying without sudo") offers the
+frontier `change_code`, `explain_code` and `list_code_changes` on every channel,
+Discord included:
+
+```bash
+printf 'CodeWork__Enabled=true\n' >> ~/.config/dami/host.env && systemctl --no-ask-password restart dami-host
+```
+
+`Codex__Enabled=true` must already be set (it is). A task from Discord — "fix the typo
+in the About window" — becomes `git worktree add -b dami/<yyyymmdd-hhmm>-<slug>
+~/.local/share/dami/code/<same> main`, then `codex exec --sandbox workspace-write` in
+that worktree, then this host's own `dotnet build Dami/Dami.sln`, then a commit on the
+branch. Nothing is merged, pushed, or deployed; the reply names the branch and says so.
+
+Review and land one:
+
+```bash
+git -C ~/dev/dami-agent branch --list 'dami/*' --sort=-committerdate
+git -C ~/dev/dami-agent diff main...dami/<branch> --stat
+git -C ~/dev/dami-agent merge --no-ff dami/<branch>      # after the gate, as always
+git -C ~/dev/dami-agent worktree remove ~/.local/share/dami/code/<name>   # when done with it
+```
+
+What the door recorded, task text never included:
+
+```bash
+psql "host=127.0.0.1 dbname=dami-data user=dami_app" -c \
+  "select occurred_at, type, status, label from dami.execution_events where actor_id='code-codex-subscription' order by occurred_at desc limit 10"
+```
+
+Limits: `CodeWork__TimeoutSeconds` (360) for the agent and `CodeWork__BuildTimeoutSeconds`
+(180) for the build both sit inside the frontier turn's 600 s, so ask for small pieces.
+Codex's sandbox decides what the agent may touch outside the worktree; a NuGet restore
+that needs to write `~/.nuget` may fail inside it, in which case the agent's own build
+fails and this host's build after it is the one that counts.
+
+**Not yet run** (2026-09-16): `CodeWork__Enabled` is unset and no task has hit the real
+CLI. The first branch is the proof; record it here.
 
 ### Enabling web research and the opportunity scout (ADR-0033)
 

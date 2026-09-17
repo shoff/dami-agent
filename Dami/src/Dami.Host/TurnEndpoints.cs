@@ -167,12 +167,13 @@ public static class TurnEndpoints
             Dami.Core.Frontier.AugmentedFrontierTurn augmentedTurn,
             TurnImageContext images,
             Dami.Core.Frontier.FrontierToolBundle bundle,
+            Dami.Core.Frontier.ResearchJournal research,
             ImageGallery gallery,
             HttpContext http, CancellationToken token) =>
         {
             if (request.Frontier)
             {
-                await StreamFrontierAsync(request, frontier, identity, bundle, gallery, http, token)
+                await StreamFrontierAsync(request, frontier, identity, bundle, gallery, research, http, token)
                     .ConfigureAwait(false);
                 return;
             }
@@ -222,6 +223,7 @@ public static class TurnEndpoints
         IIdentityProvider identity,
         Dami.Core.Frontier.FrontierToolBundle bundle,
         ImageGallery gallery,
+        Dami.Core.Frontier.ResearchJournal research,
         HttpContext http,
         CancellationToken cancellationToken)
     {
@@ -234,7 +236,8 @@ public static class TurnEndpoints
         var images = (request.Images ?? []).Select(item => new FrontierImage(
             item.FileName, item.ContentType, item.Bytes)).ToArray();
         var tools = await bundle.ForTurnAsync(traceId, "gui", cancellationToken).ConfigureAwait(false);
-        await foreach (var fragment in frontier.StreamAsync(prompt, images, tools.Toolbox, cancellationToken)
+        var stream = frontier.StreamAsync(prompt, images, tools.Toolbox, cancellationToken);
+        await foreach (var fragment in research.CaptureAsync(traceId, stream, cancellationToken)
             .WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             await http.Response.WriteAsync(

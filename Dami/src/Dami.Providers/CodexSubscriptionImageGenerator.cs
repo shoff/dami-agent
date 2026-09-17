@@ -78,7 +78,7 @@ public sealed class CodexSubscriptionImageGenerator : IImageGenerator
         await this.process.RunAsync(
             this.options.BinaryPath,
             this.Arguments(Prompt(request, target), reference),
-            TimeSpan.FromSeconds(this.options.TimeoutSeconds),
+            TimeSpan.FromSeconds(this.options.ImageTimeoutSeconds),
             cancellationToken).ConfigureAwait(false);
     }
 

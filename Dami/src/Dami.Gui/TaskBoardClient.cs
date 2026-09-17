@@ -59,6 +59,22 @@ public sealed class TaskBoardClient
         CancellationToken cancellationToken) => this.httpClient.GetFromJsonAsync<TaskBoardSnapshot>(
             $"/task-boards/{boardId:D}", jsonOptions, cancellationToken);
 
+    /// <summary>Adds a task or subtask directly, without generating a plan.</summary>
+    public Task<TaskBoardMutationOutcome> AddTaskAsync(
+        Guid boardId, Guid? parentTaskId, Guid taskId, string title, string description,
+        IReadOnlyList<string> criteria, TaskActor actor, CancellationToken cancellationToken) =>
+        this.MutateAsync(HttpMethod.Post, $"/task-boards/{boardId:D}/tasks",
+            new
+            {
+                taskId,
+                parentTaskId,
+                title,
+                description,
+                criteria,
+                actorId = actor.ActorId,
+                actorKind = actor.Kind
+            }, cancellationToken);
+
     /// <summary>Claims one task using its displayed optimistic version.</summary>
     public Task<TaskBoardMutationOutcome> ClaimAsync(
         Guid taskId,
@@ -67,6 +83,14 @@ public sealed class TaskBoardClient
         CancellationToken cancellationToken) => this.MutateAsync(
             HttpMethod.Post, $"/task-boards/tasks/{taskId:D}/claim",
             new MutationRequest(expectedVersion, actor.ActorId, actor.Kind), cancellationToken);
+
+    /// <summary>Adds a completion requirement against the displayed task version.</summary>
+    public Task<TaskBoardMutationOutcome> AddCriterionAsync(
+        Guid taskId, long expectedVersion, string description,
+        TaskActor actor, CancellationToken cancellationToken) =>
+        this.MutateAsync(HttpMethod.Post, $"/task-boards/tasks/{taskId:D}/criteria",
+            new { expectedVersion, description, actorId = actor.ActorId, actorKind = actor.Kind },
+            cancellationToken);
 
     /// <summary>Changes one acceptance result using the owning task version.</summary>
     public Task<TaskBoardMutationOutcome> SetCriterionAsync(

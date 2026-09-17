@@ -253,11 +253,16 @@ public static class ProactiveComposition
 
         // ADR-0027: the third door through the boundary. ADR-0029 moved it onto the Codex
         // subscription's image tool — the same provider the Host's Gallery uses — because
-        // the keyed OpenAI door was never configured and so the pass never ran. Register
-        // the egress-capable provider only after explicit enablement.
+        // the keyed OpenAI door was never configured and so the pass never ran. ADR-0035
+        // made the door a configuration choice (Images:Provider) with the subscription as
+        // the default. Register the egress-capable provider only after explicit enablement.
         services.Configure<CodexOptions>(configuration.GetSection(CodexOptions.SECTION_NAME));
         services.AddSingleton<ICodexProcess, CodexProcess>();
-        services.AddSingleton<IImageGenerator, CodexSubscriptionImageGenerator>();
+        services.Configure<OpenAiImageOptions>(configuration.GetSection(OpenAiImageOptions.SECTION_NAME));
+        services.Configure<GeminiImageOptions>(configuration.GetSection(GeminiImageOptions.SECTION_NAME));
+        services.AddImageGenerator(
+            configuration.GetSection(ImageProviderOptions.SECTION_NAME).Get<ImageProviderOptions>()?.Provider
+                ?? ImageProviderKind.Codex);
         services.Configure<DailyPortraitOptions>(section);
         services.AddSingleton<IProactiveService, DailyPortraitService>();
     }

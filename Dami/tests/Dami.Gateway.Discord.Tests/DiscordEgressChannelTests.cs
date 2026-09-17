@@ -327,8 +327,9 @@ public sealed class DiscordEgressChannelTests
     [Fact]
     public async Task ListenAsync_Should_Resume_To_The_Url_Discord_Named()
     {
-        // Resuming against the generic gateway is answered with INVALID_SESSION, which
-        // presents as an endless identify loop rather than as an error.
+        // Discord's resume_gateway_url names the host, but the protocol requires the
+        // same version and encoding query used on the initial connection. Omitting it
+        // made every live RESUME receive INVALID_SESSION on 2026-09-09.
         var first = new ScriptedSocket(HELLO, readyWithResumeUrl);
         var second = new ScriptedSocket(HELLO);
         var sockets = new Queue<IDiscordSocket>([first, second]);
@@ -338,7 +339,9 @@ public sealed class DiscordEgressChannelTests
             1,
             TimeSpan.FromSeconds(4));
 
-        Assert.Equal(new Uri("wss://resume.example.discord.gg"), second.ConnectedTo);
+        Assert.Equal(
+            new Uri("wss://resume.example.discord.gg/?v=10&encoding=json"),
+            second.ConnectedTo);
     }
 
     [Fact]

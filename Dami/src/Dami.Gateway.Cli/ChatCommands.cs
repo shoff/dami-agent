@@ -30,20 +30,41 @@ public sealed class ChatCommands
     public Task<int> FrontierTurnAsync(string request, bool augmented, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (!augmented)
+        {
+            return this.ToolFrontierTurnAsync(request, cancellationToken);
+        }
+
         return ApiCall.RunAsync(async () =>
         {
-            Console.WriteLine(augmented
-                ? "[Frontier · codex subscription · local context through the disclosure gate]"
-                : "[Frontier · codex subscription · no memories sent]");
+            Console.WriteLine("[Frontier · codex subscription · local context through the disclosure gate]");
             Console.WriteLine();
             using var reply = await this.api.PostAsync(
-                "/turns", new { message = request, frontier = true, augmented }, cancellationToken)
+                "/turns", new { message = request, frontier = true, augmented = true }, cancellationToken)
                 .ConfigureAwait(false);
             var root = reply!.RootElement;
             Console.WriteLine(root.GetProperty("answer").GetString());
             Console.WriteLine();
             Console.WriteLine(
                 $"replay: dami trace {root.GetProperty("traceId").GetGuid().ToString("N")[..8]}");
+            return 0;
+        });
+    }
+
+    private Task<int> ToolFrontierTurnAsync(string request, CancellationToken cancellationToken)
+    {
+        return ApiCall.RunAsync(async () =>
+        {
+            Console.WriteLine("[Frontier · codex subscription · no memories sent]");
+            Console.WriteLine();
+            using var response = await this.api.PostStreamAsync(
+                "/turns/stream", new { message = request, frontier = true, augmented = false }, cancellationToken)
+                .ConfigureAwait(false);
+            await DamiApiClient.ThrowIfFailedAsync(response, cancellationToken).ConfigureAwait(false);
+            await PrintStreamAsync(response, cancellationToken).ConfigureAwait(false);
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine($"replay: dami trace {Header(response, "X-Dami-Trace")?[..8]}");
             return 0;
         });
     }

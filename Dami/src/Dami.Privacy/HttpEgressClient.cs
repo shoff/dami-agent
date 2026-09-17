@@ -16,6 +16,7 @@ public sealed class HttpEgressClient : IEgressClient
 {
     private const string ACTOR = "egress";
     private const int MAX_REDIRECTS = 5;
+    private const string USER_AGENT = "DamiCore/1.0";
 
     private readonly HttpClient httpClient;
     private readonly IEgressBudget egressBudget;
@@ -41,6 +42,11 @@ public sealed class HttpEgressClient : IEgressClient
         ArgumentNullException.ThrowIfNull(logger);
 
         this.httpClient = httpClient;
+        if (this.httpClient.DefaultRequestHeaders.UserAgent.Count == 0)
+        {
+            this.httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(USER_AGENT);
+        }
+
         this.egressBudget = egressBudget;
         this.egressOptions = egressOptions.Value;
 

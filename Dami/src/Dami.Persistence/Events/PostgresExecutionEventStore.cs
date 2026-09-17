@@ -62,6 +62,13 @@ public sealed class PostgresExecutionEventStore : IExecutionEventStore
         return $"{BuildSelectList(table)} where sequence > @after order by sequence limit @limit;";
     }
 
+    /// <summary>Newest-window SQL, reordered chronologically for a live client.</summary>
+    public static string BuildReadRecentSql(string table)
+    {
+        ArgumentNullException.ThrowIfNull(table);
+        return $"select * from ({BuildSelectList(table)} order by sequence desc limit @limit) recent order by sequence;";
+    }
+
     /// <inheritdoc />
     public async Task<long> AppendAsync(ExecutionEvent executionEvent, CancellationToken cancellationToken)
     {
@@ -130,6 +137,21 @@ public sealed class PostgresExecutionEventStore : IExecutionEventStore
 
         var command = this.dataSource.CreateCommand(BuildReadSinceSql(this.Table));
         command.Parameters.AddWithValue("after", afterSequence);
+        command.Parameters.AddWithValue("limit", limit);
+        return this.StreamAsync(command, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public IAsyncEnumerable<ExecutionEvent> ReadRecentAsync(
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        if (limit <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit), limit, "Limit must be positive.");
+        }
+
+        var command = this.dataSource.CreateCommand(BuildReadRecentSql(this.Table));
         command.Parameters.AddWithValue("limit", limit);
         return this.StreamAsync(command, cancellationToken);
     }

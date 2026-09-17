@@ -146,6 +146,40 @@ public sealed class TaskBoardClientTests
         Assert.Equal("/task-boards/plan", planning.Handler.RequestUri?.PathAndQuery);
     }
 
+    [Fact]
+    public async Task AddTaskAsync_Should_Preserve_Parent_Identity_And_Requirements()
+    {
+        var boardId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        var parentId = Guid.NewGuid();
+        var client = CreateClient(new { taskId });
+        await client.Client.AddTaskAsync(boardId, parentId, taskId, "Cut timber",
+            "Use the measured lengths", ["Fits the plan"],
+            new TaskActor("steve", TaskActorKind.Human), CancellationToken.None);
+        using var body = JsonDocument.Parse(client.Handler.Body!);
+
+        Assert.Equal((HttpMethod.Post, $"/task-boards/{boardId:D}/tasks", parentId, taskId, "Fits the plan"),
+            (client.Handler.Method, client.Handler.RequestUri?.PathAndQuery,
+                body.RootElement.GetProperty("parentTaskId").GetGuid(),
+                body.RootElement.GetProperty("taskId").GetGuid(),
+                body.RootElement.GetProperty("criteria")[0].GetString()));
+    }
+
+    [Fact]
+    public async Task AddCriterionAsync_Should_Send_The_Displayed_Task_Version()
+    {
+        var taskId = Guid.NewGuid();
+        var client = CreateClient(new { updated = true });
+        await client.Client.AddCriterionAsync(taskId, 8, "Fits the space",
+            new TaskActor("steve", TaskActorKind.Human), CancellationToken.None);
+        using var body = JsonDocument.Parse(client.Handler.Body!);
+
+        Assert.Equal(($"/task-boards/tasks/{taskId:D}/criteria", 8L, "Fits the space"),
+            (client.Handler.RequestUri?.PathAndQuery,
+                body.RootElement.GetProperty("expectedVersion").GetInt64(),
+                body.RootElement.GetProperty("description").GetString()));
+    }
+
     private static (TaskBoardClient Client, RecordingHandler Handler) CreateClient(object payload)
     {
         var handler = new RecordingHandler(payload);

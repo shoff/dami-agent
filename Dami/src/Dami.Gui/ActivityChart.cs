@@ -35,10 +35,10 @@ public static class ActivityChart
 
     private static readonly (string Name, string Colour)[] palette =
     [
-        ("turns", "#5AA9E6"),
+        ("turns", "#8FAAFF"),
         ("tools", "#B98CE0"),
         ("egress", "#D9A441"),
-        ("workers", "#4CB782"),
+        ("workers", "#ABA5FF"),
         ("produced", "#E0604F"),
     ];
 

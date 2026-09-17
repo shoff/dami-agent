@@ -7,7 +7,7 @@
 # before Elasticsearch, Kibana before Elasticsearch). PostgreSQL is bare metal (D-004) and
 # is not touched: the data stays available to psql and backups.
 #
-# Run: tools/dami-down            (sudo is asked for the systemctl calls)
+# Run: tools/dami-down            (no sudo once tools/bootstrap-sudoless-deploy.sh has run)
 #      tools/dami-down --dry-run  (print what would run)
 # Reverse: tools/dami-up. Source of truth: tools/ in the dami-agent repository.
 set -euo pipefail
@@ -29,7 +29,7 @@ run() {
 echo "== stopping services"
 for unit in "${UNITS[@]}"; do
     if systemctl list-unit-files "$unit" --no-legend 2>/dev/null | grep -q "$unit"; then
-        run sudo systemctl stop "$unit"
+        run systemctl --no-ask-password stop "$unit"
         echo "stopped $unit"
     else
         echo "skip $unit (not installed)"

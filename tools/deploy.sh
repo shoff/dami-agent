@@ -1,32 +1,35 @@
 #!/usr/bin/env bash
 #
-# Dami Core — deploy what is staged in ~/.cache/dami-pub to /opt/dami, install the
-# sidecar units, make sure the egress allowlist carries the civic feed host, and
-# restart. Run as steve; it asks for sudo once.
+# Dami Core — deploy what is staged in ~/.cache/dami-pub to /opt/dami, make sure the
+# proactive egress allowlist carries every built-in public source, and restart. Run as
+# steve, from anywhere — no sudo, once `sudo bash tools/bootstrap-sudoless-deploy.sh`
+# has been run on this host (runbook §"Deploying without sudo").
 #
 #   tools/deploy.sh             gate, publish from the tree, then deploy
 #   tools/deploy.sh --no-build  deploy what is already staged (still gates and verifies)
 #   tools/deploy.sh --no-gate   skip build+test; says so loudly, for a deliberate hotfix
 #
-# Runtime configuration stays in the systemd drop-ins (runbook §4); this script only
-# appends an Environment= line that is missing, never rewrites the drop-in.
+# Runtime configuration stays out of /opt (runbook §4): the root-owned drop-ins hold the
+# base, and ~/.config/dami/{host,proactive}.env — read last by systemd — hold what steve
+# changes. This script only appends a missing allowlist line to the proactive env file;
+# it never rewrites either.
 set -euo pipefail
 
-# Run as steve, never under sudo. This script asks for sudo itself, which makes
-# `sudo tools/deploy.sh` the natural thing to type - and then the gate runs as root, HOME
-# is /root, and every test that touches the database fails looking for /root/.pgpass. The
-# failures read as six unrelated defects (a 500 from /speak, a missing JSON property in a
-# frontier turn) and are one wrong user.
+# Run as steve, never under sudo. Under sudo the gate runs as root, HOME is /root, and
+# every test that touches the database fails looking for /root/.pgpass. The failures read
+# as six unrelated defects (a 500 from /speak, a missing JSON property in a frontier turn)
+# and are one wrong user. Nothing here needs root any more.
 if [[ ${EUID} -eq 0 ]]; then
-    echo "deploy: run this as steve, not with sudo." >&2
-    echo "        It asks for sudo where it needs it. As root the test gate cannot read" >&2
-    echo "        ~/.pgpass and the database-backed tests fail for no real reason." >&2
+    echo "deploy: run this as steve, not with sudo. Nothing in it needs root;" >&2
+    echo "        as root the test gate cannot read ~/.pgpass and the database-backed" >&2
+    echo "        tests fail for no real reason." >&2
     exit 2
 fi
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE="$HOME/.cache/dami-pub"
-CIVIC_HOST="www.lakevillemn.gov"
+EGRESS_HOSTS_FILE="$REPO/tools/config/proactive-egress-hosts.txt"
+PROACTIVE_ENV="$HOME/.config/dami/proactive.env"
 PGURL="host=127.0.0.1 port=5432 dbname=dami-data user=dami_app passfile=$HOME/.pgpass"
 
 BUILD=1
@@ -90,39 +93,58 @@ for dir in host proactive cli; do
     [[ -d "$STAGE/$dir" ]] || { echo "deploy: nothing staged at $STAGE/$dir" >&2; exit 1; }
 done
 
-echo "== syncing /opt/dami (sudo)"
-sudo rsync -a "$STAGE/host/"      /opt/dami/host/
-sudo rsync -a "$STAGE/proactive/" /opt/dami/proactive/
-sudo rsync -a "$STAGE/cli/"       /opt/dami/cli/
+# The bootstrap is what makes the rest of this script root-free. Say so up front rather
+# than failing halfway through with a permission error that reads like something else.
+if ! systemctl cat dami-proactive 2>/dev/null | grep -Fq "EnvironmentFile=-$PROACTIVE_ENV"; then
+    echo "deploy: this host has not been bootstrapped for sudo-free deploys." >&2
+    echo "        Once, with sudo:  sudo bash tools/bootstrap-sudoless-deploy.sh" >&2
+    exit 1
+fi
+
+echo "== syncing /opt/dami"
+for dir in host proactive cli; do
+    [[ -w /opt/dami/$dir ]] || { echo "deploy: /opt/dami/$dir is not writable by $USER" >&2; exit 1; }
+done
+rsync -a "$STAGE/host/"      /opt/dami/host/
+rsync -a "$STAGE/proactive/" /opt/dami/proactive/
+rsync -a "$STAGE/cli/"       /opt/dami/cli/
 
 echo "== sidecar unit: dami-tts"
+# Unit files are root's. They change rarely; when one does, say exactly what to run
+# rather than stopping a remote deploy at a password prompt.
 if ! cmp -s "$REPO/tools/systemd/dami-tts.service" /etc/systemd/system/dami-tts.service 2>/dev/null; then
-    sudo cp "$REPO/tools/systemd/dami-tts.service" /etc/systemd/system/dami-tts.service
-    sudo systemctl daemon-reload
+    echo "   tools/systemd/dami-tts.service differs from the installed unit. Not touched." >&2
+    echo "   Once, with sudo:  sudo install -m 0644 tools/systemd/dami-tts.service /etc/systemd/system/ && sudo systemctl daemon-reload" >&2
 fi
 # A hand-started sidecar from a shell would hold the port; the unit owns it from now on.
 pkill -f "[t]ools/tts/server.py" 2>/dev/null || true
-sudo systemctl enable --now dami-tts
-
-echo "== egress allowlist: $CIVIC_HOST"
-DROPIN=/etc/systemd/system/dami-proactive.service.d/override.conf
-if ! systemctl cat dami-proactive | grep -q "AllowedHosts__[0-9]*=$CIVIC_HOST"; then
-    next=$(systemctl cat dami-proactive | grep -oE "Egress__AllowedHosts__[0-9]+" | grep -oE "[0-9]+$" | sort -n | tail -1)
-    next=$(( ${next:-0} + 1 ))
-    sudo mkdir -p "$(dirname "$DROPIN")"
-    if [[ -f "$DROPIN" ]]; then
-        printf 'Environment=Egress__AllowedHosts__%s=%s\n' "$next" "$CIVIC_HOST" | sudo tee -a "$DROPIN" > /dev/null
-    else
-        printf '[Service]\nEnvironment=Egress__AllowedHosts__%s=%s\n' "$next" "$CIVIC_HOST" | sudo tee "$DROPIN" > /dev/null
-    fi
-    sudo systemctl daemon-reload
-    echo "   added Egress__AllowedHosts__$next=$CIVIC_HOST"
-else
-    echo "   already present"
+if ! systemctl is-active --quiet dami-tts; then
+    systemctl --no-ask-password start dami-tts
 fi
 
+echo "== proactive egress allowlist"
+[[ -f "$EGRESS_HOSTS_FILE" ]] || { echo "deploy: missing $EGRESS_HOSTS_FILE" >&2; exit 1; }
+[[ -f "$PROACTIVE_ENV" ]] || { echo "deploy: missing $PROACTIVE_ENV (run the bootstrap)" >&2; exit 1; }
+# Every allowlist line the unit will see: the root-owned drop-ins plus the env file.
+effective_allowlist() {
+    systemctl cat dami-proactive | grep -E '^Environment=Egress__AllowedHosts__' | sed 's/^Environment=//' || true
+    grep -E '^Egress__AllowedHosts__' "$PROACTIVE_ENV" || true
+}
+while IFS= read -r host; do
+    [[ -n "$host" ]] || continue
+    if effective_allowlist | grep -Fq "=$host"; then
+        echo "   $host already present"
+        continue
+    fi
+
+    next=$(effective_allowlist | grep -oE "Egress__AllowedHosts__[0-9]+" | grep -oE "[0-9]+$" | sort -n | tail -1)
+    next=$(( ${next:-0} + 1 ))
+    printf 'Egress__AllowedHosts__%s=%s\n' "$next" "$host" >> "$PROACTIVE_ENV"
+    echo "   added Egress__AllowedHosts__$next=$host to $PROACTIVE_ENV"
+done < "$EGRESS_HOSTS_FILE"
+
 echo "== restarting"
-sudo systemctl restart dami-host dami-proactive
+systemctl --no-ask-password restart dami-host dami-proactive
 sleep 3
 systemctl is-active dami-host dami-proactive dami-tts | paste -sd' '
 curl -s -o /dev/null -w "dami-host /health %{http_code}\n" http://127.0.0.1:5810/health

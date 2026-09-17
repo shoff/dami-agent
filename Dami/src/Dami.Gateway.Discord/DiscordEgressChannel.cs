@@ -307,8 +307,18 @@ public sealed class DiscordEgressChannel : IEgressChannel, IProgressiveEgressCha
     /// answers a resume with INVALID_SESSION, which presents as a loop rather than a
     /// mistake.
     /// </summary>
-    private Uri Destination() =>
-        this.session.CanResume && this.session.ResumeGateway is { } resume ? resume : gateway;
+    private Uri Destination()
+    {
+        if (!this.session.CanResume || this.session.ResumeGateway is not { } resume)
+        {
+            return gateway;
+        }
+
+        return new UriBuilder(resume)
+        {
+            Query = gateway.Query.TrimStart('?'),
+        }.Uri;
+    }
 
     /// <summary>
     /// Closed before HELLO. The reason matters more than the fact: a fatal code here must

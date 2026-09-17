@@ -51,7 +51,7 @@ public static class Speech
                     continue;
                 }
 
-                await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+                await WaitForExitAsync(process, cancellationToken).ConfigureAwait(false);
                 return process.ExitCode == 0 ? null : $"{player} exited {process.ExitCode}";
             }
             catch (System.ComponentModel.Win32Exception)
@@ -61,6 +61,30 @@ public static class Speech
         }
 
         return "no audio player found (paplay, aplay)";
+    }
+
+    /// <summary>Waits for an audio player, stopping it if playback is cancelled.</summary>
+    public static async Task WaitForExitAsync(Process player, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        try
+        {
+            await player.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                player.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+                // Playback may have ended between cancellation and the kill request.
+            }
+
+            await player.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
     }
 
     private static void TryDelete(string path)

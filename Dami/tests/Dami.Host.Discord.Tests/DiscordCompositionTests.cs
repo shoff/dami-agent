@@ -65,6 +65,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton(Substitute.For<IFrontierFitness>());
         services.AddSingleton(Substitute.For<IFrontierResearch>());
         services.AddSingleton(Substitute.For<IFrontierToday>());
+        services.AddSingleton(Substitute.For<IFrontierCode>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Proactive.ISurfacingQueue>());
         services.AddSingleton<FrontierToolBundle>();
         services.AddSingleton(Substitute.For<IConversationSessionStore>());

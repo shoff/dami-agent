@@ -195,6 +195,8 @@ public sealed class FrontierEndpointsTests
             {
                 services.RemoveAll<IFrontierChat>();
                 services.RemoveAll<ISessionTurnRunner>();
+                services.RemoveAll<Dami.Contracts.Research.IResearchRunStore>();
+                services.AddSingleton(Substitute.For<Dami.Contracts.Research.IResearchRunStore>());
                 services.AddSingleton(this.frontierChat);
                 services.AddSingleton(this.localRunner);
                 services.AddKeyedSingleton("frontier", (_, _) => this.frontierRunner);

@@ -23,12 +23,16 @@ public sealed class FakeHttpMessageHandler : HttpMessageHandler
     /// <summary>Every request that reached the network layer.</summary>
     public List<Uri> Sent { get; } = [];
 
+    /// <summary>The identifying header on each request.</summary>
+    public List<string> UserAgents { get; } = [];
+
     /// <inheritdoc />
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
         this.Sent.Add(request.RequestUri!);
+        this.UserAgents.Add(request.Headers.UserAgent.ToString());
         return Task.FromResult(new HttpResponseMessage(this.statusCode)
         {
             Content = new StringContent(this.body),

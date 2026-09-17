@@ -17,7 +17,7 @@ public sealed class OverdueBrush : IValueConverter
     public static readonly OverdueBrush instance = new();
 
     private static readonly SolidColorBrush overdue = new(Color.Parse("#E0604F"));
-    private static readonly SolidColorBrush onSchedule = new(Color.Parse("#7A8694"));
+    private static readonly SolidColorBrush onSchedule = new(Color.Parse("#A0A0A0"));
 
     /// <inheritdoc />
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)

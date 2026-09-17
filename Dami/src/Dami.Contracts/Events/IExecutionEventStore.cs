@@ -33,4 +33,9 @@ public interface IExecutionEventStore
         long afterSequence,
         int limit,
         CancellationToken cancellationToken);
+
+    /// <summary>Reads the newest bounded window, returned oldest first.</summary>
+    IAsyncEnumerable<ExecutionEvent> ReadRecentAsync(
+        int limit,
+        CancellationToken cancellationToken);
 }

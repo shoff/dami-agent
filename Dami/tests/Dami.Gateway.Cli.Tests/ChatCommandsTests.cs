@@ -9,14 +9,45 @@ namespace Dami.Gateway.Cli.Tests;
 public sealed class ChatCommandsTests
 {
     [Fact]
+    public async Task FrontierTurnAsync_Should_Use_The_Tool_Capable_Stream()
+    {
+        JsonElement sent = default;
+        using var http = new HttpClient(new StubHandler(async request =>
+        {
+            Assert.Equal("/turns/stream", request.RequestUri!.AbsolutePath);
+            using var body = await request.Content!.ReadFromJsonAsync<JsonDocument>();
+            sent = body!.RootElement.Clone();
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("data: researched\n\n"),
+            };
+            response.Headers.Add("X-Dami-Trace", Guid.NewGuid().ToString("N"));
+            return response;
+        }));
+        var commands = new ChatCommands(new DamiApiClient(http));
+
+        var (exitCode, output) = await CaptureAsync(
+            () => commands.FrontierTurnAsync("investigate", CancellationToken.None));
+
+        Assert.Equal(0, exitCode);
+        Assert.True(sent.GetProperty("frontier").GetBoolean());
+        Assert.Contains("researched", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task FrontierTurnAsync_Should_Ask_For_Augmentation_Only_When_Told()
     {
         var sent = new List<JsonElement>();
         using var http = new HttpClient(new StubHandler(async request =>
         {
-            Assert.Equal("/turns", request.RequestUri!.AbsolutePath);
             using var body = await request.Content!.ReadFromJsonAsync<JsonDocument>();
             sent.Add(body!.RootElement.Clone());
+            if (request.RequestUri!.AbsolutePath == "/turns/stream")
+            {
+                return StreamResponse("ok");
+            }
+
+            Assert.Equal("/turns", request.RequestUri.AbsolutePath);
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = JsonContent.Create(new { answer = "ok", traceId = Guid.NewGuid() }),
@@ -32,6 +63,16 @@ public sealed class ChatCommandsTests
         Assert.True(sent[1].GetProperty("augmented").GetBoolean());
         Assert.True(sent[1].GetProperty("frontier").GetBoolean());
         Assert.Contains("disclosure gate", output, StringComparison.Ordinal);
+    }
+
+    private static HttpResponseMessage StreamResponse(string answer)
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent($"data: {answer}\n\n"),
+        };
+        response.Headers.Add("X-Dami-Trace", Guid.NewGuid().ToString("N"));
+        return response;
     }
 
     [Fact]

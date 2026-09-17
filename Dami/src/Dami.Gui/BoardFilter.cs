@@ -5,7 +5,16 @@ namespace Dami.Gui;
 /// <summary>Which slice of a board the panel is showing.</summary>
 public enum BoardView
 {
-    /// <summary>Only what is waiting on Steve's decision. The default.</summary>
+    /// <summary>All unfinished work.</summary>
+    Active,
+
+    /// <summary>Work currently started.</summary>
+    InProgress,
+
+    /// <summary>Completed work.</summary>
+    Done,
+
+    /// <summary>Only what is waiting on Steve's decision.</summary>
     NeedsYou,
 
     /// <summary>Everything still open, whoever it belongs to.</summary>
@@ -48,6 +57,28 @@ public static class BoardFilter
         return found;
     }
 
+    /// <summary>Flat results, with search across task text and ancestor names.</summary>
+    public static IReadOnlyList<TaskBoardTaskNode> Search(
+        IReadOnlyList<TaskBoardTaskNode> roots, BoardView view, string query)
+    {
+        ArgumentNullException.ThrowIfNull(roots);
+        ArgumentNullException.ThrowIfNull(query);
+        var tasks = new List<TaskBoardTaskNode>();
+        foreach (var root in roots)
+        {
+            Walk(root, view, tasks);
+        }
+
+        var term = query.Trim();
+        return tasks.Where(task => Contains(task.Title, term)
+            || Contains(task.Description, term) || Contains(task.ParentPath, term)
+            || Contains(task.ClaimedBy, term) || Contains(task.TaskId.ToString("N"), term)
+            || task.Criteria.Any(item => Contains(item.Description, term))).ToArray();
+    }
+
+    private static bool Contains(string text, string query) =>
+        text.Contains(query, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>How many tasks a view covers, for the count beside its button.</summary>
     /// <remarks>
     /// Always counts tasks, never rows. <see cref="BoardView.All"/> returns the nested
@@ -89,6 +120,9 @@ public static class BoardFilter
     {
         return view switch
         {
+            BoardView.Active => task.CanRunWork,
+            BoardView.InProgress => task.Status == TaskBoardStatus.InProgress,
+            BoardView.Done => task.Status == TaskBoardStatus.Done,
             BoardView.NeedsYou => WantsSteve(task),
             BoardView.Open => task.Status == TaskBoardStatus.Open,
             BoardView.Blocked => task.Status == TaskBoardStatus.Blocked,

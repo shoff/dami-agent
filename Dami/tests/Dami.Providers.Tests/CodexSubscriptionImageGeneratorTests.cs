@@ -75,6 +75,25 @@ public sealed class CodexSubscriptionImageGeneratorTests : IDisposable
         Assert.DoesNotContain("sole identity reference", prompt, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Should_Leave_Time_For_The_Outer_Turn_To_Recover_From_An_Image_Timeout()
+    {
+        Directory.CreateDirectory(this.root);
+        TimeSpan? timeout = null;
+        this.budget.FindRefusalAsync(Arg.Any<CancellationToken>()).Returns((string?)null);
+        this.process.RunAsync(
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(),
+                Arg.Do<TimeSpan>(value => timeout = value), Arg.Any<CancellationToken>())
+            .Returns(call => WriteResult(call.ArgAt<IReadOnlyList<string>>(1)));
+        var request = new ImageRequest(
+            "Dami in the workshop", "portrait", PrivacyClass.Egressable,
+            Guid.NewGuid(), ExecutionOrigin.UserTurn);
+
+        await this.Create().GenerateAsync(request, CancellationToken.None);
+
+        Assert.Equal(TimeSpan.FromSeconds(480), timeout);
+    }
+
     private CodexSubscriptionImageGenerator Create() => new(
         this.process,
         Options.Create(new CodexOptions

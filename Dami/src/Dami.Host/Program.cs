@@ -55,6 +55,7 @@ if (authenticationEnabled)
 builder.Services.AddSingleton<TaskBoardActorResolver>();
 
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<ResearchJournal>();
 builder.Services.AddSingleton<Dami.Core.Scheduling.ScheduledJobPlanner>();
 builder.Services.AddSingleton<Dami.Core.Scheduling.ScheduledJobService>();
 builder.Services.AddSingleton<Dami.Core.Scheduling.IScheduledJobActionRunner, ScheduledJobActionRunner>();
@@ -149,11 +150,19 @@ builder.Services.AddSingleton<IFrontierFitness, FitnessTools>();
 builder.Services.Configure<SearxngOptions>(builder.Configuration.GetSection(SearxngOptions.SECTION_NAME));
 builder.Services.Configure<Dami.Privacy.ResearchOptions>(builder.Configuration.GetSection(Dami.Privacy.ResearchOptions.SECTION_NAME));
 builder.Services.Configure<ResearchToolOptions>(builder.Configuration.GetSection(ResearchToolOptions.SECTION_NAME));
+builder.Services.Configure<DeepResearchOptions>(builder.Configuration.GetSection(DeepResearchOptions.SECTION_NAME));
 builder.Services.AddHttpClient<Dami.Contracts.Research.ISearchEngine, SearxngSearchClient>();
 builder.Services.AddHttpClient<Dami.Contracts.Research.IResearchReader, Dami.Privacy.ResearchReader>()
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+    .ConfigurePrimaryHttpMessageHandler(Dami.Privacy.ResearchConnection.CreateHandler);
+builder.Services.AddSingleton<Dami.Contracts.Research.IDeepResearchService, DeepResearchService>();
 builder.Services.AddSingleton<IFrontierResearch, ResearchTools>();
 builder.Services.AddSingleton<IFrontierToday, TodayTool>();
+// ADR-0036: the frontier may change its own code — on a branch in a worktree, through the
+// subscription's coding agent, built here for the receipt, never merged. Off by default.
+builder.Services.Configure<CodeWorkOptions>(builder.Configuration.GetSection(CodeWorkOptions.SECTION_NAME));
+builder.Services.AddSingleton<ICommandRunner, CommandRunner>();
+builder.Services.AddSingleton<Dami.Contracts.Code.ICodeWorker, CodexCodeWorker>();
+builder.Services.AddSingleton<IFrontierCode, CodeTools>();
 builder.Services.AddSingleton<FrontierToolBundle>();
 
 // Frontier: subscription door (ADR-0011) behind the C5 egress budget.
@@ -170,7 +179,12 @@ builder.Services.Configure<EgressBudgetOptions>(
 builder.Services.AddSingleton<Dami.Contracts.Privacy.IEgressBudget, EventCountEgressBudget>();
 builder.Services.Configure<OpenAiImageOptions>(
     builder.Configuration.GetSection(OpenAiImageOptions.SECTION_NAME));
-builder.Services.AddSingleton<IImageGenerator, CodexSubscriptionImageGenerator>();
+builder.Services.Configure<GeminiImageOptions>(
+    builder.Configuration.GetSection(GeminiImageOptions.SECTION_NAME));
+// ADR-0035: which door draws is one drop-in line, Images__Provider; the subscription by default.
+builder.Services.AddImageGenerator(
+    builder.Configuration.GetSection(ImageProviderOptions.SECTION_NAME).Get<ImageProviderOptions>()?.Provider
+        ?? ImageProviderKind.Codex);
 builder.Services.AddSingleton<InteractiveImageGenerator>();
 builder.Services.Configure<ImageGalleryOptions>(
     builder.Configuration.GetSection(ImageGalleryOptions.SECTION_NAME));
@@ -262,6 +276,7 @@ if (authenticationEnabled)
 }
 
 app.MapDamiRuntime();
+ResearchEndpoints.Map(app);
 app.MapDamiProactive();
 app.MapDamiActivity();
 app.MapScheduledJobs();

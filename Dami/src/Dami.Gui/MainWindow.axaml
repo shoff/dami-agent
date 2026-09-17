@@ -4,19 +4,24 @@
         xmlns:contracts="clr-namespace:Dami.Contracts.TaskBoard;assembly=Dami.Contracts"
         x:Class="Dami.Gui.MainWindow"
         x:DataType="local:WindowState"
-        Title="Dami" Width="1400" Height="900"
+        Title="Dami" Width="1440" Height="940" MinWidth="1100" MinHeight="680"
         Icon="/Assets/dami.png"
-        Background="#101418">
+        Background="#141414">
 
   <Window.Resources>
-    <SolidColorBrush x:Key="Ink">#D7DDE4</SolidColorBrush>
-    <SolidColorBrush x:Key="Dim">#7A8694</SolidColorBrush>
-    <SolidColorBrush x:Key="Panel">#171D24</SolidColorBrush>
-    <SolidColorBrush x:Key="Accent">#5AA9E6</SolidColorBrush>
+    <SolidColorBrush x:Key="Ink">#EEEEEE</SolidColorBrush>
+    <SolidColorBrush x:Key="Dim">#AAAAAA</SolidColorBrush>
+    <SolidColorBrush x:Key="Panel">#1C1C1C</SolidColorBrush>
+    <SolidColorBrush x:Key="Accent">#ABA5FF</SolidColorBrush>
   </Window.Resources>
 
-  <DockPanel>
-  <Menu DockPanel.Dock="Top" Background="#171D24" Foreground="{StaticResource Ink}">
+  <Window.Styles>
+    <StyleInclude Source="WorkspaceStyles.axaml"/>
+  </Window.Styles>
+
+  <Panel>
+  <DockPanel x:Name="WorkspaceBody">
+  <Menu DockPanel.Dock="Top" Background="#1C1C1C" Foreground="{StaticResource Ink}">
     <MenuItem Header="_File">
       <MenuItem x:Name="ExitMenuItem" Header="E_xit"/>
     </MenuItem>
@@ -27,73 +32,226 @@
       <MenuItem x:Name="AboutMenuItem" Header="About Dami"/>
     </MenuItem>
   </Menu>
+  <Border DockPanel.Dock="Top" Padding="24,18" BorderBrush="#303030" BorderThickness="0,0,0,1">
+    <Grid ColumnDefinitions="180,*,Auto">
+      <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+        <Border Width="38" Height="38" CornerRadius="12" Background="#343047">
+          <TextBlock Text="✦" FontSize="26" Foreground="{StaticResource Accent}"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
+        <TextBlock Text="Dami" FontSize="26" FontWeight="SemiBold" VerticalAlignment="Center"
+                   Foreground="{StaticResource Ink}"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+        <TextBlock Text="YOUR WORKSPACE" FontSize="10" LetterSpacing="2" Foreground="{StaticResource Accent}"/>
+        <TextBlock Text="Room to think. Space to make." FontSize="14" Foreground="{StaticResource Dim}"/>
+      </StackPanel>
+      <Button x:Name="CommandMenuButton" Grid.Column="2" Classes="quiet" VerticalAlignment="Center"
+              ToolTip.Tip="Find a page or action (Ctrl+K)">
+        <Grid ColumnDefinitions="*,Auto" Width="200">
+          <TextBlock Text="Find a page or action"/>
+          <TextBlock Grid.Column="1" Text="Ctrl K" FontSize="11" Margin="16,0,0,0"
+                     Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+        </Grid>
+      </Button>
+    </Grid>
+  </Border>
+  <Border DockPanel.Dock="Bottom" Padding="22,10" Background="#161616"
+          BorderBrush="#303030" BorderThickness="0,1,0,0">
+    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+      <TextBlock Text="{Binding SystemStatus.Label}" FontSize="10" FontWeight="SemiBold"
+                 Foreground="{StaticResource Accent}" Margin="0,0,12,0" VerticalAlignment="Center"/>
+      <TextBlock Grid.Column="1" Text="{Binding SystemStatus.Message}" FontSize="12"
+                 Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis"
+                 ToolTip.Tip="{Binding SystemStatus.Message}"/>
+      <TextBlock x:Name="StatusLine" Grid.Column="2" Margin="20,0,0,0" FontSize="11" MaxWidth="350" TextTrimming="CharacterEllipsis"
+                 Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+      <ProgressBar Grid.Row="1" Grid.ColumnSpan="3" Height="2" Margin="0,6,0,0"
+                   IsIndeterminate="True" IsVisible="{Binding SystemStatus.IsBusy}"/>
+    </Grid>
+  </Border>
   <Panel>
   <!-- Right-click anything to ask about it. The popup is a child of the window rather
        than of whatever was clicked, because the thing under the pointer is often inside a
        virtualising list that will recycle the container out from under it mid-question. -->
-  <TabControl Margin="6">
-    <TabItem Header="Console">
-  <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,*,*" Margin="10">
+  <TabControl x:Name="WorkspaceTabs" TabStripPlacement="Left" Margin="12,16,12,12">
+    <TabItem Classes="workspace" ToolTip.Tip="Conversation (Ctrl+1)">
+      <TabItem.Header>
+        <Grid ColumnDefinitions="24,*">
+          <TextBlock Text="01" FontSize="10" Opacity="0.6" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="1" Text="Conversation" FontSize="13" VerticalAlignment="Center"/>
+        </Grid>
+      </TabItem.Header>
+  <Grid x:Name="ConversationLayout" ColumnDefinitions="*,330" RowDefinitions="Auto,*" Margin="16,0,4,4">
 
-    <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal"
-                Spacing="12" Margin="4,0,4,10">
-      <TextBlock Text="Dami" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
-      <TextBlock Text="ask on the left · what Dami noticed on the right · plan and claim work below"
-                 VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Dim}"/>
-      <TextBlock x:Name="StatusLine" VerticalAlignment="Center" FontSize="12"
-                 Foreground="{StaticResource Dim}"/>
-    </StackPanel>
+    <Grid Grid.Row="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" Margin="2,4,0,20">
+      <StackPanel Spacing="5">
+        <TextBlock Text="Conversation" FontSize="25" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
+        <TextBlock Text="Follow an idea. Work something out. Make it happen."
+                   FontSize="12" Foreground="{StaticResource Dim}"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <Button x:Name="FindConversation" Content="Find" Classes="quiet" ToolTip.Tip="Find a message in this conversation (Ctrl+F)"/>
+        <ToggleButton x:Name="FocusToggle" Content="Focus mode" Classes="quiet"
+                      ToolTip.Tip="Give the conversation the full width; toggle again to show attention."/>
+      </StackPanel>
+    </Grid>
 
     <!-- Conversation -->
     <Border x:Name="ConversationPanel" Grid.Row="1" Grid.Column="0" Background="{StaticResource Panel}"
-            CornerRadius="8" Padding="12" Margin="0,0,5,0">
+            CornerRadius="16" Padding="20" Margin="0,0,12,0">
       <DockPanel>
-        <TextBlock DockPanel.Dock="Top" Text="CONVERSATION" FontSize="11"
-                   Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
-        <Border DockPanel.Dock="Bottom" Margin="0,8,0,0" Padding="6"
-                Background="#0D1116" BorderBrush="#2A333D" BorderThickness="1" CornerRadius="5">
-          <Grid ColumnDefinitions="*,Auto,Auto">
-            <WrapPanel x:Name="ComposerFlow" Grid.Column="0" VerticalAlignment="Center">
-              <TextBox x:Name="Input" Width="420" MinWidth="220" MinHeight="34" MaxHeight="120"
-                       AcceptsReturn="True" TextWrapping="Wrap"
-                       PlaceholderText="say something…" Background="Transparent"
-                       Foreground="{StaticResource Ink}" BorderThickness="0"/>
-            </WrapPanel>
-              <ToggleButton x:Name="SpeakToggle" Grid.Column="1" Content="speak"
-                            Margin="8,0,0,0" Background="#233041"
-                            Foreground="{StaticResource Ink}"
-                            ToolTip.Tip="Read Dami's replies aloud in its own voice. Off by default so it never surprises you."/>
-              <Button x:Name="SendButton" Grid.Column="2" Content="send" Margin="8,0,0,0"
-                      Background="#233041" Foreground="{StaticResource Ink}"/>
+        <Border x:Name="ConversationFindBar" DockPanel.Dock="Top" IsVisible="False" Margin="0,0,0,14"
+                Padding="8" Background="#292929" CornerRadius="9">
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+            <TextBox x:Name="ConversationFindInput" PlaceholderText="Find in this conversation…" MinWidth="150"
+                     Background="Transparent" BorderThickness="0" FontSize="13"
+                     ToolTip.Tip="Search messages shown in this window. Enter: next; Shift+Enter: previous."/>
+            <TextBlock x:Name="ConversationFindCount" Grid.Column="1" FontSize="11" Margin="10,0"
+                       VerticalAlignment="Center" Foreground="{StaticResource Dim}"/>
+            <Button x:Name="ConversationFindPrevious" Grid.Column="2" Content="↑" Classes="quiet" Padding="10,5"
+                    ToolTip.Tip="Previous matching message (Shift+Enter)"/>
+            <Button x:Name="ConversationFindNext" Grid.Column="3" Content="↓" Classes="quiet" Padding="10,5" Margin="4,0"
+                    ToolTip.Tip="Next matching message (Enter)"/>
+            <Button x:Name="ConversationFindClose" Grid.Column="4" Content="✕" Classes="quiet" Padding="10,5"
+                    ToolTip.Tip="Close find (Esc)"/>
+          </Grid>
+        </Border>
+        <Border DockPanel.Dock="Bottom" Margin="0,16,0,0" Padding="12"
+                Classes="composer" Background="#161616" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="12">
+          <Grid RowDefinitions="Auto,Auto,Auto,Auto">
+            <ScrollViewer MaxHeight="168" HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl ItemsSource="{Binding PendingImages}">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="local:PendingChatImage">
+                    <Border Width="204" Margin="0,0,8,8" Padding="5" CornerRadius="9" Background="#292929">
+                      <Grid ColumnDefinitions="56,*,Auto" RowDefinitions="Auto,*">
+                        <Button Grid.RowSpan="2" Tag="image-preview" Classes="image-preview" ToolTip.Tip="{Binding FileName}"
+                                AutomationProperties.Name="Open attached image">
+                          <Image Source="{Binding Thumbnail}" Width="56" Height="56" Stretch="UniformToFill"/>
+                        </Button>
+                        <TextBlock Grid.Column="1" Text="{Binding FileName}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                   Margin="8,6,2,0" Foreground="{StaticResource Ink}" ToolTip.Tip="{Binding FileName}"/>
+                        <Button Grid.Column="2" Tag="image-remove" Content="×" Classes="quiet" Padding="6,1"
+                                ToolTip.Tip="Remove this attachment" AutomationProperties.Name="Remove attachment"/>
+                        <TextBlock Grid.Column="1" Grid.ColumnSpan="2" Grid.Row="1" Text="Ready to send" FontSize="10"
+                                   Margin="8,0,0,4" VerticalAlignment="Bottom" Foreground="{StaticResource Dim}"/>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+              <TextBox x:Name="Input" Grid.Row="1" Classes="chat-input"
+                       MinWidth="220" MinHeight="64" MaxHeight="160" AcceptsReturn="True" TextWrapping="Wrap"
+                       PlaceholderText="Tell me what you're thinking…" FontSize="15"
+                       Background="Transparent" Foreground="{StaticResource Ink}" BorderThickness="0"
+                       ToolTip.Tip="You can also drop an image here or paste one from the clipboard."/>
+            <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto" Margin="2,8,0,0">
+              <Button x:Name="AttachImages" Content="+ Attach" Classes="quiet" Padding="12,7" FontSize="12"
+                      ToolTip.Tip="Choose images to attach. You can also paste or drop them here."/>
+              <ToggleButton x:Name="SpeakToggle" Grid.Column="2" Content="Read aloud" Classes="quiet"
+                            Padding="10,7" FontSize="11" Margin="10,0,8,0"
+                            ToolTip.Tip="Read replies in Dami's voice. Off until you enable it."/>
+              <Button x:Name="SendButton" Grid.Column="3" Content="send" Classes="primary" MinWidth="72"
+                      ToolTip.Tip="Send your message (Enter)"/>
+            </Grid>
+            <TextBlock Grid.Row="3" Text="Enter to send · Shift+Enter for a new line" FontSize="10" Margin="4,10,0,0"
+                       Foreground="{StaticResource Dim}"/>
           </Grid>
         </Border>
         <Grid>
-        <ScrollViewer x:Name="ChatScroll">
-          <ItemsControl ItemsSource="{Binding Messages}">
+        <ScrollViewer x:Name="ChatScroll" Focusable="True">
+          <ItemsControl x:Name="MessageList" ItemsSource="{Binding Messages}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="local:Message">
-                <StackPanel Margin="0,6">
-                  <TextBlock Text="{Binding Who}" FontSize="11" Foreground="{StaticResource Dim}"/>
-                  <TextBlock Text="{Binding Body}" TextWrapping="Wrap"
-                             Foreground="{StaticResource Ink}"/>
-                  <Image Source="{Binding Image}" MaxWidth="640" MaxHeight="480"
-                         HorizontalAlignment="Left" Stretch="Uniform"/>
-                  <TextBlock Text="{Binding Meta}" FontSize="11"
-                             Foreground="{StaticResource Dim}"/>
-                </StackPanel>
+                <Border Classes="message" Classes.you="{Binding IsYou}">
+                  <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Text="{Binding Who}" FontSize="11" FontWeight="SemiBold"
+                                 Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                      <Button Grid.Column="1" Content="Copy" Tag="copy" Classes="quiet" Padding="8,3"
+                              FontSize="10" IsVisible="{Binding CanCopy}" ToolTip.Tip="Copy this message"/>
+                    </Grid>
+                    <SelectableTextBlock Text="{Binding Body}" IsVisible="{Binding IsYou}" TextWrapping="Wrap" FontSize="15"
+                                         LineHeight="24" Foreground="{StaticResource Ink}"/>
+                    <local:ReplyView IsVisible="{Binding !IsYou}"/>
+                    <ItemsControl ItemsSource="{Binding Attachments}">
+                      <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="local:PendingChatImage">
+                          <Button Tag="image-preview" Classes="image-preview" Margin="0,0,8,4" ToolTip.Tip="{Binding FileName}"
+                                  AutomationProperties.Name="Open attached image">
+                            <StackPanel Width="104" Spacing="5">
+                              <Image Source="{Binding Thumbnail}" Height="80" Stretch="UniformToFill"/>
+                              <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis" FontSize="10" Margin="6,0,6,5"/>
+                            </StackPanel>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Tag="reply-image" Classes="image-preview" HorizontalAlignment="Left"
+                            IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            ToolTip.Tip="Open image · zoom and pan" AutomationProperties.Name="Open reply image">
+                      <Image Source="{Binding Image}" MaxWidth="640" MaxHeight="480" Stretch="Uniform"/>
+                    </Button>
+                    <TextBlock Text="{Binding Meta}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{StaticResource Dim}"/>
+                    <Button Content="Restore message" Tag="recover" IsVisible="{Binding CanRecover}"
+                            HorizontalAlignment="Left" Classes="quiet" Padding="10,5" FontSize="11"
+                            ToolTip.Tip="Put the original text and images back in the composer for editing."/>
+                  </StackPanel>
+                </Border>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </ScrollViewer>
-        <StackPanel IsHitTestVisible="False" VerticalAlignment="Center" Spacing="6"
-                    Margin="8,0,8,40"
-                    IsVisible="{Binding Messages.Count, Converter={x:Static local:IsEmpty.instance}}">
-          <TextBlock Text="Ask Dami anything." Foreground="{StaticResource Dim}"/>
-          <TextBlock Text="· what's on my board?" FontSize="12" Foreground="{StaticResource Dim}"/>
-          <TextBlock Text="· why did you surface that?" FontSize="12" Foreground="{StaticResource Dim}"/>
-          <TextBlock Text="· what did you learn about me this week?" FontSize="12"
-                     Foreground="{StaticResource Dim}"/>
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                      IsVisible="{Binding Messages.Count, Converter={x:Static local:IsEmpty.instance}}">
+        <StackPanel VerticalAlignment="Center" Spacing="12" Margin="12,24" MaxWidth="620">
+          <Border Width="54" Height="54" CornerRadius="18" Background="#343047" HorizontalAlignment="Left">
+            <TextBlock Text="✦" FontSize="32" Foreground="{StaticResource Accent}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <TextBlock Text="What's on your mind?" FontSize="30" FontWeight="SemiBold"
+                     TextWrapping="Wrap" Foreground="{StaticResource Ink}" Margin="0,8,0,0"/>
+          <TextBlock Text="A question, a plan, a spark of an idea. Start anywhere."
+                     FontSize="14" TextWrapping="Wrap" Foreground="{StaticResource Dim}"/>
+          <UniformGrid Columns="2" Margin="-5,14,-5,0">
+            <Button Classes="starter" Tag="starter" CommandParameter="Help me think through an idea. Ask me a question to get started.">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Explore an idea" FontWeight="SemiBold"/>
+                <TextBlock Text="Find a fresh angle together" Classes="card-note"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="starter" Tag="starter" CommandParameter="Help me turn a goal into a practical plan. Ask me what I want to achieve.">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Make a plan" FontWeight="SemiBold"/>
+                <TextBlock Text="Turn a goal into next steps" Classes="card-note"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="starter" Tag="starter" CommandParameter="Help me write something clearly. Ask me about the audience and what I want to say.">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Find the words" FontWeight="SemiBold"/>
+                <TextBlock Text="Write, rethink, or polish" Classes="card-note"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="starter" Tag="starter" CommandParameter="Create an image of a quiet forest observatory under a sky full of stars.">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Create an image" FontWeight="SemiBold"/>
+                <TextBlock Text="Give your imagination a canvas" Classes="card-note"/>
+              </StackPanel>
+            </Button>
+          </UniformGrid>
+          <TextBlock Text="Choose a starting point, then make it your own." FontSize="11"
+                     TextWrapping="Wrap" Foreground="{StaticResource Dim}" Margin="0,4,0,0"/>
         </StackPanel>
+        </ScrollViewer>
+        <Button x:Name="JumpToLatest" Content="↓ Jump to latest" IsVisible="False"
+                Classes="quiet" FontSize="12" Padding="14,9" Margin="0,0,0,10"
+                HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                ToolTip.Tip="Return to the newest message and follow new replies."/>
         </Grid>
       </DockPanel>
     </Border>
@@ -103,14 +261,14 @@
          column: the star-sized graph collapsed to nothing and WORKERS was squeezed to a
          sliver you could not read. Each panel now keeps a usable height and the column
          scrolls, which is honest about there being more here than fits. -->
-    <ScrollViewer Grid.Row="1" Grid.Column="1" Margin="5,0,0,0"
+    <ScrollViewer x:Name="AttentionPanel" Grid.Row="1" Grid.Column="1" Margin="0"
                   HorizontalScrollBarVisibility="Disabled">
     <StackPanel Spacing="10">
 
-      <Border MinHeight="140" MaxHeight="220"
-              Background="{StaticResource Panel}" CornerRadius="8" Padding="12">
+      <Border MinHeight="180" MaxHeight="380"
+              Background="{StaticResource Panel}" CornerRadius="12" Padding="16">
         <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="WANTS YOUR ATTENTION" FontSize="11"
+          <TextBlock DockPanel.Dock="Top" Text="NEEDS YOUR ATTENTION" FontSize="11"
                      Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
           <Grid>
           <ScrollViewer>
@@ -125,17 +283,16 @@
                          verdict on nothing: the panel showed a scouted title and hid the
                          one field that says what it is. -->
                     <TextBlock Text="{Binding Source}" FontSize="11" FontWeight="SemiBold"
-                               IsVisible="{Binding CanOpen}" Foreground="#5AA9E6"/>
+                               IsVisible="{Binding CanOpen}" Foreground="#ABA5FF"/>
                     <TextBlock Text="{Binding Preview}" FontSize="11" TextWrapping="Wrap"
                                MaxLines="2" TextTrimming="CharacterEllipsis"
                                Foreground="{StaticResource Dim}" Margin="0,1,0,3"/>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                      <TextBlock Text="{Binding Detail}" FontSize="11"
-                                 VerticalAlignment="Center"
-                                 Foreground="{StaticResource Dim}"/>
-                      <Button Content="read it" Tag="open" IsVisible="{Binding CanOpen}"
-                              Padding="8,1" FontSize="11" Background="#2F4A66"
-                              Foreground="#D7DDE4"
+                    <TextBlock Text="{Binding Detail}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{StaticResource Dim}" Margin="0,2,0,6"/>
+                    <WrapPanel>
+                      <Button Content="read it" Tag="open" Margin="0,0,8,0" IsVisible="{Binding CanOpen}"
+                              Padding="8,1" FontSize="11" Background="#45405B"
+                              Foreground="#EEEEEE"
                               ToolTip.Tip="Open in the browser. Rate it after you have read it."/>
 
                       <!-- The actions live on the row. Every item here used to end in a
@@ -148,8 +305,8 @@
                           <Style Selector="Button">
                             <Setter Property="Padding" Value="8,1"/>
                             <Setter Property="FontSize" Value="11"/>
-                            <Setter Property="Foreground" Value="#D7DDE4"/>
-                            <Setter Property="Background" Value="#233041"/>
+                            <Setter Property="Foreground" Value="#EEEEEE"/>
+                            <Setter Property="Background" Value="#2A2A2A"/>
                           </Style>
                         </StackPanel.Styles>
                         <Button Content="good" Tag="good"
@@ -161,11 +318,11 @@
                       <StackPanel Orientation="Horizontal" Spacing="4"
                                   IsVisible="{Binding CanApprove}">
                         <Button Content="approve" Tag="approve" Padding="10,1" FontSize="11"
-                                Background="#2F4A66" Foreground="#D7DDE4"/>
+                                Background="#45405B" Foreground="#EEEEEE"/>
                         <Button Content="deny" Tag="deny" Padding="10,1" FontSize="11"
-                                Background="#233041" Foreground="#D7DDE4"/>
+                                Background="#2A2A2A" Foreground="#EEEEEE"/>
                       </StackPanel>
-                    </StackPanel>
+                    </WrapPanel>
                   </StackPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
@@ -180,10 +337,10 @@
         </DockPanel>
       </Border>
 
-      <Border MinHeight="140" MaxHeight="220"
-              Background="{StaticResource Panel}" CornerRadius="8" Padding="12">
+      <Border MinHeight="180" MaxHeight="380"
+              Background="{StaticResource Panel}" CornerRadius="12" Padding="16">
         <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="BELIEFS" FontSize="11"
+          <TextBlock DockPanel.Dock="Top" Text="WORKING BELIEFS" FontSize="11"
                      Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
           <Grid>
           <ScrollViewer>
@@ -193,7 +350,7 @@
                   <StackPanel Margin="0,3">
                     <TextBlock Text="{Binding Headline}" TextWrapping="Wrap"
                                Foreground="{StaticResource Ink}"/>
-                    <TextBlock Text="{Binding Detail}" FontSize="11"
+                    <TextBlock Text="{Binding Detail}" FontSize="11" TextWrapping="Wrap"
                                Foreground="{StaticResource Dim}"/>
                   </StackPanel>
                 </DataTemplate>
@@ -212,255 +369,167 @@
     </StackPanel>
     </ScrollViewer>
 
-    <Border Grid.Row="2" Grid.ColumnSpan="2" Background="{StaticResource Panel}"
-            CornerRadius="8" Padding="12" Margin="0,10,0,0">
-      <DockPanel>
-        <!-- Captions are not decoration here. Unlabelled, this row reads "Local /
-             LocalOnly / steve / Human" and tells you nothing about what any of it
-             governs. Column widths are sized to the longest value each control can
-             show ("Egressable", "Frontier"), because a clipped "LocalOnl" reads as a
-             rendering fault rather than a setting. -->
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,130,140,140,110,Auto,Auto"
-              RowDefinitions="Auto,Auto" Margin="0,0,0,8">
-          <TextBlock Grid.Row="0" Grid.Column="0" Text="Feature to plan" FontSize="11"
-                     Foreground="{StaticResource Dim}" Margin="2,0,0,3"/>
-          <TextBlock Grid.Row="0" Grid.Column="1" Text="Plan with" FontSize="11"
-                     Foreground="{StaticResource Dim}" Margin="10,0,0,3"/>
-          <TextBlock Grid.Row="0" Grid.Column="2" Text="Visibility" FontSize="11"
-                     Foreground="{StaticResource Dim}" Margin="10,0,0,3"/>
-          <TextBlock Grid.Row="0" Grid.Column="3" Text="Acting as" FontSize="11"
-                     Foreground="{StaticResource Dim}" Margin="10,0,0,3"/>
-          <TextBlock Grid.Row="0" Grid.Column="4" Text="Who" FontSize="11"
-                     Foreground="{StaticResource Dim}" Margin="10,0,0,3"/>
-
-          <TextBox x:Name="FeatureRequest" Grid.Row="1" Grid.Column="0"
-                   PlaceholderText="describe a feature to plan…" Background="#0D1116"
-                   Foreground="{StaticResource Ink}" BorderBrush="#2A333D"/>
-          <ComboBox x:Name="PlannerPicker" Grid.Row="1" Grid.Column="1" Margin="8,0,0,0"
-                    HorizontalAlignment="Stretch" SelectedIndex="0"
-                    ToolTip.Tip="Which model drafts the plan. Local keeps it on this machine.">
-            <ComboBoxItem Content="Local"/><ComboBoxItem Content="Dami"/>
-            <ComboBoxItem Content="Frontier"/>
-          </ComboBox>
-          <ComboBox x:Name="PrivacyPicker" Grid.Row="1" Grid.Column="2" Margin="8,0,0,0"
-                    HorizontalAlignment="Stretch" SelectedIndex="0"
-                    ToolTip.Tip="LocalOnly never leaves this host. Egressable may be sent to a remote model.">
-            <ComboBoxItem Content="LocalOnly"/><ComboBoxItem Content="Egressable"/>
-          </ComboBox>
-          <TextBox x:Name="BoardActor" Grid.Row="1" Grid.Column="3" Text="steve"
-                   Margin="8,0,0,0" Background="#0D1116"
-                   Foreground="{StaticResource Ink}"
-                   ToolTip.Tip="Recorded on the board as whoever claims or completes work."/>
-          <ComboBox x:Name="ActorKindPicker" Grid.Row="1" Grid.Column="4" Margin="8,0,0,0"
-                    HorizontalAlignment="Stretch" SelectedIndex="0"
-                    ToolTip.Tip="Whether that actor is a person or an agent.">
-            <ComboBoxItem Content="Human"/><ComboBoxItem Content="Agent"/>
-          </ComboBox>
-          <Button x:Name="PlanButton" Grid.Row="1" Grid.Column="5" Content="plan feature"
-                  Margin="8,0,0,0" Background="#233041" Foreground="{StaticResource Ink}"/>
-          <Button x:Name="BoardRefresh" Grid.Row="1" Grid.Column="6" Content="refresh"
-                  Margin="8,0,0,0" Background="#233041" Foreground="{StaticResource Ink}"/>
+  </Grid>
+    </TabItem>
+    <TabItem Classes="workspace" ToolTip.Tip="Plan &amp; tasks (Ctrl+2)">
+      <TabItem.Header>
+        <Grid ColumnDefinitions="24,*">
+          <TextBlock Text="02" FontSize="10" Opacity="0.6" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="1" Text="Plan &amp; tasks" FontSize="13" VerticalAlignment="Center"/>
         </Grid>
+      </TabItem.Header>
+      <local:TaskBoardWorkspace x:Name="BoardWorkspace"/>
+    </TabItem>
 
-        <TextBlock DockPanel.Dock="Top" Text="{Binding TaskBoards.Message}"
-                   FontSize="11" Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
-
-        <!-- The suite is 212 tasks of which 170 are finished agent work. Opening on the
-             whole tree buries the handful of decisions that are actually Steve's, so the
-             panel opens on those and the other slices are one click away. -->
-        <StackPanel x:Name="BoardViews" DockPanel.Dock="Top" Orientation="Horizontal"
-                    Spacing="6" Margin="0,0,0,8">
-          <StackPanel.Styles>
-            <!-- A fixed width, because the counts change. "Needs you 11" and
-                 "Needs you 0" are different widths, so without this the whole bar
-                 reflows when you switch boards and the button you were aiming at moves
-                 under the pointer — the same way the per-row task actions used to. -->
-            <Style Selector="StackPanel#BoardViews > Button">
-              <Setter Property="Foreground" Value="#D7DDE4"/>
-              <Setter Property="Padding" Value="10,4"/>
-              <Setter Property="FontSize" Value="12"/>
-              <Setter Property="MinWidth" Value="104"/>
-              <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            </Style>
-          </StackPanel.Styles>
-          <Button Tag="NeedsYou"
-                  Background="{Binding TaskBoards.View, Converter={x:Static local:ViewBrush.instance}, ConverterParameter=NeedsYou}">
-            <TextBlock><Run Text="Needs you"/><Run Text=" "/><Run Text="{Binding TaskBoards.NeedsYouCount}"/></TextBlock>
-          </Button>
-          <Button Tag="Open"
-                  Background="{Binding TaskBoards.View, Converter={x:Static local:ViewBrush.instance}, ConverterParameter=Open}">
-            <TextBlock><Run Text="Open"/><Run Text=" "/><Run Text="{Binding TaskBoards.OpenCount}"/></TextBlock>
-          </Button>
-          <Button Tag="Blocked"
-                  Background="{Binding TaskBoards.View, Converter={x:Static local:ViewBrush.instance}, ConverterParameter=Blocked}">
-            <TextBlock><Run Text="Blocked"/><Run Text=" "/><Run Text="{Binding TaskBoards.BlockedCount}"/></TextBlock>
-          </Button>
-          <Button Tag="All"
-                  Background="{Binding TaskBoards.View, Converter={x:Static local:ViewBrush.instance}, ConverterParameter=All}">
-            <TextBlock><Run Text="All"/><Run Text=" "/><Run Text="{Binding TaskBoards.AllCount}"/></TextBlock>
-          </Button>
-        </StackPanel>
-
-        <Grid ColumnDefinitions="250,*,310">
-          <Grid Grid.Column="0" Margin="0,0,8,0">
-          <ListBox x:Name="BoardPicker"
-                   ItemsSource="{Binding TaskBoards.Boards}">
-            <ListBox.ItemTemplate>
-              <DataTemplate x:DataType="contracts:TaskBoardSummary">
-                <StackPanel Margin="3">
-                  <TextBlock Text="{Binding Title}" Foreground="{StaticResource Ink}"/>
-                  <TextBlock FontSize="11" Foreground="{StaticResource Dim}">
-                    <Run Text="{Binding Status}"/><Run Text=" · "/>
-                    <Run Text="{Binding DoneTasks}"/><Run Text="/"/>
-                    <Run Text="{Binding TotalTasks}"/><Run Text=" done"/>
-                  </TextBlock>
-                </StackPanel>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-          <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
-                     HorizontalAlignment="Center" TextAlignment="Center" FontSize="12"
-                     TextWrapping="Wrap" Margin="12,0"
-                     Foreground="{StaticResource Dim}"
-                     Text="No boards yet. Describe a feature above and press “plan feature”."
-                     IsVisible="{Binding TaskBoards.Boards.Count, Converter={x:Static local:IsEmpty.instance}}"/>
-          </Grid>
-
-          <DockPanel Grid.Column="1" Margin="0,0,8,0">
-            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-              <TextBlock Text="{Binding TaskBoards.Title}" FontWeight="SemiBold"
+    <!-- A live, bounded view of the canonical event ledger. This deliberately reads
+         PostgreSQL through dami-host rather than Elasticsearch: export lag or an Elastic
+         outage must never make the desktop lie about what the runtime actually did. -->
+    <TabItem Classes="workspace" ToolTip.Tip="Activity (Ctrl+3)">
+      <TabItem.Header>
+        <Grid ColumnDefinitions="24,*">
+          <TextBlock Text="03" FontSize="10" Opacity="0.6" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="1" Text="Activity" FontSize="13" VerticalAlignment="Center"/>
+        </Grid>
+      </TabItem.Header>
+      <Grid RowDefinitions="Auto,210,*" Margin="10">
+        <Border Grid.Row="0" Background="{StaticResource Panel}" CornerRadius="8"
+                Padding="12" Margin="0,0,0,10">
+          <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="1" Text="{Binding ObservabilityMessage}"
+                       FontSize="11" Foreground="{StaticResource Dim}"
+                       VerticalAlignment="Center" Margin="18,0,0,0"/>
+            <StackPanel Grid.Column="0" Margin="0,0,24,0">
+              <TextBlock Text="OBSERVABILITY" FontSize="11" Foreground="{StaticResource Dim}"/>
+              <TextBlock Text="what the runtime is doing now" FontSize="16"
                          Foreground="{StaticResource Ink}"/>
-              <TextBlock Text="{Binding TaskBoards.Detail}" TextWrapping="Wrap"
-                         FontSize="11" Foreground="{StaticResource Dim}"/>
-              <TextBlock Text="Reason — required when you block, reopen, or cancel a task below"
-                         FontSize="11" Foreground="{StaticResource Dim}" Margin="2,6,0,3"/>
-              <TextBox x:Name="StatusDetail" PlaceholderText="why…"
-                       Background="#0D1116" Foreground="{StaticResource Ink}"/>
-
-              <!-- One action bar in a fixed place, acting on the selected task, rather
-                   than buttons repeated on every row. Per-row actions were tried twice
-                   and are wrong here for a mechanical reason: this column is the `*` of
-                   250,*,310, so a row's buttons are cramped and clipped, and revealing
-                   them on hover or selection moved the hit target while the pointer was
-                   travelling to it. A bar that never moves cannot be missed. -->
-              <Border x:Name="TaskActions" Background="#141A21" CornerRadius="6"
-                      Padding="8,6" Margin="0,8,0,0"
-                      IsVisible="{Binding TaskBoards.HasSelection}">
-                <!-- The Border keeps the window's own state as DataContext so
-                     HasSelection resolves; only the inner panel switches to the selected
-                     task, which is what the buttons bind against. -->
-                <StackPanel Orientation="Vertical" Spacing="6"
-                            DataContext="{Binding TaskBoards.Selected}">
-                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"
-                             Foreground="{StaticResource Ink}"/>
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <StackPanel.Styles>
-                      <Style Selector="Button">
-                        <Setter Property="Background" Value="#233041"/>
-                        <Setter Property="Foreground" Value="#D7DDE4"/>
-                        <Setter Property="Padding" Value="12,5"/>
-                      </Style>
-                    </StackPanel.Styles>
-                    <Button Content="work on this" Tag="Work" IsVisible="{Binding CanRunWork}"
-                            Background="#2F4A66"
-                            ToolTip.Tip="Run one advisory turn against this task. It proposes and traces; it never marks anything done."/>
-                    <Button Content="claim" Tag="Claim" IsVisible="{Binding CanClaim}"/>
-                    <Button Content="complete" Tag="Complete" IsVisible="{Binding CanWork}"/>
-                    <Button Content="block" Tag="Block" IsVisible="{Binding CanWork}"/>
-                    <Button Content="reopen" Tag="Reopen" IsVisible="{Binding CanReopen}"/>
-                    <Button Content="cancel" Tag="Cancel" IsVisible="{Binding CanCancel}"/>
-                  </StackPanel>
-                </StackPanel>
-              </Border>
             </StackPanel>
-            <Grid>
-            <TreeView x:Name="TaskTree" ItemsSource="{Binding TaskBoards.Tasks}">
-              <TreeView.ItemTemplate>
-                <TreeDataTemplate x:DataType="local:TaskBoardTaskNode"
-                                  ItemsSource="{Binding SubTasks}">
-                  <StackPanel Margin="0,3">
-                    <!-- Background="Transparent" is load-bearing, not styling. A panel
-                         with a null background is not hit-testable in its empty areas, so
-                         :pointerover was driven only by the title TextBlock: moving the
-                         pointer right, toward the buttons, left the last hit-testable
-                         child and the actions vanished before they could be clicked.
-                         A transparent background makes the whole row the hover target. -->
-                    <StackPanel Orientation="Horizontal" Spacing="6" Background="Transparent">
-                      <!-- Actions belong to the row you are pointing at. Rendering five
-                           default-styled buttons on every row of a 212-task board buries
-                           the titles they act on, which is the actual content. Opacity
-                           rather than IsVisible so revealing them never reflows the row
-                           under the pointer; hit-testing follows so an invisible button
-                           cannot be clicked. -->
-                      <StackPanel.Styles>
-                        <Style Selector="StackPanel#TaskActions > Button">
-                          <Setter Property="Background" Value="#233041"/>
-                          <Setter Property="Foreground" Value="#D7DDE4"/>
-                          <Setter Property="Padding" Value="8,2"/>
-                          <Setter Property="FontSize" Value="11"/>
-                        </Style>
-                      </StackPanel.Styles>
-                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
-                                 Foreground="{StaticResource Ink}"/>
-                      <TextBlock Text="{Binding Status}" Foreground="{StaticResource Accent}"/>
-                      <TextBlock Text="{Binding Priority}" FontSize="11"
+            <ItemsControl Grid.Row="1" Grid.ColumnSpan="2" Margin="-4,14,-4,0" ItemsSource="{Binding ObservabilityTiles}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <UniformGrid Columns="4"/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="local:ObservabilityTile">
+                  <Border Background="#151515" CornerRadius="6" Padding="12,10" Margin="4,0">
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                      <TextBlock Grid.RowSpan="2" Grid.Column="0" Text="{Binding Value}"
+                                 FontSize="24" FontFamily="monospace" Margin="0,0,10,0"
+                                 Foreground="{Binding IsAlert, Converter={x:Static local:FaultBrush.instance}}"/>
+                      <TextBlock Grid.Column="1" Text="{Binding Label}" FontSize="11"
+                                 FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
+                      <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Detail}" FontSize="10" TextWrapping="Wrap"
                                  Foreground="{StaticResource Dim}"/>
-                    </StackPanel>
-                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="11"
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Background="{StaticResource Panel}" CornerRadius="8"
+                Padding="12" Margin="0,0,0,10">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="RUNTIME ACTIVITY · LAST TWO HOURS"
+                       FontSize="11" Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+            <TextBlock DockPanel.Dock="Bottom" Text="{Binding ActivityMessage}" FontSize="11"
+                       Foreground="{StaticResource Dim}" Margin="0,6,0,0"/>
+            <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding Activity}"
+                          Margin="16,0,0,0" Width="150">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="local:ActivitySeries">
+                  <Grid ColumnDefinitions="10,*,Auto" Margin="0,3">
+                    <Rectangle Grid.Column="0" Width="8" Height="8" RadiusX="2" RadiusY="2"
+                               VerticalAlignment="Center" Fill="{Binding Stroke}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="11" Margin="6,0,0,0"
                                Foreground="{StaticResource Dim}"/>
-                    <ItemsControl ItemsSource="{Binding Criteria}">
+                    <TextBlock Grid.Column="2" Text="{Binding Now}" FontSize="12"
+                               FontFamily="monospace" Foreground="{Binding Stroke}"/>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Border Background="#151515" CornerRadius="6" Padding="6">
+              <Grid>
+                <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                           HorizontalAlignment="Center" Text="No activity data yet."
+                           FontSize="12" Foreground="{StaticResource Dim}"
+                           IsVisible="{Binding Activity.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+                <Viewbox Stretch="Fill">
+                  <Canvas Width="1000" Height="200">
+                    <ItemsControl ItemsSource="{Binding Activity}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><Canvas Width="1000" Height="200"/></ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="local:TaskBoardCriterionNode">
-                          <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Text="{Binding Description}" FontSize="11"
-                                       Foreground="{StaticResource Ink}"/>
-                            <Button Content="{Binding ActionLabel}" Tag="Criterion"/>
-                          </StackPanel>
+                        <DataTemplate x:DataType="local:ActivitySeries">
+                          <Canvas Width="1000" Height="200">
+                            <Polygon Points="{Binding Area}" Fill="{Binding Fill}"/>
+                            <Polyline Points="{Binding Line}" Stroke="{Binding Stroke}"
+                                      StrokeThickness="2" StrokeLineCap="Round"
+                                      StrokeJoin="Round"/>
+                          </Canvas>
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                  </StackPanel>
-                </TreeDataTemplate>
-              </TreeView.ItemTemplate>
-            </TreeView>
-            <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
-                       HorizontalAlignment="Center" FontSize="12"
-                       Foreground="{StaticResource Dim}"
-                       Text="Nothing in this view — pick a board on the left, or try another filter above."
-                       IsVisible="{Binding TaskBoards.Tasks.Count, Converter={x:Static local:IsEmpty.instance}}"/>
-            </Grid>
+                  </Canvas>
+                </Viewbox>
+              </Grid>
+            </Border>
           </DockPanel>
+        </Border>
 
-          <DockPanel Grid.Column="2">
-            <TextBlock DockPanel.Dock="Top" Text="ACTIVITY" FontSize="11"
-                       Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
+        <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="8" Padding="12">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="NEWEST DURABLE EVENTS"
+                       FontSize="11" Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+            <Grid DockPanel.Dock="Top"
+                  ColumnDefinitions="4,72,86,125,155,120,95,*" Margin="0,0,0,4">
+              <TextBlock Grid.Column="1" Text="TIME" FontSize="10" Foreground="{StaticResource Dim}"/>
+              <TextBlock Grid.Column="2" Text="TRACE" FontSize="10" Foreground="{StaticResource Dim}"/>
+              <TextBlock Grid.Column="3" Text="ORIGIN" FontSize="10" Foreground="{StaticResource Dim}"/>
+              <TextBlock Grid.Column="4" Text="ACTOR" FontSize="10" Foreground="{StaticResource Dim}"/>
+              <TextBlock Grid.Column="5" Text="TYPE" FontSize="10" Foreground="{StaticResource Dim}"/>
+              <TextBlock Grid.Column="6" Text="STATUS" FontSize="10" Foreground="{StaticResource Dim}"/>
+              <TextBlock Grid.Column="7" Text="LABEL" FontSize="10" Foreground="{StaticResource Dim}"/>
+            </Grid>
             <Grid>
-            <ScrollViewer>
-              <ItemsControl ItemsSource="{Binding TaskBoards.Activity}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="contracts:TaskBoardActivity">
-                    <StackPanel Margin="0,3">
-                      <TextBlock Foreground="{StaticResource Ink}">
-                        <Run Text="{Binding Kind}"/><Run Text=" · "/>
-                        <Run Text="{Binding Actor.ActorId}"/>
-                      </TextBlock>
-                      <TextBlock Text="{Binding Detail}" FontSize="11"
-                                 Foreground="{StaticResource Dim}" TextWrapping="Wrap"/>
-                    </StackPanel>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-            <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
-                       HorizontalAlignment="Center" FontSize="12"
-                       Foreground="{StaticResource Dim}" Text="No activity yet."
-                       IsVisible="{Binding TaskBoards.Activity.Count, Converter={x:Static local:IsEmpty.instance}}"/>
+              <ScrollViewer>
+                <ItemsControl ItemsSource="{Binding ObservabilityEvents}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="local:ObservabilityEvent">
+                      <Grid ColumnDefinitions="4,72,86,125,155,120,95,*" Margin="0,2">
+                        <Rectangle Grid.Column="0" Width="3" RadiusX="1.5" RadiusY="1.5"
+                                   IsVisible="{Binding IsAlert}" Fill="#E0604F"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Time}" FontSize="11"
+                                   FontFamily="monospace" Foreground="{StaticResource Dim}"/>
+                        <TextBlock Grid.Column="2" Text="{Binding Trace}" FontSize="11"
+                                   FontFamily="monospace" Foreground="#ABA5FF"/>
+                        <TextBlock Grid.Column="3" Text="{Binding Origin}" FontSize="11"
+                                   TextTrimming="CharacterEllipsis" Foreground="{StaticResource Dim}"/>
+                        <TextBlock Grid.Column="4" Text="{Binding Actor}" FontSize="11"
+                                   TextTrimming="CharacterEllipsis" Foreground="{StaticResource Ink}"/>
+                        <TextBlock Grid.Column="5" Text="{Binding Type}" FontSize="11"
+                                   TextTrimming="CharacterEllipsis" Foreground="#B98CE0"/>
+                        <TextBlock Grid.Column="6" Text="{Binding Status}" FontSize="11"
+                                   Foreground="{Binding Status, Converter={x:Static local:StatusBrush.instance}}"/>
+                        <TextBlock Grid.Column="7" Text="{Binding Label}" FontSize="11"
+                                   TextTrimming="CharacterEllipsis" Foreground="{StaticResource Ink}"/>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
+                         HorizontalAlignment="Center" TextAlignment="Center"
+                         Text="No durable events in the current window."
+                         FontSize="12" Foreground="{StaticResource Dim}"
+                         IsVisible="{Binding ObservabilityEvents.Count, Converter={x:Static local:IsEmpty.instance}}"/>
             </Grid>
           </DockPanel>
-        </Grid>
-      </DockPanel>
-    </Border>
-  </Grid>
+        </Border>
+      </Grid>
     </TabItem>
 
     <!-- The proactive tier is what Dami does when Steve is not here, and it had no
@@ -469,7 +538,13 @@
          not that a pass ran, it is what the pass did — the egress it made, what answered,
          what it surfaced — and that is a trace, not a line. Read-only: starting a pass is
          an operator's act at the CLI. -->
-    <TabItem Header="Workers">
+    <TabItem Classes="workspace" ToolTip.Tip="Workers (Ctrl+4)">
+      <TabItem.Header>
+        <Grid ColumnDefinitions="24,*">
+          <TextBlock Text="04" FontSize="10" Opacity="0.6" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="1" Text="Workers" FontSize="13" VerticalAlignment="Center"/>
+        </Grid>
+      </TabItem.Header>
       <Grid RowDefinitions="Auto,*" Margin="10">
 
       <!-- Everything the runtime does is already in the event stream; nothing showed it
@@ -499,7 +574,7 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="190">
+          <Border Background="#151515" CornerRadius="6" Padding="6" Height="190">
             <Grid>
             <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
                        HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
@@ -565,7 +640,7 @@
                       </ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="local:WorkerRun">
-                          <Border Width="7" Height="24" Background="#0B0F14" CornerRadius="2"
+                          <Border Width="7" Height="24" Background="#111111" CornerRadius="2"
                                   ToolTip.Tip="{Binding Outcome}">
                             <Rectangle Width="7" VerticalAlignment="Bottom" RadiusX="2" RadiusY="2"
                                        Height="{Binding BarHeight}"
@@ -631,7 +706,7 @@
             <!-- The headline first: what the pass cost and what it produced. A reader
                  should not have to count rows to learn that a scout pass surfaced three
                  items and hit one rate limit. -->
-            <Border DockPanel.Dock="Top" Background="#0D1116" CornerRadius="6"
+            <Border DockPanel.Dock="Top" Background="#151515" CornerRadius="6"
                     Padding="12,10" Margin="0,0,0,10"
                     IsVisible="{Binding PassSummary.HasRun}">
               <StackPanel Orientation="Horizontal" Spacing="28">
@@ -642,12 +717,12 @@
                 </StackPanel>
                 <StackPanel>
                   <TextBlock Text="{Binding PassSummary.Produced}" FontSize="20"
-                             Foreground="#4CB782"/>
+                             Foreground="#ABA5FF"/>
                   <TextBlock Text="produced" FontSize="11" Foreground="{StaticResource Dim}"/>
                 </StackPanel>
                 <StackPanel>
                   <TextBlock Text="{Binding PassSummary.Egress}" FontSize="20"
-                             Foreground="#5AA9E6"/>
+                             Foreground="#ABA5FF"/>
                   <TextBlock Text="reached out" FontSize="11" Foreground="{StaticResource Dim}"/>
                 </StackPanel>
                 <StackPanel IsVisible="{Binding PassSummary.HasAlerts}">
@@ -689,7 +764,7 @@
                              the wait that followed, so the pass reads as a shape: a scout
                              sitting four seconds on one feed is a wide bar with empty
                              space either side, which rows could never show. -->
-                        <Border Grid.Column="2" Background="#0B0F14" CornerRadius="3"
+                        <Border Grid.Column="2" Background="#111111" CornerRadius="3"
                                 Height="16" VerticalAlignment="Center" Margin="0,0,12,0">
                           <Rectangle Height="10" RadiusX="3" RadiusY="3"
                                      HorizontalAlignment="Left" VerticalAlignment="Center"
@@ -717,23 +792,29 @@
       </Grid>
     </TabItem>
 
-    <TabItem Header="Health">
+    <TabItem Classes="workspace" ToolTip.Tip="Health (Ctrl+5)">
+      <TabItem.Header>
+        <Grid ColumnDefinitions="24,*">
+          <TextBlock Text="05" FontSize="10" Opacity="0.6" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="1" Text="Health" FontSize="13" VerticalAlignment="Center"/>
+        </Grid>
+      </TabItem.Header>
       <Grid RowDefinitions="Auto,Auto,*" Margin="10">
 
         <!-- Headline numbers, with the load status and a manual refresh beside them.
              One snapshot feeds everything below; refresh is the only round trip. -->
         <Border Grid.Row="0" Background="{StaticResource Panel}" CornerRadius="8"
                 Padding="12" Margin="0,0,0,10">
-          <DockPanel>
-            <Button x:Name="FitnessRefresh" DockPanel.Dock="Right" Content="refresh"
-                    Padding="12,4" Background="#2F4A66" Foreground="{StaticResource Ink}"
+          <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+            <Button x:Name="FitnessRefresh" Grid.Column="1" Content="refresh"
+                    Padding="12,4" Background="#45405B" Foreground="{StaticResource Ink}"
                     VerticalAlignment="Center"/>
-            <TextBlock DockPanel.Dock="Right" Text="{Binding FitnessMessage}" FontSize="11"
+            <TextBlock Grid.Column="0" Text="{Binding FitnessMessage}" FontSize="11"
                        Foreground="{StaticResource Dim}" VerticalAlignment="Center"
-                       Margin="0,0,12,0" TextWrapping="Wrap" MaxWidth="360"/>
-            <ItemsControl ItemsSource="{Binding FitnessTiles}">
+                       Margin="0,0,12,0" TextWrapping="Wrap"/>
+            <ItemsControl Grid.Row="1" Grid.ColumnSpan="2" Margin="0,14,0,0" ItemsSource="{Binding FitnessTiles}">
               <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="28"/></ItemsPanelTemplate>
+                <ItemsPanelTemplate><UniformGrid Columns="4"/></ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="local:FitnessTile">
@@ -742,13 +823,13 @@
                                Foreground="{StaticResource Dim}"/>
                     <TextBlock Text="{Binding Value}" FontSize="20" FontFamily="monospace"
                                Foreground="{StaticResource Ink}"/>
-                    <TextBlock Text="{Binding Detail}" FontSize="10"
+                    <TextBlock Text="{Binding Detail}" FontSize="10" TextWrapping="Wrap"
                                Foreground="{StaticResource Dim}"/>
                   </StackPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-          </DockPanel>
+          </Grid>
         </Border>
 
         <!-- Three trends. Weight is min–max scaled; the weekly totals start at zero. -->
@@ -777,7 +858,7 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="150">
+              <Border Background="#151515" CornerRadius="6" Padding="6" Height="150">
                 <Grid>
                   <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
                              HorizontalAlignment="Center" FontSize="12"
@@ -825,7 +906,7 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="150">
+              <Border Background="#151515" CornerRadius="6" Padding="6" Height="150">
                 <Grid>
                   <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
                              HorizontalAlignment="Center" FontSize="12"
@@ -873,7 +954,7 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="150">
+              <Border Background="#151515" CornerRadius="6" Padding="6" Height="150">
                 <Grid>
                   <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
                              HorizontalAlignment="Center" FontSize="12"
@@ -950,7 +1031,7 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <Border Background="#0D1116" CornerRadius="6" Padding="6">
+              <Border Background="#151515" CornerRadius="6" Padding="6">
                 <Grid>
                   <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
                              HorizontalAlignment="Center" FontSize="12"
@@ -1038,15 +1119,28 @@
       </Grid>
     </TabItem>
 
-    <TabItem Header="Gallery">
+    <TabItem Classes="workspace" ToolTip.Tip="Gallery (Ctrl+6)">
+      <TabItem.Header>
+        <Grid ColumnDefinitions="24,*">
+          <TextBlock Text="06" FontSize="10" Opacity="0.6" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="1" Text="Gallery" FontSize="13" VerticalAlignment="Center"/>
+        </Grid>
+      </TabItem.Header>
       <Grid x:Name="GallerySurface" RowDefinitions="Auto,*" Margin="10">
         <Border Grid.Row="0" Background="{StaticResource Panel}" CornerRadius="8"
                 Padding="12" Margin="0,0,0,10">
+          <StackPanel Spacing="14">
+            <StackPanel>
+              <TextBlock Text="DAMI · PORTRAIT GALLERY" FontSize="16" FontWeight="SemiBold"
+                         Foreground="{StaticResource Ink}"/>
+              <TextBlock Text="{Binding GalleryMessage}" FontSize="11"
+                         Foreground="{StaticResource Dim}"/>
+            </StackPanel>
           <DockPanel>
             <Button x:Name="GalleryRefresh" DockPanel.Dock="Right" Content="refresh"
-                    Padding="12,4" Background="#233041" Foreground="{StaticResource Ink}"/>
+                    Padding="12,4" Background="#2A2A2A" Foreground="{StaticResource Ink}"/>
             <Button x:Name="GalleryImport" DockPanel.Dock="Right" Content="import images…"
-                    Margin="0,0,8,0" Padding="12,4" Background="#233041"
+                    Margin="0,0,8,0" Padding="12,4" Background="#2A2A2A"
                     Foreground="{StaticResource Ink}"/>
             <CheckBox x:Name="GalleryShowHidden" DockPanel.Dock="Right" Content="hidden" Margin="0,0,8,0"
                       Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
@@ -1061,16 +1155,12 @@
               <ComboBoxItem Content="proactive"/>
               <ComboBoxItem Content="imported"/>
             </ComboBox>
-            <TextBox x:Name="GallerySearch" DockPanel.Dock="Right" Width="300" Margin="0,0,8,0"
+            <TextBox x:Name="GallerySearch" MinWidth="160" Margin="0,0,8,0"
                      PlaceholderText="search: balcony at dusk, red dress, reading…"
-                     Background="#0D1116" BorderBrush="#2A333D" Foreground="{StaticResource Ink}"/>
-            <StackPanel>
-              <TextBlock Text="DAMI · PORTRAIT GALLERY" FontSize="16" FontWeight="SemiBold"
-                         Foreground="{StaticResource Ink}"/>
-              <TextBlock Text="{Binding GalleryMessage}" FontSize="11"
-                         Foreground="{StaticResource Dim}"/>
-            </StackPanel>
+                     Background="#151515" BorderBrush="#353535" Foreground="{StaticResource Ink}"/>
+
           </DockPanel>
+          </StackPanel>
         </Border>
 
         <Grid Grid.Row="1" ColumnDefinitions="3*,2*">
@@ -1084,7 +1174,7 @@
                 </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="local:GalleryImageCard">
-                    <Border Width="188" Margin="4" Background="#0D1116" CornerRadius="7"
+                    <Border Width="188" Margin="4" Background="#151515" CornerRadius="7"
                             ClipToBounds="True">
                       <StackPanel>
                         <Image Source="{Binding Image}" Width="188" Height="250"
@@ -1093,7 +1183,7 @@
                           <TextBlock Grid.Column="0" Text="{Binding Date}" FontSize="10"
                                      Foreground="{StaticResource Dim}"/>
                           <TextBlock Grid.Column="1" Text="{Binding Badge}" FontSize="10"
-                                     Foreground="#5AA9E6"/>
+                                     Foreground="#ABA5FF"/>
                         </Grid>
                         <TextBlock Text="{Binding Description}" FontSize="10" MaxLines="2"
                                    TextTrimming="CharacterEllipsis" TextWrapping="Wrap"
@@ -1107,36 +1197,40 @@
           </Border>
 
           <Border Grid.Column="1" Background="{StaticResource Panel}" CornerRadius="8" Padding="14">
-            <Grid RowDefinitions="*,Auto,Auto,Auto">
-              <Border Grid.Row="0" Background="#0D1116" CornerRadius="7" ClipToBounds="True">
-                <Image Source="{Binding SelectedGalleryImage.Image}" Stretch="Uniform"
-                       HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <Grid RowDefinitions="300,Auto,Auto,Auto">
+              <Border Grid.Row="0" Background="#151515" CornerRadius="7" ClipToBounds="True">
+                <Button Tag="gallery-image" Classes="image-preview" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
+                        ToolTip.Tip="Open image · zoom and pan" AutomationProperties.Name="Open selected Gallery image">
+                  <Image Source="{Binding SelectedGalleryImage.Image}" Stretch="Uniform"/>
+                </Button>
               </Border>
               <StackPanel Grid.Row="1" Margin="0,10,0,12">
-                <DockPanel>
-                  <Button x:Name="GallerySimilar" DockPanel.Dock="Right" Content="find similar"
-                          Padding="10,3" Background="#233041" Foreground="{StaticResource Ink}"/>
-                  <Button x:Name="GalleryHide" DockPanel.Dock="Right" Content="hide" Margin="0,0,6,0"
-                          Padding="10,3" Background="#233041" Foreground="{StaticResource Ink}"/>
-                  <Button x:Name="GalleryFavourite" DockPanel.Dock="Right" Content="♥" Margin="0,0,6,0"
-                          Padding="10,3" Background="#233041" Foreground="{StaticResource Ink}"/>
+                <WrapPanel>
+                  <Button x:Name="GallerySimilar" Content="find similar"
+                          Padding="10,3" Background="#2A2A2A" Foreground="{StaticResource Ink}"/>
+                  <Button x:Name="GalleryHide" Content="hide" Margin="0,0,6,0"
+                          Padding="10,3" Background="#2A2A2A" Foreground="{StaticResource Ink}"/>
+                  <Button x:Name="GalleryFavourite" Content="♥" Margin="0,0,6,0"
+                          Padding="10,3" Background="#2A2A2A" Foreground="{StaticResource Ink}"/>
                   <TextBlock Text="{Binding SelectedGalleryImage.Date}" FontSize="12"
                              VerticalAlignment="Center" Foreground="{StaticResource Ink}"/>
-                </DockPanel>
+                </WrapPanel>
                 <TextBlock Text="{Binding SelectedGalleryImage.Marks}" FontSize="11" Margin="0,4,0,0"
                            Foreground="#E0A0B0"/>
                 <Button x:Name="GalleryLineage" Content="{Binding SelectedGalleryImage.Lineage}"
                         IsVisible="{Binding SelectedGalleryImage.DerivedFrom, Converter={x:Static ObjectConverters.IsNotNull}}"
-                        FontSize="10" Padding="0" Background="Transparent" Foreground="#5AA9E6"
+                        FontSize="10" Padding="0" Background="Transparent" Foreground="#ABA5FF"
                         HorizontalAlignment="Left"/>
                 <TextBlock Text="{Binding SelectedGalleryImage.Caption}" FontSize="11"
                            TextWrapping="Wrap" Foreground="{StaticResource Ink}"/>
                 <TextBlock Text="{Binding SelectedGalleryImage.TagLine}" FontSize="10"
-                           TextWrapping="Wrap" Foreground="#5AA9E6"/>
+                           TextWrapping="Wrap" Foreground="#ABA5FF"/>
                 <TextBlock Text="{Binding SelectedGalleryImage.Prompt}" FontSize="11"
                            TextWrapping="Wrap" Foreground="{StaticResource Dim}"/>
               </StackPanel>
-              <Border Grid.Row="2" Background="#0D1116" BorderBrush="#2A333D"
+              <Border Grid.Row="2" Background="#151515" BorderBrush="#353535"
                       BorderThickness="1" CornerRadius="6" Padding="8">
                 <Grid RowDefinitions="Auto,Auto">
                   <TextBox x:Name="GalleryPrompt" Grid.Row="0" AcceptsReturn="True"
@@ -1146,10 +1240,10 @@
                            Foreground="{StaticResource Ink}"/>
                   <Button x:Name="GalleryGenerate" Grid.Row="1" Content="create new Dami portrait"
                           HorizontalAlignment="Right" Margin="0,8,0,0" Padding="14,6"
-                          Background="#2F4A66" Foreground="{StaticResource Ink}"/>
+                          Background="#45405B" Foreground="{StaticResource Ink}"/>
                 </Grid>
               </Border>
-              <Border Grid.Row="3" Background="#0D1116" BorderBrush="#2A333D"
+              <Border Grid.Row="3" Background="#151515" BorderBrush="#353535"
                       BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,8,0,0">
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBox x:Name="GalleryEdit" Grid.Column="0"
@@ -1158,16 +1252,23 @@
                            Foreground="{StaticResource Ink}"/>
                   <Button x:Name="GalleryEditRun" Grid.Column="1" Content="edit selected"
                           Margin="8,0,0,0" Padding="14,6"
-                          Background="#2F4A66" Foreground="{StaticResource Ink}"/>
+                          Background="#45405B" Foreground="{StaticResource Ink}"/>
                 </Grid>
               </Border>
             </Grid>
+            </ScrollViewer>
           </Border>
         </Grid>
       </Grid>
     </TabItem>
 
-    <TabItem Header="Network">
+    <TabItem Classes="workspace" ToolTip.Tip="Network (Ctrl+7)">
+      <TabItem.Header>
+        <Grid ColumnDefinitions="24,*">
+          <TextBlock Text="07" FontSize="10" Opacity="0.6" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="1" Text="Network" FontSize="13" VerticalAlignment="Center"/>
+        </Grid>
+      </TabItem.Header>
       <Grid RowDefinitions="Auto,Auto,*" Margin="10">
 
         <!-- The deterministic panels poll every 20 s; only the analysis costs a model
@@ -1176,7 +1277,7 @@
                 Padding="12" Margin="0,0,0,10">
           <DockPanel>
             <Button x:Name="NetworkAnalyze" DockPanel.Dock="Right" Content="analyze"
-                    Padding="12,4" Background="#2F4A66" Foreground="{StaticResource Ink}"
+                    Padding="12,4" Background="#45405B" Foreground="{StaticResource Ink}"
                     VerticalAlignment="Center"/>
             <TextBlock DockPanel.Dock="Right" Text="{Binding NetworkMessage}" FontSize="11"
                        Foreground="{StaticResource Dim}" VerticalAlignment="Center"
@@ -1207,7 +1308,7 @@
             <DockPanel>
               <TextBlock DockPanel.Dock="Top" Text="RUNTIME EGRESS · LAST 30 MIN"
                          FontSize="11" Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
-              <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="130">
+              <Border Background="#151515" CornerRadius="6" Padding="6" Height="130">
                 <Grid>
                   <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
                              HorizontalAlignment="Center" FontSize="12"
@@ -1242,7 +1343,7 @@
             <DockPanel>
               <TextBlock DockPanel.Dock="Top" Text="FAULTS BY SWEEP" FontSize="11"
                          Foreground="{StaticResource Dim}" Margin="0,0,0,6"/>
-              <Border Background="#0D1116" CornerRadius="6" Padding="6" Height="130">
+              <Border Background="#151515" CornerRadius="6" Padding="6" Height="130">
                 <Grid>
                   <TextBlock IsHitTestVisible="False" VerticalAlignment="Center"
                              HorizontalAlignment="Center" FontSize="12"
@@ -1341,25 +1442,16 @@
         </Grid>
       </Grid>
     </TabItem>
+    <TabItem Classes="workspace" ToolTip.Tip="Research (Ctrl+8)">
+      <TabItem.Header>
+        <Grid ColumnDefinitions="24,*">
+          <TextBlock Text="08" FontSize="10" Opacity="0.6" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="1" Text="Research" FontSize="13" VerticalAlignment="Center"/>
+        </Grid>
+      </TabItem.Header>
+      <local:ResearchWorkspace x:Name="ResearchPage"/>
+    </TabItem>
   </TabControl>
-
-  <!-- Persistent system rail: it does not expire like a toast and does not steal focus.
-       Every accepted user action can acknowledge itself here before its first await. -->
-  <Border HorizontalAlignment="Right" VerticalAlignment="Top"
-          Width="390" MinHeight="42" Margin="0,3,14,0" Padding="10,7"
-          Background="#E8171D24" BorderBrush="#3B4A59" BorderThickness="1"
-          CornerRadius="7" IsHitTestVisible="False">
-    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding SystemStatus.Label}"
-                 FontSize="10" FontWeight="SemiBold" Foreground="#5AA9E6"
-                 Margin="0,0,9,0" VerticalAlignment="Center"/>
-      <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemStatus.Message}"
-                 FontSize="11" Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis"
-                 VerticalAlignment="Center"/>
-      <ProgressBar Grid.Row="1" Grid.ColumnSpan="3" Height="2" Margin="0,5,0,0"
-                   IsIndeterminate="True" IsVisible="{Binding SystemStatus.IsBusy}"/>
-    </Grid>
-  </Border>
 
   <!-- An overlay in the visual tree, not a Popup. A Popup is an OS-level window that
        needs a placement target and silently renders nothing without one — it opened
@@ -1367,7 +1459,7 @@
        required a real window. -->
   <Border x:Name="AskPopup" IsVisible="False"
           HorizontalAlignment="Left" VerticalAlignment="Top"
-          Background="#141A21" BorderBrush="#3A4757" BorderThickness="1"
+          Background="#1B1B1B" BorderBrush="#454545" BorderThickness="1"
           CornerRadius="8" Padding="14" Width="460" BoxShadow="0 8 24 0 #99000000">
     <DockPanel>
       <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
@@ -1381,9 +1473,9 @@
                  Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
       <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
         <TextBox x:Name="AskInput" Grid.Column="0" PlaceholderText="what do you want to know?"
-                 Background="#0D1116" Foreground="{StaticResource Ink}" BorderBrush="#2A333D"/>
+                 Background="#151515" Foreground="{StaticResource Ink}" BorderBrush="#353535"/>
         <Button x:Name="AskButton" Grid.Column="1" Content="ask" Margin="8,0,0,0"
-                Background="#2F4A66" Foreground="{StaticResource Ink}" Padding="12,4"/>
+                Background="#45405B" Foreground="{StaticResource Ink}" Padding="12,4"/>
       </Grid>
       <ScrollViewer MaxHeight="300">
         <TextBlock x:Name="AskAnswer" TextWrapping="Wrap" FontSize="12"
@@ -1391,6 +1483,67 @@
       </ScrollViewer>
     </DockPanel>
   </Border>
+  <Grid x:Name="CommandOverlay" KeyboardNavigation.TabNavigation="Cycle" IsVisible="False" Background="#BF111111" ZIndex="20">
+    <Border Width="620" VerticalAlignment="Top" Margin="0,70,0,0" Padding="22"
+            Background="#242424" BorderBrush="#484848" BorderThickness="1" CornerRadius="18"
+            BoxShadow="0 18 60 0 #88000000">
+      <StackPanel Spacing="14">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Where would you like to go?" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
+            <TextBlock Text="Find a workspace or a quick action." FontSize="12" Foreground="{StaticResource Dim}"/>
+          </StackPanel>
+          <Button x:Name="CommandClose" Grid.Column="1" Content="Esc" Classes="quiet" Padding="10,5" VerticalAlignment="Top"/>
+        </Grid>
+        <TextBox x:Name="CommandSearch" PlaceholderText="Search pages and actions…" FontSize="15" Padding="12"/>
+        <ListBox x:Name="CommandResults" MaxHeight="360" Background="Transparent" BorderThickness="0">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="local:WorkspaceCommand">
+              <Grid ColumnDefinitions="*,Auto" Margin="6,7">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
+                  <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{StaticResource Dim}"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding Shortcut}" FontSize="11" Margin="16,0,0,0"
+                           Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+        <TextBlock x:Name="CommandEmpty" Text="No matching actions. Try ‘chat’, ‘tasks’, or ‘focus’."
+                   IsVisible="False" Foreground="{StaticResource Dim}" Margin="8,12"/>
+        <TextBlock Text="↑ ↓ to browse    Enter to open    Esc to return" FontSize="11" Foreground="{StaticResource Dim}"/>
+      </StackPanel>
+    </Border>
+  </Grid>
   </Panel>
   </DockPanel>
+  <Grid x:Name="ImageOverlay" IsVisible="False" Background="#ED101010" ZIndex="50" KeyboardNavigation.TabNavigation="Cycle">
+    <Border Margin="24" Padding="18" Background="#1C1C1C" CornerRadius="16" BorderBrush="#454545" BorderThickness="1">
+      <Grid RowDefinitions="Auto,*,Auto">
+        <Grid ColumnDefinitions="*,Auto" Margin="2,0,0,16">
+          <StackPanel Spacing="4" VerticalAlignment="Center" Margin="0,0,20,0">
+            <TextBlock Text="IMAGE PREVIEW" FontSize="10" LetterSpacing="2" Foreground="{StaticResource Accent}"/>
+            <TextBlock x:Name="ImageTitle" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <Button x:Name="ImageFit" Content="Fit" Classes="quiet" ToolTip.Tip="Fit the whole image (0)"/>
+            <Button x:Name="ImageActual" Content="100%" Classes="quiet" ToolTip.Tip="Actual pixel size (1)"/>
+            <Button x:Name="ImageZoomOut" Content="−" Classes="quiet" ToolTip.Tip="Zoom out (−)" AutomationProperties.Name="Zoom out"/>
+            <TextBlock x:Name="ImageScale" Width="60" TextAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource Accent}"/>
+            <Button x:Name="ImageZoomIn" Content="+" Classes="quiet" ToolTip.Tip="Zoom in (+)" AutomationProperties.Name="Zoom in"/>
+            <Button x:Name="ImageClose" Content="Close  ×" Classes="quiet" Margin="12,0,0,0" ToolTip.Tip="Close image preview (Esc)"/>
+          </StackPanel>
+        </Grid>
+        <Border Grid.Row="1" Background="#111111" CornerRadius="10" ClipToBounds="True">
+          <local:ImageViewer x:Name="ImageCanvas" Cursor="SizeAll" AutomationProperties.Name="Image preview; scroll to zoom and drag to pan"/>
+        </Border>
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="2,14,2,0">
+          <TextBlock x:Name="ImageDetails" FontSize="11" Foreground="{StaticResource Dim}" TextTrimming="CharacterEllipsis" Margin="0,0,24,0"/>
+          <TextBlock Grid.Column="1" Text="Scroll to zoom · Drag or arrow keys to pan · Esc to close" FontSize="11" Foreground="{StaticResource Dim}"/>
+        </Grid>
+      </Grid>
+    </Border>
+  </Grid>
+  </Panel>
 </Window>

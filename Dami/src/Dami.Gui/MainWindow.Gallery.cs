@@ -325,10 +325,14 @@ public sealed partial class MainWindow
         }
     }
 
-    private async Task<Bitmap?> LoadGalleryBitmapAsync(string fileName)
+    private Task<Bitmap?> LoadGalleryBitmapAsync(string fileName) =>
+        this.LoadGalleryBitmapAsync(fileName, this.lifetime.Token);
+
+    private async Task<Bitmap?> LoadGalleryBitmapAsync(string fileName, CancellationToken cancellationToken)
     {
         var path = "/gallery/" + Uri.EscapeDataString(fileName);
-        var bytes = await this.runtime.GetBytesAsync(path, this.lifetime.Token).ConfigureAwait(true);
+        var bytes = await this.runtime.GetBytesAsync(path, cancellationToken).ConfigureAwait(true);
+        cancellationToken.ThrowIfCancellationRequested();
         return bytes is null ? null : new Bitmap(new MemoryStream(bytes));
     }
 

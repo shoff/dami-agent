@@ -3,8 +3,6 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using Avalonia.Input.Platform;
-using Avalonia.Media;
 
 namespace Dami.Gui;
 
@@ -34,7 +32,6 @@ public sealed partial class MainWindow : Window
     // updates, and the poll loop dies mid-render. Look them up and fail loudly.
     private readonly TextBox input;
     private readonly Border conversationPanel;
-    private readonly WrapPanel composerFlow;
     private readonly Button sendButton;
     private readonly ToggleButton speakToggle;
     private readonly TextBlock statusLine;
@@ -49,7 +46,6 @@ public sealed partial class MainWindow : Window
         this.InitializeComponent();
         this.input = Require<TextBox>(this, "Input");
         this.conversationPanel = Require<Border>(this, "ConversationPanel");
-        this.composerFlow = Require<WrapPanel>(this, "ComposerFlow");
         this.sendButton = Require<Button>(this, "SendButton");
         this.speakToggle = Require<ToggleButton>(this, "SpeakToggle");
         this.statusLine = Require<TextBlock>(this, "StatusLine");
@@ -64,6 +60,8 @@ public sealed partial class MainWindow : Window
         // XAML was compiled, and when it silently fails the symptom is a control that
         // looks alive, accepts text, and does nothing at all when you press the button.
         this.sendButton.Click += this.OnSendClick;
+        this.conversationPanel.AddHandler(Button.ClickEvent, this.OnConversationClick);
+        this.AddHandler(InputElement.KeyDownEvent, this.OnChatKeyDown, RoutingStrategies.Tunnel);
         this.input.AddHandler(
             InputElement.KeyDownEvent, this.OnInputKeyDown,
             RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -74,10 +72,15 @@ public sealed partial class MainWindow : Window
         this.jobsMenuItem.Click += (_, _) => new JobsWindow(this.runtime).Show(this);
         this.exitMenuItem.Click += (_, _) => this.Close();
         this.aboutMenuItem.Click += (_, _) => _ = new AboutWindow().ShowDialog(this);
+        this.InitializeWorkspace();
+        this.InitializeChatScrolling();
+        this.InitializeConversationFinder();
         this.InitializeTaskBoards();
         this.InitializeFitness();
         this.InitializeNetwork();
         this.InitializeGallery();
+        this.InitializeImages();
+        this.InitializeResearch();
         this.Opened += (_, _) => _ = this.EnsureLoggedInAsync();
         _ = this.FollowAsync();
     }
@@ -125,110 +128,14 @@ public sealed partial class MainWindow : Window
 
     private void OnSendClick(object? sender, RoutedEventArgs e)
     {
-        _ = this.SendAsync();
-    }
-
-    private void OnDragOver(object? sender, DragEventArgs e) => e.DragEffects = DragDropEffects.Copy;
-
-    private void OnDrop(object? sender, DragEventArgs e)
-    {
-        e.Handled = true;
-        _ = this.StageDroppedImageAsync(e.DataTransfer.TryGetFiles());
-    }
-
-    private async Task StageDroppedImageAsync(IReadOnlyList<Avalonia.Platform.Storage.IStorageItem>? files)
-    {
-        foreach (var file in files?.Where(item => ChatImageInput.IsSupportedFile(item.Name)) ?? [])
+        if (this.chatTurns.IsRunning)
         {
-            this.StageImage(await ChatImageInput.FromFileAsync(file, this.lifetime.Token)
-                .ConfigureAwait(true));
+            this.StopReply();
+        }
+        else
+        {
+            _ = this.SendAsync();
         }
     }
 
-    private void OnPaste(object? sender, RoutedEventArgs e)
-    {
-        e.Handled = true;
-        _ = this.PasteAsync();
-    }
-
-    private async Task PasteAsync()
-    {
-        var clipboard = this.Clipboard;
-        if (clipboard is null)
-        {
-            return;
-        }
-
-        var files = await clipboard.TryGetFilesAsync().ConfigureAwait(true);
-        var imageFiles = files?.Where(item => ChatImageInput.IsSupportedFile(item.Name)).ToArray() ?? [];
-        if (imageFiles.Length > 0)
-        {
-            foreach (var file in imageFiles)
-            {
-                this.StageImage(await ChatImageInput.FromFileAsync(file, this.lifetime.Token)
-                    .ConfigureAwait(true));
-            }
-
-            return;
-        }
-
-        var bitmap = await clipboard.TryGetBitmapAsync().ConfigureAwait(true);
-        if (bitmap is not null)
-        {
-            this.StageImage(ChatImageInput.FromBitmap(bitmap));
-            return;
-        }
-
-        this.InsertPastedText(await clipboard.TryGetTextAsync().ConfigureAwait(true));
-    }
-
-    private void StageImage(DirectChatImage? image)
-    {
-        if (image is not null)
-        {
-            var pending = new PendingChatImage(image);
-            this.state.PendingImages.Add(pending);
-            this.composerFlow.Children.Insert(
-                this.composerFlow.Children.Count - 1, CreateThumbnail(pending));
-        }
-    }
-
-    private static Border CreateThumbnail(PendingChatImage pending)
-    {
-        var tile = new Border
-        {
-            Width = 58,
-            Height = 58,
-            CornerRadius = new Avalonia.CornerRadius(5),
-            ClipToBounds = true,
-            BorderBrush = new SolidColorBrush(Color.Parse("#3B4A59")),
-            BorderThickness = new Avalonia.Thickness(1),
-            Margin = new Avalonia.Thickness(0, 0, 6, 6),
-            Child = new Image { Source = pending.Thumbnail, Stretch = Stretch.UniformToFill },
-        };
-        ToolTip.SetTip(tile, pending.FileName);
-        return tile;
-    }
-
-    private void ClearComposerImages()
-    {
-        while (this.composerFlow.Children.Count > 1)
-        {
-            this.composerFlow.Children.RemoveAt(0);
-        }
-    }
-
-    private void InsertPastedText(string? text)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return;
-        }
-
-        var current = this.input.Text ?? string.Empty;
-        var start = Math.Min(this.input.SelectionStart, this.input.SelectionEnd);
-        var end = Math.Max(this.input.SelectionStart, this.input.SelectionEnd);
-        this.input.Text = current[..start] + text + current[end..];
-        this.input.CaretIndex = start + text.Length;
-    }
 }

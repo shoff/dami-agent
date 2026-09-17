@@ -10,10 +10,10 @@ public sealed class StatusBrush : IValueConverter
     /// <summary>The single instance the XAML binds to.</summary>
     public static readonly StatusBrush instance = new();
 
-    private static readonly SolidColorBrush succeeded = new(Color.Parse("#4CB782"));
+    private static readonly SolidColorBrush succeeded = new(Color.Parse("#ABA5FF"));
     private static readonly SolidColorBrush running = new(Color.Parse("#D9A441"));
     private static readonly SolidColorBrush failed = new(Color.Parse("#E0604F"));
-    private static readonly SolidColorBrush other = new(Color.Parse("#7A8694"));
+    private static readonly SolidColorBrush other = new(Color.Parse("#A0A0A0"));
 
     /// <inheritdoc />
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)

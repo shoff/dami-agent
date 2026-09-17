@@ -1,0 +1,236 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:Dami.Gui" x:Class="Dami.Gui.TaskBoardWorkspace" x:CompileBindings="False">
+  <UserControl.Styles>
+    <Style Selector="TabItem"><Setter Property="FontSize" Value="14"/><Setter Property="Padding" Value="10,8"/></Style>
+    <Style Selector="TextBlock.caption"><Setter Property="Foreground" Value="#A8A6AE"/><Setter Property="FontSize" Value="12"/></Style>
+    <Style Selector="TextBlock.section"><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="FontSize" Value="13"/></Style>
+    <Style Selector="Button"><Setter Property="Padding" Value="12,7"/></Style>
+    <Style Selector="Button.primary"><Setter Property="Background" Value="#ABA5FF"/><Setter Property="Foreground" Value="#171421"/></Style>
+    <Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style>
+    <Style Selector="TextBox"><Setter Property="MinHeight" Value="36"/></Style>
+  </UserControl.Styles>
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="16,4,4,4">
+    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+      <StackPanel Spacing="5">
+        <TextBlock Text="Plans &amp; tasks" FontSize="25" FontWeight="SemiBold"/>
+        <TextBlock Text="Choose a plan. Find the next step. Track it through to done." Classes="caption"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <Button x:Name="NewPlan" Content="+ New plan"/>
+        <Button x:Name="BoardRefresh" Content="Refresh"/>
+      </StackPanel>
+    </Grid>
+    <Border x:Name="PlanForm" Grid.Row="1" IsVisible="False" Background="#24222B" CornerRadius="8" Padding="16" Margin="0,0,0,12">
+      <ScrollViewer MaxHeight="270">
+        <StackPanel Spacing="9">
+          <TextBlock Text="Turn an idea into a plan" FontSize="18" FontWeight="SemiBold"/>
+          <TextBlock Text="Describe the outcome, constraints, and what a good result looks like." Classes="caption" TextWrapping="Wrap"/>
+          <TextBox x:Name="FeatureRequest" PlaceholderText="What would you like to accomplish?" AcceptsReturn="True" MinHeight="70" MaxHeight="120" TextWrapping="Wrap"/>
+          <WrapPanel>
+            <StackPanel Spacing="4" Margin="0,0,16,8">
+              <TextBlock Text="Planner" Classes="caption"/>
+              <ComboBox x:Name="PlannerPicker" SelectedIndex="0" Width="190">
+                <ComboBoxItem Content="Local · on this device" Tag="Local"/>
+                <ComboBoxItem Content="Dami · routed model" Tag="Dami"/>
+                <ComboBoxItem Content="Frontier · remote model" Tag="Frontier"/>
+              </ComboBox>
+            </StackPanel>
+            <StackPanel Spacing="4" Margin="0,0,16,8">
+              <TextBlock Text="Request privacy" Classes="caption"/>
+              <ComboBox x:Name="PrivacyPicker" SelectedIndex="0" Width="240">
+                <ComboBoxItem Content="Private · keep on this device" Tag="LocalOnly"/>
+                <ComboBoxItem Content="May be sent to a remote model" Tag="Egressable"/>
+              </ComboBox>
+            </StackPanel>
+            <Button x:Name="PlanButton" Content="Create plan" Classes="primary" VerticalAlignment="Bottom" Margin="0,0,8,8"/>
+            <Button x:Name="ClosePlan" Content="Close" VerticalAlignment="Bottom" Margin="0,0,0,8"/>
+          </WrapPanel>
+          <TextBlock Text="Planning drafts tasks for review. It does not carry out the work." Classes="caption"/>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+    <Border x:Name="TaskForm" Grid.Row="2" IsVisible="False" Background="#24222B" CornerRadius="8" Padding="16" Margin="0,0,0,12">
+      <ScrollViewer MaxHeight="250">
+        <StackPanel Spacing="8">
+          <TextBlock x:Name="TaskFormHeading" Text="Add a task" FontSize="18" FontWeight="SemiBold"/>
+          <TextBox x:Name="NewTaskTitle" PlaceholderText="Task title — start with an action"/>
+          <Grid ColumnDefinitions="*,12,*">
+            <TextBox x:Name="NewTaskDescription" PlaceholderText="Details (optional)" AcceptsReturn="True" MinHeight="65" MaxHeight="120" TextWrapping="Wrap"/>
+            <TextBox x:Name="NewTaskCriteria" Grid.Column="2" PlaceholderText="Done when… (one requirement per line)" AcceptsReturn="True" MinHeight="65" MaxHeight="120" TextWrapping="Wrap"/>
+          </Grid>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="SaveTask" Content="Add task" Classes="primary"/>
+            <Button x:Name="CloseTask" Content="Close"/>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+    <Grid x:Name="BoardColumns" Grid.Row="3" ColumnDefinitions="180,10,*,10,380">
+      <Border Background="#202025" CornerRadius="8" Padding="10">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <TextBlock Text="YOUR PLANS" FontSize="10" FontWeight="SemiBold" Foreground="#AAA7B8" Margin="6,4,0,10"/>
+          <TextBox x:Name="PlanSearch" Grid.Row="1" PlaceholderText="Find a plan…" Margin="0,0,0,8"/>
+          <Grid Grid.Row="2">
+            <ListBox x:Name="BoardPicker" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemTemplate><DataTemplate>
+                <StackPanel Spacing="7" Margin="2,7">
+                  <TextBlock Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+                  <TextBlock Classes="caption"><Run Text="{Binding DoneTasks}"/><Run Text=" of "/><Run Text="{Binding TotalTasks}"/><Run Text=" done"/></TextBlock>
+                  <ProgressBar Minimum="0" Maximum="{Binding TotalTasks}" Value="{Binding DoneTasks}" Height="3"/>
+                </StackPanel>
+              </DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock x:Name="PlansEmpty" Text="No plans yet. Create a plan to get started." Classes="caption" TextWrapping="Wrap" Margin="10" VerticalAlignment="Center" IsVisible="False"/>
+          </Grid>
+        </Grid>
+      </Border>
+      <Border Grid.Column="2" Background="#202025" CornerRadius="8" Padding="12">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
+          <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2"/>
+          <TextBlock x:Name="BoardProgress" Grid.Row="1" Classes="caption" Margin="0,6,0,12"/>
+          <TextBox x:Name="TaskSearch" Grid.Row="2" PlaceholderText="Search tasks, people, requirements…" Margin="0,0,0,10"/>
+          <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+            <ComboBox x:Name="TaskFilter" SelectedIndex="0" MinWidth="145" HorizontalAlignment="Left">
+              <ComboBoxItem Content="Active" Tag="Active"/><ComboBoxItem Content="In progress" Tag="InProgress"/>
+              <ComboBoxItem Content="Not started" Tag="Open"/><ComboBoxItem Content="Blocked" Tag="Blocked"/>
+              <ComboBoxItem Content="Needs you" Tag="NeedsYou"/><ComboBoxItem Content="Completed" Tag="Done"/>
+              <ComboBoxItem Content="All tasks" Tag="All"/>
+            </ComboBox>
+            <Button x:Name="AddTask" Grid.Column="1" Content="+ Task" ToolTip.Tip="Add a task to this plan"/>
+          </Grid>
+          <Grid Grid.Row="4">
+            <ListBox x:Name="TaskList" ItemsSource="{Binding Tasks}" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemTemplate><DataTemplate>
+                <StackPanel Spacing="6" Margin="3,9">
+                  <TextBlock Text="{Binding DisplayPath}" Classes="caption" FontSize="10" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Text="{Binding DisplayTitle}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" FontWeight="SemiBold"/>
+                  <TextBlock Classes="caption" TextTrimming="CharacterEllipsis"><Run Text="{Binding StatusLabel}"/><Run Text=" · "/><Run Text="{Binding OwnerLabel}"/></TextBlock>
+                </StackPanel>
+              </DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+            <StackPanel x:Name="TasksEmpty" IsVisible="False" VerticalAlignment="Center" Margin="15" Spacing="8">
+              <TextBlock Text="No tasks in this view" FontSize="16" TextAlignment="Center"/>
+              <TextBlock Text="Try another status or clear your search. You can add a task to this plan at any time." Classes="caption" TextWrapping="Wrap" TextAlignment="Center"/>
+              <Button x:Name="ClearTaskFilters" Content="Show all tasks" HorizontalAlignment="Center"/>
+            </StackPanel>
+          </Grid>
+        </Grid>
+      </Border>
+      <Border Grid.Column="4" Background="#232229" CornerRadius="8" Padding="12">
+        <TabControl x:Name="BoardInspector">
+          <TabItem Header="Task">
+            <Grid>
+              <StackPanel x:Name="TaskWelcome" VerticalAlignment="Center" Margin="18" Spacing="10">
+                <TextBlock Text="One clear next step" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <TextBlock Text="Select a task to see its details, requirements, and available actions." Classes="caption" TextWrapping="Wrap"/>
+              </StackPanel>
+              <ScrollViewer x:Name="TaskDetailScroll" IsVisible="{Binding HasSelection}" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="TaskDetail" DataContext="{Binding Selected}" Spacing="14" Margin="0,10,4,12">
+                  <TextBlock Text="{Binding DisplayPath}" Classes="caption" TextWrapping="Wrap"/>
+                  <SelectableTextBlock x:Name="TaskTitle" Text="{Binding DisplayTitle}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                  <TextBlock Classes="caption" TextWrapping="Wrap"><Run Text="{Binding StatusLabel}"/><Run Text=" · "/><Run Text="{Binding OwnerLabel}"/><Run Text=" · "/><Run Text="{Binding Priority}"/><Run Text=" priority"/></TextBlock>
+                  <local:ReplyView x:Name="TaskDescription"/>
+                  <Border Background="#302D3E" CornerRadius="6" Padding="12">
+                    <TextBlock Text="{Binding NextStep}" TextWrapping="Wrap" Foreground="#D9D5FF"/>
+                  </Border>
+                  <TextBlock x:Name="OwnerNotice" Classes="caption" TextWrapping="Wrap" IsVisible="False"/>
+                  <WrapPanel>
+                    <Button Content="Start task" Tag="Claim" IsVisible="{Binding CanClaim}" Classes="primary" Margin="0,0,8,6"/>
+                    <Button x:Name="CompleteTask" Content="Mark complete" Tag="Complete" IsVisible="{Binding CanWork}" Classes="primary" Margin="0,0,8,6"/>
+                    <Button Content="Add subtask" Tag="AddSubtask" IsVisible="{Binding CanRunWork}" Margin="0,0,0,6"/>
+                  </WrapPanel>
+                  <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Done when" Classes="section"/><TextBlock Grid.Column="1" Text="{Binding CriteriaLabel}" Classes="caption"/></Grid>
+                    <ItemsControl ItemsSource="{Binding Criteria}" IsEnabled="{Binding CanRunWork}"><ItemsControl.ItemTemplate><DataTemplate>
+                      <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" Content="{Binding ActionLabel}" Tag="Criterion" Margin="8,0,0,0"/>
+                      </Grid>
+                    </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding CanRunWork}">
+                      <TextBox x:Name="NewCriterion" PlaceholderText="Add a completion requirement…"/>
+                      <Button Grid.Column="1" Content="Add" Tag="AddCriterion" Margin="6,0,0,0"/>
+                    </Grid>
+                  </StackPanel>
+                  <Expander x:Name="SubtasksSection" Header="Subtasks" HorizontalAlignment="Stretch" IsExpanded="True" IsVisible="{Binding HasSubTasks}">
+                    <ItemsControl ItemsSource="{Binding SubTasks}"><ItemsControl.ItemTemplate><DataTemplate>
+                      <Button Tag="OpenTask" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,4">
+                        <StackPanel><TextBlock Text="{Binding DisplayTitle}" TextWrapping="Wrap"/><TextBlock Text="{Binding StatusLabel}" Classes="caption"/></StackPanel>
+                      </Button>
+                    </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                  </Expander>
+                  <Expander x:Name="DependenciesSection" Header="Waiting on" HorizontalAlignment="Stretch" IsExpanded="True" IsVisible="{Binding HasDependencies}">
+                    <ItemsControl ItemsSource="{Binding Dependencies}"><ItemsControl.ItemTemplate><DataTemplate>
+                      <Button Tag="OpenDependency" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,4">
+                        <StackPanel><TextBlock Text="{Binding Title}" TextWrapping="Wrap"/><TextBlock Text="{Binding Status}" Classes="caption"/></StackPanel>
+                      </Button>
+                    </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                  </Expander>
+                  <Expander Header="Ask Dami for advice" HorizontalAlignment="Stretch" IsVisible="{Binding CanRunWork}">
+                    <StackPanel Spacing="9">
+                      <TextBlock Text="Get suggestions for this task. Advice does not execute work or change its status." Classes="caption" TextWrapping="Wrap"/>
+                      <ComboBox x:Name="AdvicePlanner" SelectedIndex="0" HorizontalAlignment="Stretch">
+                        <ComboBoxItem Content="Local · on this device" Tag="Local"/><ComboBoxItem Content="Dami · routed model" Tag="Dami"/><ComboBoxItem Content="Frontier · remote model" Tag="Frontier"/>
+                      </ComboBox>
+                      <Button Content="Get advice" Tag="Work"/>
+                      <TextBlock x:Name="AdviceStatus" Classes="caption" TextWrapping="Wrap"/>
+                      <local:ReplyView x:Name="AdviceAnswer"/>
+                    </StackPanel>
+                  </Expander>
+                  <Expander Header="Change status" HorizontalAlignment="Stretch" IsVisible="{Binding CanRunWork}">
+                    <StackPanel Spacing="9">
+                      <TextBlock Text="Record why this task is blocked, reopened, or cancelled." Classes="caption" TextWrapping="Wrap"/>
+                      <TextBox x:Name="StatusDetail" PlaceholderText="Reason for the change" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="65"/>
+                      <WrapPanel>
+                        <Button x:Name="BlockTask" Content="Block task" Tag="Block" IsVisible="{Binding CanWork}" Margin="0,0,6,6"/>
+                        <Button Content="Reopen task" Tag="Reopen" IsVisible="{Binding CanReopen}" Margin="0,0,6,6"/>
+                        <Button Content="Cancel task" Tag="Cancel" IsVisible="{Binding CanCancel}" Margin="0,0,6,6"/>
+                      </WrapPanel>
+                    </StackPanel>
+                  </Expander>
+                </StackPanel>
+              </ScrollViewer>
+            </Grid>
+          </TabItem>
+          <TabItem Header="Plan">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+              <StackPanel Spacing="14" Margin="0,12,4,12">
+                <TextBlock Text="Original request" Classes="section"/>
+                <local:ReplyView x:Name="PlanRequest"/>
+                <TextBlock Text="Approach" Classes="section"/>
+                <local:ReplyView x:Name="PlanApproach"/>
+              </StackPanel>
+            </ScrollViewer>
+          </TabItem>
+          <TabItem Header="Activity">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+              <StackPanel Spacing="8" Margin="0,12,4,12">
+                <TextBlock Text="Recorded board activity" Classes="section"/>
+                <TextBlock x:Name="ActivityNote" Text="Loading recorded activity…" Classes="caption" TextWrapping="Wrap"/>
+                <ItemsControl ItemsSource="{Binding Activity}"><ItemsControl.ItemTemplate><DataTemplate>
+                  <StackPanel Spacing="5" Margin="0,8">
+                    <TextBlock TextWrapping="Wrap"><Run Text="{Binding Kind}"/><Run Text=" · "/><Run Text="{Binding Actor.ActorId}"/></TextBlock>
+                    <TextBlock Text="{Binding OccurredAt, StringFormat={}{0:MMM d · HH:mm}}" Classes="caption"/>
+                    <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Classes="caption"/>
+                  </StackPanel>
+                </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+              </StackPanel>
+            </ScrollViewer>
+          </TabItem>
+        </TabControl>
+      </Border>
+    </Grid>
+    <Grid Grid.Row="4" ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+      <TextBlock Text="{Binding Message}" Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center"/>
+      <Expander Grid.Column="1" x:Name="ActorSettings" Header="Acting as steve" ExpandDirection="Up" FontSize="11">
+        <StackPanel Spacing="6" Width="180" Margin="8">
+          <TextBlock Text="Recorded on task changes" Classes="caption"/>
+          <TextBox x:Name="BoardActor" Text="steve"/>
+          <ComboBox x:Name="ActorKindPicker" SelectedIndex="0" HorizontalAlignment="Stretch">
+            <ComboBoxItem Content="Person" Tag="Human"/><ComboBoxItem Content="Agent" Tag="Agent"/>
+          </ComboBox>
+        </StackPanel>
+      </Expander>
+    </Grid>
+  </Grid>
+</UserControl>
