@@ -34,7 +34,7 @@ builder.Host.UseDefaultServiceProvider(options =>
     options.ValidateOnBuild = true;
     options.ValidateScopes = true;
 });
-builder.WebHost.UseUrls("http://127.0.0.1:5810");
+builder.WebHost.UseUrls(HostUrls.Resolve(builder.Configuration));
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(
         new System.Text.Json.Serialization.JsonStringEnumConverter()));

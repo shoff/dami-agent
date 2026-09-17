@@ -1,0 +1,31 @@
+name: dami-lan-proxy
+
+# A password-protected TLS door to the loopback-only runtime, for workstations on this
+# LAN. The API itself stays on 127.0.0.1:5810 (D-005): Caddy shares the host network
+# namespace so it can reach loopback, listens on :8443 on every interface, asks for the
+# one basic-auth credential, and proxies. See README.md; runbook §"Reaching the web view
+# from another workstation".
+services:
+  caddy:
+    container_name: dami-lan-proxy
+    image: caddy:2.11.4
+    network_mode: host
+    restart: unless-stopped
+    env_file:
+      - /home/steve/.config/dami/lan-proxy.env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - dami-lan-proxy-data:/data
+      - dami-lan-proxy-config:/config
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--no-check-certificate", "--spider", "https://127.0.0.1:8443/lan-proxy/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  dami-lan-proxy-data:
+  dami-lan-proxy-config:

@@ -25,6 +25,7 @@
   .msg.you { color:var(--accent); }
   .msg .meta { color:var(--dim); font-size:11px; }
   #chatform { display:flex; gap:8px; }
+  #chatmode { background:#0d1116; color:var(--ink); border:1px solid #2a333d; border-radius:6px; padding:0 6px; }
   #chatinput { flex:1; background:#0d1116; color:var(--ink); border:1px solid #2a333d;
                border-radius:6px; padding:8px; font:inherit; }
   button { background:#233041; color:var(--ink); border:0; border-radius:6px;
@@ -145,6 +146,11 @@
   <h2>Conversation</h2>
   <div id="chatlog"></div>
   <form id="chatform">
+    <select id="chatmode" title="which model answers">
+      <option value="frontier" selected>frontier + tools</option>
+      <option value="augmented">frontier, gated memory</option>
+      <option value="local">local model</option>
+    </select>
     <input id="chatinput" placeholder="say something…" autocomplete="off">
     <button>send</button>
   </form>
@@ -598,8 +604,12 @@ $("chatform").onsubmit = async (e) => {
   $("chatinput").value = "";
   addMsg("you", text);
   const reply = addMsg("dami", "");
+  // Frontier + tools by default (ADR-0028/ADR-0030): the same answer Discord gives, so
+  // this page is a real test surface, not the local model in disguise.
+  const mode = $("chatmode").value;
   const r = await fetch("/turns/stream", {method:"POST",
-    headers:{"content-type":"application/json"}, body: JSON.stringify({message:text})});
+    headers:{"content-type":"application/json"},
+    body: JSON.stringify({message:text, frontier: mode === "frontier", augmented: mode === "augmented"})});
   const meta = `${r.headers.get("X-Dami-Route")} · ~${r.headers.get("X-Dami-Ctx-Tokens")} ctx tokens`
     + ` · trace ${(r.headers.get("X-Dami-Trace")||"").slice(0,8)}`;
   reply.querySelector(".meta").textContent = meta;

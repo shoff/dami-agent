@@ -16,7 +16,7 @@ DRY_RUN=no
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=yes
 
 UNITS=(dami-llm-guard.timer dami-host.service dami-proactive.service dami-tts.service)
-CONTAINERS=(dami-filebeat dami-kibana dami-elasticsearch dami-searxng dami-stt dami-llm dami-rerank dami-embed)
+CONTAINERS=(dami-lan-proxy dami-filebeat dami-kibana dami-elasticsearch dami-searxng dami-stt dami-llm dami-rerank dami-embed)
 
 run() {
     if [[ "$DRY_RUN" == yes ]]; then

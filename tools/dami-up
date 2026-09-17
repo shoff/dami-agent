@@ -16,7 +16,7 @@ set -euo pipefail
 DRY_RUN=no
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=yes
 
-CONTAINERS=(dami-embed dami-rerank dami-llm dami-stt dami-searxng dami-elasticsearch dami-kibana dami-filebeat)
+CONTAINERS=(dami-embed dami-rerank dami-llm dami-stt dami-searxng dami-elasticsearch dami-kibana dami-filebeat dami-lan-proxy)
 UNITS=(dami-tts.service dami-host.service dami-proactive.service dami-llm-guard.timer)
 WAIT_SECONDS="${DAMI_UP_WAIT:-180}"
 
@@ -38,6 +38,7 @@ ready_url() {
         dami-searxng) echo "http://127.0.0.1:8888/healthz" ;;
         dami-elasticsearch) echo "http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s" ;;
         dami-kibana) echo "http://127.0.0.1:5601/api/status" ;;
+        dami-lan-proxy) echo "https://127.0.0.1:8443/lan-proxy/health" ;;
         *) echo "" ;;
     esac
 }
@@ -48,7 +49,7 @@ wait_ready() {
     [[ -z "$url" ]] && return 0
     [[ "$DRY_RUN" == yes ]] && { echo "would: wait for $url"; return 0; }
     deadline=$((SECONDS + WAIT_SECONDS))
-    until curl -sf -m 5 "$url" >/dev/null 2>&1; do
+    until curl -skf -m 5 "$url" >/dev/null 2>&1; do
         if (( SECONDS >= deadline )); then
             echo "WARNING: $container did not answer at $url within ${WAIT_SECONDS}s; continuing" >&2
             return 0
