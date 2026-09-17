@@ -1074,7 +1074,7 @@ Installed GUI SHA-256: `20a1b1c2f429a9b19360c241873df9924606a65028e1c1acc8c213ac
 Installed Host Core SHA-256: `6bb09d16baa4323435d9048d21b821c67031ac383486642a686f70543ac9284e`.
 No schema migration, package, project, commit, push or PR was added.
 
-### Gemini image provider — built 2026-09-16, not deployed (ADR-0035)
+### Gemini image provider — deployed 2026-09-16, not switched on (ADR-0035)
 
 `GeminiImageGenerator` (`Dami.Providers`) is a third `IImageGenerator` behind the
 ADR-0027 gate, shaped like `OpenAiImageGenerator`: a non-Egressable prompt, an
@@ -1094,10 +1094,10 @@ Proof: `GeminiImageGeneratorTests` 26/26, `ProactiveCompositionTests` selection 
 2/2, `EgressSeamTests` pins the new holder; full gate `dotnet build Dami.sln` 0
 warnings, 0 errors and `dotnet test Dami.sln` 2,061 passed, 0 failed, 0 skipped across
 21 assemblies (2026-09-16); `dotnet format --verify-no-changes` over the changed files
-exited 0. **Not verified live:** no Gemini key exists on this host. Enabling it is three
-drop-in lines per unit (runbook §"Choosing the image provider"); the first real call is
-the proof and is not yet recorded. Not committed: the working tree carries another
-agent's uncommitted work in the same files.
+exited 0. Deployed in commit `49bf0db` (19:19 CDT). **Not verified live:** no Gemini key
+exists on this host and `Images__Provider` is unset, so Codex still draws. Enabling it is
+three env-file lines per unit (runbook §"Choosing the image provider"); the first real
+call is the proof and is not yet recorded.
 
 ### Deploys without sudo — built 2026-09-16, bootstrap not yet run
 
@@ -1111,10 +1111,12 @@ script refuses until the bootstrap has run, appends allowlist hosts to the env f
 prints the one remaining root job (a changed unit file) instead of blocking on it.
 Evidence: `bash -n` on all four scripts; the polkit rule exercised in a JS harness
 (`dami-host.service` → YES, `postgresql.service` and `manage-unit-files` → not handled).
-**Not run:** the bootstrap needs Steve's password once, so nothing is installed and the
-sudo-free path is untested end to end. Runbook §"Deploying without sudo".
+**Run** by Steve 2026-09-16 19:17 CDT; the first sudo-free `tools/deploy.sh --no-build`
+landed at 19:19 CDT from an agent shell with no password prompt: gate green, `/opt/dami`
+synced, `dami-host`/`dami-proactive`/`dami-tts` active, `/health` 200, no error lines in
+either journal. Runbook §"Deploying without sudo".
 
-### The frontier changes its own code — built 2026-09-16, not enabled (ADR-0036)
+### The frontier changes its own code — deployed 2026-09-16, not enabled (ADR-0036)
 
 `change_code`, `explain_code` and `list_code_changes` join the frontier bundle on every
 channel when `CodeWork__Enabled=true` (unset: not offered, no token cost). A task becomes
@@ -1128,5 +1130,5 @@ door, `CodeTools` the vocabulary; every run is an `execution_events` row for act
 codex CLI. Proof: `CodeToolsTests` 12/12, `CodexCodeWorkerTests` 26/26, bundle and Discord
 composition tests updated and green; full gate 0 warnings, 0 errors, 2,105 passed,
 0 failed across 21 assemblies; `dotnet format --verify-no-changes` on the 20 changed files
-exited 0. **Not verified live:** no task has hit the real CLI. Not committed: the tree
-carries another agent's uncommitted work in the same files.
+exited 0. Deployed in commit `49bf0db` (19:19 CDT) with `CodeWork__Enabled` unset, so the
+tools are not offered. **Not verified live:** no task has hit the real CLI.

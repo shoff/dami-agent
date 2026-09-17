@@ -435,8 +435,8 @@ scanning both the drop-ins and the file for the next free index. Unit-file chang
 (`tools/systemd/*.service`) are the one remaining root job; the script prints the exact
 `sudo install …` line and carries on rather than blocking a remote run.
 
-**Not yet run** (2026-09-16): the bootstrap needs Steve's password once. Until then
-`deploy.sh` stops at its first check and says so.
+**Run** 2026-09-16 19:17 CDT. The first sudo-free deploy followed at 19:19 from an agent
+shell: no prompt, gate green, restart, `/health` 200.
 
 ### dami-proactive — enabling the daily portrait (ADR-0029)
 
