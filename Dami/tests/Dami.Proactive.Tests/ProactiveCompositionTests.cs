@@ -109,6 +109,28 @@ public sealed class ProactiveCompositionTests
     }
 
     [Fact]
+    public void Enabled_DailyPortrait_Should_Draw_On_Codex_With_Gemini_Behind_It_When_A_Backup_Is_Named()
+    {
+        // Steve, 2026-09-16: Codex stays primary; a refused or failed picture goes to Gemini.
+        using var provider = Build(
+            new KeyValuePair<string, string?>("DailyPortrait:Enabled", "true"),
+            new KeyValuePair<string, string?>("Images:Backup", "Gemini"));
+
+        Assert.IsType<FallbackImageGenerator>(provider.GetRequiredService<IImageGenerator>());
+    }
+
+    [Fact]
+    public void A_Backup_Equal_To_The_Primary_Should_Register_The_Primary_Alone()
+    {
+        // Falling back to the door that just failed would bill twice for the same nothing.
+        using var provider = Build(
+            new KeyValuePair<string, string?>("DailyPortrait:Enabled", "true"),
+            new KeyValuePair<string, string?>("Images:Backup", "Codex"));
+
+        Assert.IsType<CodexSubscriptionImageGenerator>(provider.GetRequiredService<IImageGenerator>());
+    }
+
+    [Fact]
     public void Enabled_DailyPortrait_Should_Draw_On_OpenAi_When_Selected()
     {
         using var provider = Build(

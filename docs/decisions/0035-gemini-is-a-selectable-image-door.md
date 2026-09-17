@@ -79,6 +79,20 @@ HTTP door is one request and one response.
 - `OpenAiImageGenerator` is registrable again (`Images__Provider=OpenAi`), reversing the
   "no longer registered" line of ADR-0029 without changing its default.
 
+## Amendment, 2026-09-16 evening — a backup door
+
+Steve: *"keep codex as the primary, anytime a image request is refused use gemini as a
+backup"*, then *"if the image doesn't generate from the primary you retry it using
+gemini."* `Images:Backup` names a second door; `FallbackImageGenerator` calls the primary
+and, on any refusal or failure that is not the caller's own cancellation, calls the
+backup with the same request. One exception is kept: a prompt that is not Egressable was
+refused for what it contains, and a second door is not an answer to that (D-012). A
+backup equal to the primary registers the primary alone. Each door records its own
+events, so the ledger shows the primary's failure and then the backup's request.
+Evidence: `FallbackImageGeneratorTests` (10) and two composition tests. The Gemini key
+was found in the working tree at `Dami/gemini-key.txt`, untracked; it was moved to
+`~/.config/dami/gemini-key.txt` and into both env files, and the file name is now ignored.
+
 ## Reversal path
 
 Leave `Images__Provider` unset and nothing has changed at runtime. Deleting the

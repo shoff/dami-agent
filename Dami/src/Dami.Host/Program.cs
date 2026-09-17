@@ -181,10 +181,11 @@ builder.Services.Configure<OpenAiImageOptions>(
     builder.Configuration.GetSection(OpenAiImageOptions.SECTION_NAME));
 builder.Services.Configure<GeminiImageOptions>(
     builder.Configuration.GetSection(GeminiImageOptions.SECTION_NAME));
-// ADR-0035: which door draws is one drop-in line, Images__Provider; the subscription by default.
-builder.Services.AddImageGenerator(
-    builder.Configuration.GetSection(ImageProviderOptions.SECTION_NAME).Get<ImageProviderOptions>()?.Provider
-        ?? ImageProviderKind.Codex);
+// ADR-0035: which door draws is Images__Provider (the subscription by default), and
+// Images__Backup names the door that retries when the first produces no picture.
+var imageDoors = builder.Configuration.GetSection(ImageProviderOptions.SECTION_NAME).Get<ImageProviderOptions>()
+    ?? new ImageProviderOptions();
+builder.Services.AddImageGenerator(imageDoors.Provider, imageDoors.Backup);
 builder.Services.AddSingleton<InteractiveImageGenerator>();
 builder.Services.Configure<ImageGalleryOptions>(
     builder.Configuration.GetSection(ImageGalleryOptions.SECTION_NAME));

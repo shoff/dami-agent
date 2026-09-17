@@ -260,9 +260,9 @@ public static class ProactiveComposition
         services.AddSingleton<ICodexProcess, CodexProcess>();
         services.Configure<OpenAiImageOptions>(configuration.GetSection(OpenAiImageOptions.SECTION_NAME));
         services.Configure<GeminiImageOptions>(configuration.GetSection(GeminiImageOptions.SECTION_NAME));
-        services.AddImageGenerator(
-            configuration.GetSection(ImageProviderOptions.SECTION_NAME).Get<ImageProviderOptions>()?.Provider
-                ?? ImageProviderKind.Codex);
+        var imageDoors = configuration.GetSection(ImageProviderOptions.SECTION_NAME).Get<ImageProviderOptions>()
+            ?? new ImageProviderOptions();
+        services.AddImageGenerator(imageDoors.Provider, imageDoors.Backup);
         services.Configure<DailyPortraitOptions>(section);
         services.AddSingleton<IProactiveService, DailyPortraitService>();
     }

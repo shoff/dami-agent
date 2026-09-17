@@ -95,6 +95,8 @@ public sealed class EgressSeamTests
         "Dami.Providers.CodexSubscriptionImageGenerator",
         // ADR-0035: the keyed Gemini door, selected by Images:Provider; same gate, same bill.
         "Dami.Providers.GeminiImageGenerator",
+        // ADR-0035: primary plus the Images:Backup door that retries when no picture comes back.
+        "Dami.Providers.FallbackImageGenerator",
         "Dami.Proactive.Portrait.DailyPortraitService",
         // M1d: explicit user image commands, still metered and enforced by the same door.
         "Dami.Host.Discord.DiscordImageResponder",

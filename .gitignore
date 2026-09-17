@@ -498,3 +498,7 @@ appsettings.Development.json
 secrets.json
 *.pem
 *.key
+
+# Provider keys never live here; the Gemini key was found at Dami/gemini-key.txt on 2026-09-16.
+gemini-key.txt
+*-key.txt

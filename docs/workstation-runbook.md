@@ -486,12 +486,17 @@ has the exception.
 
 Both tiers draw through one `IImageGenerator`, chosen by `Images__Provider`: `Codex`
 (the default — the subscription's image tool, no key, no bill), `OpenAi`, or `Gemini`.
-Unset, nothing changes. To move the Host (Gallery, Discord, the frontier's `make_image`)
-and the proactive tier (the daily portrait) onto Gemini, each unit needs three lines in
-its steve-owned env file (§"Deploying without sudo"; no sudo), and the key must never be
-pasted into a shell history or this repository. The key comes from Google AI Studio
-(aistudio.google.com/apikey) under the Google account — the Gemini API takes a key, and
-a Google sign-in on its own feeds nothing here:
+`Images__Backup` names the door that retries when the primary produces no picture
+(refused, no file, timeout); a local-only prompt is never retried elsewhere. **Live since
+2026-09-16:** Codex primary, Gemini backup, on both tiers; the key is in
+`~/.config/dami/{host,proactive}.env` (and `~/.config/dami/gemini-key.txt`), never in the
+repository. Image output on Gemini has no free tier — about $0.067 per 1K picture on
+`gemini-3.1-flash-image` — so the backup only bills when the subscription tool fails.
+
+To move a tier onto Gemini as primary instead, or to change the key, edit its env file
+(§"Deploying without sudo"; no sudo) and never paste the key into a shell history. Keys
+come from Google AI Studio (aistudio.google.com/apikey) under the Google account, with
+billing enabled on the project:
 
 ```bash
 read -rs GEMINI_KEY     # paste the key; it never reaches the shell history
@@ -518,8 +523,9 @@ that drew it:
 psql "host=127.0.0.1 dbname=dami-data user=dami_app" -c   "select occurred_at, type, status, label from dami.execution_events where actor_id='image-gemini' order by occurred_at desc limit 5"
 ```
 
-**Not yet verified live** (2026-09-16): no Gemini key exists on this host. The first
-real call is the proof; record it here when it happens.
+Proof of the backup path: see the work-log entry for 2026-09-16 (fallback drill) — a forced
+Codex failure, then a Gemini picture, in `execution_events` for actors
+`image-codex-subscription` and `image-gemini` in that order.
 
 ### Letting Dami change her own code (ADR-0036)
 
