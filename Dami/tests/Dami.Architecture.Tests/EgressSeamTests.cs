@@ -54,6 +54,8 @@ public sealed class EgressSeamTests
         "IDiscordRest",
         "IResearchReader",
         "ISearchEngine",
+        // D2 (2026-09-29): IMAP, not HTTP, but a connection off this host all the same.
+        "IMailbox",
     ];
 
     /// <summary>The types allowed to read public pages or search (ADR-0033): the research door.</summary>

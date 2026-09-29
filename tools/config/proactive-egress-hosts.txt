@@ -4,6 +4,7 @@ api.weather.gov
 calendar.google.com
 download.nvidia.com
 github.com
+imap.gmail.com
 ubuntu.com
 www.lakevillemn.gov
 www.postgresql.org

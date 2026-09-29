@@ -198,6 +198,12 @@ public static class ProactiveComposition
         services.Configure<Dami.Proactive.Calendar.CalendarOptions>(
             configuration.GetSection(Dami.Proactive.Calendar.CalendarOptions.SECTION));
         services.AddSingleton<IProactiveService, Dami.Proactive.Calendar.CalendarCollectorService>();
+
+        // D2 (2026-09-29): Dami's own mailbox, read-only over IMAP; filed by the local model.
+        // Credentials Mailbox__User / Mailbox__Password in proactive.env. New host: imap.gmail.com.
+        services.Configure<Dami.Privacy.Mail.MailboxOptions>(configuration.GetSection(Dami.Privacy.Mail.MailboxOptions.SECTION));
+        services.AddSingleton<Dami.Contracts.Mail.IMailbox, Dami.Privacy.Mail.ImapMailbox>();
+        services.AddSingleton<IProactiveService, Dami.Proactive.Mail.MailboxCollectorService>();
     }
 
     /// <summary>

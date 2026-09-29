@@ -45,6 +45,7 @@ public static class TestDdl
         "043_expenses.sql",
         "044_scheduled_job_runs.sql",
         "045_calendar_events.sql",
+        "046_mail_items.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",
@@ -81,7 +82,7 @@ public static class TestDdl
         ArgumentNullException.ThrowIfNull(schema);
 
         return DropFitness(schema) + DropDomainFacts(schema) + DropTaskBoards(schema) + DropToolStaging(schema) + DropObservationOverlays(schema) + $"""
-            drop table if exists {schema}.calendar_events cascade;  drop table if exists {schema}.expenses cascade;  drop table if exists {schema}.research_runs cascade;  drop table if exists {schema}.gallery_image_embeddings cascade;  drop table if exists {schema}.gallery_images cascade;  drop table if exists {schema}.scheduled_job_runs cascade;  drop table if exists {schema}.scheduled_jobs cascade;  drop table if exists {schema}.skill_changes cascade;  drop table if exists {schema}.conversation_turns cascade;
+            drop table if exists {schema}.mail_items cascade;  drop table if exists {schema}.calendar_events cascade;  drop table if exists {schema}.expenses cascade;  drop table if exists {schema}.research_runs cascade;  drop table if exists {schema}.gallery_image_embeddings cascade;  drop table if exists {schema}.gallery_images cascade;  drop table if exists {schema}.scheduled_job_runs cascade;  drop table if exists {schema}.scheduled_jobs cascade;  drop table if exists {schema}.skill_changes cascade;  drop table if exists {schema}.conversation_turns cascade;
             drop table if exists {schema}.conversation_sessions cascade;
             drop table if exists {schema}.file_patch_proposals cascade;
             drop table if exists {schema}.health_event_rejections cascade;
@@ -201,7 +202,7 @@ public static class TestDdl
             + TruncateToolPromotions(schema)
             + TruncateToolProposals(schema) + TruncateSkillChanges(schema)
             + TruncateFilePatchProposals(schema) + TruncateObservationOverlays(schema) + $"""
-            delete from {schema}.calendar_events;  delete from {schema}.expenses;  delete from {schema}.research_runs;  delete from {schema}.gallery_image_embeddings;  delete from {schema}.gallery_images;  delete from {schema}.scheduled_job_runs;  delete from {schema}.scheduled_jobs;
+            delete from {schema}.mail_items;  delete from {schema}.calendar_events;  delete from {schema}.expenses;  delete from {schema}.research_runs;  delete from {schema}.gallery_image_embeddings;  delete from {schema}.gallery_images;  delete from {schema}.scheduled_job_runs;  delete from {schema}.scheduled_jobs;
             delete from {schema}.domain_fact_rejections;  delete from {schema}.domain_facts;
             delete from {schema}.health_event_rejections;  delete from {schema}.gateway_authority;  delete from {schema}.health_examined;
             delete from {schema}.health_events;  delete from {schema}.egress_briefs;
