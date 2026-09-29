@@ -1,5 +1,6 @@
 using Dami.Contracts.Gateways;
 using Dami.Contracts.Gallery;
+using Dami.Contracts.Memory;
 using Dami.Contracts.Models;
 using Dami.Contracts.Privacy;
 using Dami.Contracts.Proactive;
@@ -90,6 +91,8 @@ public sealed class DiscordGatewayWorkerTests
         public IConversationTurnStore TurnStore { get; init; } = EmptyHistory();
 
         public ISurfacingQueue Surfacings { get; init; } = NothingNoticed();
+
+        public IObservationCorpus Corpus { get; init; } = Substitute.For<IObservationCorpus>();
 
         public DiscordOptions Options { get; set; } = Configured();
 
@@ -195,6 +198,7 @@ public sealed class DiscordGatewayWorkerTests
                 vision,
                 this.Sessions,
                 this.TurnStore,
+                this.Corpus,
                 this.Surfacings,
                 LessonsStub(),
                 TimeProvider.System,
@@ -742,6 +746,52 @@ public sealed class DiscordGatewayWorkerTests
         await harness.TurnStore.Received(1).CompleteTurnAsync(
             Arg.Any<Guid>(), Arg.Any<Guid>(), "noted", Arg.Any<DateTimeOffset>(),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Record_A_Live_Exchange_Into_The_Corpus()
+    {
+        // 2026-09-16: reflection had 2 observations to read in three days of Discord use,
+        // because only the remember tool wrote to the corpus from here.
+        var harness = Listening(From("what did I lift monday"));
+        FrontierAnswers(harness, "225 for five");
+
+        await RunAsync(harness.Build());
+
+        await harness.Corpus.Received(1).RecordAsync(
+            Arg.Is<Observation>(item =>
+                item.Source == "chat"
+                && item.Body == "Steve asked: what did I lift monday — Dami answered: 225 for five"
+                && item.Metadata!["channel"] == "discord"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Not_Record_A_Turn_The_Frontier_Did_Not_Answer()
+    {
+        var harness = Listening(From("what should I do"));
+        FrontierFails(harness, new InvalidOperationException("codex down"));
+
+        await RunAsync(harness.Build());
+
+        await harness.Corpus.DidNotReceive().RecordAsync(Arg.Any<Observation>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Still_Journal_The_Exchange_When_The_Corpus_Is_Down()
+    {
+        // Steve already has his answer; a lost observation is worth a warning, not a turn.
+        var harness = Listening(From("remember this"));
+        FrontierAnswers(harness, "noted");
+        harness.Corpus.RecordAsync(Arg.Any<Observation>(), Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("postgres down"));
+
+        await RunAsync(harness.Build());
+
+        await harness.TurnStore.Received(1).CompleteTurnAsync(
+            Arg.Any<Guid>(), Arg.Any<Guid>(), "noted", Arg.Any<DateTimeOffset>(),
+            Arg.Any<CancellationToken>());
+        await harness.Corpus.Received(1).RecordAsync(Arg.Any<Observation>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

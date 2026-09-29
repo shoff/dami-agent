@@ -209,7 +209,7 @@ public sealed class PostgresSurfacingQueue : ISurfacingQueue
             $"""
             select title, feedback
               from {this.Table}
-             where feedback is not null and service_name = @service
+             where feedback is not null and service_name = @service and delivered_via is null
              order by feedback_at desc
              limit @limit;
             """);
@@ -227,6 +227,31 @@ public sealed class PostgresSurfacingQueue : ISurfacingQueue
         command.Parameters.AddWithValue("id", surfacingId);
         command.Parameters.AddWithValue("at", deliveredAt);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task PushedAsync(
+        Guid surfacingId, string via, DateTimeOffset deliveredAt, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(via);
+        await using var command = this.dataSource.CreateCommand(
+            $"update {this.Table} set status = '{STATUS_DELIVERED}', delivered_at = @at, delivered_via = @via "
+            + $"where surfacing_id = @id and status = '{STATUS_PENDING}';");
+        command.Parameters.AddWithValue("id", surfacingId);
+        command.Parameters.AddWithValue("at", deliveredAt);
+        command.Parameters.AddWithValue("via", via);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<DateTimeOffset?> LastPushedAtAsync(string via, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(via);
+        await using var command = this.dataSource.CreateCommand(
+            $"select max(delivered_at) from {this.Table} where delivered_via = @via;");
+        command.Parameters.AddWithValue("via", via);
+        var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return value is DateTime at ? new DateTimeOffset(DateTime.SpecifyKind(at, DateTimeKind.Utc)) : null;
     }
 
     /// <inheritdoc />

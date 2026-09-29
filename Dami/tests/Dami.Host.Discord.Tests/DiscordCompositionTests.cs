@@ -72,6 +72,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton<FrontierToolBundle>();
         services.AddSingleton(Substitute.For<IConversationSessionStore>());
         services.AddSingleton(Substitute.For<IConversationTurnStore>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Memory.IObservationCorpus>());
         services.AddSingleton(Substitute.For<IProactiveRunHistory>());
     }
 
@@ -83,6 +84,17 @@ public sealed class DiscordCompositionTests
         Assert.Contains(
             provider.GetServices<IHostedService>(),
             service => service is DiscordGatewayWorker);
+    }
+
+    [Fact]
+    public void Configured_Gateway_Should_Run_The_Daily_Check_In()
+    {
+        // ADR-0014 as amended 2026-09-29. It stays silent until CheckInConversationId is set.
+        using var provider = Compose();
+
+        Assert.Contains(
+            provider.GetServices<IHostedService>(),
+            service => service is DiscordDailyCheckIn);
     }
 
     [Fact]

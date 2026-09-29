@@ -1,0 +1,124 @@
+using Dami.Contracts.Proactive;
+using Dami.Gateway.Discord;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+namespace Dami.Host.Discord;
+
+/// <summary>
+/// Once a day, from <see cref="DiscordOptions.CheckInHour"/>, the single strongest pending
+/// surfacing goes to Steve's DM as a frontier turn (ADR-0014 as amended 2026-09-29).
+/// </summary>
+/// <remarks>
+/// The rest stay in the queue, riding his next message as before. A day with nothing
+/// pending sends nothing. The push is recorded on the surfacing, so the day's check-in
+/// survives a restart and H8's tuner leaves the reaction to it out. A failed attempt is
+/// explained in the DM once and not retried until the next day: every poll would
+/// otherwise add another apology.
+/// </remarks>
+public sealed class DiscordDailyCheckIn : BackgroundService
+{
+    /// <summary>How a check-in delivers, as recorded on the surfacing.</summary>
+    public const string VIA = "discord-dm";
+
+    private const int PENDING_LIMIT = 50;
+
+    private readonly DiscordAnswerer answerer;
+    private readonly ISurfacingQueue surfacings;
+    private readonly DiscordOptions options;
+    private readonly TimeProvider clock;
+    private readonly ILogger<DiscordDailyCheckIn> logger;
+    private DateTimeOffset attemptedFor = DateTimeOffset.MinValue;
+
+    /// <summary>Creates the check-in.</summary>
+    public DiscordDailyCheckIn(
+        DiscordAnswerer answerer,
+        ISurfacingQueue surfacings,
+        DiscordOptions options,
+        TimeProvider clock,
+        ILogger<DiscordDailyCheckIn> logger)
+    {
+        ArgumentNullException.ThrowIfNull(answerer);
+        ArgumentNullException.ThrowIfNull(surfacings);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(logger);
+        this.answerer = answerer;
+        this.surfacings = surfacings;
+        this.options = options;
+        this.clock = clock;
+        this.logger = logger;
+    }
+
+    /// <summary>Sends today's check-in if it is due and there is something to say.</summary>
+    /// <returns>True when a check-in reached Discord on this tick.</returns>
+    public async Task<bool> TickAsync(CancellationToken cancellationToken)
+    {
+        if (this.options.CheckInConversationId.Length == 0)
+        {
+            return false;
+        }
+
+        var due = this.DueToday();
+        if (this.clock.GetUtcNow() < due || this.attemptedFor >= due
+            || await this.surfacings.LastPushedAtAsync(VIA, cancellationToken).ConfigureAwait(false) >= due)
+        {
+            return false;
+        }
+
+        var strongest = await this.StrongestAsync(cancellationToken).ConfigureAwait(false);
+        if (strongest is null)
+        {
+            return false;
+        }
+
+        this.attemptedFor = due;
+        var outcome = await this.answerer
+            .CheckInAsync(this.options.CheckInConversationId, strongest, VIA, cancellationToken).ConfigureAwait(false);
+        this.logger.LogInformation(
+            "Daily check-in with {Service} \"{Title}\": {Outcome}",
+            strongest.ServiceName, strongest.Title, outcome.Failure ?? "sent");
+        return outcome.IsAnswered;
+    }
+
+    /// <inheritdoc />
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await this.TickAsync(stoppingToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                this.logger.LogWarning(exception, "Daily check-in tick failed");
+            }
+
+            await Task.Delay(this.options.CheckInPoll, this.clock, stoppingToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Today's check-in hour, in the configured zone, as an instant.</summary>
+    private DateTimeOffset DueToday()
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(this.options.CheckInTimeZone);
+        var local = TimeZoneInfo.ConvertTime(this.clock.GetUtcNow(), zone);
+        var at = local.Date.AddHours(this.options.CheckInHour);
+        return new DateTimeOffset(at, zone.GetUtcOffset(at));
+    }
+
+    private async Task<Surfacing?> StrongestAsync(CancellationToken cancellationToken)
+    {
+        Surfacing? strongest = null;
+        await foreach (var surfacing in this.surfacings.PendingAsync(PENDING_LIMIT, cancellationToken).ConfigureAwait(false))
+        {
+            if (strongest is null || surfacing.Confidence > strongest.Confidence)
+            {
+                strongest = surfacing;
+            }
+        }
+
+        return strongest;
+    }
+}

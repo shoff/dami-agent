@@ -225,6 +225,65 @@ public sealed class PostgresSurfacingQueueTests
     }
 
     [Fact]
+    public async Task PushedAsync_Should_Deliver_The_Surfacing()
+    {
+        await this.fixture.ResetAsync();
+        var queue = this.CreateQueue(cap: 3);
+        var surfacing = Worth("pushed item");
+        await queue.EnqueueAsync(surfacing, CancellationToken.None);
+
+        await queue.PushedAsync(surfacing.SurfacingId, "discord-dm", createdAt.AddHours(1), CancellationToken.None);
+
+        Assert.Empty(await this.PendingAsync(queue));
+    }
+
+    [Fact]
+    public async Task LastPushedAtAsync_Should_Be_The_Latest_Push_Through_That_Channel_Only()
+    {
+        await this.fixture.ResetAsync();
+        var queue = this.CreateQueue(cap: 5);
+        var first = Worth("first");
+        var second = Worth("second");
+        var pulled = Worth("pulled");
+        await queue.EnqueueAsync(first, CancellationToken.None);
+        await queue.EnqueueAsync(second, CancellationToken.None);
+        await queue.EnqueueAsync(pulled, CancellationToken.None);
+
+        Assert.Null(await queue.LastPushedAtAsync("discord-dm", CancellationToken.None));
+
+        await queue.PushedAsync(first.SurfacingId, "discord-dm", createdAt.AddDays(1), CancellationToken.None);
+        await queue.PushedAsync(second.SurfacingId, "discord-dm", createdAt.AddDays(2), CancellationToken.None);
+        await queue.DeliverAsync(pulled.SurfacingId, createdAt.AddDays(3), CancellationToken.None);
+
+        Assert.Equal(createdAt.AddDays(2), await queue.LastPushedAtAsync("discord-dm", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ReactionsForServiceAsync_Should_Leave_Out_Reactions_To_Pushed_Surfacings()
+    {
+        // ADR-0014 as amended 2026-09-29: a reaction to something Dami pushed may be
+        // rating the interruption, not the find, so the threshold tuner (H8) never sees it.
+        await this.fixture.ResetAsync();
+        var queue = this.CreateQueue(cap: 5);
+        var pushed = Worth("pushed item");
+        var pulled = Worth("pulled item");
+        await queue.EnqueueAsync(pushed, CancellationToken.None);
+        await queue.EnqueueAsync(pulled, CancellationToken.None);
+        await queue.PushedAsync(pushed.SurfacingId, "discord-dm", createdAt.AddHours(1), CancellationToken.None);
+        await queue.DeliverAsync(pulled.SurfacingId, createdAt.AddHours(1), CancellationToken.None);
+        await queue.RecordFeedbackAsync(pushed.SurfacingId, "bad: not now", createdAt.AddHours(2), CancellationToken.None);
+        await queue.RecordFeedbackAsync(pulled.SurfacingId, "good: yes", createdAt.AddHours(2), CancellationToken.None);
+
+        var reactions = new List<SurfacingReaction>();
+        await foreach (var reaction in queue.ReactionsForServiceAsync("scout", 10, CancellationToken.None))
+        {
+            reactions.Add(reaction);
+        }
+
+        Assert.Equal("pulled item", reactions.Single().Title);
+    }
+
+    [Fact]
     public void RecentAsync_Should_Reject_A_Non_Positive_Limit()
     {
         var queue = this.CreateQueue(cap: 3);

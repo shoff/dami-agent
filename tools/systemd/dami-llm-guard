@@ -10,8 +10,41 @@
 # middle of loading also reports size_vram < size. So the condition has to hold twice,
 # thirty seconds apart, before anything is restarted; a load finishes in seconds, a CPU
 # fallback does not.
+#
+# 2026-09-29: dami-llm, dami-embed and dami-rerank were stopped by hand on 2026-09-27 to
+# lend the card to another job and never started again. dami-host kept running and failed
+# every turn for forty hours (990 "Connection refused" in its journal) while this guard
+# said nothing, because a stopped sidecar was "not this guard's job". It now says so when
+# dami-host is up and a GPU sidecar is not. It does not start them: the card may still be
+# lent out, and three models landing on it would take the borrower down. Lending the card
+# on purpose is tools/dami-down, which stops dami-host too and so silences this.
 # Source of truth: tools/systemd/ in the dami-agent repository.
 set -euo pipefail
+
+GPU_SIDECARS=(dami-llm dami-embed dami-rerank)
+NOTIFY_USER="${DAMI_GUARD_NOTIFY_USER:-steve}"
+
+# The GPU sidecars that are stopped while dami-host is running, space-separated.
+stranded() {
+    systemctl is-active --quiet dami-host.service || return 0
+    local container stopped=()
+    for container in "${GPU_SIDECARS[@]}"; do
+        if [ "$(docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null)" != "true" ]; then
+            stopped+=("$container")
+        fi
+    done
+    echo "${stopped[*]}"
+}
+
+# Best effort: a desktop notification in the notify user's session. The journal line and
+# the failed unit are the record; this is the part a person sees.
+notify() {
+    local uid
+    uid=$(id -u "$NOTIFY_USER" 2>/dev/null) || return 0
+    [ -S "/run/user/$uid/bus" ] || return 0
+    runuser -u "$NOTIFY_USER" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+        notify-send --urgency=critical --app-name=Dami "$1" "$2" 2>/dev/null || true
+}
 
 degraded() {
     local placement
@@ -23,8 +56,16 @@ print("yes" if any(m.get("size_vram", 0) < m.get("size", 1) for m in models) els
 '
 }
 
+status=0
+down=$(stranded)
+if [ -n "$down" ]; then
+    echo "dami-llm-guard: dami-host is running but $down stopped; every turn will fail. Start them: docker start $down (or tools/dami-up)" >&2
+    notify "Dami cannot think" "dami-host is up but $down stopped. Run Resume Dami, or docker start $down. If you are borrowing the GPU, use Pause Dami instead."
+    status=1
+fi
+
 if [ "$(degraded)" != "yes" ]; then
-    exit 0
+    exit "$status"
 fi
 
 sleep 30
@@ -34,3 +75,4 @@ if [ "$(degraded)" = "yes" ]; then
 else
     echo "dami-llm-guard: model was loading, now in VRAM; leaving it alone"
 fi
+exit "$status"

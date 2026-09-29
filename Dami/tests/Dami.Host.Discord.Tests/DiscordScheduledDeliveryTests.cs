@@ -1,4 +1,5 @@
 using Dami.Contracts.Gallery;
+using Dami.Contracts.Memory;
 using Dami.Contracts.Models;
 using Dami.Contracts.Privacy;
 using Dami.Contracts.Proactive;
@@ -19,6 +20,7 @@ public sealed class DiscordScheduledDeliveryTests
     private readonly IProgressiveEgressChannel progressive = Substitute.For<IProgressiveEgressChannel>();
     private readonly IAugmentedTurn augmented = Substitute.For<IAugmentedTurn>();
     private readonly IConversationTurnStore turnStore = Substitute.For<IConversationTurnStore>();
+    private readonly IObservationCorpus corpus = Substitute.For<IObservationCorpus>();
 
     private static ScheduledJob Job(string? delivery) => new(
         Guid.NewGuid(), "morning portrait", "d", ScheduledJobKind.Prompt,
@@ -82,7 +84,7 @@ public sealed class DiscordScheduledDeliveryTests
             this.channel, this.augmented, new DiscordReplyStreamer(this.progressive),
             Bundle(),
             new DiscordVision(Substitute.For<IVisionClient>(), Substitute.For<IDiscordRest>(), options, NullLogger<DiscordVision>.Instance),
-            Substitute.For<IConversationSessionStore>(), this.turnStore, queue, lessons, TimeProvider.System, options,
+            Substitute.For<IConversationSessionStore>(), this.turnStore, this.corpus, queue, lessons, TimeProvider.System, options,
             NullLogger<DiscordAnswerer>.Instance);
         return new DiscordScheduledDelivery(answerer);
     }
@@ -117,6 +119,21 @@ public sealed class DiscordScheduledDeliveryTests
         await this.progressive.Received(1).BeginAsync(
             Arg.Is<OutboundContent>(content => content.ConversationId == "1543678906748641310"),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Deliver_Should_Not_Record_A_Job_As_Something_Steve_Asked()
+    {
+        // A job's request is Dami's own instruction to herself; "Steve asked: make a picture
+        // of yourself" every morning would be a false observation of Steve.
+        this.progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>()).Returns("m1");
+        this.augmented.StreamAsync(
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, OneAsync("here is your morning")));
+
+        await this.Subject().DeliverAsync(Job("discord:1543678906748641310"), CancellationToken.None);
+
+        await this.corpus.DidNotReceive().RecordAsync(Arg.Any<Observation>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

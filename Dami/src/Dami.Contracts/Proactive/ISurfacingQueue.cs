@@ -26,6 +26,16 @@ public interface ISurfacingQueue
     /// <summary>Marks a surfacing as delivered — Steve has seen it.</summary>
     Task DeliverAsync(Guid surfacingId, DateTimeOffset deliveredAt, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Marks a surfacing as delivered because Dami pushed it through <paramref name="via"/>
+    /// (ADR-0014 as amended 2026-09-29). Reactions to it stay out of
+    /// <see cref="ReactionsForServiceAsync"/>: they may rate the interruption, not the find.
+    /// </summary>
+    Task PushedAsync(Guid surfacingId, string via, DateTimeOffset deliveredAt, CancellationToken cancellationToken);
+
+    /// <summary>When Dami last pushed a surfacing through <paramref name="via"/>; null if never.</summary>
+    Task<DateTimeOffset?> LastPushedAtAsync(string via, CancellationToken cancellationToken);
+
     /// <summary>Recent surfacings in every status, newest first.</summary>
     /// <remarks>How the CLI shows history and resolves a short id to a full one.</remarks>
     IAsyncEnumerable<Surfacing> RecentAsync(int limit, CancellationToken cancellationToken);
@@ -34,7 +44,10 @@ public interface ISurfacingQueue
     /// <remarks>What the taste model trains on. Surfacings without feedback do not appear.</remarks>
     IAsyncEnumerable<SurfacingReaction> ReactionsAsync(int limit, CancellationToken cancellationToken);
 
-    /// <summary>Most recent reactions to one service's surfacings, newest first.</summary>
+    /// <summary>
+    /// Most recent reactions to one service's surfacings, newest first — only those Steve
+    /// came to himself; reactions to pushed surfacings are left out (see <see cref="PushedAsync"/>).
+    /// </summary>
     IAsyncEnumerable<SurfacingReaction> ReactionsForServiceAsync(
         string serviceName,
         int limit,

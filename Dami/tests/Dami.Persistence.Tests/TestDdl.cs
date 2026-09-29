@@ -41,6 +41,7 @@ public static class TestDdl
         "039_scheduled_job_delivery.sql",
         "040_gallery_index.sql",
         "041_research_runs.sql",
+        "042_surfacing_delivered_via.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",

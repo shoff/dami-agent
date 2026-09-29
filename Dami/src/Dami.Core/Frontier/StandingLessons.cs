@@ -19,15 +19,24 @@ public sealed class StandingLessons : IStandingLessons
 {
     private const int LIMIT = 20;
 
+    /// <summary>
+    /// A lesson Steve has not said again in this long lapses. Hermes kept every lesson it
+    /// ever drew, the wrong ones included, and users named that as a top failure (2026-09-29).
+    /// </summary>
+    private static readonly TimeSpan lifetime = TimeSpan.FromDays(90);
+
     private readonly IObservationCorpus corpus;
+    private readonly TimeProvider clock;
     private readonly ILogger<StandingLessons> logger;
 
     /// <summary>Creates the reader.</summary>
-    public StandingLessons(IObservationCorpus corpus, ILogger<StandingLessons> logger)
+    public StandingLessons(IObservationCorpus corpus, TimeProvider clock, ILogger<StandingLessons> logger)
     {
         ArgumentNullException.ThrowIfNull(corpus);
+        ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
         this.corpus = corpus;
+        this.clock = clock;
         this.logger = logger;
     }
 
@@ -36,11 +45,17 @@ public sealed class StandingLessons : IStandingLessons
     {
         var lines = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var oldest = this.clock.GetUtcNow() - lifetime;
         try
         {
             await foreach (var observation in this.corpus.FromSourceAsync(LessonTool.SOURCE, LIMIT, cancellationToken)
                 .ConfigureAwait(false))
             {
+                if (observation.OccurredAt < oldest)
+                {
+                    continue;
+                }
+
                 var body = observation.Body.Trim();
                 if (body.Length > 0 && seen.Add(body))
                 {

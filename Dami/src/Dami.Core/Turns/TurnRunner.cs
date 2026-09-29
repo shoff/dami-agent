@@ -24,8 +24,6 @@ namespace Dami.Core.Turns;
 public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
 {
     private const string ACTOR = "runtime";
-    private const int RECORDED_REQUEST_CHARS = 400;
-    private const int RECORDED_ANSWER_CHARS = 240;
 
     private readonly IContextBuilder contextBuilder;
     private readonly IModelRouter modelRouter;
@@ -358,18 +356,7 @@ public sealed class TurnRunner : ITurnRunner, ITracedTurnRunner
         string answer,
         CancellationToken cancellationToken)
     {
-        // Both halves are bounded. The GUI tabs send their whole context dump as the
-        // request, and a 13,000-character "Steve asked" is not an observation of Steve;
-        // it crowded the weekly reflection out of its own prompt (2026-09-13).
-        var asked = request.Length <= RECORDED_REQUEST_CHARS ? request : request[..RECORDED_REQUEST_CHARS] + "…";
-        var summary = answer.Length <= RECORDED_ANSWER_CHARS ? answer : answer[..RECORDED_ANSWER_CHARS] + "…";
-        var observation = new Observation(
-            Guid.NewGuid(),
-            this.clock.GetUtcNow(),
-            "chat",
-            $"Steve asked: {asked} — Dami answered: {summary}",
-            new Dictionary<string, string> { ["trace_id"] = traceId.ToString() });
-
+        var observation = ChatObservation.Of(request, answer, traceId, this.clock.GetUtcNow());
         return this.observationCorpus.RecordAsync(observation, cancellationToken);
     }
 

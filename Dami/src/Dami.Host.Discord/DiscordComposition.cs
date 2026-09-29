@@ -47,6 +47,8 @@ public static class DiscordComposition
         services.AddSingleton<Dami.Core.Scheduling.IScheduledPromptDelivery, DiscordScheduledDelivery>();
 
         services.AddHostedService<DiscordGatewayWorker>();
+        // Once a day, the strongest pending surfacing to Steve's DM (ADR-0014 as amended 2026-09-29).
+        services.AddHostedService<DiscordDailyCheckIn>();
         return services;
     }
 

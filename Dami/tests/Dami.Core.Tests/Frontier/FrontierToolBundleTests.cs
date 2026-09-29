@@ -46,10 +46,11 @@ public sealed class FrontierToolBundleTests
     private static FrontierToolCall Call(string tool, string json) =>
         new("call-1", tool, JsonDocument.Parse(json).RootElement.Clone());
 
-    private Task<FrontierToolBundle.FrontierTurnTools> ToolsAsync(string channel = "discord:1") =>
+    private Task<FrontierToolBundle.FrontierTurnTools> ToolsAsync(
+        string channel = "discord:1", string? stevesWords = "no, be brief about it") =>
         new FrontierToolBundle(
             this.images, this.portraits, this.recall, this.remember, this.lesson, this.scheduling, this.gallery, this.pictures, this.fitness, this.research, this.today,
-            this.code, NullLogger<FrontierToolBundle>.Instance).ForTurnAsync(Guid.NewGuid(), channel, CancellationToken.None);
+            this.code, NullLogger<FrontierToolBundle>.Instance).ForTurnAsync(Guid.NewGuid(), channel, stevesWords, CancellationToken.None);
 
     [Fact]
     public async Task The_Code_Tools_Should_Be_Offered_When_The_Worker_Has_Them()
@@ -174,10 +175,28 @@ public sealed class FrontierToolBundleTests
     [Fact]
     public async Task Lesson_Should_Carry_The_Channel_So_Provenance_Says_Where_It_Came_From()
     {
-        this.lesson.LearnAsync(Arg.Any<Guid>(), "discord:1", "be brief", Arg.Any<CancellationToken>())
+        this.lesson.LearnAsync(
+                Arg.Any<Guid>(), "discord:1", "be brief", "be brief", Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(FrontierToolResult.Ok("Noted."));
 
-        var result = await (await this.ToolsAsync()).HandleAsync(Call("lesson", """{"lesson":"be brief"}"""), CancellationToken.None);
+        var result = await (await this.ToolsAsync()).HandleAsync(
+            Call("lesson", """{"lesson":"be brief","quote":"be brief"}"""), CancellationToken.None);
+
+        Assert.Equal("Noted.", result.Text);
+    }
+
+    [Fact]
+    public async Task Lesson_Should_Be_Judged_Against_What_Steve_Said_This_Turn()
+    {
+        // Hermes graded its own work and learned from the grade. A lesson here has to be
+        // anchored in Steve's words, so the tool is handed them to check the quote against.
+        this.lesson.LearnAsync(
+                Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+                "no, be brief about it", Arg.Any<CancellationToken>())
+            .Returns(FrontierToolResult.Ok("Noted."));
+
+        var result = await (await this.ToolsAsync()).HandleAsync(
+            Call("lesson", """{"lesson":"be brief","quote":"be brief"}"""), CancellationToken.None);
 
         Assert.Equal("Noted.", result.Text);
     }
