@@ -105,6 +105,34 @@ public sealed class DiscordReliabilityNoticeTests
     }
 
     [Fact]
+    public async Task An_Unwritable_Memory_Should_Not_Stop_The_Notice()
+    {
+        // 2026-09-29: ~/.local/share/dami is root-owned; UnauthorizedAccessException escaped
+        // the tick and the notice was never sent at all.
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        var locked = Directory.CreateTempSubdirectory("dami-locked-");
+        File.SetUnixFileMode(locked.FullName, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        try
+        {
+            this.Reads("something broke");
+            var subject = new DiscordReliabilityNotice(
+                this.report, this.channel, this.options, this.clock,
+                Path.Combine(locked.FullName, "sub", "reliability-notice"), NullLogger<DiscordReliabilityNotice>.Instance);
+
+            Assert.True(await subject.TickAsync(CancellationToken.None));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked.FullName, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            locked.Delete(true);
+        }
+    }
+
+    [Fact]
     public async Task Should_Do_Nothing_Without_A_Configured_Conversation()
     {
         this.options.CheckInConversationId = string.Empty;

@@ -26,7 +26,7 @@ public sealed class DiscordReliabilityNotice : BackgroundService
     private readonly ILogger<DiscordReliabilityNotice> logger;
     private readonly string statePath;
 
-    /// <summary>Creates the notice, remembering the last day it spoke under the user's local data folder.</summary>
+    /// <summary>Creates the notice, remembering the last day it spoke under <c>~/.local/state/dami</c>.</summary>
     public DiscordReliabilityNotice(
         IReliabilityReport report,
         IEgressChannel channel,
@@ -109,8 +109,12 @@ public sealed class DiscordReliabilityNotice : BackgroundService
         }
     }
 
+    /// <summary>
+    /// <c>~/.local/state/dami</c>: state, per XDG, and Steve's own — <c>~/.local/share/dami</c>
+    /// is root-owned on this host (runbook §7), which is how this was found.
+    /// </summary>
     private static string DefaultStatePath() =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "dami", "reliability-notice");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "state", "dami", "reliability-notice");
 
     private DateTimeOffset SpokeFor()
     {
@@ -122,7 +126,7 @@ public sealed class DiscordReliabilityNotice : BackgroundService
                 ? at
                 : DateTimeOffset.MinValue;
         }
-        catch (IOException exception)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             this.logger.LogWarning(exception, "Could not read {Path}; treating today as unspoken", this.statePath);
             return DateTimeOffset.MinValue;
@@ -136,7 +140,7 @@ public sealed class DiscordReliabilityNotice : BackgroundService
             Directory.CreateDirectory(Path.GetDirectoryName(this.statePath)!);
             File.WriteAllText(this.statePath, due.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
         }
-        catch (IOException exception)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             this.logger.LogWarning(exception, "Could not write {Path}; a restart today may repeat the notice", this.statePath);
         }
