@@ -67,17 +67,48 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
         var reply = await this.AskAsync(this.BuildPrompt(question, context, examples), cancellationToken)
             .ConfigureAwait(false);
         var decisions = reply is null ? null : Parse(reply, context);
-        if (decisions is null)
+        if (decisions is not null)
         {
-            var reason = FailureReason(reply);
-            this.logger.LogWarning(
-                "Disclosure gate {Reason}; withholding all {Count} item(s). Reply began: {Reply}",
-                reason, context.Count, reply is null ? string.Empty : reply[..Math.Min(reply.Length, 600)]);
-            return [.. context.Select(item => new DisclosedItem(item, Disclosure.Withhold, string.Empty, reason) { Judged = false })];
+            return decisions;
         }
 
-        return decisions;
+        var reason = FailureReason(reply);
+        this.logger.LogWarning(
+            "Disclosure gate {Reason} on {Count} item(s); {Next}. Reply began: {Reply}",
+            reason, context.Count, reply is null ? "withholding all" : "retrying in smaller batches",
+            reply is null ? string.Empty : reply[..Math.Min(reply.Length, 600)]);
+        return reply is null
+            ? Unjudged(context, reason)
+            : await this.RetryAsync(question, context, examples, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// One second chance for a reply that arrived but did not parse: the items again, in
+    /// two halves. On 2026-09-29 at 14:43 one unparseable reply withheld all 23 lines of a
+    /// Discord turn; the model manages smaller batches. A half that still fails is withheld.
+    /// An unreachable model gets no retry — a second call would fail the same way.
+    /// </summary>
+    private async Task<IReadOnlyList<DisclosedItem>> RetryAsync(
+        string question, IReadOnlyList<string> context, IList<string> examples,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<IReadOnlyList<string>> batches = context.Count > 1
+            ? [context.Take(context.Count / 2).ToList(), context.Skip(context.Count / 2).ToList()]
+            : [context];
+        var decided = new List<DisclosedItem>(context.Count);
+        foreach (var batch in batches)
+        {
+            var reply = await this.AskAsync(this.BuildPrompt(question, batch, examples), cancellationToken)
+                .ConfigureAwait(false);
+            decided.AddRange(
+                (reply is null ? null : Parse(reply, batch)) ?? Unjudged(batch, FailureReason(reply) + " after retry"));
+        }
+
+        return decided;
+    }
+
+    private static List<DisclosedItem> Unjudged(IReadOnlyList<string> items, string reason) =>
+        [.. items.Select(item => new DisclosedItem(item, Disclosure.Withhold, string.Empty, reason) { Judged = false })];
 
     /// <summary>
     /// The local model's verdict, or null when it could not be reached. On 2026-09-05 the

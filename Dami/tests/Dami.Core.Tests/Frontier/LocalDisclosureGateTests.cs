@@ -71,6 +71,38 @@ public sealed class LocalDisclosureGateTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_Should_Retry_An_Unreadable_Reply_In_Two_Smaller_Batches()
+    {
+        // 2026-09-29 14:43: one unparseable reply withheld all 23 lines of a Discord turn.
+        // Smaller batches are what the model manages; the second chance costs one call per half.
+        this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(
+                "I'm not sure how to classify these, sorry.",
+                """[{"n":1,"action":"pass","text":"harmless","why":"fine"}]""",
+                """[{"n":1,"action":"withhold","text":"","why":"address"}]""");
+
+        var decided = await this.ClassifyAsync("harmless", "Steve's home address is ...");
+
+        Assert.Equal(Disclosure.Pass, decided[0].Disclosure);
+        Assert.True(decided[0].Judged);
+        Assert.Equal(Disclosure.Withhold, decided[1].Disclosure);
+        Assert.True(decided[1].Judged);
+        Assert.Equal(3, this.chatClient.ReceivedCalls().Count());
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_Should_Not_Retry_When_The_Model_Is_Unreachable()
+    {
+        this.chatClient.CompleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<string>(_ => throw new HttpRequestException("connection refused"));
+
+        var decided = await this.ClassifyAsync("a", "b");
+
+        Assert.All(decided, item => Assert.False(item.Judged));
+        Assert.Single(this.chatClient.ReceivedCalls());
+    }
+
+    [Fact]
     public async Task ClassifyAsync_Should_Withhold_A_Disguise_That_Carries_No_Rewrite()
     {
         // "Disguise" with empty text would otherwise send nothing while reporting success;
