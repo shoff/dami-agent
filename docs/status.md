@@ -406,6 +406,10 @@ this session's evidence supports him.
 | Upgrade list 2026-09 — reliability (A1, A5, A6) | done, live | `ReliabilityReport` + `DiscordReliabilityNotice` (daily when anything failed, Sundays always), sidecar probes that do real work, gate retry in halves. First notice 2026-09-29: 5 problems. |
 | Upgrade list 2026-09 — voice (E1, C6) | done, live | Discord voice notes transcribed locally into the message text; the check-in followed by its words spoken (`check-in.wav`). |
 | Upgrade list 2026-09 — receipts (D4) | done, live | migration 043 `dami.expenses`; receipt photo → local vision → ledger → DM line with the month's category total; the frontier never sees a receipt. |
+| Upgrade list 2026-09 — sources (B1) | done, live | Discord "sources"/"why?" lists every local line the last answer put before the gate and its verdict. |
+| Upgrade list 2026-09 — job memory, change-only, watch (C1, C2, C3) | done, live | migrations 044, 047; jobs see their last outputs; `onlyWhenNew` jobs stay silent on NOTHING NEW; `watchUrl` jobs ask no model while the page's hash is unchanged. |
+| Upgrade list 2026-09 — calendar and mailbox (D1, D2) | built, deployed, off until configured | migrations 045, 046; `calendar-collector` needs `Calendar__IcsUrl`, `mailbox-collector` needs `Mailbox__User`/`Mailbox__Password`, both in proactive.env; hosts allowlisted. |
+| Upgrade list 2026-09 — vault and diary (B6, B4) | done, live | `~/Data/dami-vault`: Beliefs.md, Lessons.md, Expenses/, Journal/ (nightly, local model). |
 | Pushback audit (D-011) | done | quarterly counter registered in the host; first `SelfAudit` conclusion recorded; quiet without a baseline |
 | Ledger readable and correctable (F-09/F-10) | done | `dami beliefs [date]` / `beliefs diff` (as-of reconstruction) / `retract <id> <reason>` / `note`; retraction demonstrated live |
 | Beliefs retrieved by similarity (D-009 second half) | done | migration 010 + trigger: retraction deletes the vector atomically; gate calibrated on live bge-m3 distances (relevant 0.40–0.43 vs irrelevant 0.63–0.72 → 0.60); demonstrated: unrelated query carries 0 beliefs, on-topic query exactly the 2 relevant |
