@@ -4,6 +4,7 @@ using Dami.Contracts.Privacy;
 using Dami.Contracts.Proactive;
 using Dami.Contracts.Sessions;
 using Dami.Core.Frontier;
+using Dami.Core.Scheduling;
 using Dami.Core.Turns;
 using Dami.Gateway.Discord;
 using Microsoft.Extensions.Logging;
@@ -144,10 +145,20 @@ public sealed class DiscordAnswerer
     /// <param name="FromSteve">Steve wrote the question: it may teach lessons and is recorded into the corpus.</param>
     /// <param name="Noticed">The surfacings to carry; null reads what is pending.</param>
     /// <param name="Via">Null when Steve came to them; the push channel when Dami sent them.</param>
-    private sealed record TurnShape(bool FromSteve, IReadOnlyList<Surfacing>? Noticed, string? Via);
+    /// <param name="Quiet">Nothing is shown until the whole answer is in; "NOTHING NEW" is never shown (C1).</param>
+    private sealed record TurnShape(bool FromSteve, IReadOnlyList<Surfacing>? Noticed, string? Via, bool Quiet = false);
 
     private static readonly TurnShape steveMessage = new(true, null, null);
     private static readonly TurnShape scheduledJob = new(false, null, null);
+
+    /// <summary>
+    /// Runs a scheduled job's prompt in the conversation. A quiet run shows nothing until the
+    /// whole answer is in and nothing at all when it is <see cref="JobPrompt.NOTHING_NEW"/>;
+    /// such a run is not journalled and marks no surfacing delivered.
+    /// </summary>
+    public Task<DiscordAnswerOutcome> AnswerJobAsync(
+        string conversationId, string prompt, bool quiet, CancellationToken cancellationToken) =>
+        this.AnswerTurnAsync(conversationId, prompt, [], scheduledJob with { Quiet = quiet }, cancellationToken);
 
     private async Task<DiscordAnswerOutcome> AnswerTurnAsync(
         string conversationId,
@@ -173,10 +184,9 @@ public sealed class DiscordAnswerer
         // is shown: on 2026-09-16 the answerer minted one id and the turn another, and the
         // id in the error message replayed to nothing.
         var traceId = Guid.NewGuid();
-        var outcome = await this.FrontierAsync(
-                conversationId, question, localContext, traceId, shape.FromSteve ? question : null, cancellationToken)
+        var outcome = await this.FrontierAsync(conversationId, question, localContext, traceId, shape, cancellationToken)
             .ConfigureAwait(false);
-        if (outcome.Answer is not null)
+        if (outcome.Answer is not null && !(shape.Quiet && JobPrompt.IsNothingNew(outcome.Answer)))
         {
             this.lastTurns.Answered(conversationId, traceId);
             await this.KeepAsync(sessionId, question, outcome.Answer, traceId, shape.FromSteve, cancellationToken)
@@ -252,15 +262,16 @@ public sealed class DiscordAnswerer
         string question,
         IReadOnlyList<string> localContext,
         Guid traceId,
-        string? stevesWords,
+        TurnShape shape,
         CancellationToken cancellationToken)
     {
-        var tools = await this.bundle.ForTurnAsync(traceId, DeliveryFor(conversationId), stevesWords, cancellationToken)
+        var tools = await this.bundle.ForTurnAsync(
+                traceId, DeliveryFor(conversationId), shape.FromSteve ? question : null, cancellationToken)
             .ConfigureAwait(false);
         try
         {
             var answer = await this
-                .StreamReplyAsync(conversationId, question, localContext, tools, traceId, cancellationToken)
+                .StreamReplyAsync(conversationId, question, localContext, tools, traceId, shape.Quiet, cancellationToken)
                 .ConfigureAwait(false);
             return DiscordAnswerOutcome.Answered(answer);
         }
@@ -308,29 +319,74 @@ public sealed class DiscordAnswerer
         IReadOnlyList<string> localContext,
         FrontierToolBundle.FrontierTurnTools tools,
         Guid traceId,
+        bool quiet,
         CancellationToken cancellationToken)
     {
         var stream = await this.augmented
             .StreamAsync(question, localContext, tools.Toolbox, traceId, cancellationToken).ConfigureAwait(false);
+        if (quiet)
+        {
+            var held = await this.HeldAsync(stream, cancellationToken).ConfigureAwait(false);
+            if (held is null)
+            {
+                return JobPrompt.NOTHING_NEW;
+            }
+
+            stream = held;
+        }
+
         var answer = await this.replyStreamer
             .StreamAsync(conversationId, stream, cancellationToken).ConfigureAwait(false);
         this.logger.LogInformation(
             "Discord turn {Trace} answered by the frontier on {Items} local item(s), {Pictures} picture(s)",
             stream.TraceId, stream.ContextItems, tools.Pictures.Count);
 
-        if (tools.Pictures.Count > 0)
-        {
-            await this.channel.SendAsync(
-                new OutboundContent(conversationId, string.Empty, ContentProvenance.Operational, stream.TraceId)
+        await this.SendPicturesAsync(conversationId, stream.TraceId, tools.Pictures, cancellationToken).ConfigureAwait(false);
+        return answer;
+    }
+
+    /// <summary>Pictures follow the text, in one message.</summary>
+    private Task SendPicturesAsync(
+        string conversationId, Guid traceId, IReadOnlyList<GeneratedImage> pictures, CancellationToken cancellationToken) =>
+        pictures.Count == 0
+            ? Task.CompletedTask
+            : this.channel.SendAsync(
+                new OutboundContent(conversationId, string.Empty, ContentProvenance.Operational, traceId)
                 {
-                    Attachments = tools.Pictures
+                    Attachments = pictures
                         .Select(picture => new OutboundAttachment(picture.FileName, picture.Bytes, picture.ContentType))
                         .ToList(),
                 },
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
+
+    /// <summary>The whole answer held back, replayable; null when it is "NOTHING NEW".</summary>
+    private async Task<AugmentedTurnStream?> HeldAsync(AugmentedTurnStream stream, CancellationToken cancellationToken)
+    {
+        var whole = await WholeAsync(stream.Tokens, cancellationToken).ConfigureAwait(false);
+        if (!JobPrompt.IsNothingNew(whole))
+        {
+            return stream with { Tokens = ReplayAsync(whole) };
         }
 
-        return answer;
+        this.logger.LogInformation("Discord turn {Trace}: nothing new; nothing shown", stream.TraceId);
+        return null;
+    }
+
+    private static async Task<string> WholeAsync(IAsyncEnumerable<string> tokens, CancellationToken cancellationToken)
+    {
+        var whole = new System.Text.StringBuilder();
+        await foreach (var token in tokens.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            whole.Append(token);
+        }
+
+        return whole.ToString();
+    }
+
+    private static async IAsyncEnumerable<string> ReplayAsync(string whole)
+    {
+        yield return whole;
+        await Task.CompletedTask.ConfigureAwait(false);
     }
 
     /// <summary>

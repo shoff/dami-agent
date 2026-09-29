@@ -37,6 +37,18 @@ public sealed class ScheduleToolsTests
     }
 
     [Fact]
+    public async Task A_Draft_Should_Be_Change_Only_When_Steve_Asks_For_That()
+    {
+        await this.Subject().ScheduleAsync(
+            "discord:1",
+            Arguments("""{"name":"hn","description":"d","request":"what's new on HN","cron":"0 8 * * *","timeZoneId":"America/Chicago","onlyWhenNew":true}"""),
+            CancellationToken.None);
+        await this.Subject().ScheduleAsync("discord:1", Arguments(PORTRAIT), CancellationToken.None);
+
+        Assert.Equal([true, false], this.store.Jobs.Select(job => job.OnlyWhenNew));
+    }
+
+    [Fact]
     public async Task Confirm_Should_Activate_The_Draft_By_Its_Short_Id()
     {
         var tools = this.Subject();

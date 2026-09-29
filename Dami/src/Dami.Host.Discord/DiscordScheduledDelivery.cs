@@ -31,20 +31,18 @@ public sealed class DiscordScheduledDelivery : IScheduledPromptDelivery
     /// was told. The dispatcher records the exception's message on the job, so the reason
     /// is the same one the channel saw.
     /// </remarks>
-    public async Task DeliverAsync(ScheduledJob job, CancellationToken cancellationToken)
+    public async Task<string> DeliverAsync(
+        ScheduledJob job, string prompt, bool quiet, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(job);
+        ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
         if (!this.Handles(job.Delivery))
         {
             throw new ArgumentException($"job {job.JobId} is not a Discord delivery", nameof(job));
         }
 
-        var outcome = await this.answerer.AnswerAsync(
-                job.Delivery![PREFIX.Length..], $"[scheduled job '{job.Name}'] {job.Payload}", [], cancellationToken)
+        var outcome = await this.answerer.AnswerJobAsync(job.Delivery![PREFIX.Length..], prompt, quiet, cancellationToken)
             .ConfigureAwait(false);
-        if (!outcome.IsAnswered)
-        {
-            throw new InvalidOperationException(outcome.Failure);
-        }
+        return outcome.Answer ?? throw new InvalidOperationException(outcome.Failure);
     }
 }

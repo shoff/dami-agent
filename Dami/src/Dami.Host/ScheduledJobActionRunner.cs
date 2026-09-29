@@ -19,6 +19,7 @@ public sealed class ScheduledJobActionRunner : IScheduledJobActionRunner
     private readonly IReadOnlyList<IScheduledPromptDelivery> deliveries;
     private readonly IAugmentedTurn augmented;
     private readonly ISurfacingQueue surfacings;
+    private readonly IScheduledJobRunLog runs;
     private readonly TimeProvider clock;
 
     /// <summary>Creates the runner.</summary>
@@ -26,15 +27,18 @@ public sealed class ScheduledJobActionRunner : IScheduledJobActionRunner
         IEnumerable<IScheduledPromptDelivery> deliveries,
         IAugmentedTurn augmented,
         ISurfacingQueue surfacings,
+        IScheduledJobRunLog runs,
         TimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(deliveries);
         ArgumentNullException.ThrowIfNull(augmented);
         ArgumentNullException.ThrowIfNull(surfacings);
+        ArgumentNullException.ThrowIfNull(runs);
         ArgumentNullException.ThrowIfNull(clock);
         this.deliveries = deliveries.ToList();
         this.augmented = augmented;
         this.surfacings = surfacings;
+        this.runs = runs;
         this.clock = clock;
     }
 
@@ -47,18 +51,29 @@ public sealed class ScheduledJobActionRunner : IScheduledJobActionRunner
             _ => throw new InvalidOperationException($"Unknown scheduled job kind {job.Kind}."),
         };
 
+    /// <summary>
+    /// The job sees what it said on its last runs; a change-only job with history may answer
+    /// "NOTHING NEW", which is shown nowhere and recorded as not delivered (C1, C2).
+    /// </summary>
     private async Task RunPromptAsync(ScheduledJob job, CancellationToken cancellationToken)
     {
+        var recent = await this.runs.RecentAsync(job.JobId, JobPrompt.REMEMBERED_RUNS, cancellationToken).ConfigureAwait(false);
+        var prompt = JobPrompt.Compose(job, recent);
+        var quiet = job.OnlyWhenNew && recent.Count > 0;
         var delivery = this.deliveries.FirstOrDefault(candidate => candidate.Handles(job.Delivery));
-        if (delivery is not null)
+        var said = delivery is not null
+            ? await delivery.DeliverAsync(job, prompt, quiet, cancellationToken).ConfigureAwait(false)
+            : (await this.augmented.RunAsync(prompt, cancellationToken).ConfigureAwait(false)).Answer;
+        var silent = quiet && JobPrompt.IsNothingNew(said);
+        if (delivery is null && !silent)
         {
-            await delivery.DeliverAsync(job, cancellationToken).ConfigureAwait(false);
-            return;
+            await this.surfacings.EnqueueAsync(
+                new Surfacing(Guid.NewGuid(), SERVICE, job.Name, said, 0.9, this.clock.GetUtcNow()),
+                cancellationToken).ConfigureAwait(false);
         }
 
-        var result = await this.augmented.RunAsync(job.Payload, cancellationToken).ConfigureAwait(false);
-        await this.surfacings.EnqueueAsync(
-            new Surfacing(Guid.NewGuid(), SERVICE, job.Name, result.Answer, 0.9, this.clock.GetUtcNow()),
+        await this.runs.RecordAsync(
+            new ScheduledJobRun(Guid.NewGuid(), job.JobId, this.clock.GetUtcNow(), said, !silent),
             cancellationToken).ConfigureAwait(false);
     }
 

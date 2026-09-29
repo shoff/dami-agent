@@ -42,6 +42,39 @@ public sealed class PostgresScheduledJobStoreTests
     }
 
     [Fact]
+    public async Task A_Job_Should_Round_Trip_Only_When_New()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.Store();
+        var job = Job("discord:1") with { OnlyWhenNew = true };
+
+        await store.AddAsync(job, CancellationToken.None);
+
+        Assert.True((await store.FindAsync(job.JobId, CancellationToken.None))!.OnlyWhenNew);
+        Assert.True((await store.ListAsync(CancellationToken.None)).Single().OnlyWhenNew);
+    }
+
+    [Fact]
+    public async Task The_Run_Log_Should_Return_A_Jobs_Spoken_Runs_Newest_First()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.Store();
+        var job = Job("gui");
+        await store.AddAsync(job, CancellationToken.None);
+        var log = new Dami.Persistence.Scheduling.PostgresScheduledJobRunLog(
+            this.fixture.DataSource, Microsoft.Extensions.Options.Options.Create(new PostgresOptions { SchemaName = DatabaseFixture.SCHEMA }));
+        var at = new DateTimeOffset(2026, 9, 29, 8, 0, 0, TimeSpan.Zero);
+
+        await log.RecordAsync(new ScheduledJobRun(Guid.NewGuid(), job.JobId, at.AddDays(-2), "older", true), CancellationToken.None);
+        await log.RecordAsync(new ScheduledJobRun(Guid.NewGuid(), job.JobId, at.AddDays(-1), "NOTHING NEW", false), CancellationToken.None);
+        await log.RecordAsync(new ScheduledJobRun(Guid.NewGuid(), job.JobId, at, "newest", true), CancellationToken.None);
+
+        var recent = await log.RecentAsync(job.JobId, 5, CancellationToken.None);
+
+        Assert.Equal(["newest", "older"], recent.Select(run => run.Output));
+    }
+
+    [Fact]
     public async Task A_Job_Without_Delivery_Should_Read_Back_Null()
     {
         await this.fixture.ResetAsync();

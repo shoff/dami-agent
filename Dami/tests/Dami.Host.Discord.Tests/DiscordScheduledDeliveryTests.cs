@@ -107,7 +107,7 @@ public sealed class DiscordScheduledDeliveryTests
                 Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, OneAsync("here is your morning")));
 
-        await this.Subject().DeliverAsync(Job("discord:1543678906748641310"), CancellationToken.None);
+        await this.Subject().DeliverAsync(discordJob, Prompt(discordJob), false, CancellationToken.None);
 
         await this.augmented.Received(1).StreamAsync(
             Arg.Is<string>(question => question.Contains("morning portrait", StringComparison.Ordinal)
@@ -131,9 +131,49 @@ public sealed class DiscordScheduledDeliveryTests
                 Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, OneAsync("here is your morning")));
 
-        await this.Subject().DeliverAsync(Job("discord:1543678906748641310"), CancellationToken.None);
+        await this.Subject().DeliverAsync(discordJob, Prompt(discordJob), false, CancellationToken.None);
 
         await this.corpus.DidNotReceive().RecordAsync(Arg.Any<Observation>(), Arg.Any<CancellationToken>());
+    }
+
+    private static readonly ScheduledJob discordJob = Job("discord:1543678906748641310");
+
+    private static string Prompt(ScheduledJob job) => Dami.Core.Scheduling.JobPrompt.Compose(job, []);
+
+    [Fact]
+    public async Task A_Quiet_Run_With_Nothing_New_Should_Show_Nothing_And_Journal_Nothing()
+    {
+        this.augmented.StreamAsync(
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, OneAsync("NOTHING NEW")));
+
+        var said = await this.Subject().DeliverAsync(discordJob, "prompt", true, CancellationToken.None);
+
+        Assert.Equal("NOTHING NEW", said);
+        await this.progressive.DidNotReceiveWithAnyArgs().BeginAsync(default!, default);
+        await this.turnStore.DidNotReceiveWithAnyArgs().CompleteTurnAsync(default, default, default!, default, default);
+    }
+
+    [Fact]
+    public async Task A_Quiet_Run_With_News_Should_Post_The_Whole_Answer_Once()
+    {
+        this.progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>()).Returns("m1");
+        this.augmented.StreamAsync(
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, TwoAsync("Rust 2.1 ", "is out")));
+
+        var said = await this.Subject().DeliverAsync(discordJob, "prompt", true, CancellationToken.None);
+
+        Assert.Equal("Rust 2.1 is out", said);
+        await this.progressive.Received(1).BeginAsync(
+            Arg.Is<OutboundContent>(content => content.Text == "Rust 2.1 is out"), Arg.Any<CancellationToken>());
+    }
+
+    private static async IAsyncEnumerable<string> TwoAsync(string first, string second)
+    {
+        yield return first;
+        yield return second;
+        await Task.CompletedTask;
     }
 
     [Fact]
@@ -150,7 +190,7 @@ public sealed class DiscordScheduledDeliveryTests
             .Returns(new AugmentedTurnStream(Guid.NewGuid(), 0, 0, OneAsync("a portrait")));
 
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => this.Subject().DeliverAsync(Job("discord:1543678906748641310"), CancellationToken.None));
+            () => this.Subject().DeliverAsync(discordJob, Prompt(discordJob), false, CancellationToken.None));
 
         Assert.Contains("ADR-0025", failure.Message, StringComparison.Ordinal);
         await this.channel.Received(1).SendAsync(
@@ -163,6 +203,6 @@ public sealed class DiscordScheduledDeliveryTests
     public async Task Deliver_Should_Refuse_A_Job_That_Is_Not_Its_Own()
     {
         await Assert.ThrowsAsync<ArgumentException>(
-            () => this.Subject().DeliverAsync(Job("gui"), CancellationToken.None));
+            () => this.Subject().DeliverAsync(Job("gui"), "p", false, CancellationToken.None));
     }
 }
