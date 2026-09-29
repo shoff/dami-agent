@@ -188,6 +188,7 @@ public static class ProactiveComposition
         services.AddSingleton<IProactiveService, WeatherCollectorService>();
         services.AddSingleton<IProactiveService, WeatherWindowService>();
         AddPersonalSources(services, configuration);
+        AddVault(services, configuration);
     }
 
     /// <summary>Steve's own accounts, read-only: each is a credential in proactive.env and a host on the allowlist.</summary>
@@ -204,6 +205,15 @@ public static class ProactiveComposition
         services.Configure<Dami.Privacy.Mail.MailboxOptions>(configuration.GetSection(Dami.Privacy.Mail.MailboxOptions.SECTION));
         services.AddSingleton<Dami.Contracts.Mail.IMailbox, Dami.Privacy.Mail.ImapMailbox>();
         services.AddSingleton<IProactiveService, Dami.Proactive.Mail.MailboxCollectorService>();
+    }
+
+    /// <summary>B6, B4 (2026-09-29): memory mirrored as Markdown nightly, and a diary of the day before.</summary>
+    private static void AddVault(IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<Dami.Proactive.Vault.VaultOptions>(configuration.GetSection(Dami.Proactive.Vault.VaultOptions.SECTION));
+        services.AddSingleton<Dami.Proactive.Vault.IVault, Dami.Proactive.Vault.FileVault>();
+        services.AddSingleton<IProactiveService, Dami.Proactive.Vault.VaultExportService>();
+        services.AddSingleton<IProactiveService, Dami.Proactive.Vault.DailyDiaryService>();
     }
 
     /// <summary>
