@@ -24,13 +24,14 @@ public sealed class PostgresScheduledJobRunLog : IScheduledJobRunLog
     {
         ArgumentNullException.ThrowIfNull(run);
         await using var command = this.dataSource.CreateCommand(
-            $"insert into {this.schema}.scheduled_job_runs (run_id, job_id, ran_at, output, delivered) "
-            + "values (@id, @job, @at, @output, @delivered);");
+            $"insert into {this.schema}.scheduled_job_runs (run_id, job_id, ran_at, output, delivered, fingerprint) "
+            + "values (@id, @job, @at, @output, @delivered, @fingerprint);");
         command.Parameters.AddWithValue("id", run.RunId);
         command.Parameters.AddWithValue("job", run.JobId);
-        command.Parameters.AddWithValue("at", run.RanAt);
+        command.Parameters.AddWithValue("at", run.RanAt.ToUniversalTime());
         command.Parameters.AddWithValue("output", run.Output);
         command.Parameters.AddWithValue("delivered", run.Delivered);
+        command.Parameters.AddWithValue("fingerprint", (object?)run.Fingerprint ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -53,5 +54,15 @@ public sealed class PostgresScheduledJobRunLog : IScheduledJobRunLog
         }
 
         return runs;
+    }
+
+    /// <inheritdoc />
+    public async Task<string?> LastFingerprintAsync(Guid jobId, CancellationToken cancellationToken)
+    {
+        await using var command = this.dataSource.CreateCommand(
+            $"select fingerprint from {this.schema}.scheduled_job_runs "
+            + "where job_id = @job and fingerprint is not null order by ran_at desc limit 1;");
+        command.Parameters.AddWithValue("job", jobId);
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
     }
 }

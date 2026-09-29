@@ -49,6 +49,18 @@ public sealed class ScheduleToolsTests
     }
 
     [Fact]
+    public async Task A_Watch_Should_Remember_Its_Page_And_Be_Change_Only()
+    {
+        await this.Subject().ScheduleAsync(
+            "discord:1",
+            Arguments("""{"name":"bikes","description":"d","request":"tell me about new bikes under $500","cron":"0 */4 * * *","timeZoneId":"America/Chicago","watchUrl":"https://example.org/bikes"}"""),
+            CancellationToken.None);
+
+        var draft = Assert.Single(this.store.Jobs);
+        Assert.Equal(("https://example.org/bikes", true), (draft.WatchUrl, draft.OnlyWhenNew));
+    }
+
+    [Fact]
     public async Task Confirm_Should_Activate_The_Draft_By_Its_Short_Id()
     {
         var tools = this.Subject();

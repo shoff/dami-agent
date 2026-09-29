@@ -75,6 +75,25 @@ public sealed class PostgresScheduledJobStoreTests
     }
 
     [Fact]
+    public async Task A_Watched_Job_Should_Round_Trip_Its_Url_And_Its_Last_Fingerprint_Even_When_Silent()
+    {
+        await this.fixture.ResetAsync();
+        var store = this.Store();
+        var job = Job("discord:1") with { WatchUrl = "https://example.org/listings" };
+        await store.AddAsync(job, CancellationToken.None);
+        var log = new Dami.Persistence.Scheduling.PostgresScheduledJobRunLog(
+            this.fixture.DataSource, Microsoft.Extensions.Options.Options.Create(new PostgresOptions { SchemaName = DatabaseFixture.SCHEMA }));
+        var at = new DateTimeOffset(2026, 9, 29, 8, 0, 0, TimeSpan.Zero);
+
+        Assert.Null(await log.LastFingerprintAsync(job.JobId, CancellationToken.None));
+        await log.RecordAsync(new ScheduledJobRun(Guid.NewGuid(), job.JobId, at.AddDays(-1), "a bike", true, "hash-1"), CancellationToken.None);
+        await log.RecordAsync(new ScheduledJobRun(Guid.NewGuid(), job.JobId, at, "unchanged", false, "hash-2"), CancellationToken.None);
+
+        Assert.Equal("https://example.org/listings", (await store.FindAsync(job.JobId, CancellationToken.None))!.WatchUrl);
+        Assert.Equal("hash-2", await log.LastFingerprintAsync(job.JobId, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task A_Job_Without_Delivery_Should_Read_Back_Null()
     {
         await this.fixture.ResetAsync();

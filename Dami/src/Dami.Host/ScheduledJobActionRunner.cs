@@ -1,4 +1,8 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
+using Dami.Contracts.Events;
+using Dami.Contracts.Research;
 using Dami.Contracts.Proactive;
 using Dami.Contracts.Scheduling;
 using Dami.Core.Frontier;
@@ -20,6 +24,7 @@ public sealed class ScheduledJobActionRunner : IScheduledJobActionRunner
     private readonly IAugmentedTurn augmented;
     private readonly ISurfacingQueue surfacings;
     private readonly IScheduledJobRunLog runs;
+    private readonly IResearchReader reader;
     private readonly TimeProvider clock;
 
     /// <summary>Creates the runner.</summary>
@@ -28,17 +33,20 @@ public sealed class ScheduledJobActionRunner : IScheduledJobActionRunner
         IAugmentedTurn augmented,
         ISurfacingQueue surfacings,
         IScheduledJobRunLog runs,
+        IResearchReader reader,
         TimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(deliveries);
         ArgumentNullException.ThrowIfNull(augmented);
         ArgumentNullException.ThrowIfNull(surfacings);
         ArgumentNullException.ThrowIfNull(runs);
+        ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(clock);
         this.deliveries = deliveries.ToList();
         this.augmented = augmented;
         this.surfacings = surfacings;
         this.runs = runs;
+        this.reader = reader;
         this.clock = clock;
     }
 
@@ -57,8 +65,18 @@ public sealed class ScheduledJobActionRunner : IScheduledJobActionRunner
     /// </summary>
     private async Task RunPromptAsync(ScheduledJob job, CancellationToken cancellationToken)
     {
+        (string Hash, bool Changed)? fingerprint = job.WatchUrl is null ? null : await this.WatchAsync(job, cancellationToken).ConfigureAwait(false);
+        if (fingerprint is { Changed: false })
+        {
+            await this.runs.RecordAsync(
+                new ScheduledJobRun(Guid.NewGuid(), job.JobId, this.clock.GetUtcNow(), "unchanged", false, fingerprint.Value.Hash),
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         var recent = await this.runs.RecentAsync(job.JobId, JobPrompt.REMEMBERED_RUNS, cancellationToken).ConfigureAwait(false);
-        var prompt = JobPrompt.Compose(job, recent);
+        var prompt = JobPrompt.Compose(job, recent)
+            + (fingerprint is null ? string.Empty : $"\n\nThe page {job.WatchUrl} changed since the last check; read it to see how.");
         var quiet = job.OnlyWhenNew && recent.Count > 0;
         var delivery = this.deliveries.FirstOrDefault(candidate => candidate.Handles(job.Delivery));
         var said = delivery is not null
@@ -73,8 +91,30 @@ public sealed class ScheduledJobActionRunner : IScheduledJobActionRunner
         }
 
         await this.runs.RecordAsync(
-            new ScheduledJobRun(Guid.NewGuid(), job.JobId, this.clock.GetUtcNow(), said, !silent),
+            new ScheduledJobRun(Guid.NewGuid(), job.JobId, this.clock.GetUtcNow(), said, !silent, fingerprint?.Hash),
             cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The deterministic gate for a watched page (C3): fetch, hash, compare. The page is
+    /// untrusted, so it only decides whether the job runs; it is never put in the prompt —
+    /// the frontier reads it through read_page, under the no-tools-after-research rule.
+    /// </summary>
+    private async Task<(string Hash, bool Changed)> WatchAsync(ScheduledJob job, CancellationToken cancellationToken)
+    {
+        var page = await this.reader.ReadAsync(new Uri(job.WatchUrl!), Guid.NewGuid(), ExecutionOrigin.ScheduledService, cancellationToken)
+            .ConfigureAwait(false);
+        var hash = Fingerprint(page.Text);
+        var last = await this.runs.LastFingerprintAsync(job.JobId, cancellationToken).ConfigureAwait(false);
+        return (hash, !string.Equals(last, hash, StringComparison.Ordinal));
+    }
+
+    /// <summary>The page's text with whitespace collapsed, hashed: layout churn is not a change.</summary>
+    public static string Fingerprint(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var collapsed = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(collapsed)));
     }
 
     private static async Task RunCommandAsync(

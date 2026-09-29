@@ -24,8 +24,8 @@ public sealed class PostgresScheduledJobStore : IScheduledJobStore
     public async Task<ScheduledJob> AddAsync(ScheduledJob job, CancellationToken cancellationToken)
     {
         await using var command = this.dataSource.CreateCommand(
-            $"insert into {this.Table} (job_id,name,description,kind,payload,arguments,cron_expression,time_zone_id,status,created_at,confirmed_at,next_run_at,last_run_at,last_run_status,delivery,only_when_new) "
-            + "values (@id,@name,@description,@kind,@payload,@arguments::jsonb,@cron,@zone,@status,@created,@confirmed,@next,@last,@last_status,@delivery,@only_when_new)");
+            $"insert into {this.Table} (job_id,name,description,kind,payload,arguments,cron_expression,time_zone_id,status,created_at,confirmed_at,next_run_at,last_run_at,last_run_status,delivery,only_when_new,watch_url) "
+            + "values (@id,@name,@description,@kind,@payload,@arguments::jsonb,@cron,@zone,@status,@created,@confirmed,@next,@last,@last_status,@delivery,@only_when_new,@watch_url)");
         AddParameters(command, job);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return job;
@@ -35,7 +35,7 @@ public sealed class PostgresScheduledJobStore : IScheduledJobStore
     public async Task<ScheduledJob?> FindAsync(Guid jobId, CancellationToken cancellationToken)
     {
         await using var command = this.dataSource.CreateCommand(
-            $"select job_id,name,description,kind,payload,arguments,cron_expression,time_zone_id,status,created_at,confirmed_at,next_run_at,last_run_at,last_run_status,delivery,only_when_new from {this.Table} where job_id=@id");
+            $"select job_id,name,description,kind,payload,arguments,cron_expression,time_zone_id,status,created_at,confirmed_at,next_run_at,last_run_at,last_run_status,delivery,only_when_new,watch_url from {this.Table} where job_id=@id");
         command.Parameters.AddWithValue("id", jobId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? Read(reader) : null;
@@ -45,7 +45,7 @@ public sealed class PostgresScheduledJobStore : IScheduledJobStore
     public async Task<ScheduledJob> UpdateAsync(ScheduledJob job, CancellationToken cancellationToken)
     {
         await using var command = this.dataSource.CreateCommand(
-            $"update {this.Table} set name=@name,description=@description,kind=@kind,payload=@payload,arguments=@arguments::jsonb,cron_expression=@cron,time_zone_id=@zone,status=@status,created_at=@created,confirmed_at=@confirmed,next_run_at=@next,last_run_at=@last,last_run_status=@last_status,delivery=@delivery,only_when_new=@only_when_new where job_id=@id");
+            $"update {this.Table} set name=@name,description=@description,kind=@kind,payload=@payload,arguments=@arguments::jsonb,cron_expression=@cron,time_zone_id=@zone,status=@status,created_at=@created,confirmed_at=@confirmed,next_run_at=@next,last_run_at=@last,last_run_status=@last_status,delivery=@delivery,only_when_new=@only_when_new,watch_url=@watch_url where job_id=@id");
         AddParameters(command, job);
         if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
         {
@@ -59,7 +59,7 @@ public sealed class PostgresScheduledJobStore : IScheduledJobStore
     public async Task<IReadOnlyList<ScheduledJob>> ListAsync(CancellationToken cancellationToken)
     {
         await using var command = this.dataSource.CreateCommand(
-            $"select job_id,name,description,kind,payload,arguments,cron_expression,time_zone_id,status,created_at,confirmed_at,next_run_at,last_run_at,last_run_status,delivery,only_when_new from {this.Table} order by created_at desc");
+            $"select job_id,name,description,kind,payload,arguments,cron_expression,time_zone_id,status,created_at,confirmed_at,next_run_at,last_run_at,last_run_status,delivery,only_when_new,watch_url from {this.Table} order by created_at desc");
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var jobs = new List<ScheduledJob>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -88,6 +88,7 @@ public sealed class PostgresScheduledJobStore : IScheduledJobStore
         command.Parameters.AddWithValue("last_status", (object?)job.LastRunStatus ?? DBNull.Value);
         command.Parameters.AddWithValue("delivery", (object?)job.Delivery ?? DBNull.Value);
         command.Parameters.AddWithValue("only_when_new", job.OnlyWhenNew);
+        command.Parameters.AddWithValue("watch_url", (object?)job.WatchUrl ?? DBNull.Value);
     }
 
     private static ScheduledJob Read(NpgsqlDataReader reader) => new(
@@ -101,5 +102,6 @@ public sealed class PostgresScheduledJobStore : IScheduledJobStore
         reader.IsDBNull(12) ? null : reader.GetFieldValue<DateTimeOffset>(12),
         reader.IsDBNull(13) ? null : reader.GetString(13),
         reader.IsDBNull(14) ? null : reader.GetString(14),
-        reader.GetBoolean(15));
+        reader.GetBoolean(15),
+        reader.IsDBNull(16) ? null : reader.GetString(16));
 }

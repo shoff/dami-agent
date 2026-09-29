@@ -76,6 +76,12 @@ public sealed class ScheduleTools : IFrontierScheduling
                 request = new { type = "string", description = "The request to run each time, as Steve would phrase it to you." },
                 cron = new { type = "string", description = "Five-field cron expression, e.g. '0 7 * * *'." },
                 timeZoneId = new { type = "string", description = "IANA time zone, e.g. 'America/Chicago'." },
+                watchUrl = new
+                {
+                    type = "string",
+                    description = "A public page to watch ('tell me when this listing changes'): it is checked each run "
+                        + "and the job runs only when the page changed. Implies onlyWhenNew.",
+                },
                 onlyWhenNew = new
                 {
                     type = "boolean",
@@ -109,16 +115,25 @@ public sealed class ScheduleTools : IFrontierScheduling
             Argument(arguments, "name"), Argument(arguments, "description"), ScheduledJobKind.Prompt,
             Argument(arguments, "request"), [], Argument(arguments, "cron"), Argument(arguments, "timeZoneId"),
             channel,
-            arguments.TryGetProperty("onlyWhenNew", out var onlyWhenNew) && onlyWhenNew.ValueKind == JsonValueKind.True);
+            arguments.TryGetProperty("onlyWhenNew", out var onlyWhenNew) && onlyWhenNew.ValueKind == JsonValueKind.True,
+            WatchUrl(arguments));
         var draft = await this.service.CreateDraftAsync(proposal, cancellationToken).ConfigureAwait(false);
         this.logger.LogInformation("Drafted job {Id} '{Name}' for {Channel}", draft.JobId, draft.Name, channel);
         return FrontierToolResult.Ok(
             $"Draft {ShortId(draft)} created, not active: '{draft.Name}' runs \"{draft.Payload}\" on "
             + $"cron '{draft.CronExpression}' ({draft.TimeZoneId}), delivered here"
+            + (draft.WatchUrl is { } watched ? $", checking {watched} and running only when it changed" : string.Empty)
             + (draft.OnlyWhenNew ? " only when something is new since its last run" : string.Empty)
             + ". Tell Steve this and "
             + $"ask him to confirm; when he says yes, call {CONFIRM} with draftId {ShortId(draft)}.");
     }
+
+    /// <summary>An absolute https page to watch, or null.</summary>
+    private static string? WatchUrl(JsonElement arguments) =>
+        arguments.TryGetProperty("watchUrl", out var url) && url.ValueKind == JsonValueKind.String
+        && Uri.TryCreate(url.GetString(), UriKind.Absolute, out var page) && page.Scheme == Uri.UriSchemeHttps
+            ? page.AbsoluteUri
+            : null;
 
     /// <inheritdoc />
     public async Task<FrontierToolResult> ConfirmAsync(string draftId, CancellationToken cancellationToken)

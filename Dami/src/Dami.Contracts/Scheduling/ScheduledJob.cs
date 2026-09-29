@@ -33,7 +33,8 @@ public sealed record ScheduledJobProposal(
     string CronExpression,
     string TimeZoneId,
     string? Delivery = null,
-    bool OnlyWhenNew = false);
+    bool OnlyWhenNew = false,
+    string? WatchUrl = null);
 
 /// <summary>A durable recurring job and its latest scheduling state.</summary>
 public sealed record ScheduledJob(
@@ -52,4 +53,5 @@ public sealed record ScheduledJob(
     DateTimeOffset? LastRunAt,
     string? LastRunStatus,
     string? Delivery = null,
-    bool OnlyWhenNew = false);
+    bool OnlyWhenNew = false,
+    string? WatchUrl = null);

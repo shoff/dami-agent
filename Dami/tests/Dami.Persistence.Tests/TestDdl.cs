@@ -46,6 +46,7 @@ public static class TestDdl
         "044_scheduled_job_runs.sql",
         "045_calendar_events.sql",
         "046_mail_items.sql",
+        "047_watched_pages.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",
