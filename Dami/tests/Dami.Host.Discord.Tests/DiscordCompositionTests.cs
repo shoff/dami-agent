@@ -23,16 +23,20 @@ namespace Dami.Host.Discord.Tests;
 /// </remarks>
 public sealed class DiscordCompositionTests
 {
-    private static ServiceProvider Compose()
+    private static ServiceProvider Compose(params (string Key, string Value)[] extra)
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Discord:Enabled"] = "true",
-                ["Discord:Token"] = "a-token",
-                ["Discord:OwnerUserId"] = "347544641295613953",
-            })
-            .Build();
+        var settings = new Dictionary<string, string?>
+        {
+            ["Discord:Enabled"] = "true",
+            ["Discord:Token"] = "a-token",
+            ["Discord:OwnerUserId"] = "347544641295613953",
+        };
+        foreach (var (key, value) in extra)
+        {
+            settings[key] = value;
+        }
+
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -84,6 +88,22 @@ public sealed class DiscordCompositionTests
         Assert.Contains(
             provider.GetServices<IHostedService>(),
             service => service is DiscordGatewayWorker);
+    }
+
+    [Fact]
+    public void The_Check_In_Settings_Should_Be_Read_From_Configuration()
+    {
+        // 2026-09-29: the first deploy set Discord__CheckInConversationId and the check-in
+        // stayed silent, because Read copies each key by hand and these were missing.
+        using var provider = Compose(
+            ("Discord:CheckInConversationId", "1543678906748641310"),
+            ("Discord:CheckInHour", "8"),
+            ("Discord:CheckInTimeZone", "UTC"));
+
+        var options = provider.GetRequiredService<Dami.Gateway.Discord.DiscordOptions>();
+        Assert.Equal("1543678906748641310", options.CheckInConversationId);
+        Assert.Equal(8, options.CheckInHour);
+        Assert.Equal("UTC", options.CheckInTimeZone);
     }
 
     [Fact]

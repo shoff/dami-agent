@@ -92,6 +92,9 @@ public static class DiscordComposition
                 section["TypingRefreshSeconds"], out var typingSeconds) && typingSeconds > 0
                 ? TimeSpan.FromSeconds(typingSeconds)
                 : TimeSpan.FromSeconds(8),
+            CheckInConversationId = section["CheckInConversationId"] ?? string.Empty,
+            CheckInHour = int.TryParse(section["CheckInHour"], out var hour) && hour is >= 0 and <= 23 ? hour : 9,
+            CheckInTimeZone = section["CheckInTimeZone"] is { Length: > 0 } zone ? zone : "America/Chicago",
         };
     }
 }
