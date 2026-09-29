@@ -94,6 +94,8 @@ public sealed class DiscordGatewayWorkerTests
 
         public IObservationCorpus Corpus { get; init; } = Substitute.For<IObservationCorpus>();
 
+        public ITranscriptionClient Transcription { get; init; } = Substitute.For<ITranscriptionClient>();
+
         public DiscordOptions Options { get; set; } = Configured();
 
         private static IFrontierRecall RecallStub()
@@ -217,6 +219,7 @@ public sealed class DiscordGatewayWorkerTests
                     this.Images, this.Portraits, this.Channel, NullLogger<DiscordImageResponder>.Instance),
                 new DiscordTypingIndicator(
                     this.Rest, this.Options, NullLogger<DiscordTypingIndicator>.Instance),
+                new DiscordHearing(this.Transcription, this.Rest, this.Options, NullLogger<DiscordHearing>.Instance),
                 Substitute.For<IProactiveRunHistory>(),
                 TimeProvider.System,
                 this.Options,
@@ -745,6 +748,25 @@ public sealed class DiscordGatewayWorkerTests
 
         await harness.TurnStore.Received(1).CompleteTurnAsync(
             Arg.Any<Guid>(), Arg.Any<Guid>(), "noted", Arg.Any<DateTimeOffset>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Answer_A_Voice_Note_By_What_Was_Said()
+    {
+        var harness = Listening(new InboundMessage("owner", "chan-1", "", DateTimeOffset.UnixEpoch)
+        {
+            Attachments = [new InboundAttachment("voice-message.ogg", "https://cdn/v.ogg", "audio/ogg", 30_000)],
+        });
+        harness.Rest.DownloadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new byte[] { 1 });
+        harness.Transcription.TranscribeAsync(Arg.Any<byte[]>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("what's on tomorrow");
+        FrontierAnswers(harness, "nothing yet");
+
+        await RunAsync(harness.Build());
+
+        await harness.Augmented.Received(1).StreamAsync(
+            "what's on tomorrow", Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(),
             Arg.Any<CancellationToken>());
     }
 

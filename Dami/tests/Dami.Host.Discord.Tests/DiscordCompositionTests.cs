@@ -76,6 +76,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton<FrontierToolBundle>();
         services.AddSingleton(Substitute.For<IConversationSessionStore>());
         services.AddSingleton(Substitute.For<IConversationTurnStore>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Models.ITranscriptionClient>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Memory.IObservationCorpus>());
         services.AddSingleton(Substitute.For<IProactiveRunHistory>());
     }

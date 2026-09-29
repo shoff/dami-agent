@@ -22,6 +22,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
     private readonly DiscordAnswerer answerer;
     private readonly DiscordImageResponder images;
     private readonly DiscordTypingIndicator typing;
+    private readonly DiscordHearing hearing;
     private readonly IProactiveRunHistory history;
     private readonly TimeProvider clock;
     private readonly DiscordOptions options;
@@ -34,6 +35,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         DiscordAnswerer answerer,
         DiscordImageResponder images,
         DiscordTypingIndicator typing,
+        DiscordHearing hearing,
         IProactiveRunHistory history,
         TimeProvider clock,
         DiscordOptions options,
@@ -44,6 +46,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         ArgumentNullException.ThrowIfNull(answerer);
         ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(typing);
+        ArgumentNullException.ThrowIfNull(hearing);
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(options);
@@ -54,6 +57,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         this.answerer = answerer;
         this.images = images;
         this.typing = typing;
+        this.hearing = hearing;
         this.history = history;
         this.clock = clock;
         this.options = options;
@@ -146,8 +150,10 @@ public sealed class DiscordGatewayWorker : BackgroundService
     /// Answers one message: operational questions from runtime state, explicit picture
     /// requests on the fast path, everything else through <see cref="DiscordAnswerer"/>.
     /// </summary>
-    private async Task AnswerAsync(InboundMessage message, CancellationToken cancellationToken)
+    private async Task AnswerAsync(InboundMessage received, CancellationToken cancellationToken)
     {
+        // A voice note is words; everything after this sees the transcript as the text.
+        var message = await this.hearing.HearAsync(received, cancellationToken).ConfigureAwait(false);
         if (await this.TryOperationalAsync(message, cancellationToken).ConfigureAwait(false))
         {
             return;

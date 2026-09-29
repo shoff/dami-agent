@@ -37,6 +37,10 @@ public sealed record InboundAttachment(
     /// <summary>Whether the local vision model can be asked about this.</summary>
     public bool IsImage =>
         this.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Whether the local speech-to-text sidecar can be asked about this.</summary>
+    public bool IsAudio =>
+        this.ContentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>A file Dami is sending out, with its bytes.</summary>

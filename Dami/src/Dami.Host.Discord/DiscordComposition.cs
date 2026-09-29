@@ -35,21 +35,27 @@ public static class DiscordComposition
         }
 
         AddTransport(services, options);
+        AddAnswering(services);
 
+        services.AddHostedService<DiscordGatewayWorker>();
+        // Once a day, the strongest pending surfacing to Steve's DM (ADR-0014 as amended 2026-09-29).
+        services.AddHostedService<DiscordDailyCheckIn>();
+        return services;
+    }
+
+    private static void AddAnswering(IServiceCollection services)
+    {
         // The local vision model reads what Steve sends; the caption becomes context and
         // the image itself never leaves this host (ADR-0026).
         services.AddSingleton<DiscordVision>();
+        // Voice notes are transcribed on this host (L3); only the words go on.
+        services.AddSingleton<DiscordHearing>();
         services.AddSingleton<DiscordReplyStreamer>();
         services.AddSingleton<DiscordImageResponder>();
         services.AddSingleton<DiscordTypingIndicator>();
         services.AddSingleton<DiscordAnswerer>();
         // A job drafted here comes back here (ADR-0030, migration 039).
         services.AddSingleton<Dami.Core.Scheduling.IScheduledPromptDelivery, DiscordScheduledDelivery>();
-
-        services.AddHostedService<DiscordGatewayWorker>();
-        // Once a day, the strongest pending surfacing to Steve's DM (ADR-0014 as amended 2026-09-29).
-        services.AddHostedService<DiscordDailyCheckIn>();
-        return services;
     }
 
     private static void AddTransport(IServiceCollection services, DiscordOptions options)
