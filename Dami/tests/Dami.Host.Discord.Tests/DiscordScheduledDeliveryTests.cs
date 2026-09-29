@@ -84,7 +84,7 @@ public sealed class DiscordScheduledDeliveryTests
             this.channel, this.augmented, new DiscordReplyStreamer(this.progressive),
             Bundle(),
             new DiscordVision(Substitute.For<IVisionClient>(), Substitute.For<IDiscordRest>(), options, NullLogger<DiscordVision>.Instance),
-            Substitute.For<IConversationSessionStore>(), this.turnStore, this.corpus, queue, lessons, TimeProvider.System, options,
+            Substitute.For<IConversationSessionStore>(), this.turnStore, this.corpus, queue, new DiscordLastTurns(), lessons, TimeProvider.System, options,
             NullLogger<DiscordAnswerer>.Instance);
         return new DiscordScheduledDelivery(answerer);
     }

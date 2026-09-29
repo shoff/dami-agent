@@ -60,6 +60,9 @@ public sealed class EgressChannelTests
         // category and the month's category total — to the conversation he sent it from, as
         // ProfileDerived, so the channel refuses it anywhere but his own DM (ADR-0025).
         "Dami.Host.Discord.DiscordReceiptResponder",
+        // 2026-09-29 (Steve, B1): the gate's recorded verdicts on the last answer's local
+        // lines, as ProfileDerived — Steve's own DM only (ADR-0025). No model, no retrieval.
+        "Dami.Host.Discord.DiscordSources",
     ];
 
     [Fact]

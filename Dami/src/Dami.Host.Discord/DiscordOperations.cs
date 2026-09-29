@@ -58,6 +58,9 @@ public static class DiscordOperations
         **Dami over Discord.** Only operational questions cross this channel (ADR-0024):
 
         `status` — what the proactive tier has been doing
+        `sources` (or `why?`) — what the last answer drew on, and what the gate withheld
+        a photo with "receipt" — logged on this host, never sent to a model
+        a voice note — transcribed on this host and answered as text
         `help` — this
 
         Anything else runs a full turn on the host. If the answer draws on local memory it

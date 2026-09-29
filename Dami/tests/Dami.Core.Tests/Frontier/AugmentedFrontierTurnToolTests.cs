@@ -18,6 +18,7 @@ public sealed class AugmentedFrontierTurnToolTests
     private readonly IContextDisclosureGate gate = Substitute.For<IContextDisclosureGate>();
     private readonly IDisclosureLedger ledger = Substitute.For<IDisclosureLedger>();
     private readonly DisclosureMemo memo = new(TimeProvider.System);
+    private readonly TurnDisclosures disclosures = new();
 
     private AugmentedFrontierTurn Subject(bool gated = false)
     {
@@ -34,6 +35,7 @@ public sealed class AugmentedFrontierTurnToolTests
             Substitute.For<IEgressBriefStore>(),
             this.ledger,
             this.memo,
+            this.disclosures,
             Substitute.For<IExecutionEventStore>(),
             Options.Create(new AugmentedTurnOptions { Gate = gated, GateMemoMinutes = 30 }),
             TimeProvider.System,
@@ -75,6 +77,25 @@ public sealed class AugmentedFrontierTurnToolTests
             "q2", Arg.Is<IReadOnlyList<string>>(lines => lines.Count == 1 && lines[0] == "a new memory"), Arg.Any<CancellationToken>());
         await this.ledger.Received(1).RecordAsync(
             Arg.Any<Guid>(), "q2", Arg.Is<IReadOnlyList<DisclosedItem>>(items => items.Count == 1), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Every_Line_A_Turn_Put_Before_The_Gate_Should_Be_Remembered_With_Its_Verdict()
+    {
+        // B1: "why did you say that?" must cover the lines the memo answered, which the
+        // ledger does not record again under the second turn.
+        this.gate.ClassifyAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.ArgAt<IReadOnlyList<string>>(1)
+                .Select(line => new DisclosedItem(line, Disclosure.Pass, line, "ok")).ToList());
+        this.frontier.StreamAsync(Arg.Any<FrontierPrompt>(), Arg.Any<IReadOnlyList<FrontierImage>>(), Arg.Any<FrontierToolbox>(), Arg.Any<CancellationToken>())
+            .Returns(_ => WordsAsync("hi"));
+        var subject = this.Subject(gated: true);
+        var second = Guid.NewGuid();
+
+        await subject.StreamAsync("q", ["Earlier — Steve: hello"], FrontierToolbox.Empty, Guid.NewGuid(), CancellationToken.None);
+        await subject.StreamAsync("q2", ["Earlier — Steve: hello", "a new memory"], FrontierToolbox.Empty, second, CancellationToken.None);
+
+        Assert.Equal(["Earlier — Steve: hello", "a new memory"], this.disclosures.For(second)!.Select(item => item.Original));
     }
 
     private static async IAsyncEnumerable<string> WordsAsync(params string[] words)

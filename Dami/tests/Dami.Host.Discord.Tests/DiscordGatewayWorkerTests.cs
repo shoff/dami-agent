@@ -96,6 +96,10 @@ public sealed class DiscordGatewayWorkerTests
 
         public ITranscriptionClient Transcription { get; init; } = Substitute.For<ITranscriptionClient>();
 
+        public DiscordLastTurns LastTurns { get; } = new();
+
+        public TurnDisclosures Disclosures { get; } = new();
+
         public Dami.Contracts.Finance.IExpenseLedger Expenses { get; init; } = Substitute.For<Dami.Contracts.Finance.IExpenseLedger>();
 
         public DiscordOptions Options { get; set; } = Configured();
@@ -204,6 +208,7 @@ public sealed class DiscordGatewayWorkerTests
                 this.TurnStore,
                 this.Corpus,
                 this.Surfacings,
+                this.LastTurns,
                 LessonsStub(),
                 TimeProvider.System,
                 this.Options,
@@ -222,6 +227,7 @@ public sealed class DiscordGatewayWorkerTests
                 new DiscordTypingIndicator(
                     this.Rest, this.Options, NullLogger<DiscordTypingIndicator>.Instance),
                 new DiscordHearing(this.Transcription, this.Rest, this.Options, NullLogger<DiscordHearing>.Instance),
+                new DiscordSources(this.LastTurns, this.Disclosures, this.Channel, NullLogger<DiscordSources>.Instance),
                 new DiscordReceiptResponder(
                     this.Vision, this.Rest, this.Expenses, this.Channel, this.Options, TimeProvider.System,
                     NullLogger<DiscordReceiptResponder>.Instance),
@@ -774,6 +780,42 @@ public sealed class DiscordGatewayWorkerTests
 
         await harness.Expenses.Received(1).RecordAsync(Arg.Any<Dami.Contracts.Finance.Expense>(), Arg.Any<CancellationToken>());
         await harness.Augmented.DidNotReceiveWithAnyArgs().StreamAsync(default!, default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Sources_Should_Explain_The_Answer_Before_It()
+    {
+        var channel = Substitute.For<IEgressChannel>();
+        channel.ListenAsync(Arg.Any<CancellationToken>()).Returns(ManyAsync(From("what did I lift monday"), From("sources")));
+        var harness = new Harness { Channel = channel };
+        Guid? trace = null;
+        harness.Progressive.BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>()).Returns("message-1");
+        harness.Augmented
+            .StreamAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Do<Guid>(id => trace = id), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                harness.Disclosures.Remember(call.ArgAt<Guid>(3), [new DisclosedItem("gym: 225 for five", Disclosure.Pass, "x", "ok")]);
+                return new AugmentedTurnStream(call.ArgAt<Guid>(3), 1, 10, FragmentsAsync("225 for five"));
+            });
+
+        await RunAsync(harness.Build());
+
+        await channel.Received(1).SendAsync(
+            Arg.Is<OutboundContent>(content => content.Text.Contains("✅ sent: gym: 225 for five", StringComparison.Ordinal)
+                && content.Text.Contains(trace!.Value.ToString("N"), StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+        await harness.Augmented.Received(1).StreamAsync(
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    private static async IAsyncEnumerable<InboundMessage> ManyAsync(params InboundMessage[] messages)
+    {
+        foreach (var message in messages)
+        {
+            yield return message;
+        }
+
+        await Task.CompletedTask;
     }
 
     [Fact]

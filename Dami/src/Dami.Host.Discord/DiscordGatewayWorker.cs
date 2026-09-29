@@ -23,6 +23,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
     private readonly DiscordImageResponder images;
     private readonly DiscordTypingIndicator typing;
     private readonly DiscordHearing hearing;
+    private readonly DiscordSources sources;
     private readonly DiscordReceiptResponder receipts;
     private readonly IProactiveRunHistory history;
     private readonly TimeProvider clock;
@@ -37,6 +38,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         DiscordImageResponder images,
         DiscordTypingIndicator typing,
         DiscordHearing hearing,
+        DiscordSources sources,
         DiscordReceiptResponder receipts,
         IProactiveRunHistory history,
         TimeProvider clock,
@@ -49,6 +51,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(typing);
         ArgumentNullException.ThrowIfNull(hearing);
+        ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(receipts);
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(clock);
@@ -61,6 +64,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         this.images = images;
         this.typing = typing;
         this.hearing = hearing;
+        this.sources = sources;
         this.receipts = receipts;
         this.history = history;
         this.clock = clock;
@@ -158,7 +162,8 @@ public sealed class DiscordGatewayWorker : BackgroundService
     {
         // A voice note is words; everything after this sees the transcript as the text.
         var message = await this.hearing.HearAsync(received, cancellationToken).ConfigureAwait(false);
-        if (await this.TryOperationalAsync(message, cancellationToken).ConfigureAwait(false))
+        if (await this.sources.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false)
+            || await this.TryOperationalAsync(message, cancellationToken).ConfigureAwait(false))
         {
             return;
         }

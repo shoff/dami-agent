@@ -225,7 +225,7 @@ public sealed class DiscordDailyCheckInTests
         var answerer = new DiscordAnswerer(
             this.channel, this.augmented, new DiscordReplyStreamer(this.progressive), Bundle(),
             new DiscordVision(Substitute.For<IVisionClient>(), Substitute.For<IDiscordRest>(), this.options, NullLogger<DiscordVision>.Instance),
-            Substitute.For<IConversationSessionStore>(), this.turnStore, this.corpus, this.queue, lessons, this.clock,
+            Substitute.For<IConversationSessionStore>(), this.turnStore, this.corpus, this.queue, new DiscordLastTurns(), lessons, this.clock,
             this.options, NullLogger<DiscordAnswerer>.Instance);
         return new DiscordDailyCheckIn(
             answerer, this.queue, this.speech, this.channel, this.options, this.clock, NullLogger<DiscordDailyCheckIn>.Instance);

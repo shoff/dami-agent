@@ -97,6 +97,7 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
     private readonly IEgressBriefStore briefStore;
     private readonly IDisclosureLedger disclosureLedger;
     private readonly DisclosureMemo memo;
+    private readonly TurnDisclosures disclosures;
     private readonly IExecutionEventStore eventStore;
     private readonly AugmentedTurnOptions turnOptions;
     private readonly TimeProvider clock;
@@ -111,6 +112,7 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
         IEgressBriefStore briefStore,
         IDisclosureLedger disclosureLedger,
         DisclosureMemo memo,
+        TurnDisclosures disclosures,
         IExecutionEventStore eventStore,
         IOptions<AugmentedTurnOptions> turnOptions,
         TimeProvider clock,
@@ -123,6 +125,7 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
         ArgumentNullException.ThrowIfNull(briefStore);
         ArgumentNullException.ThrowIfNull(disclosureLedger);
         ArgumentNullException.ThrowIfNull(memo);
+        ArgumentNullException.ThrowIfNull(disclosures);
         ArgumentNullException.ThrowIfNull(eventStore);
         ArgumentNullException.ThrowIfNull(turnOptions);
         ArgumentNullException.ThrowIfNull(clock);
@@ -135,6 +138,7 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
         this.briefStore = briefStore;
         this.disclosureLedger = disclosureLedger;
         this.memo = memo;
+        this.disclosures = disclosures;
         this.eventStore = eventStore;
         this.turnOptions = turnOptions.Value;
         this.clock = clock;
@@ -270,6 +274,7 @@ public sealed class AugmentedFrontierTurn : IAugmentedTurn
         CancellationToken cancellationToken)
     {
         var decided = await this.DecideAsync(traceId, question, lines, cancellationToken).ConfigureAwait(false);
+        this.disclosures.Remember(traceId, decided);
         var sendable = decided.Where(item => item.Disclosure != Disclosure.Withhold).ToList();
         this.logger.LogInformation(
             "Disclosure: {Pass} sent, {Disguise} disguised, {Withheld} withheld",

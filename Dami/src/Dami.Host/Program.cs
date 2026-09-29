@@ -136,6 +136,7 @@ builder.Services.AddSingleton<Dami.Contracts.Privacy.IContextDisclosureGate, Loc
 builder.Services.Configure<AugmentedTurnOptions>(
     builder.Configuration.GetSection(AugmentedTurnOptions.SECTION_NAME));
 builder.Services.AddSingleton<DisclosureMemo>();
+builder.Services.AddSingleton<TurnDisclosures>();
 builder.Services.AddSingleton<AugmentedFrontierTurn>();
 builder.Services.AddSingleton<IAugmentedTurn>(services =>
     services.GetRequiredService<AugmentedFrontierTurn>());

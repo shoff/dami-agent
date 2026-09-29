@@ -30,6 +30,7 @@ public sealed class DiscordAnswerer
     private readonly IConversationTurnStore turnStore;
     private readonly IObservationCorpus corpus;
     private readonly ISurfacingQueue surfacings;
+    private readonly DiscordLastTurns lastTurns;
     private readonly IStandingLessons lessons;
     private readonly TimeProvider clock;
     private readonly DiscordOptions options;
@@ -46,6 +47,7 @@ public sealed class DiscordAnswerer
         IConversationTurnStore turnStore,
         IObservationCorpus corpus,
         ISurfacingQueue surfacings,
+        DiscordLastTurns lastTurns,
         IStandingLessons lessons,
         TimeProvider clock,
         DiscordOptions options,
@@ -60,6 +62,7 @@ public sealed class DiscordAnswerer
         ArgumentNullException.ThrowIfNull(turnStore);
         ArgumentNullException.ThrowIfNull(corpus);
         ArgumentNullException.ThrowIfNull(surfacings);
+        ArgumentNullException.ThrowIfNull(lastTurns);
         ArgumentNullException.ThrowIfNull(lessons);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(options);
@@ -73,6 +76,7 @@ public sealed class DiscordAnswerer
         this.turnStore = turnStore;
         this.corpus = corpus;
         this.surfacings = surfacings;
+        this.lastTurns = lastTurns;
         this.lessons = lessons;
         this.clock = clock;
         this.options = options;
@@ -174,6 +178,7 @@ public sealed class DiscordAnswerer
             .ConfigureAwait(false);
         if (outcome.Answer is not null)
         {
+            this.lastTurns.Answered(conversationId, traceId);
             await this.KeepAsync(sessionId, question, outcome.Answer, traceId, shape.FromSteve, cancellationToken)
                 .ConfigureAwait(false);
             await this.MarkDeliveredAsync(pending, shape.Via, cancellationToken).ConfigureAwait(false);
