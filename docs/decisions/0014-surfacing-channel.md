@@ -76,4 +76,9 @@ objection, and the amendment answers it rather than ignoring it:
 4. **No retry storms.** A failed check-in is explained once and not retried until the next
    day; the day's push is read from the database, so a restart does not send a second.
 
+5. **Some services never go out as the check-in** (`Discord:CheckInExcludedServices`,
+   comma-separated). `repo-hygiene` by default, at Steve's request the same day: its
+   findings score 1.0 and the first check-in was "2 things are adrift in the working
+   copy". Excluded surfacings still wait in the queue.
+
 Reversal: clear `Discord__CheckInConversationId`. The column is inert without it.

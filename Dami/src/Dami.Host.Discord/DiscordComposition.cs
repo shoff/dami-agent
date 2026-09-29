@@ -95,6 +95,9 @@ public static class DiscordComposition
             CheckInConversationId = section["CheckInConversationId"] ?? string.Empty,
             CheckInHour = int.TryParse(section["CheckInHour"], out var hour) && hour is >= 0 and <= 23 ? hour : 9,
             CheckInTimeZone = section["CheckInTimeZone"] is { Length: > 0 } zone ? zone : "America/Chicago",
+            CheckInExcludedServices = section["CheckInExcludedServices"] is { } excluded
+                ? excluded.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                : ["repo-hygiene"],
         };
     }
 }

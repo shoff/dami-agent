@@ -107,6 +107,20 @@ public sealed class DiscordCompositionTests
     }
 
     [Fact]
+    public void The_Check_In_Exclusions_Should_Default_To_Repo_Hygiene_And_Be_Configurable()
+    {
+        using (var defaults = Compose())
+        {
+            Assert.Equal(["repo-hygiene"], defaults.GetRequiredService<Dami.Gateway.Discord.DiscordOptions>().CheckInExcludedServices);
+        }
+
+        using var configured = Compose(("Discord:CheckInExcludedServices", "repo-hygiene, scout"));
+        Assert.Equal(
+            ["repo-hygiene", "scout"],
+            configured.GetRequiredService<Dami.Gateway.Discord.DiscordOptions>().CheckInExcludedServices);
+    }
+
+    [Fact]
     public void Configured_Gateway_Should_Run_The_Daily_Check_In()
     {
         // ADR-0014 as amended 2026-09-29. It stays silent until CheckInConversationId is set.

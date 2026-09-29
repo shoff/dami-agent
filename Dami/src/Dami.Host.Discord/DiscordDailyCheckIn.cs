@@ -10,7 +10,8 @@ namespace Dami.Host.Discord;
 /// surfacing goes to Steve's DM as a frontier turn (ADR-0014 as amended 2026-09-29).
 /// </summary>
 /// <remarks>
-/// The rest stay in the queue, riding his next message as before. A day with nothing
+/// The rest stay in the queue, riding his next message as before, and so do surfacings
+/// from <see cref="DiscordOptions.CheckInExcludedServices"/>. A day with nothing
 /// pending sends nothing. The push is recorded on the surfacing, so the day's check-in
 /// survives a restart and H8's tuner leaves the reaction to it out. A failed attempt is
 /// explained in the DM once and not retried until the next day: every poll would
@@ -113,7 +114,8 @@ public sealed class DiscordDailyCheckIn : BackgroundService
         Surfacing? strongest = null;
         await foreach (var surfacing in this.surfacings.PendingAsync(PENDING_LIMIT, cancellationToken).ConfigureAwait(false))
         {
-            if (strongest is null || surfacing.Confidence > strongest.Confidence)
+            var excluded = this.options.CheckInExcludedServices.Contains(surfacing.ServiceName, StringComparer.OrdinalIgnoreCase);
+            if (!excluded && (strongest is null || surfacing.Confidence > strongest.Confidence))
             {
                 strongest = surfacing;
             }

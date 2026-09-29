@@ -45,6 +45,12 @@ public sealed class DiscordOptions
     /// <summary>The time zone <see cref="CheckInHour"/> is read in.</summary>
     public string CheckInTimeZone { get; set; } = "America/Chicago";
 
+    /// <summary>
+    /// Proactive services whose surfacings never go out as the check-in; they still wait in
+    /// the queue. repo-hygiene by default: its findings score 1.0 and would win every day.
+    /// </summary>
+    public IReadOnlyList<string> CheckInExcludedServices { get; set; } = ["repo-hygiene"];
+
     /// <summary>How often the check-in looks at the clock.</summary>
     public TimeSpan CheckInPoll { get; set; } = TimeSpan.FromMinutes(5);
 

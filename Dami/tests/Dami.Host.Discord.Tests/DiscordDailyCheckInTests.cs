@@ -92,6 +92,32 @@ public sealed class DiscordDailyCheckInTests
     }
 
     [Fact]
+    public async Task Should_Skip_Repo_Hygiene_Even_When_It_Is_The_Strongest()
+    {
+        // 2026-09-29: the first check-in was repo-hygiene's "2 things are adrift in the
+        // working copy" at confidence 1.0, and Steve asked for it to be left out.
+        var hygiene = new Surfacing(Guid.NewGuid(), "repo-hygiene", "adrift", "two files", 1.0, afterNine.AddDays(-1));
+        this.queue.PendingAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(_ => ManyAsync(hygiene, weak));
+
+        await this.Subject().TickAsync(CancellationToken.None);
+
+        await this.queue.Received(1).PushedAsync(
+            weak.SurfacingId, DiscordDailyCheckIn.VIA, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+        await this.queue.DidNotReceive().PushedAsync(
+            hygiene.SurfacingId, Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Stay_Silent_When_Only_Excluded_Services_Are_Pending()
+    {
+        this.options.CheckInExcludedServices = ["scout", "recall-sentinel"];
+
+        Assert.False(await this.Subject().TickAsync(CancellationToken.None));
+
+        await this.progressive.DidNotReceive().BeginAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Should_Wait_For_The_Hour()
     {
         this.clock = new FakeTimeProvider(beforeNine);
