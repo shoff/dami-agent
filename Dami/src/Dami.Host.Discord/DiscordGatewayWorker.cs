@@ -23,6 +23,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
     private readonly DiscordImageResponder images;
     private readonly DiscordTypingIndicator typing;
     private readonly DiscordHearing hearing;
+    private readonly DiscordReceiptResponder receipts;
     private readonly IProactiveRunHistory history;
     private readonly TimeProvider clock;
     private readonly DiscordOptions options;
@@ -36,6 +37,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         DiscordImageResponder images,
         DiscordTypingIndicator typing,
         DiscordHearing hearing,
+        DiscordReceiptResponder receipts,
         IProactiveRunHistory history,
         TimeProvider clock,
         DiscordOptions options,
@@ -47,6 +49,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(typing);
         ArgumentNullException.ThrowIfNull(hearing);
+        ArgumentNullException.ThrowIfNull(receipts);
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(options);
@@ -58,6 +61,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         this.images = images;
         this.typing = typing;
         this.hearing = hearing;
+        this.receipts = receipts;
         this.history = history;
         this.clock = clock;
         this.options = options;
@@ -173,8 +177,10 @@ public sealed class DiscordGatewayWorker : BackgroundService
     private async Task AnswerQuestionAsync(
         InboundMessage message, string question, CancellationToken cancellationToken)
     {
-        // Explicit picture requests take the fast path; everything else is the frontier's.
-        if (await this.images.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false))
+        // A receipt never reaches the frontier; explicit picture requests take the fast
+        // path; everything else is the frontier's.
+        if (await this.receipts.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false)
+            || await this.images.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false))
         {
             return;
         }

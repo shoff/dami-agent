@@ -96,6 +96,8 @@ public sealed class DiscordGatewayWorkerTests
 
         public ITranscriptionClient Transcription { get; init; } = Substitute.For<ITranscriptionClient>();
 
+        public Dami.Contracts.Finance.IExpenseLedger Expenses { get; init; } = Substitute.For<Dami.Contracts.Finance.IExpenseLedger>();
+
         public DiscordOptions Options { get; set; } = Configured();
 
         private static IFrontierRecall RecallStub()
@@ -220,6 +222,9 @@ public sealed class DiscordGatewayWorkerTests
                 new DiscordTypingIndicator(
                     this.Rest, this.Options, NullLogger<DiscordTypingIndicator>.Instance),
                 new DiscordHearing(this.Transcription, this.Rest, this.Options, NullLogger<DiscordHearing>.Instance),
+                new DiscordReceiptResponder(
+                    this.Vision, this.Rest, this.Expenses, this.Channel, this.Options, TimeProvider.System,
+                    NullLogger<DiscordReceiptResponder>.Instance),
                 Substitute.For<IProactiveRunHistory>(),
                 TimeProvider.System,
                 this.Options,
@@ -749,6 +754,26 @@ public sealed class DiscordGatewayWorkerTests
         await harness.TurnStore.Received(1).CompleteTurnAsync(
             Arg.Any<Guid>(), Arg.Any<Guid>(), "noted", Arg.Any<DateTimeOffset>(),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_Receipt_Photo_Should_Be_Logged_Locally_And_Never_Reach_The_Frontier()
+    {
+        var harness = Listening(new InboundMessage("owner", "chan-1", "receipt", DateTimeOffset.UnixEpoch)
+        {
+            Attachments = [new InboundAttachment("r.jpg", "https://cdn/r.jpg", "image/jpeg", 50_000)],
+        });
+        harness.Rest.DownloadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new byte[] { 1 });
+        harness.Vision.DescribeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("""{"merchant":"Aldi","total":12.5,"category":"groceries"}""");
+        harness.Expenses.RecordAsync(Arg.Any<Dami.Contracts.Finance.Expense>(), Arg.Any<CancellationToken>()).Returns(true);
+        harness.Expenses.BetweenAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<Dami.Contracts.Finance.Expense>());
+
+        await RunAsync(harness.Build());
+
+        await harness.Expenses.Received(1).RecordAsync(Arg.Any<Dami.Contracts.Finance.Expense>(), Arg.Any<CancellationToken>());
+        await harness.Augmented.DidNotReceiveWithAnyArgs().StreamAsync(default!, default!, default!, default, default);
     }
 
     [Fact]

@@ -52,6 +52,8 @@ public static class DiscordComposition
         services.AddSingleton<DiscordVision>();
         // Voice notes are transcribed on this host (L3); only the words go on.
         services.AddSingleton<DiscordHearing>();
+        // Receipts are read and logged on this host; the frontier never sees them (D4).
+        services.AddSingleton<DiscordReceiptResponder>();
         services.AddSingleton<DiscordReplyStreamer>();
         services.AddSingleton<DiscordImageResponder>();
         services.AddSingleton<DiscordTypingIndicator>();

@@ -90,6 +90,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<Dami.Contracts.Gallery.IGalleryIndex, Gallery.PostgresGalleryIndex>();
         services.TryAddSingleton<IHealthEventStore, PostgresHealthEventStore>();
         services.TryAddSingleton<IFitnessStore, PostgresFitnessStore>();
+        services.TryAddSingleton<Dami.Contracts.Finance.IExpenseLedger, Finance.PostgresExpenseLedger>();
         // H21: the conversation log as daily series for the signals passes.
         services.AddSingleton<IDailySeriesSource, PostgresConversationActivitySource>();
         services.TryAddSingleton<IDomainFactStore, PostgresDomainFactStore>();

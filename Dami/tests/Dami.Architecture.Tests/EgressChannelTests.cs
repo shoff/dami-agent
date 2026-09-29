@@ -56,6 +56,10 @@ public sealed class EgressChannelTests
         // 2026-09-29 (Steve): operational lines only — service and job names, run counts,
         // error text — from IReliabilityReport; nothing from the profile or the corpus.
         "Dami.Host.Discord.DiscordReliabilityNotice",
+        // 2026-09-29 (Steve, D4): one line about a receipt Steve just sent — merchant, total,
+        // category and the month's category total — to the conversation he sent it from, as
+        // ProfileDerived, so the channel refuses it anywhere but his own DM (ADR-0025).
+        "Dami.Host.Discord.DiscordReceiptResponder",
     ];
 
     [Fact]
