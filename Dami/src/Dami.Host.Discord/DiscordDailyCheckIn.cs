@@ -70,7 +70,7 @@ public sealed class DiscordDailyCheckIn : BackgroundService
             return false;
         }
 
-        var due = this.DueToday();
+        var due = CheckInClock.DueToday(this.options, this.clock.GetUtcNow());
         if (this.clock.GetUtcNow() < due || this.attemptedFor >= due
             || await this.surfacings.LastPushedAtAsync(VIA, cancellationToken).ConfigureAwait(false) >= due)
         {
@@ -136,15 +136,6 @@ public sealed class DiscordDailyCheckIn : BackgroundService
 
             await Task.Delay(this.options.CheckInPoll, this.clock, stoppingToken).ConfigureAwait(false);
         }
-    }
-
-    /// <summary>Today's check-in hour, in the configured zone, as an instant.</summary>
-    private DateTimeOffset DueToday()
-    {
-        var zone = TimeZoneInfo.FindSystemTimeZoneById(this.options.CheckInTimeZone);
-        var local = TimeZoneInfo.ConvertTime(this.clock.GetUtcNow(), zone);
-        var at = local.Date.AddHours(this.options.CheckInHour);
-        return new DateTimeOffset(at, zone.GetUtcOffset(at));
     }
 
     private async Task<Surfacing?> StrongestAsync(CancellationToken cancellationToken)

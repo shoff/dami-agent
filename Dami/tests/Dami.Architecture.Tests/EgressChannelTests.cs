@@ -50,6 +50,12 @@ public sealed class EgressChannelTests
         // Discord attachment; it has no profile or corpus dependency.
         "Dami.Host.Discord.DiscordImageResponder",
         "Dami.Host.Discord.DiscordAnswerer", // ADR-0030: the one place a frontier reply and its pictures leave
+        // 2026-09-29 (Steve): the check-in's own words, already sent by DiscordAnswerer after
+        // the gate, read aloud by the local voice and attached. No new content leaves.
+        "Dami.Host.Discord.DiscordDailyCheckIn",
+        // 2026-09-29 (Steve): operational lines only — service and job names, run counts,
+        // error text — from IReliabilityReport; nothing from the profile or the corpus.
+        "Dami.Host.Discord.DiscordReliabilityNotice",
     ];
 
     [Fact]

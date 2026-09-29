@@ -40,6 +40,8 @@ public static class DiscordComposition
         services.AddHostedService<DiscordGatewayWorker>();
         // Once a day, the strongest pending surfacing to Steve's DM (ADR-0014 as amended 2026-09-29).
         services.AddHostedService<DiscordDailyCheckIn>();
+        // What failed without anyone noticing, named in the DM (docs/agent-landscape-2026-09.md A1).
+        services.AddHostedService<DiscordReliabilityNotice>();
         return services;
     }
 

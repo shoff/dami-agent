@@ -235,6 +235,12 @@ builder.Services.AddSingleton<TurnImageContext>();
 // Discord (ADR-0024, M1). Dormant unless Discord__Token and Discord__OwnerUserId are set,
 // which the systemd drop-in supplies; the registration is here rather than inside the
 // gateway so that what can reach off the host stays readable in one place.
+// What failed without anyone noticing (docs/agent-landscape-2026-09.md A1): the report and
+// the real-work probes it runs — /health answered 200 from a speech sidecar with no GPU.
+builder.Services.AddSingleton<Dami.Core.Reliability.ISidecarProbe, Dami.Core.Reliability.SpeechToTextProbe>();
+builder.Services.AddSingleton<Dami.Core.Reliability.ISidecarProbe, Dami.Core.Reliability.TextToSpeechProbe>();
+builder.Services.AddSingleton<Dami.Core.Reliability.ISidecarProbe, Dami.Core.Reliability.EmbeddingProbe>();
+builder.Services.AddSingleton<Dami.Core.Reliability.IReliabilityReport, Dami.Core.Reliability.ReliabilityReport>();
 builder.Services.AddDamiDiscordGateway(builder.Configuration);
 
 var app = builder.Build();

@@ -78,6 +78,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton(Substitute.For<IConversationTurnStore>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Models.ITranscriptionClient>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Models.ISpeechClient>());
+        services.AddSingleton(Substitute.For<Dami.Core.Reliability.IReliabilityReport>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Memory.IObservationCorpus>());
         services.AddSingleton(Substitute.For<IProactiveRunHistory>());
     }
@@ -120,6 +121,14 @@ public sealed class DiscordCompositionTests
         Assert.Equal(
             ["repo-hygiene", "scout"],
             configured.GetRequiredService<Dami.Gateway.Discord.DiscordOptions>().CheckInExcludedServices);
+    }
+
+    [Fact]
+    public void Configured_Gateway_Should_Run_The_Reliability_Notice()
+    {
+        using var provider = Compose();
+
+        Assert.Contains(provider.GetServices<IHostedService>(), service => service is DiscordReliabilityNotice);
     }
 
     [Fact]
