@@ -50,10 +50,10 @@ public sealed class PostgresMailLedger : IMailLedger
             $"insert into {this.schema}.mail_items (message_id, received_at, kind, summary, filed_at) "
             + "values (@id, @received, @kind, @summary, @filed) on conflict (message_id) do nothing;");
         command.Parameters.AddWithValue("id", messageId);
-        command.Parameters.AddWithValue("received", receivedAt);
+        command.Parameters.AddWithValue("received", receivedAt.ToUniversalTime());
         command.Parameters.AddWithValue("kind", kind);
         command.Parameters.AddWithValue("summary", summary);
-        command.Parameters.AddWithValue("filed", filedAt);
+        command.Parameters.AddWithValue("filed", filedAt.ToUniversalTime());
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 }

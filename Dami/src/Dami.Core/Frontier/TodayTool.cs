@@ -121,7 +121,7 @@ public sealed class TodayTool : IFrontierToday
     /// <summary>Today's events from the calendar mirror (D1), in local time.</summary>
     private async Task<IEnumerable<string>> CalendarAsync(DateTimeOffset local, CancellationToken cancellationToken)
     {
-        var midnight = new DateTimeOffset(local.Date, TimeZoneInfo.Local.GetUtcOffset(local.Date));
+        var midnight = new DateTimeOffset(local.Date, TimeZoneInfo.Local.GetUtcOffset(local.Date)).ToUniversalTime();
         var events = await this.calendar.BetweenAsync(midnight, midnight.AddDays(1), cancellationToken).ConfigureAwait(false);
         return events.Select(item =>
         {

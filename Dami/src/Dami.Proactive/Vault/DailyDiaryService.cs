@@ -71,7 +71,7 @@ public sealed class DailyDiaryService : IProactiveService
         var zone = TimeZoneInfo.FindSystemTimeZoneById(this.vaultOptions.TimeZone);
         var today = TimeZoneInfo.ConvertTime(this.clock.GetUtcNow(), zone).Date;
         var yesterday = today.AddDays(-1);
-        var from = new DateTimeOffset(yesterday, zone.GetUtcOffset(yesterday));
+        var from = new DateTimeOffset(yesterday, zone.GetUtcOffset(yesterday)).ToUniversalTime();
         var notes = await this.NotesAsync(from, from.AddDays(1), DateOnly.FromDateTime(yesterday), zone, cancellationToken).ConfigureAwait(false);
         if (notes.Length == 0)
         {

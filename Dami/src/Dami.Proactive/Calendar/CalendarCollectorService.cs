@@ -69,7 +69,7 @@ public sealed class CalendarCollectorService : IProactiveService
 
         var zone = TimeZoneInfo.FindSystemTimeZoneById(this.calendarOptions.TimeZone);
         var today = TimeZoneInfo.ConvertTime(this.clock.GetUtcNow(), zone).Date;
-        var from = new DateTimeOffset(today, zone.GetUtcOffset(today));
+        var from = new DateTimeOffset(today, zone.GetUtcOffset(today)).ToUniversalTime();
         var to = from.AddDays(this.calendarOptions.DaysAhead + 1);
         var events = CalendarReader.Read(response.Body, from, to, zone);
         await this.store.ReplaceAsync(from, to, events, cancellationToken).ConfigureAwait(false);

@@ -33,4 +33,13 @@ public sealed class PostgresMailLedgerTests
         var filed = await ledger.FiledAsync(["<a@mail>", "<b@mail>"], CancellationToken.None);
         Assert.Equal(["<a@mail>"], filed);
     }
+
+    [Fact]
+    public async Task A_Message_Dated_In_Its_Senders_Zone_Should_Be_Filed()
+    {
+        await this.fixture.ResetAsync();
+
+        Assert.True(await this.Ledger().RecordAsync(
+            "<pdt@mail>", new DateTimeOffset(2026, 9, 29, 8, 0, 0, TimeSpan.FromHours(-7)), "other", "s", at, CancellationToken.None));
+    }
 }

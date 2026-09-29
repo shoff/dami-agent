@@ -52,6 +52,23 @@ public sealed class PostgresCalendarStoreTests
     }
 
     [Fact]
+    public async Task Local_Offsets_Should_Be_Accepted_Everywhere()
+    {
+        // 2026-09-29: the diary passed Chicago midnight (-05:00) and Npgsql refused it; the
+        // store takes any offset and stores the instant.
+        await this.fixture.ResetAsync();
+        var store = this.Store();
+        var chicago = TimeSpan.FromHours(-5);
+        var midnight = new DateTimeOffset(2026, 9, 29, 0, 0, 0, chicago);
+        var dentist = new CalendarEvent("d@1", new DateTimeOffset(2026, 9, 29, 9, 30, 0, chicago), null, false, "Dentist", null);
+
+        await store.ReplaceAsync(midnight, midnight.AddDays(1), [dentist], CancellationToken.None);
+
+        var today = await store.BetweenAsync(midnight, midnight.AddDays(1), CancellationToken.None);
+        Assert.Equal(dentist.StartsAt, today.Single().StartsAt);
+    }
+
+    [Fact]
     public async Task Replacing_One_Window_Should_Leave_Events_Outside_It()
     {
         await this.fixture.ResetAsync();

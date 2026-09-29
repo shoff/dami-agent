@@ -110,7 +110,7 @@ public sealed class MailboxCollectorService : IProactiveService
                 cancellationToken).ConfigureAwait(false);
         }
 
-        await this.ledger.RecordAsync(message.MessageId, message.ReceivedAt, Kind(item.Kind), item.Summary, now, cancellationToken)
+        await this.ledger.RecordAsync(message.MessageId, message.ReceivedAt.ToUniversalTime(), Kind(item.Kind), item.Summary, now, cancellationToken)
             .ConfigureAwait(false);
         return item.On is { } on ? $"{item.Summary} ({on.ToString("MMM d", CultureInfo.InvariantCulture)})" : item.Summary;
     }

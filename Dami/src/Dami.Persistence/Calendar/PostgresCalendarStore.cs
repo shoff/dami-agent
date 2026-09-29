@@ -30,8 +30,8 @@ public sealed class PostgresCalendarStore : ICalendarStore
         await using (var clear = new NpgsqlCommand(
             $"delete from {this.schema}.calendar_events where starts_at >= @from and starts_at < @to;", connection, transaction))
         {
-            clear.Parameters.AddWithValue("from", from);
-            clear.Parameters.AddWithValue("to", to);
+            clear.Parameters.AddWithValue("from", from.ToUniversalTime());
+            clear.Parameters.AddWithValue("to", to.ToUniversalTime());
             await clear.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -42,8 +42,8 @@ public sealed class PostgresCalendarStore : ICalendarStore
                 + "values (@key, @starts, @ends, @allDay, @summary, @location, now()) on conflict (event_key) do nothing;",
                 connection, transaction);
             insert.Parameters.AddWithValue("key", item.EventKey);
-            insert.Parameters.AddWithValue("starts", item.StartsAt);
-            insert.Parameters.AddWithValue("ends", (object?)item.EndsAt ?? DBNull.Value);
+            insert.Parameters.AddWithValue("starts", item.StartsAt.ToUniversalTime());
+            insert.Parameters.AddWithValue("ends", (object?)item.EndsAt?.ToUniversalTime() ?? DBNull.Value);
             insert.Parameters.AddWithValue("allDay", item.AllDay);
             insert.Parameters.AddWithValue("summary", item.Summary);
             insert.Parameters.AddWithValue("location", (object?)item.Location ?? DBNull.Value);
@@ -60,8 +60,8 @@ public sealed class PostgresCalendarStore : ICalendarStore
         await using var command = this.dataSource.CreateCommand(
             $"select event_key, starts_at, ends_at, all_day, summary, location from {this.schema}.calendar_events "
             + "where starts_at >= @from and starts_at < @to order by starts_at, summary;");
-        command.Parameters.AddWithValue("from", from);
-        command.Parameters.AddWithValue("to", to);
+        command.Parameters.AddWithValue("from", from.ToUniversalTime());
+        command.Parameters.AddWithValue("to", to.ToUniversalTime());
         var events = new List<CalendarEvent>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
