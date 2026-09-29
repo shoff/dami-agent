@@ -30,6 +30,7 @@ public sealed class DiscordDailyCheckInTests
     private readonly IConversationTurnStore turnStore = Substitute.For<IConversationTurnStore>();
     private readonly IObservationCorpus corpus = Substitute.For<IObservationCorpus>();
     private readonly ISurfacingQueue queue = Substitute.For<ISurfacingQueue>();
+    private readonly ISpeechClient speech = Substitute.For<ISpeechClient>();
     private FakeTimeProvider clock = new(afterNine);
     private readonly DiscordOptions options = new()
     {
@@ -118,6 +119,45 @@ public sealed class DiscordDailyCheckInTests
     }
 
     [Fact]
+    public async Task Should_Follow_The_Check_In_With_It_Read_Aloud()
+    {
+        // Audio briefs were among the most-kept habits in the 2026-09-29 survey. The words
+        // already went to Discord; the voice is the same words, rendered on this host.
+        this.speech.SpeakAsync("Your dryer is on a recall list.", Arg.Any<CancellationToken>()).Returns(new byte[] { 1, 2 });
+
+        await this.Subject().TickAsync(CancellationToken.None);
+
+        await this.channel.Received(1).SendAsync(
+            Arg.Is<OutboundContent>(content =>
+                content.ConversationId == "dm-7"
+                && content.Attachments.Count == 1
+                && content.Attachments[0].FileName == "check-in.wav"
+                && content.Attachments[0].ContentType == "audio/wav"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_Failed_Voice_Should_Not_Undo_A_Sent_Check_In()
+    {
+        this.speech.SpeakAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<byte[]>(_ => throw new HttpRequestException("tts down"));
+
+        Assert.True(await this.Subject().TickAsync(CancellationToken.None));
+        await this.queue.Received(1).PushedAsync(
+            strong.SurfacingId, DiscordDailyCheckIn.VIA, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Should_Not_Speak_When_The_Voice_Is_Off()
+    {
+        this.options.CheckInVoice = false;
+
+        await this.Subject().TickAsync(CancellationToken.None);
+
+        await this.speech.DidNotReceiveWithAnyArgs().SpeakAsync(default!, default);
+    }
+
+    [Fact]
     public async Task Should_Wait_For_The_Hour()
     {
         this.clock = new FakeTimeProvider(beforeNine);
@@ -187,7 +227,8 @@ public sealed class DiscordDailyCheckInTests
             new DiscordVision(Substitute.For<IVisionClient>(), Substitute.For<IDiscordRest>(), this.options, NullLogger<DiscordVision>.Instance),
             Substitute.For<IConversationSessionStore>(), this.turnStore, this.corpus, this.queue, lessons, this.clock,
             this.options, NullLogger<DiscordAnswerer>.Instance);
-        return new DiscordDailyCheckIn(answerer, this.queue, this.options, this.clock, NullLogger<DiscordDailyCheckIn>.Instance);
+        return new DiscordDailyCheckIn(
+            answerer, this.queue, this.speech, this.channel, this.options, this.clock, NullLogger<DiscordDailyCheckIn>.Instance);
     }
 
     private static FrontierToolBundle Bundle()

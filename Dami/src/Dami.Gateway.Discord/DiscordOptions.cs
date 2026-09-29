@@ -51,6 +51,9 @@ public sealed class DiscordOptions
     /// </summary>
     public IReadOnlyList<string> CheckInExcludedServices { get; set; } = ["repo-hygiene"];
 
+    /// <summary>Whether the check-in is followed by the same words read aloud by the local voice.</summary>
+    public bool CheckInVoice { get; set; } = true;
+
     /// <summary>How often the check-in looks at the clock.</summary>
     public TimeSpan CheckInPoll { get; set; } = TimeSpan.FromMinutes(5);
 

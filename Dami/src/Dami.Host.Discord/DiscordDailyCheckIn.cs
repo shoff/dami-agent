@@ -1,3 +1,5 @@
+using Dami.Contracts.Models;
+using Dami.Contracts.Privacy;
 using Dami.Contracts.Proactive;
 using Dami.Gateway.Discord;
 using Microsoft.Extensions.Hosting;
@@ -26,6 +28,8 @@ public sealed class DiscordDailyCheckIn : BackgroundService
 
     private readonly DiscordAnswerer answerer;
     private readonly ISurfacingQueue surfacings;
+    private readonly ISpeechClient speech;
+    private readonly IEgressChannel channel;
     private readonly DiscordOptions options;
     private readonly TimeProvider clock;
     private readonly ILogger<DiscordDailyCheckIn> logger;
@@ -35,17 +39,23 @@ public sealed class DiscordDailyCheckIn : BackgroundService
     public DiscordDailyCheckIn(
         DiscordAnswerer answerer,
         ISurfacingQueue surfacings,
+        ISpeechClient speech,
+        IEgressChannel channel,
         DiscordOptions options,
         TimeProvider clock,
         ILogger<DiscordDailyCheckIn> logger)
     {
         ArgumentNullException.ThrowIfNull(answerer);
         ArgumentNullException.ThrowIfNull(surfacings);
+        ArgumentNullException.ThrowIfNull(speech);
+        ArgumentNullException.ThrowIfNull(channel);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
         this.answerer = answerer;
         this.surfacings = surfacings;
+        this.speech = speech;
+        this.channel = channel;
         this.options = options;
         this.clock = clock;
         this.logger = logger;
@@ -79,7 +89,35 @@ public sealed class DiscordDailyCheckIn : BackgroundService
         this.logger.LogInformation(
             "Daily check-in with {Service} \"{Title}\": {Outcome}",
             strongest.ServiceName, strongest.Title, outcome.Failure ?? "sent");
+        if (outcome.Answer is not null && this.options.CheckInVoice)
+        {
+            await this.SpeakAsync(outcome.Answer, cancellationToken).ConfigureAwait(false);
+        }
+
         return outcome.IsAnswered;
+    }
+
+    /// <summary>
+    /// The check-in's own words, read by the local voice and attached. Nothing new leaves
+    /// the host: the text already went to the same conversation. A voice that fails costs
+    /// only the voice.
+    /// </summary>
+    private async Task SpeakAsync(string answer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var audio = await this.speech.SpeakAsync(answer, cancellationToken).ConfigureAwait(false);
+            await this.channel.SendAsync(
+                new OutboundContent(this.options.CheckInConversationId, string.Empty, ContentProvenance.Operational, Guid.NewGuid())
+                {
+                    Attachments = [new OutboundAttachment("check-in.wav", audio, "audio/wav")],
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            this.logger.LogWarning(exception, "The check-in went out; its voice did not");
+        }
     }
 
     /// <inheritdoc />
