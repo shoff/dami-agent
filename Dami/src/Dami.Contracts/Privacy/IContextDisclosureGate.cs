@@ -18,7 +18,15 @@ public enum Disclosure
 }
 
 /// <summary>One classified piece of context, with the text that would actually be sent.</summary>
-public sealed record DisclosedItem(string Original, Disclosure Disclosure, string Sendable, string Reason);
+public sealed record DisclosedItem(string Original, Disclosure Disclosure, string Sendable, string Reason)
+{
+    /// <summary>
+    /// False when the gate could not judge the line — unreachable, unreadable, or the item
+    /// was left out of its reply — and it was withheld by default. Such a withhold holds
+    /// for this turn only and is never remembered as a verdict.
+    /// </summary>
+    public bool Judged { get; init; } = true;
+}
 
 /// <summary>
 /// Decides, locally, what of Steve's retrieved memory may reach a frontier model.

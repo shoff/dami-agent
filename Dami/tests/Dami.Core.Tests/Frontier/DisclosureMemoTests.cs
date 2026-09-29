@@ -43,6 +43,24 @@ public sealed class DisclosureMemoTests
     }
 
     [Fact]
+    public async Task A_Gate_Failure_Should_Not_Be_Remembered_As_A_Verdict()
+    {
+        // 2026-09-29 14:43: one unparseable reply from the gate model withheld all 23 lines
+        // of a turn, and the memo kept those withholds for thirty minutes, so a standing
+        // lesson Steve had just given reached no turn in that time. A failure withholds
+        // this turn; the next turn is judged afresh.
+        var memo = new DisclosureMemo(new FakeTimeProvider(start));
+        memo.Remember([new DisclosedItem("a lesson", Disclosure.Withhold, string.Empty, "gate output unreadable") { Judged = false }]);
+        var asked = new List<string>();
+
+        await memo.DecideAsync(["a lesson"], TimeSpan.FromMinutes(30),
+            fresh => { asked.AddRange(fresh); return Task.FromResult<IReadOnlyList<DisclosedItem>>(fresh.Select(Pass).ToList()); },
+            CancellationToken.None);
+
+        Assert.Equal(["a lesson"], asked);
+    }
+
+    [Fact]
     public async Task Forget_Should_Make_A_Corrected_Line_Be_Judged_Again()
     {
         var memo = new DisclosureMemo(new FakeTimeProvider(start));

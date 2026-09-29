@@ -73,7 +73,7 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
             this.logger.LogWarning(
                 "Disclosure gate {Reason}; withholding all {Count} item(s). Reply began: {Reply}",
                 reason, context.Count, reply is null ? string.Empty : reply[..Math.Min(reply.Length, 600)]);
-            return [.. context.Select(item => new DisclosedItem(item, Disclosure.Withhold, string.Empty, reason))];
+            return [.. context.Select(item => new DisclosedItem(item, Disclosure.Withhold, string.Empty, reason) { Judged = false })];
         }
 
         return decisions;
@@ -291,7 +291,7 @@ public sealed class LocalDisclosureGate : IContextDisclosureGate
         // Start from "withhold everything" and let the model upgrade individual items.
         // An item the model forgot to mention must not become sendable by omission.
         var decisions = context
-            .Select(item => new DisclosedItem(item, Disclosure.Withhold, string.Empty, "not classified"))
+            .Select(item => new DisclosedItem(item, Disclosure.Withhold, string.Empty, "not classified") { Judged = false })
             .ToList();
 
         foreach (var element in document.RootElement.EnumerateArray())

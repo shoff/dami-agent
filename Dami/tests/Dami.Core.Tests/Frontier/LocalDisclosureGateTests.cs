@@ -55,6 +55,8 @@ public sealed class LocalDisclosureGateTests
         var decided = await this.ClassifyAsync("harmless", "Steve's home address is ...");
 
         Assert.Equal(Disclosure.Withhold, decided[1].Disclosure);
+        Assert.False(decided[1].Judged);
+        Assert.True(decided[0].Judged);
     }
 
     [Fact]
@@ -65,6 +67,7 @@ public sealed class LocalDisclosureGateTests
         var decided = await this.ClassifyAsync("something private", "something else");
 
         Assert.All(decided, item => Assert.Equal(Disclosure.Withhold, item.Disclosure));
+        Assert.All(decided, item => Assert.False(item.Judged));
     }
 
     [Fact]

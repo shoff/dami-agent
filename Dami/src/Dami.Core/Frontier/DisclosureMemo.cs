@@ -44,12 +44,12 @@ public sealed class DisclosureMemo
         return entry.Item;
     }
 
-    /// <summary>Keeps fresh verdicts.</summary>
+    /// <summary>Keeps fresh verdicts; a withhold the gate fell back to is not one.</summary>
     public void Remember(IEnumerable<DisclosedItem> decided)
     {
         ArgumentNullException.ThrowIfNull(decided);
         var now = this.clock.GetUtcNow();
-        foreach (var item in decided)
+        foreach (var item in decided.Where(item => item.Judged))
         {
             this.verdicts[item.Original] = (item, now);
         }
@@ -109,6 +109,6 @@ public sealed class DisclosureMemo
 
         return [.. lines.Select(line => remembered.TryGetValue(line, out var item)
             ? item
-            : new DisclosedItem(line, Disclosure.Withhold, string.Empty, "gate returned no verdict"))];
+            : new DisclosedItem(line, Disclosure.Withhold, string.Empty, "gate returned no verdict") { Judged = false })];
     }
 }
