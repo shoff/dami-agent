@@ -24,16 +24,34 @@ public sealed class DiscordReliabilityNotice : BackgroundService
     private readonly DiscordOptions options;
     private readonly TimeProvider clock;
     private readonly ILogger<DiscordReliabilityNotice> logger;
-    private DateTimeOffset spokeFor = DateTimeOffset.MinValue;
+    private readonly string statePath;
 
-    /// <summary>Creates the notice.</summary>
+    /// <summary>Creates the notice, remembering the last day it spoke under the user's local data folder.</summary>
     public DiscordReliabilityNotice(
         IReliabilityReport report,
         IEgressChannel channel,
         DiscordOptions options,
         TimeProvider clock,
         ILogger<DiscordReliabilityNotice> logger)
+        : this(report, channel, options, clock, DefaultStatePath(), logger)
     {
+    }
+
+    /// <summary>Creates the notice with the file that remembers the last day it spoke.</summary>
+    /// <remarks>
+    /// A file, not memory: every deploy restarts the host, and on 2026-09-29 that would
+    /// have repeated the day's list after each one.
+    /// </remarks>
+    public DiscordReliabilityNotice(
+        IReliabilityReport report,
+        IEgressChannel channel,
+        DiscordOptions options,
+        TimeProvider clock,
+        string statePath,
+        ILogger<DiscordReliabilityNotice> logger)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(statePath);
+        this.statePath = statePath;
         ArgumentNullException.ThrowIfNull(report);
         ArgumentNullException.ThrowIfNull(channel);
         ArgumentNullException.ThrowIfNull(options);
@@ -52,12 +70,12 @@ public sealed class DiscordReliabilityNotice : BackgroundService
     {
         var now = this.clock.GetUtcNow();
         var due = CheckInClock.DueToday(this.options, now);
-        if (this.options.CheckInConversationId.Length == 0 || now < due || this.spokeFor >= due)
+        if (this.options.CheckInConversationId.Length == 0 || now < due || this.SpokeFor() >= due)
         {
             return false;
         }
 
-        this.spokeFor = due;
+        this.Remember(due);
         var weekly = CheckInClock.Today(this.options, now) == DayOfWeek.Sunday;
         var reading = await this.report.ReadAsync(now.AddDays(weekly ? -7 : -1), cancellationToken).ConfigureAwait(false);
         if (!weekly && reading.Problems.Count == 0)
@@ -68,7 +86,8 @@ public sealed class DiscordReliabilityNotice : BackgroundService
         await this.channel.SendAsync(
             new OutboundContent(this.options.CheckInConversationId, Text(reading, weekly), ContentProvenance.Operational, Guid.NewGuid()),
             cancellationToken).ConfigureAwait(false);
-        this.logger.LogInformation("Reliability notice sent: {Problems} problem(s)", reading.Problems.Count);
+        this.logger.LogInformation(
+            "Reliability notice sent: {Count} problem(s): {Problems}", reading.Problems.Count, string.Join("; ", reading.Problems));
         return true;
     }
 
@@ -87,6 +106,39 @@ public sealed class DiscordReliabilityNotice : BackgroundService
             }
 
             await Task.Delay(this.options.CheckInPoll, this.clock, stoppingToken).ConfigureAwait(false);
+        }
+    }
+
+    private static string DefaultStatePath() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "dami", "reliability-notice");
+
+    private DateTimeOffset SpokeFor()
+    {
+        try
+        {
+            return File.Exists(this.statePath)
+                && DateTimeOffset.TryParse(File.ReadAllText(this.statePath).Trim(), System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var at)
+                ? at
+                : DateTimeOffset.MinValue;
+        }
+        catch (IOException exception)
+        {
+            this.logger.LogWarning(exception, "Could not read {Path}; treating today as unspoken", this.statePath);
+            return DateTimeOffset.MinValue;
+        }
+    }
+
+    private void Remember(DateTimeOffset due)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(this.statePath)!);
+            File.WriteAllText(this.statePath, due.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch (IOException exception)
+        {
+            this.logger.LogWarning(exception, "Could not write {Path}; a restart today may repeat the notice", this.statePath);
         }
     }
 

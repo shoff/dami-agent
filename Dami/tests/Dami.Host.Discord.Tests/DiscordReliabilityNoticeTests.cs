@@ -23,10 +23,12 @@ public sealed class DiscordReliabilityNoticeTests
         Token = "t", OwnerUserId = "1", Enabled = true, CheckInConversationId = "dm-7",
     };
 
+    private readonly string state = Path.Combine(Path.GetTempPath(), "dami-notice-" + Guid.NewGuid().ToString("N"));
+
     private FakeTimeProvider clock = new(tuesdayAfterNine);
 
     private DiscordReliabilityNotice Subject() =>
-        new(this.report, this.channel, this.options, this.clock, NullLogger<DiscordReliabilityNotice>.Instance);
+        new(this.report, this.channel, this.options, this.clock, this.state, NullLogger<DiscordReliabilityNotice>.Instance);
 
     private void Reads(params string[] problems) =>
         this.report.ReadAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
@@ -86,6 +88,18 @@ public sealed class DiscordReliabilityNoticeTests
         Assert.True(await subject.TickAsync(CancellationToken.None));
         this.clock.Advance(TimeSpan.FromMinutes(10));
         Assert.False(await subject.TickAsync(CancellationToken.None));
+
+        await this.channel.Received(1).SendAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_Restart_Should_Not_Say_The_Same_Day_Again()
+    {
+        // Every deploy restarts the host; the in-memory "said it today" would reset each time.
+        this.Reads("something broke");
+        Assert.True(await this.Subject().TickAsync(CancellationToken.None));
+
+        Assert.False(await this.Subject().TickAsync(CancellationToken.None));
 
         await this.channel.Received(1).SendAsync(Arg.Any<OutboundContent>(), Arg.Any<CancellationToken>());
     }
