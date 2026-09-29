@@ -11781,3 +11781,9 @@ Image fit theory failed compilation as expected (ImageViewport absent). Implemen
 - First `tools/deploy.sh`: gate green, `/health` 200 — and the check-in stayed silent. Cause: `DiscordComposition.Read` copies each key by hand and the `CheckIn*` keys were missing (my defect; the unit tests built `DiscordOptions` directly). RED: new composition test failed on `Assert.Equal` → keys read → Discord 108/108 → `b49de6f` → redeployed (gate green, `/opt matches the staged build`).
 - Live: 14:29:55 CDT "Daily check-in with repo-hygiene "2 things are adrift in the working copy": sent"; the frontier turn logged "Disclosure: 16 sent, 1 disguised, 6 withheld"; `dami.surfacings` shows that row `delivered_via = discord-dm`. H7 `8eafcb90` completed on the board. H23 and H20 wait on a live Discord message from Steve for their criteria.
 - `dami-llm-guard` still not installed (needs sudo).
+
+### 2026-09-29 — Claude — check-in excludes repo-hygiene; H23 shown live
+
+- Steve asked for repo-hygiene to be left out of the daily check-in. TDD: 2 check-in tests + 1 composition test RED on assertions (option added first, no filter) → `Discord:CheckInExcludedServices`, default `repo-hygiene`, read comma-separated → Discord 111/111 → `c6f8d0a`, deployed (gate green, `/opt matches the staged build`). Today's check-in had already been sent, so the restart sent none.
+- H23 live: 14:37:41 Steve's Discord message became chat observation `0664c2ba` (channel=discord, 310 chars, trace attached); the 14:29:55 check-in produced none. H23 `99a77221` completed on the board.
+- H20 partly live: "stop making dami dress like a conservative!" became lesson `aeba4487` with that exact quote. The "next turn's prompt carries it" half waits on Steve's next Discord message.
