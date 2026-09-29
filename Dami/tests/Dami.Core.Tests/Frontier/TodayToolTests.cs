@@ -20,6 +20,7 @@ public sealed class TodayToolTests
     private readonly IScheduledJobStore jobs = Substitute.For<IScheduledJobStore>();
     private readonly IObservationCorpus corpus = Substitute.For<IObservationCorpus>();
     private readonly IContextDisclosureGate gate = Substitute.For<IContextDisclosureGate>();
+    private readonly Dami.Contracts.Calendar.ICalendarStore calendar = Substitute.For<Dami.Contracts.Calendar.ICalendarStore>();
 
     private static async IAsyncEnumerable<T> ManyAsync<T>(params T[] items)
     {
@@ -51,8 +52,13 @@ public sealed class TodayToolTests
         this.gate.ClassifyAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(call => call.ArgAt<IReadOnlyList<string>>(1)
                 .Select(line => new DisclosedItem(line, line.StartsWith("A year ago", StringComparison.Ordinal) ? Disclosure.Withhold : Disclosure.Pass, line, "t")).ToList());
+        this.calendar.BetweenAsync(Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns([
+                new Dami.Contracts.Calendar.CalendarEvent("b@1", now.AddHours(-6), null, true, "Mom's birthday", null),
+                new Dami.Contracts.Calendar.CalendarEvent("d@1", now.AddHours(2), now.AddHours(2.5), false, "Dentist", "Main St Dental"),
+            ]);
         return new TodayTool(
-            this.fitness, this.facts, this.surfacings, this.jobs, this.corpus, this.gate, Substitute.For<IDisclosureLedger>(),
+            this.fitness, this.facts, this.surfacings, this.jobs, this.corpus, this.calendar, this.gate, Substitute.For<IDisclosureLedger>(),
             new DisclosureMemo(new FakeTimeProvider(now)), Options.Create(new AugmentedTurnOptions { Gate = gated, GateMemoMinutes = 0 }),
             new FakeTimeProvider(now), NullLogger<TodayTool>.Instance);
     }
@@ -69,6 +75,22 @@ public sealed class TodayToolTests
         Assert.Contains("Scheduled: 'morning portrait' at", result.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("far off", result.Text, StringComparison.Ordinal);
         Assert.Contains("A year ago today: Started the Spitfire build.", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Today_Should_Carry_Todays_Calendar_In_Local_Time()
+    {
+        // D1: calendar was the most-used integration in the 2026-09-29 survey.
+        var result = await this.Subject(gated: false).TodayAsync(Guid.NewGuid(), CancellationToken.None);
+
+        string At(double hours) => TimeZoneInfo.ConvertTime(now.AddHours(hours), TimeZoneInfo.Local)
+            .ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture);
+        var dentist = $"{At(2)}–{At(2.5)}";
+        Assert.Contains("Calendar: all day — Mom's birthday", result.Text, StringComparison.Ordinal);
+        Assert.Contains($"Calendar: {dentist} Dentist (Main St Dental)", result.Text, StringComparison.Ordinal);
+        var local = TimeZoneInfo.ConvertTime(now, TimeZoneInfo.Local).Date;
+        var midnight = new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+        await this.calendar.Received(1).BetweenAsync(midnight, midnight.AddDays(1), Arg.Any<CancellationToken>());
     }
 
     [Fact]

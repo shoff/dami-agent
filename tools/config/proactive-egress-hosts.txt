@@ -1,6 +1,7 @@
 api.fda.gov
 api.github.com
 api.weather.gov
+calendar.google.com
 download.nvidia.com
 github.com
 ubuntu.com

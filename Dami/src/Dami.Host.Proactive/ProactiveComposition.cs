@@ -187,6 +187,17 @@ public static class ProactiveComposition
             configuration.GetSection(WeatherOptions.SECTION_NAME));
         services.AddSingleton<IProactiveService, WeatherCollectorService>();
         services.AddSingleton<IProactiveService, WeatherWindowService>();
+        AddPersonalSources(services, configuration);
+    }
+
+    /// <summary>Steve's own accounts, read-only: each is a credential in proactive.env and a host on the allowlist.</summary>
+    private static void AddPersonalSources(IServiceCollection services, IConfiguration configuration)
+    {
+        // D1 (2026-09-29): the calendar's secret iCal address, mirrored locally for today and
+        // two weeks ahead. New host: calendar.google.com.
+        services.Configure<Dami.Proactive.Calendar.CalendarOptions>(
+            configuration.GetSection(Dami.Proactive.Calendar.CalendarOptions.SECTION));
+        services.AddSingleton<IProactiveService, Dami.Proactive.Calendar.CalendarCollectorService>();
     }
 
     /// <summary>

@@ -40,6 +40,7 @@ public sealed class TodayTool : IFrontierToday
     private readonly ISurfacingQueue surfacings;
     private readonly IScheduledJobStore jobs;
     private readonly IObservationCorpus corpus;
+    private readonly Dami.Contracts.Calendar.ICalendarStore calendar;
     private readonly IContextDisclosureGate gate;
     private readonly IDisclosureLedger ledger;
     private readonly DisclosureMemo memo;
@@ -54,6 +55,7 @@ public sealed class TodayTool : IFrontierToday
         ISurfacingQueue surfacings,
         IScheduledJobStore jobs,
         IObservationCorpus corpus,
+        Dami.Contracts.Calendar.ICalendarStore calendar,
         IContextDisclosureGate gate,
         IDisclosureLedger ledger,
         DisclosureMemo memo,
@@ -66,6 +68,7 @@ public sealed class TodayTool : IFrontierToday
         ArgumentNullException.ThrowIfNull(surfacings);
         ArgumentNullException.ThrowIfNull(jobs);
         ArgumentNullException.ThrowIfNull(corpus);
+        ArgumentNullException.ThrowIfNull(calendar);
         ArgumentNullException.ThrowIfNull(gate);
         ArgumentNullException.ThrowIfNull(ledger);
         ArgumentNullException.ThrowIfNull(memo);
@@ -77,6 +80,7 @@ public sealed class TodayTool : IFrontierToday
         this.surfacings = surfacings;
         this.jobs = jobs;
         this.corpus = corpus;
+        this.calendar = calendar;
         this.gate = gate;
         this.ledger = ledger;
         this.memo = memo;
@@ -101,6 +105,7 @@ public sealed class TodayTool : IFrontierToday
         var now = this.clock.GetUtcNow();
         var local = TimeZoneInfo.ConvertTime(now, TimeZoneInfo.Local);
         var lines = new List<string> { $"Now: {local.ToString("dddd, MMMM d yyyy, h:mm tt", CultureInfo.InvariantCulture)} ({TimeZoneInfo.Local.StandardName})" };
+        lines.AddRange(await this.CalendarAsync(local, cancellationToken).ConfigureAwait(false));
         lines.AddRange(await this.WeatherAsync(local, cancellationToken).ConfigureAwait(false));
         lines.AddRange(await this.GymAsync(now, cancellationToken).ConfigureAwait(false));
         lines.AddRange(await this.NoticedAsync(cancellationToken).ConfigureAwait(false));
@@ -111,6 +116,23 @@ public sealed class TodayTool : IFrontierToday
         var sendable = decided.Where(item => item.Disclosure != Disclosure.Withhold).Select(item => item.Sendable).ToList();
         this.logger.LogInformation("today: {Lines} line(s), {Sent} sent", lines.Count, sendable.Count);
         return FrontierToolResult.Ok(string.Join('\n', sendable));
+    }
+
+    /// <summary>Today's events from the calendar mirror (D1), in local time.</summary>
+    private async Task<IEnumerable<string>> CalendarAsync(DateTimeOffset local, CancellationToken cancellationToken)
+    {
+        var midnight = new DateTimeOffset(local.Date, TimeZoneInfo.Local.GetUtcOffset(local.Date));
+        var events = await this.calendar.BetweenAsync(midnight, midnight.AddDays(1), cancellationToken).ConfigureAwait(false);
+        return events.Select(item =>
+        {
+            var when = item.AllDay
+                ? "all day —"
+                : TimeZoneInfo.ConvertTime(item.StartsAt, TimeZoneInfo.Local).ToString("h:mm tt", CultureInfo.InvariantCulture)
+                    + (item.EndsAt is { } end
+                        ? "–" + TimeZoneInfo.ConvertTime(end, TimeZoneInfo.Local).ToString("h:mm tt", CultureInfo.InvariantCulture)
+                        : string.Empty);
+            return $"Calendar: {when} {item.Summary}{(item.Location is null ? string.Empty : $" ({item.Location})")}";
+        });
     }
 
     private async Task<List<string>> WeatherAsync(DateTimeOffset local, CancellationToken cancellationToken)
