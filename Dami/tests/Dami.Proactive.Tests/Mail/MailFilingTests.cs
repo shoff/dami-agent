@@ -48,6 +48,13 @@ public sealed class MailFilingTests
     }
 
     [Fact]
+    public void The_Instructions_Should_Ask_For_Any_Medicine_To_Be_Named()
+    {
+        // ADR-0037 slice 3: the interaction watch reads these summaries.
+        Assert.Contains("name any medicine or supplement", MailFiling.INSTRUCTIONS, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_Summary_Should_Be_Bounded()
     {
         var item = MailFiling.Read($$"""{"kind":"other","summary":"{{new string('x', 900)}}"}""", "s", received);

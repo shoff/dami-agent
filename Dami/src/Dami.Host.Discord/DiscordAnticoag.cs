@@ -143,11 +143,21 @@ public sealed class DiscordInteractionWatch
     }
 
     /// <summary>Notes an interactor named in the message, if any and not said this week.</summary>
-    public async Task NoticeAsync(InboundMessage message, CancellationToken cancellationToken)
+    public Task NoticeAsync(InboundMessage message, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message);
+        return this.NoticeAsync(message.ConversationId, message.Text, null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Notes an interactor named in <paramref name="text"/>, seen <paramref name="where"/> (null: in
+    /// what Steve said), if not said this week.
+    /// </summary>
+    public async Task NoticeAsync(string conversationId, string text, string? where, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(text);
         var now = this.clock.GetUtcNow();
-        if (AnticoagCapture.Interactor(message.Text) is not { } found
+        if (AnticoagCapture.Interactor(text) is not { } found
             || (this.said.TryGetValue(found.Name, out var last) && now - last < quiet))
         {
             return;
@@ -157,9 +167,10 @@ public sealed class DiscordInteractionWatch
         this.logger.LogInformation("Warfarin interactor noticed");
         await this.channel.SendAsync(
             new OutboundContent(
-                message.ConversationId,
-                $"💊 Noticed: {found.Name} {found.Effect} with warfarin. It's worth asking whoever prescribed it whether your INR "
-                + "should be checked sooner. (A prompt to ask, not advice; the list I watch is not exhaustive.)",
+                conversationId,
+                $"💊 Noticed{(where is null ? string.Empty : " " + where)}: {found.Name} {found.Effect} with warfarin. It's worth "
+                + "asking whoever prescribed it whether your INR should be checked sooner. (A prompt to ask, not advice; the list I "
+                + "watch is not exhaustive.)",
                 ContentProvenance.ProfileDerived, Guid.NewGuid()),
             cancellationToken).ConfigureAwait(false);
     }

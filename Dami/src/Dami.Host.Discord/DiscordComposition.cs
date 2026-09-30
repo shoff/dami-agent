@@ -48,6 +48,8 @@ public static class DiscordComposition
         services.AddHostedService<DiscordOutageAlarm>();
         // ADR-0037 slice 2: the Monday anticoagulation note, DM only.
         services.AddHostedService<DiscordAnticoagWeekly>();
+        // ADR-0037 slice 3: interactors in newly filed forwarded mail.
+        services.AddHostedService<DiscordMailInteractionWatch>();
         return services;
     }
 

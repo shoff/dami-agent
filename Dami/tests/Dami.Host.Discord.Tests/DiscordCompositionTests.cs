@@ -66,6 +66,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton(Substitute.For<Dami.Contracts.Scheduling.IScheduledJobStore>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Anticoag.IAnticoagLog>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Calendar.ICalendarStore>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Domains.IDomainFactStore>());
     }
 
     private static void AddRuntimeStubs(ServiceCollection services)
@@ -160,6 +161,14 @@ public sealed class DiscordCompositionTests
         using var provider = Compose();
 
         Assert.Contains(provider.GetServices<IHostedService>(), service => service is DiscordAnticoagWeekly);
+    }
+
+    [Fact]
+    public void Configured_Gateway_Should_Watch_Forwarded_Mail_For_Interactors()
+    {
+        using var provider = Compose();
+
+        Assert.Contains(provider.GetServices<IHostedService>(), service => service is DiscordMailInteractionWatch);
     }
 
     [Fact]
