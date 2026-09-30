@@ -11827,3 +11827,9 @@ Image fit theory failed compilation as expected (ImageViewport absent). Implemen
 - **C11** `72dd671`: the Sunday notice ends with the week's counts (messages answered, lessons, diary entries, receipts).
 - **C8** `f5602c4`: frost nights (≤ 32°F) and wind ≥ 30 mph within 36 h surface once as something to do.
 - **E3 dropped**: a per-purpose guild channel (#receipts) cannot receive ProfileDerived confirmations under ADR-0025 (DM only); it needs an ADR change first.
+
+### 2026-09-29 — Claude — upgrade list: D6 meals, B11 lessons review (built, deployed)
+
+- **D6** `f8be6b0`: migration 048 `dami.meals` (applied); `DiscordMealResponder` after receipts, before the frontier — a photo with a meal word is estimated by the local vision model (calories, protein), logged, and confirmed to Steve's DM with the day's totals (ProfileDerived). Declared egress holder. The prompt has not been tried on a real food photo; there is none on this host.
+- **B11** `1291772`: `lessons-review` (weekly) names lessons lapsing within 14 days, silent otherwise.
+- Deploy gate green, `/opt matches the staged build`, 54 migrations applied.
