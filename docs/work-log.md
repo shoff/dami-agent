@@ -11819,3 +11819,11 @@ Image fit theory failed compilation as expected (ImageViewport absent). Implemen
 - **C3 watch** `04cf9fc`: migration 047; a job with `watchUrl` is gated by fetch + hash of the page's text; unchanged asks no model; changed runs the job told only that the page changed (the page is never pasted into the prompt).
 - Migrations 043–047 applied (53 in the ledger). Every deploy: gate green, `/opt matches the staged build`.
 - Not covered by an architecture test: `ScheduledJobActionRunner` (Dami.Host) now holds `IResearchReader`; `EgressSeamTests` does not scan Dami.Host.
+
+### 2026-09-29 — Claude — upgrade list, next batch: A4, H5, C11, C8 (built, deployed)
+
+- **A4** `70016ce`: `DiscordOutageAlarm` probes the sidecars every 10 min; two failures in a row are DM'd once with the error and what to run, recovery once. Silent since deploy (all probes pass).
+- **H5** `1ae0216`: `exposure-audit` (weekly) parses /proc/net/tcp{,6}; first live pass: "0 unexpected listener(s)" (22 and 8443 expected, runbook §1).
+- **C11** `72dd671`: the Sunday notice ends with the week's counts (messages answered, lessons, diary entries, receipts).
+- **C8** `f5602c4`: frost nights (≤ 32°F) and wind ≥ 30 mph within 36 h surface once as something to do.
+- **E3 dropped**: a per-purpose guild channel (#receipts) cannot receive ProfileDerived confirmations under ADR-0025 (DM only); it needs an ADR change first.
