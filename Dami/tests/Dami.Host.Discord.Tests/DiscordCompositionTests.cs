@@ -82,6 +82,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton(Substitute.For<Dami.Contracts.Finance.IExpenseLedger>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Nutrition.IMealLog>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Runtime.IPauseSwitch>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Scheduling.IScheduledJobStore>());
         services.AddSingleton(new TurnDisclosures());
         services.AddSingleton(Substitute.For<Dami.Contracts.Memory.IObservationCorpus>());
         services.AddSingleton(Substitute.For<IProactiveRunHistory>());
@@ -133,6 +134,16 @@ public sealed class DiscordCompositionTests
         using var provider = Compose();
 
         Assert.Contains(provider.GetServices<IHostedService>(), service => service is DiscordReliabilityNotice);
+    }
+
+    [Fact]
+    public void The_Text_Commands_Should_Be_Tried_Pause_First()
+    {
+        using var provider = Compose();
+
+        Assert.Equal(
+            [typeof(DiscordPauseCommand), typeof(DiscordSources), typeof(DiscordUpcoming)],
+            provider.GetServices<IDiscordCommand>().Select(command => command.GetType()));
     }
 
     [Fact]

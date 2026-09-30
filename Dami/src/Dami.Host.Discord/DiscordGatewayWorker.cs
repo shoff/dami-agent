@@ -23,8 +23,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
     private readonly DiscordImageResponder images;
     private readonly DiscordTypingIndicator typing;
     private readonly DiscordHearing hearing;
-    private readonly DiscordPauseCommand pause;
-    private readonly DiscordSources sources;
+    private readonly IReadOnlyList<IDiscordCommand> commands;
     private readonly DiscordReceiptResponder receipts;
     private readonly DiscordMealResponder meals;
     private readonly IProactiveRunHistory history;
@@ -40,8 +39,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         DiscordImageResponder images,
         DiscordTypingIndicator typing,
         DiscordHearing hearing,
-        DiscordPauseCommand pause,
-        DiscordSources sources,
+        IEnumerable<IDiscordCommand> commands,
         DiscordReceiptResponder receipts,
         DiscordMealResponder meals,
         IProactiveRunHistory history,
@@ -55,8 +53,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(typing);
         ArgumentNullException.ThrowIfNull(hearing);
-        ArgumentNullException.ThrowIfNull(pause);
-        ArgumentNullException.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(commands);
         ArgumentNullException.ThrowIfNull(receipts);
         ArgumentNullException.ThrowIfNull(meals);
         ArgumentNullException.ThrowIfNull(history);
@@ -70,8 +67,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         this.images = images;
         this.typing = typing;
         this.hearing = hearing;
-        this.pause = pause;
-        this.sources = sources;
+        this.commands = [.. commands];
         this.receipts = receipts;
         this.meals = meals;
         this.history = history;
@@ -131,6 +127,20 @@ public sealed class DiscordGatewayWorker : BackgroundService
         }
     }
 
+    /// <summary>The exact text commands, in registration order; the first that answers wins.</summary>
+    private async Task<bool> TryCommandsAsync(InboundMessage message, CancellationToken cancellationToken)
+    {
+        foreach (var command in this.commands)
+        {
+            if (await command.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// Answers the questions that never touch the profile, straight from runtime state.
     /// </summary>
@@ -170,8 +180,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
     {
         // A voice note is words; everything after this sees the transcript as the text.
         var message = await this.hearing.HearAsync(received, cancellationToken).ConfigureAwait(false);
-        if (await this.pause.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false)
-            || await this.sources.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false)
+        if (await this.TryCommandsAsync(message, cancellationToken).ConfigureAwait(false)
             || await this.TryOperationalAsync(message, cancellationToken).ConfigureAwait(false))
         {
             return;

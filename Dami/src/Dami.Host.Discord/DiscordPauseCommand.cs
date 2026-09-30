@@ -12,7 +12,7 @@ namespace Dami.Host.Discord;
 /// outage alarm still watches — a smoke detector is not something to switch off from chat.
 /// Deliberately exact: "should I pause the build" is a question, not a command.
 /// </remarks>
-public sealed partial class DiscordPauseCommand
+public sealed partial class DiscordPauseCommand : IDiscordCommand
 {
     private const string REASON = "paused from Discord";
 

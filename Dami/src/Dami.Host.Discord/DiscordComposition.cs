@@ -61,9 +61,10 @@ public static class DiscordComposition
         services.AddSingleton<DiscordMealResponder>();
         // "sources" / "why?": what the last answer drew on (B1).
         services.AddSingleton<DiscordLastTurns>();
-        services.AddSingleton<DiscordSources>();
-        // "pause" / "pause 3h" / "resume": everything Dami starts on her own (A10).
-        services.AddSingleton<DiscordPauseCommand>();
+        // Exact text commands, tried in this order before anything else (A10, B1, H7).
+        services.AddSingleton<IDiscordCommand, DiscordPauseCommand>();
+        services.AddSingleton<IDiscordCommand, DiscordSources>();
+        services.AddSingleton<IDiscordCommand, DiscordUpcoming>();
         services.AddSingleton<DiscordReplyStreamer>();
         services.AddSingleton<DiscordImageResponder>();
         services.AddSingleton<DiscordTypingIndicator>();

@@ -231,8 +231,10 @@ public sealed class DiscordGatewayWorkerTests
                 new DiscordTypingIndicator(
                     this.Rest, this.Options, NullLogger<DiscordTypingIndicator>.Instance),
                 new DiscordHearing(this.Transcription, this.Rest, this.Options, NullLogger<DiscordHearing>.Instance),
-                new DiscordPauseCommand(this.Pause, this.Channel, TimeProvider.System, NullLogger<DiscordPauseCommand>.Instance),
-                new DiscordSources(this.LastTurns, this.Disclosures, this.Channel, NullLogger<DiscordSources>.Instance),
+                [
+                    new DiscordPauseCommand(this.Pause, this.Channel, TimeProvider.System, NullLogger<DiscordPauseCommand>.Instance),
+                    new DiscordSources(this.LastTurns, this.Disclosures, this.Channel, NullLogger<DiscordSources>.Instance),
+                ],
                 new DiscordReceiptResponder(
                     this.Vision, this.Rest, this.Expenses, this.Channel, this.Options, TimeProvider.System,
                     NullLogger<DiscordReceiptResponder>.Instance),

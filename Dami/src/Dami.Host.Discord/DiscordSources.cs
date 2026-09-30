@@ -13,7 +13,7 @@ namespace Dami.Host.Discord;
 /// lines are Steve's own memory, so the reply is ProfileDerived — his DM only (ADR-0025).
 /// Nothing is recomputed and no model is asked.
 /// </remarks>
-public sealed class DiscordSources
+public sealed class DiscordSources : IDiscordCommand
 {
     private const int DISCORD_LIMIT = 2000;
     private const int LINE_CHARS = 160;

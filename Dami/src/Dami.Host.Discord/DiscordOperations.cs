@@ -60,6 +60,7 @@ public static class DiscordOperations
         `status` — what the proactive tier has been doing
         `sources` (or `why?`) — what the last answer drew on, and what the gate withheld
         `pause` / `pause 3h` / `resume` — stop and restart everything I start on my own
+        `next` — what I will do on my own over the coming week
         a photo with "receipt" — logged on this host, never sent to a model
         a photo with "lunch", "dinner", "ate"… — calories and protein estimated on this host
         a voice note — transcribed on this host and answered as text

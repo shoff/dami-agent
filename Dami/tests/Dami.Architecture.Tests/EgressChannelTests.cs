@@ -71,6 +71,9 @@ public sealed class EgressChannelTests
         "Dami.Host.Discord.DiscordMealResponder",
         // 2026-09-29 (Steve, A10): "paused" / "resumed", operational only.
         "Dami.Host.Discord.DiscordPauseCommand",
+        // 2026-09-29 (Steve, H7): what Dami will do on her own next — job and service names
+        // and times; operational only.
+        "Dami.Host.Discord.DiscordUpcoming",
     ];
 
     [Fact]
