@@ -49,7 +49,7 @@ have heard" — on data that must never leave this host. It was chosen by Steve 
 2. **Vitamin-K consistency and the weekly note** (built 2026-09-29, `1cbc9a6` and the next commit): meal photos gain a vitamin-K class; a
    Monday DM with the week's pattern against his usual, the last reading, and whether a
    check looks overdue from his own interval.
-3. **Joining the rest:** calendar travel before a check, interactors in forwarded mail and
+3. **Joining the rest** (2026-09-29: travel in the Monday note `4d20762`, interactors in forwarded mail `ff89129`; readings on the Health tab not yet built; receipts carry only a merchant, so pharmacy items are not seen): calendar travel before a check, interactors in forwarded mail and
    receipts, readings on the Health tab.
 
 ## Alternatives considered
