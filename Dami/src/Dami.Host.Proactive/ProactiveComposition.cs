@@ -214,6 +214,11 @@ public static class ProactiveComposition
         services.AddSingleton<Dami.Proactive.Vault.IVault, Dami.Proactive.Vault.FileVault>();
         services.AddSingleton<IProactiveService, Dami.Proactive.Vault.VaultExportService>();
         services.AddSingleton<IProactiveService, Dami.Proactive.Vault.DailyDiaryService>();
+
+        // H5 (2026-09-29): weekly, anything listening beyond loopback that runbook §1 does not name.
+        services.Configure<Dami.Proactive.Security.ExposureAuditOptions>(
+            configuration.GetSection(Dami.Proactive.Security.ExposureAuditOptions.SECTION));
+        services.AddSingleton<IProactiveService, Dami.Proactive.Security.ExposureAuditService>();
     }
 
     /// <summary>
