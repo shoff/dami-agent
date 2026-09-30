@@ -46,6 +46,8 @@ public static class DiscordComposition
         services.AddHostedService<DiscordReliabilityNotice>();
         // A sidecar failing real work twice in a row, said within minutes (A4).
         services.AddHostedService<DiscordOutageAlarm>();
+        // ADR-0037 slice 2: the Monday anticoagulation note, DM only.
+        services.AddHostedService<DiscordAnticoagWeekly>();
         return services;
     }
 

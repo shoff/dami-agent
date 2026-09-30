@@ -25,7 +25,7 @@ public sealed class DiscordReliabilityNotice : BackgroundService
     private readonly DiscordOptions options;
     private readonly TimeProvider clock;
     private readonly ILogger<DiscordReliabilityNotice> logger;
-    private readonly string statePath;
+    private readonly DayMarker marker;
 
     /// <summary>Creates the notice, remembering the last day it spoke under <c>~/.local/state/dami</c>.</summary>
     public DiscordReliabilityNotice(
@@ -35,7 +35,7 @@ public sealed class DiscordReliabilityNotice : BackgroundService
         DiscordOptions options,
         TimeProvider clock,
         ILogger<DiscordReliabilityNotice> logger)
-        : this(report, activity, channel, options, clock, DefaultStatePath(), logger)
+        : this(report, activity, channel, options, clock, DayMarker.Default("reliability-notice"), logger)
     {
     }
 
@@ -54,7 +54,8 @@ public sealed class DiscordReliabilityNotice : BackgroundService
         ILogger<DiscordReliabilityNotice> logger)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(statePath);
-        this.statePath = statePath;
+        ArgumentNullException.ThrowIfNull(logger);
+        this.marker = new DayMarker(statePath, logger);
         ArgumentNullException.ThrowIfNull(report);
         ArgumentNullException.ThrowIfNull(activity);
         ArgumentNullException.ThrowIfNull(channel);
@@ -75,12 +76,12 @@ public sealed class DiscordReliabilityNotice : BackgroundService
     {
         var now = this.clock.GetUtcNow();
         var due = CheckInClock.DueToday(this.options, now);
-        if (this.options.CheckInConversationId.Length == 0 || now < due || this.SpokeFor() >= due)
+        if (this.options.CheckInConversationId.Length == 0 || now < due || this.marker.Read() >= due)
         {
             return false;
         }
 
-        this.Remember(due);
+        this.marker.Write(due);
         var weekly = CheckInClock.Today(this.options, now) == DayOfWeek.Sunday;
         var reading = await this.report.ReadAsync(now.AddDays(weekly ? -7 : -1), cancellationToken).ConfigureAwait(false);
         if (!weekly && reading.Problems.Count == 0)
@@ -117,43 +118,6 @@ public sealed class DiscordReliabilityNotice : BackgroundService
             }
 
             await Task.Delay(this.options.CheckInPoll, this.clock, stoppingToken).ConfigureAwait(false);
-        }
-    }
-
-    /// <summary>
-    /// <c>~/.local/state/dami</c>: state, per XDG, and Steve's own — <c>~/.local/share/dami</c>
-    /// is root-owned on this host (runbook §7), which is how this was found.
-    /// </summary>
-    private static string DefaultStatePath() =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "state", "dami", "reliability-notice");
-
-    private DateTimeOffset SpokeFor()
-    {
-        try
-        {
-            return File.Exists(this.statePath)
-                && DateTimeOffset.TryParse(File.ReadAllText(this.statePath).Trim(), System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.None, out var at)
-                ? at
-                : DateTimeOffset.MinValue;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            this.logger.LogWarning(exception, "Could not read {Path}; treating today as unspoken", this.statePath);
-            return DateTimeOffset.MinValue;
-        }
-    }
-
-    private void Remember(DateTimeOffset due)
-    {
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(this.statePath)!);
-            File.WriteAllText(this.statePath, due.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            this.logger.LogWarning(exception, "Could not write {Path}; a restart today may repeat the notice", this.statePath);
         }
     }
 

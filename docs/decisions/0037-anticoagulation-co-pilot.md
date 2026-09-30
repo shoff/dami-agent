@@ -43,10 +43,10 @@ have heard" — on data that must never leave this host. It was chosen by Steve 
 
 ## Slices
 
-1. **Capture and interaction watch** (this change): "INR 2.4" and dose messages logged
+1. **Capture and interaction watch** (built 2026-09-29, `7af38c1`): "INR 2.4" and dose messages logged
    locally with an immediate DM (range, trend, days since last check); interactor mentions
    noticed.
-2. **Vitamin-K consistency and the weekly note:** meal photos gain a vitamin-K class; a
+2. **Vitamin-K consistency and the weekly note** (built 2026-09-29, `1cbc9a6` and the next commit): meal photos gain a vitamin-K class; a
    Monday DM with the week's pattern against his usual, the last reading, and whether a
    check looks overdue from his own interval.
 3. **Joining the rest:** calendar travel before a check, interactors in forwarded mail and

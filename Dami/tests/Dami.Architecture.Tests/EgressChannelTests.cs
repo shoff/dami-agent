@@ -78,6 +78,9 @@ public sealed class EgressChannelTests
         // his range and his own readings; and a warfarin-interactor note. ProfileDerived — his DM only.
         "Dami.Host.Discord.DiscordAnticoag",
         "Dami.Host.Discord.DiscordInteractionWatch",
+        // 2026-09-29 (Steve, ADR-0037 slice 2): the Monday note from his readings, dose on file
+        // and meals; ProfileDerived — his DM only.
+        "Dami.Host.Discord.DiscordAnticoagWeekly",
     ];
 
     [Fact]

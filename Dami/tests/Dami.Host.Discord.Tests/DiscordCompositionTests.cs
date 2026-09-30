@@ -154,6 +154,14 @@ public sealed class DiscordCompositionTests
     }
 
     [Fact]
+    public void Configured_Gateway_Should_Run_The_Anticoagulation_Note()
+    {
+        using var provider = Compose();
+
+        Assert.Contains(provider.GetServices<IHostedService>(), service => service is DiscordAnticoagWeekly);
+    }
+
+    [Fact]
     public void Configured_Gateway_Should_Run_The_Outage_Alarm()
     {
         using var provider = Compose();
