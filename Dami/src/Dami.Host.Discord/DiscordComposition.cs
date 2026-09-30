@@ -72,6 +72,8 @@ public static class DiscordComposition
         services.AddSingleton<IDiscordCommand, DiscordUpcoming>();
         // ADR-0037: INR readings and dose changes on this host; interactors noticed on the side.
         services.AddSingleton<IDiscordCommand, DiscordAnticoag>();
+        // "ask …": Steve's own records, answered locally with sources (#3).
+        services.AddSingleton<IDiscordCommand, DiscordAsk>();
         services.AddSingleton<DiscordInteractionWatch>();
         services.AddSingleton<DiscordReplyStreamer>();
         services.AddSingleton<DiscordImageResponder>();

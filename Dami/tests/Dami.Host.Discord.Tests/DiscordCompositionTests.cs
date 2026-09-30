@@ -67,6 +67,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton(Substitute.For<Dami.Contracts.Anticoag.IAnticoagLog>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Calendar.ICalendarStore>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Domains.IDomainFactStore>());
+        services.AddSingleton(new Dami.Core.Life.LifeAnswerer([], Substitute.For<Dami.Contracts.Models.IChatClient>(), TimeProvider.System));
     }
 
     private static void AddRuntimeStubs(ServiceCollection services)
@@ -151,7 +152,7 @@ public sealed class DiscordCompositionTests
         using var provider = Compose();
 
         Assert.Equal(
-            [typeof(DiscordPauseCommand), typeof(DiscordSources), typeof(DiscordUpcoming), typeof(DiscordAnticoag)],
+            [typeof(DiscordPauseCommand), typeof(DiscordSources), typeof(DiscordUpcoming), typeof(DiscordAnticoag), typeof(DiscordAsk)],
             provider.GetServices<IDiscordCommand>().Select(command => command.GetType()));
     }
 

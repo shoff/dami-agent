@@ -81,6 +81,9 @@ public sealed class EgressChannelTests
         // 2026-09-29 (Steve, ADR-0037 slice 2): the Monday note from his readings, dose on file
         // and meals; ProfileDerived — his DM only.
         "Dami.Host.Discord.DiscordAnticoagWeekly",
+        // 2026-09-29 (Steve, #3 "ask your life"): an answer composed by the local model from his
+        // own records, with them as sources; ProfileDerived — his DM only.
+        "Dami.Host.Discord.DiscordAsk",
     ];
 
     [Fact]

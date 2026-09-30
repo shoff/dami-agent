@@ -242,6 +242,14 @@ builder.Services.AddSingleton<Dami.Core.Reliability.ISidecarProbe, Dami.Core.Rel
 builder.Services.AddSingleton<Dami.Core.Reliability.ISidecarProbe, Dami.Core.Reliability.TextToSpeechProbe>();
 builder.Services.AddSingleton<Dami.Core.Reliability.ISidecarProbe, Dami.Core.Reliability.EmbeddingProbe>();
 builder.Services.AddSingleton<Dami.Core.Reliability.IReliabilityReport, Dami.Core.Reliability.ReliabilityReport>();
+// "Ask your life anything" (#3): the local model over Steve's own records, cited.
+builder.Services.AddSingleton<Dami.Core.Life.ILifeSource, Dami.Core.Life.CorpusLifeSource>();
+builder.Services.AddSingleton<Dami.Core.Life.ILifeSource, Dami.Core.Life.ExpenseLifeSource>();
+builder.Services.AddSingleton<Dami.Core.Life.ILifeSource, Dami.Core.Life.MailLifeSource>();
+builder.Services.AddSingleton<Dami.Core.Life.ILifeSource, Dami.Core.Life.CalendarLifeSource>();
+builder.Services.AddSingleton<Dami.Core.Life.ILifeSource, Dami.Core.Life.MealLifeSource>();
+builder.Services.AddSingleton<Dami.Core.Life.ILifeSource, Dami.Core.Life.AnticoagLifeSource>();
+builder.Services.AddSingleton<Dami.Core.Life.LifeAnswerer>();
 builder.Services.AddDamiDiscordGateway(builder.Configuration);
 
 var app = builder.Build();

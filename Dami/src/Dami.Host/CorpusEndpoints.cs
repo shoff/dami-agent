@@ -1,4 +1,3 @@
-using System.Text;
 using Dami.Contracts.Context;
 using Dami.Contracts.Memory;
 using Dami.Contracts.Models;
@@ -43,20 +42,16 @@ public static class CorpusEndpoints
 
     private static void MapAsk(WebApplication app)
     {
-        app.MapPost("/ask", async (
-            QuestionRequest request, IObservationEmbeddingStore store, IEmbeddingClient embedder,
-            IRerankClient reranker, IChatClient chat, TimeProvider clock, CancellationToken token) =>
+        // #3 "ask your life anything": the corpus and Steve's structured records, answered by the
+        // local model with numbered sources. The response shape is unchanged for `dami ask`.
+        app.MapPost("/ask", async (QuestionRequest request, Dami.Core.Life.LifeAnswerer answerer, CancellationToken token) =>
         {
-            var context = (await SearchAsync(request.Question, store, embedder, reranker, token)
-                .ConfigureAwait(false)).Take(RESULTS).ToList();
-            if (context.Count == 0)
+            var answer = await answerer.AnswerAsync(request.Question, token).ConfigureAwait(false);
+            return Results.Ok(new
             {
-                return Results.Ok(new { answer = (string?)null, sources = context });
-            }
-
-            var answer = await chat.CompleteAsync(
-                BuildPrompt(request.Question, context, clock.GetUtcNow()), token).ConfigureAwait(false);
-            return Results.Ok(new { answer = answer.Trim(), sources = context });
+                answer = answer.Answer,
+                sources = answer.Sources.Select(source => new { occurredAt = source.At, source = source.Kind, body = source.Text }),
+            });
         });
     }
 
@@ -85,28 +80,5 @@ public static class CorpusEndpoints
             query, candidates.Select(item => item.Body).ToList(), cancellationToken)
             .ConfigureAwait(false);
         return order.Select(index => candidates[index]).ToList();
-    }
-
-    private static string BuildPrompt(string question, List<Observation> context, DateTimeOffset today)
-    {
-        var prompt = new StringBuilder();
-        prompt.Append("Today is ").Append(today.ToString("yyyy-MM-dd"))
-            .AppendLine(". Observations carry their own dates; old ones are history, not the present.");
-        prompt.AppendLine(
-            "Answer the question using ONLY the numbered observations below, citing them like [2].");
-        prompt.AppendLine(
-            "If they do not contain the answer, say plainly that the memories do not cover it.");
-        prompt.AppendLine("Be concise - a few sentences.");
-        prompt.AppendLine();
-        for (var index = 0; index < context.Count; index++)
-        {
-            prompt.Append(index + 1).Append(". [")
-                .Append(context[index].OccurredAt.ToString("yyyy-MM-dd"))
-                .Append("] ").AppendLine(context[index].Body);
-        }
-
-        prompt.AppendLine();
-        prompt.Append("Question: ").AppendLine(question);
-        return prompt.ToString();
     }
 }
