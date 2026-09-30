@@ -134,6 +134,14 @@ public sealed class DiscordCompositionTests
     }
 
     [Fact]
+    public void Configured_Gateway_Should_Run_The_Outage_Alarm()
+    {
+        using var provider = Compose();
+
+        Assert.Contains(provider.GetServices<IHostedService>(), service => service is DiscordOutageAlarm);
+    }
+
+    [Fact]
     public void Configured_Gateway_Should_Run_The_Daily_Check_In()
     {
         // ADR-0014 as amended 2026-09-29. It stays silent until CheckInConversationId is set.

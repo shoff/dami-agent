@@ -42,6 +42,8 @@ public static class DiscordComposition
         services.AddHostedService<DiscordDailyCheckIn>();
         // What failed without anyone noticing, named in the DM (docs/agent-landscape-2026-09.md A1).
         services.AddHostedService<DiscordReliabilityNotice>();
+        // A sidecar failing real work twice in a row, said within minutes (A4).
+        services.AddHostedService<DiscordOutageAlarm>();
         return services;
     }
 

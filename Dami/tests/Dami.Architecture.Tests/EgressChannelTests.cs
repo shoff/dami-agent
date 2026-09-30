@@ -63,6 +63,9 @@ public sealed class EgressChannelTests
         // 2026-09-29 (Steve, B1): the gate's recorded verdicts on the last answer's local
         // lines, as ProfileDerived — Steve's own DM only (ADR-0025). No model, no retrieval.
         "Dami.Host.Discord.DiscordSources",
+        // 2026-09-29 (Steve, A4): a sidecar's name and its probe error, and its recovery.
+        // Operational only; ADR-0014 §2's smoke-detector class.
+        "Dami.Host.Discord.DiscordOutageAlarm",
     ];
 
     [Fact]
