@@ -231,6 +231,7 @@ public sealed class DiscordGatewayWorkerTests
                 new DiscordTypingIndicator(
                     this.Rest, this.Options, NullLogger<DiscordTypingIndicator>.Instance),
                 new DiscordHearing(this.Transcription, this.Rest, this.Options, NullLogger<DiscordHearing>.Instance),
+                new DiscordInteractionWatch(this.Channel, TimeProvider.System, NullLogger<DiscordInteractionWatch>.Instance),
                 [
                     new DiscordPauseCommand(this.Pause, this.Channel, TimeProvider.System, NullLogger<DiscordPauseCommand>.Instance),
                     new DiscordSources(this.LastTurns, this.Disclosures, this.Channel, NullLogger<DiscordSources>.Instance),
@@ -809,6 +810,20 @@ public sealed class DiscordGatewayWorkerTests
 
         await harness.Meals.Received(1).RecordAsync(Arg.Any<Dami.Contracts.Nutrition.Meal>(), Arg.Any<CancellationToken>());
         await harness.Augmented.DidNotReceiveWithAnyArgs().StreamAsync(default!, default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task An_Interactor_Should_Be_Noticed_And_The_Message_Still_Answered()
+    {
+        var harness = Listening(From("doc put me on Bactrim for a UTI"));
+        FrontierAnswers(harness, "hope it clears up fast");
+
+        await RunAsync(harness.Build());
+
+        await harness.Channel.Received(1).SendAsync(
+            Arg.Is<OutboundContent>(content => content.Text.Contains("Bactrim can raise INR", StringComparison.Ordinal)), Arg.Any<CancellationToken>());
+        await harness.Augmented.Received(1).StreamAsync(
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<FrontierToolbox>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

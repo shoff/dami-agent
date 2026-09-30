@@ -23,6 +23,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
     private readonly DiscordImageResponder images;
     private readonly DiscordTypingIndicator typing;
     private readonly DiscordHearing hearing;
+    private readonly DiscordInteractionWatch interactions;
     private readonly IReadOnlyList<IDiscordCommand> commands;
     private readonly DiscordReceiptResponder receipts;
     private readonly DiscordMealResponder meals;
@@ -39,6 +40,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         DiscordImageResponder images,
         DiscordTypingIndicator typing,
         DiscordHearing hearing,
+        DiscordInteractionWatch interactions,
         IEnumerable<IDiscordCommand> commands,
         DiscordReceiptResponder receipts,
         DiscordMealResponder meals,
@@ -53,6 +55,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(typing);
         ArgumentNullException.ThrowIfNull(hearing);
+        ArgumentNullException.ThrowIfNull(interactions);
         ArgumentNullException.ThrowIfNull(commands);
         ArgumentNullException.ThrowIfNull(receipts);
         ArgumentNullException.ThrowIfNull(meals);
@@ -67,6 +70,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         this.images = images;
         this.typing = typing;
         this.hearing = hearing;
+        this.interactions = interactions;
         this.commands = [.. commands];
         this.receipts = receipts;
         this.meals = meals;
@@ -209,6 +213,8 @@ public sealed class DiscordGatewayWorker : BackgroundService
             return;
         }
 
+        // A warfarin interactor gets a side note (ADR-0037); the answer is unaffected.
+        await this.interactions.NoticeAsync(message, cancellationToken).ConfigureAwait(false);
         await this.answerer.AnswerAsync(message, question, cancellationToken).ConfigureAwait(false);
     }
 }

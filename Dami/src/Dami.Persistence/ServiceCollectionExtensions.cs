@@ -93,6 +93,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<Dami.Contracts.Mail.IMailLedger, Mail.PostgresMailLedger>();
         services.TryAddSingleton<Dami.Contracts.Nutrition.IMealLog, Nutrition.PostgresMealLog>();
         services.TryAddSingleton<Dami.Contracts.Runtime.IPauseSwitch, Runtime.PostgresPauseSwitch>();
+        services.TryAddSingleton<Dami.Contracts.Anticoag.IAnticoagLog, Anticoag.PostgresAnticoagLog>();
     }
 
     private static void RegisterDomainAndSessionStores(IServiceCollection services)

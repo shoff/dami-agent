@@ -74,6 +74,10 @@ public sealed class EgressChannelTests
         // 2026-09-29 (Steve, H7): what Dami will do on her own next — job and service names
         // and times; operational only.
         "Dami.Host.Discord.DiscordUpcoming",
+        // 2026-09-29 (Steve, ADR-0037): an INR reading or dose change he just reported, against
+        // his range and his own readings; and a warfarin-interactor note. ProfileDerived — his DM only.
+        "Dami.Host.Discord.DiscordAnticoag",
+        "Dami.Host.Discord.DiscordInteractionWatch",
     ];
 
     [Fact]

@@ -36,7 +36,7 @@ public static class DiscordComposition
         }
 
         AddTransport(services, options);
-        AddAnswering(services);
+        AddAnswering(services, configuration);
 
         services.AddHostedService<DiscordGatewayWorker>();
         // Once a day, the strongest pending surfacing to Steve's DM (ADR-0014 as amended 2026-09-29).
@@ -49,8 +49,9 @@ public static class DiscordComposition
         return services;
     }
 
-    private static void AddAnswering(IServiceCollection services)
+    private static void AddAnswering(IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<AnticoagOptions>(configuration.GetSection(AnticoagOptions.SECTION));
         // The local vision model reads what Steve sends; the caption becomes context and
         // the image itself never leaves this host (ADR-0026).
         services.AddSingleton<DiscordVision>();
@@ -65,6 +66,9 @@ public static class DiscordComposition
         services.AddSingleton<IDiscordCommand, DiscordPauseCommand>();
         services.AddSingleton<IDiscordCommand, DiscordSources>();
         services.AddSingleton<IDiscordCommand, DiscordUpcoming>();
+        // ADR-0037: INR readings and dose changes on this host; interactors noticed on the side.
+        services.AddSingleton<IDiscordCommand, DiscordAnticoag>();
+        services.AddSingleton<DiscordInteractionWatch>();
         services.AddSingleton<DiscordReplyStreamer>();
         services.AddSingleton<DiscordImageResponder>();
         services.AddSingleton<DiscordTypingIndicator>();

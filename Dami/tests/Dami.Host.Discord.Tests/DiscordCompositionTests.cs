@@ -54,6 +54,19 @@ public sealed class DiscordCompositionTests
     /// gateway has no local model to answer with, and this proves it never needs one
     /// (ADR-0028).
     /// </summary>
+    /// <summary>The host services the 2026-09-29 upgrades added, stubbed.</summary>
+    private static void AddUpgradeStubs(IServiceCollection services)
+    {
+        services.AddSingleton(Substitute.For<Dami.Contracts.Models.ITranscriptionClient>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Models.ISpeechClient>());
+        services.AddSingleton(Substitute.For<Dami.Core.Reliability.IReliabilityReport>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Finance.IExpenseLedger>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Nutrition.IMealLog>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Runtime.IPauseSwitch>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Scheduling.IScheduledJobStore>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Anticoag.IAnticoagLog>());
+    }
+
     private static void AddRuntimeStubs(ServiceCollection services)
     {
         services.AddSingleton(Substitute.For<IGatewayAuthority>());
@@ -76,13 +89,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton<FrontierToolBundle>();
         services.AddSingleton(Substitute.For<IConversationSessionStore>());
         services.AddSingleton(Substitute.For<IConversationTurnStore>());
-        services.AddSingleton(Substitute.For<Dami.Contracts.Models.ITranscriptionClient>());
-        services.AddSingleton(Substitute.For<Dami.Contracts.Models.ISpeechClient>());
-        services.AddSingleton(Substitute.For<Dami.Core.Reliability.IReliabilityReport>());
-        services.AddSingleton(Substitute.For<Dami.Contracts.Finance.IExpenseLedger>());
-        services.AddSingleton(Substitute.For<Dami.Contracts.Nutrition.IMealLog>());
-        services.AddSingleton(Substitute.For<Dami.Contracts.Runtime.IPauseSwitch>());
-        services.AddSingleton(Substitute.For<Dami.Contracts.Scheduling.IScheduledJobStore>());
+        AddUpgradeStubs(services);
         services.AddSingleton(new TurnDisclosures());
         services.AddSingleton(Substitute.For<Dami.Contracts.Memory.IObservationCorpus>());
         services.AddSingleton(Substitute.For<IProactiveRunHistory>());
@@ -142,7 +149,7 @@ public sealed class DiscordCompositionTests
         using var provider = Compose();
 
         Assert.Equal(
-            [typeof(DiscordPauseCommand), typeof(DiscordSources), typeof(DiscordUpcoming)],
+            [typeof(DiscordPauseCommand), typeof(DiscordSources), typeof(DiscordUpcoming), typeof(DiscordAnticoag)],
             provider.GetServices<IDiscordCommand>().Select(command => command.GetType()));
     }
 
