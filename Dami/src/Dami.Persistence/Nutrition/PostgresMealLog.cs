@@ -24,14 +24,15 @@ public sealed class PostgresMealLog : IMealLog
     {
         ArgumentNullException.ThrowIfNull(meal);
         await using var command = this.dataSource.CreateCommand(
-            $"insert into {this.schema}.meals (meal_id, eaten_at, description, calories, protein_g, recorded_at) "
-            + "values (@id, @eaten, @description, @calories, @protein, @recorded);");
+            $"insert into {this.schema}.meals (meal_id, eaten_at, description, calories, protein_g, recorded_at, vitamin_k) "
+            + "values (@id, @eaten, @description, @calories, @protein, @recorded, @vitaminK);");
         command.Parameters.AddWithValue("id", meal.MealId);
         command.Parameters.AddWithValue("eaten", meal.EatenAt.ToUniversalTime());
         command.Parameters.AddWithValue("description", meal.Description);
         command.Parameters.AddWithValue("calories", meal.Calories);
         command.Parameters.AddWithValue("protein", meal.ProteinGrams);
         command.Parameters.AddWithValue("recorded", meal.RecordedAt.ToUniversalTime());
+        command.Parameters.AddWithValue("vitaminK", (object?)meal.VitaminK ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -39,7 +40,7 @@ public sealed class PostgresMealLog : IMealLog
     public async Task<IReadOnlyList<Meal>> BetweenAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
     {
         await using var command = this.dataSource.CreateCommand(
-            $"select meal_id, eaten_at, description, calories, protein_g, recorded_at from {this.schema}.meals "
+            $"select meal_id, eaten_at, description, calories, protein_g, recorded_at, vitamin_k from {this.schema}.meals "
             + "where eaten_at >= @from and eaten_at < @to order by eaten_at;");
         command.Parameters.AddWithValue("from", from.ToUniversalTime());
         command.Parameters.AddWithValue("to", to.ToUniversalTime());
@@ -51,7 +52,10 @@ public sealed class PostgresMealLog : IMealLog
                 reader.GetGuid(0),
                 await reader.GetFieldValueAsync<DateTimeOffset>(1, cancellationToken).ConfigureAwait(false),
                 reader.GetString(2), reader.GetInt32(3), reader.GetInt32(4),
-                await reader.GetFieldValueAsync<DateTimeOffset>(5, cancellationToken).ConfigureAwait(false)));
+                await reader.GetFieldValueAsync<DateTimeOffset>(5, cancellationToken).ConfigureAwait(false))
+            {
+                VitaminK = await reader.IsDBNullAsync(6, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(6),
+            });
         }
 
         return meals;

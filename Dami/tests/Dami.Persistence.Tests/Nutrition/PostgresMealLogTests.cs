@@ -24,7 +24,7 @@ public sealed class PostgresMealLogTests
     {
         await this.fixture.ResetAsync();
         var log = new PostgresMealLog(this.fixture.DataSource, Options.Create(new PostgresOptions { SchemaName = DatabaseFixture.SCHEMA }));
-        await log.RecordAsync(new Meal(Guid.NewGuid(), noonChicago, "chicken burrito", 650, 40, noonChicago), CancellationToken.None);
+        await log.RecordAsync(new Meal(Guid.NewGuid(), noonChicago, "chicken burrito", 650, 40, noonChicago) { VitaminK = "high" }, CancellationToken.None);
         await log.RecordAsync(new Meal(Guid.NewGuid(), noonChicago.AddDays(-1), "yesterday's pasta", 800, 30, noonChicago), CancellationToken.None);
 
         var midnight = new DateTimeOffset(2026, 9, 29, 0, 0, 0, TimeSpan.FromHours(-5));
@@ -33,5 +33,6 @@ public sealed class PostgresMealLogTests
         var meal = Assert.Single(today);
         Assert.Equal(("chicken burrito", 650, 40), (meal.Description, meal.Calories, meal.ProteinGrams));
         Assert.Equal(noonChicago, meal.EatenAt);
+        Assert.Equal("high", meal.VitaminK);
     }
 }

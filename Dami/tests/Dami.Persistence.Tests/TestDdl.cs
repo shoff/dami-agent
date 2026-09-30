@@ -50,6 +50,7 @@ public static class TestDdl
         "048_meals.sql",
         "049_runtime_pause.sql",
         "050_anticoag_log.sql",
+        "051_meal_vitamin_k.sql",
         "009_versioned_embeddings.sql",
         "010_proactive_run_leases.sql",
         "017_gateway_authority.sql",

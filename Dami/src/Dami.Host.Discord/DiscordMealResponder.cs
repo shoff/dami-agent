@@ -80,10 +80,11 @@ public sealed partial class DiscordMealResponder
     }
 
     private async Task<string> LogAsync(
-        (string Food, int Calories, int Protein) meal, DateTimeOffset eatenAt, CancellationToken cancellationToken)
+        (string Food, int Calories, int Protein, string? VitaminK) meal, DateTimeOffset eatenAt, CancellationToken cancellationToken)
     {
         await this.meals.RecordAsync(
-            new Meal(Guid.NewGuid(), eatenAt, meal.Food, meal.Calories, meal.Protein, this.clock.GetUtcNow()), cancellationToken)
+            new Meal(Guid.NewGuid(), eatenAt, meal.Food, meal.Calories, meal.Protein, this.clock.GetUtcNow()) { VitaminK = meal.VitaminK },
+            cancellationToken)
             .ConfigureAwait(false);
         var zone = TimeZoneInfo.FindSystemTimeZoneById(this.options.CheckInTimeZone);
         var day = TimeZoneInfo.ConvertTime(eatenAt, zone).Date;
