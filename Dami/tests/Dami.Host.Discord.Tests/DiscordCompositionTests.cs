@@ -65,6 +65,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton(Substitute.For<Dami.Contracts.Runtime.IPauseSwitch>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Scheduling.IScheduledJobStore>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Anticoag.IAnticoagLog>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Calendar.ICalendarStore>());
     }
 
     private static void AddRuntimeStubs(ServiceCollection services)

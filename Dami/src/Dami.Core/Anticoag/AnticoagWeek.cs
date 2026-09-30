@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Dami.Contracts.Anticoag;
+using Dami.Contracts.Calendar;
 using Dami.Contracts.Nutrition;
 
 namespace Dami.Core.Anticoag;
@@ -10,7 +12,7 @@ namespace Dami.Core.Anticoag;
 /// meal history, no vitamin-K line unless the week differs from the usual by two meals or
 /// more — and never a word about what the dose should be.
 /// </remarks>
-public static class AnticoagWeek
+public static partial class AnticoagWeek
 {
     private const int MINIMUM_READINGS = 3;
     private const int USUAL_WEEKS = 4;
@@ -18,8 +20,10 @@ public static class AnticoagWeek
 
     /// <summary>What there is to say this week; empty when nothing is logged.</summary>
     public static IReadOnlyList<string> Lines(
-        IReadOnlyList<InrReading> readings, IReadOnlyList<DoseChange> doses, IReadOnlyList<Meal> meals, DateTimeOffset now)
+        IReadOnlyList<InrReading> readings, IReadOnlyList<DoseChange> doses, IReadOnlyList<Meal> meals,
+        IReadOnlyList<CalendarEvent> upcoming, DateTimeOffset now)
     {
+        ArgumentNullException.ThrowIfNull(upcoming);
         ArgumentNullException.ThrowIfNull(readings);
         ArgumentNullException.ThrowIfNull(doses);
         ArgumentNullException.ThrowIfNull(meals);
@@ -40,8 +44,21 @@ public static class AnticoagWeek
             lines.Add(vitaminK);
         }
 
+        lines.AddRange(Trips(upcoming, now));
         return lines;
     }
+
+    /// <summary>Slice 3: a trip in the next two weeks, so a check can be arranged before it.</summary>
+    private static IEnumerable<string> Trips(IReadOnlyList<CalendarEvent> upcoming, DateTimeOffset now) =>
+        upcoming
+            .Where(item => item.StartsAt > now && item.StartsAt <= now.AddDays(14) && Travel().IsMatch(item.Summary))
+            .OrderBy(item => item.StartsAt)
+            .Take(2)
+            .Select(item => $"Trip coming up: “{item.Summary}” on {Day(DateOnly.FromDateTime(item.StartsAt.UtcDateTime))}. "
+                + "If an INR check would fall while you're away, your clinic may want one before you go.");
+
+    [GeneratedRegex(@"\b(?:flight|fly|flying|trip|travel|vacation|holiday|hotel|airport|cruise)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex Travel();
 
     private static string? Checks(IReadOnlyList<InrReading> readings, DateOnly today)
     {

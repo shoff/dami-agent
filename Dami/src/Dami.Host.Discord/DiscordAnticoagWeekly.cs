@@ -20,6 +20,7 @@ public sealed class DiscordAnticoagWeekly : BackgroundService
 {
     private readonly IAnticoagLog log;
     private readonly IMealLog meals;
+    private readonly Dami.Contracts.Calendar.ICalendarStore calendar;
     private readonly IPauseSwitch pause;
     private readonly IEgressChannel channel;
     private readonly DiscordOptions options;
@@ -29,17 +30,19 @@ public sealed class DiscordAnticoagWeekly : BackgroundService
 
     /// <summary>Creates the note, remembering its week under <c>~/.local/state/dami</c>.</summary>
     public DiscordAnticoagWeekly(
-        IAnticoagLog log, IMealLog meals, IPauseSwitch pause, IEgressChannel channel, DiscordOptions options,
-        TimeProvider clock, ILogger<DiscordAnticoagWeekly> logger)
-        : this(log, meals, pause, channel, options, clock, DayMarker.Default("anticoag-weekly"), logger)
+        IAnticoagLog log, IMealLog meals, Dami.Contracts.Calendar.ICalendarStore calendar, IPauseSwitch pause,
+        IEgressChannel channel, DiscordOptions options, TimeProvider clock, ILogger<DiscordAnticoagWeekly> logger)
+        : this(log, meals, calendar, pause, channel, options, clock, DayMarker.Default("anticoag-weekly"), logger)
     {
     }
 
     /// <summary>Creates the note with the file that remembers its week.</summary>
     public DiscordAnticoagWeekly(
-        IAnticoagLog log, IMealLog meals, IPauseSwitch pause, IEgressChannel channel, DiscordOptions options,
-        TimeProvider clock, string statePath, ILogger<DiscordAnticoagWeekly> logger)
+        IAnticoagLog log, IMealLog meals, Dami.Contracts.Calendar.ICalendarStore calendar, IPauseSwitch pause,
+        IEgressChannel channel, DiscordOptions options, TimeProvider clock, string statePath, ILogger<DiscordAnticoagWeekly> logger)
     {
+        ArgumentNullException.ThrowIfNull(calendar);
+        this.calendar = calendar;
         ArgumentNullException.ThrowIfNull(log);
         ArgumentNullException.ThrowIfNull(meals);
         ArgumentNullException.ThrowIfNull(pause);
@@ -67,6 +70,7 @@ public sealed class DiscordAnticoagWeekly : BackgroundService
             await this.log.ReadingsAsync(20, cancellationToken).ConfigureAwait(false),
             await this.log.DosesAsync(5, cancellationToken).ConfigureAwait(false),
             await this.meals.BetweenAsync(now.AddDays(-36), now, cancellationToken).ConfigureAwait(false),
+            await this.calendar.BetweenAsync(now, now.AddDays(14), cancellationToken).ConfigureAwait(false),
             now);
         if (lines.Count == 0)
         {

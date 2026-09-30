@@ -33,7 +33,7 @@ public sealed class DiscordAnticoagWeeklyTests : IDisposable
     public void Dispose() => File.Delete(this.state);
 
     private DiscordAnticoagWeekly Subject(DateTimeOffset now) => new(
-        this.log, this.meals, this.pause, this.channel,
+        this.log, this.meals, Substitute.For<Dami.Contracts.Calendar.ICalendarStore>(), this.pause, this.channel,
         new DiscordOptions { Token = "t", OwnerUserId = "1", Enabled = true, CheckInConversationId = "dm-7" },
         new FakeTimeProvider(now), this.state, NullLogger<DiscordAnticoagWeekly>.Instance);
 
