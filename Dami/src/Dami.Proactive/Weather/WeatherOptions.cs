@@ -27,4 +27,10 @@ public sealed class WeatherOptions
 
     /// <summary>Confidence carried by each surfacing.</summary>
     public double Confidence { get; set; } = 0.7;
+
+    /// <summary>A night at or below this is a frost action (C8).</summary>
+    public int FrostF { get; set; } = 32;
+
+    /// <summary>Wind at or above this is a tie-it-down action (C8).</summary>
+    public int WindMph { get; set; } = 30;
 }

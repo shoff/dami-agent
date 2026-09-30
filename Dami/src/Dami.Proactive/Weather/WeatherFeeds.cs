@@ -17,6 +17,12 @@ public sealed record ForecastPeriod(
 /// <summary>One active NWS alert.</summary>
 public sealed record WeatherAlert(string Event, string Severity, string Headline);
 
+/// <summary>A forecast period that asks Steve to do something.</summary>
+/// <param name="Kind">"frost" or "wind".</param>
+/// <param name="Day">The period's day, which with the kind makes it said once.</param>
+/// <param name="Text">What to say.</param>
+public sealed record WeatherAction(string Kind, DateOnly Day, string Text);
+
 /// <summary>Reads the NWS wire formats and this domain's own fact wording. Pure.</summary>
 public static partial class WeatherFeeds
 {
@@ -48,6 +54,34 @@ public static partial class WeatherFeeds
         {
             return [];
         }
+    }
+
+    /// <summary>
+    /// Frost nights and strong wind in the next day and a half (docs/agent-landscape-2026-09.md C8):
+    /// the weather users acted on was "bring the lawn furniture in", not a forecast.
+    /// </summary>
+    public static IReadOnlyList<WeatherAction> Actions(
+        IReadOnlyList<ForecastPeriod> periods, DateTimeOffset now, int frostF, int windMph)
+    {
+        ArgumentNullException.ThrowIfNull(periods);
+        var actions = new List<WeatherAction>();
+        foreach (var period in periods.Where(period => period.Start < now.AddHours(36)))
+        {
+            var day = DateOnly.FromDateTime(period.Start.UtcDateTime);
+            if (!period.IsDaytime && period.TemperatureF <= frostF)
+            {
+                actions.Add(new WeatherAction("frost", day,
+                    $"Frost {period.Name}: low {period.TemperatureF}°F. Cover or bring in anything tender; unhook hoses."));
+            }
+
+            if (period.WindMph >= windMph)
+            {
+                actions.Add(new WeatherAction("wind", day,
+                    $"Wind up to {period.WindMph} mph {period.Name}. Tie down or bring in patio furniture and bins."));
+            }
+        }
+
+        return actions;
     }
 
     /// <summary>The active alerts.</summary>

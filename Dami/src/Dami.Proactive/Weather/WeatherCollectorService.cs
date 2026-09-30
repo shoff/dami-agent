@@ -61,7 +61,7 @@ public sealed class WeatherCollectorService : IProactiveService
 
         var known = await this.KnownAsync(cancellationToken).ConfigureAwait(false);
         var surfacings = new List<Surfacing>();
-        var written = await this.ForecastPassAsync(known, context, cancellationToken).ConfigureAwait(false);
+        var written = await this.ForecastPassAsync(known, surfacings, context, cancellationToken).ConfigureAwait(false);
         written += await this.AlertPassAsync(known, surfacings, context, cancellationToken)
             .ConfigureAwait(false);
 
@@ -75,16 +75,17 @@ public sealed class WeatherCollectorService : IProactiveService
     }
 
     private async Task<int> ForecastPassAsync(
-        HashSet<string> known, ProactiveContext context, CancellationToken cancellationToken)
+        HashSet<string> known, List<Surfacing> surfacings, ProactiveContext context, CancellationToken cancellationToken)
     {
         try
         {
             var response = await this.FetchAsync(
                 this.weatherOptions.ForecastUrl, "NWS forecast", context, cancellationToken)
                 .ConfigureAwait(false);
-            var written = 0;
+            var periods = WeatherFeeds.ParseForecast(response.Body);
+            var written = await this.ActionsAsync(periods, known, surfacings, cancellationToken).ConfigureAwait(false);
             var horizon = this.clock.GetUtcNow().AddDays(Math.Max(1, this.weatherOptions.ForecastDays));
-            foreach (var period in WeatherFeeds.ParseForecast(response.Body))
+            foreach (var period in periods)
             {
                 if (!period.IsDaytime || period.Start > horizon)
                 {
@@ -143,6 +144,29 @@ public sealed class WeatherCollectorService : IProactiveService
             this.logger.LogWarning(exception, "Alerts fetch failed; continuing");
             return 0;
         }
+    }
+
+    /// <summary>Frost and wind worth doing something about, each said once (C8).</summary>
+    private async Task<int> ActionsAsync(
+        IReadOnlyList<ForecastPeriod> periods, HashSet<string> known, List<Surfacing> surfacings, CancellationToken cancellationToken)
+    {
+        var written = 0;
+        foreach (var action in WeatherFeeds.Actions(periods, this.clock.GetUtcNow(), this.weatherOptions.FrostF, this.weatherOptions.WindMph))
+        {
+            if (await this.RecordAsync(known, "action", action.Day, $"action: {action.Kind} {action.Day:yyyy-MM-dd}", cancellationToken)
+                .ConfigureAwait(false))
+            {
+                written++;
+                if (surfacings.Count < MAX_SURFACINGS_PER_PASS)
+                {
+                    surfacings.Add(new Surfacing(
+                        Guid.NewGuid(), this.ServiceName, action.Kind == "frost" ? "Frost coming" : "Strong wind coming",
+                        action.Text, this.weatherOptions.Confidence, this.clock.GetUtcNow()));
+                }
+            }
+        }
+
+        return written;
     }
 
     private void TrySurface(List<Surfacing> surfacings, WeatherAlert alert)

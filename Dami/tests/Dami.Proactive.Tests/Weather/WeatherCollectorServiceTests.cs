@@ -54,6 +54,20 @@ public sealed class WeatherCollectorServiceTests
     }
 
     [Fact]
+    public async Task A_Frost_Night_Should_Surface_Once_As_Something_To_Do()
+    {
+        this.Answer("forecast", FORECAST.Replace("\"temperature\": 60", "\"temperature\": 30", StringComparison.Ordinal));
+        this.Answer("alerts", """{ "features": [] }""");
+
+        var result = await this.Service().RunPassAsync(Context(), CancellationToken.None);
+
+        var frost = Assert.Single(result.Surfacings);
+        Assert.Contains("Frost", frost.Title, StringComparison.Ordinal);
+        Assert.Contains("30°F", frost.Body, StringComparison.Ordinal);
+        Assert.Contains(this.written, fact => fact.Category == "action" && fact.Description.StartsWith("action: frost", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Should_Surface_A_Severe_Alert()
     {
         var result = await this.Service().RunPassAsync(Context(), CancellationToken.None);
