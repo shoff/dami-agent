@@ -18,6 +18,10 @@ public sealed class DiscordReliabilityNoticeTests
 
     private readonly IEgressChannel channel = Substitute.For<IEgressChannel>();
     private readonly IReliabilityReport report = Substitute.For<IReliabilityReport>();
+    private readonly Dami.Contracts.Memory.IObservationCorpus corpus = Substitute.For<Dami.Contracts.Memory.IObservationCorpus>();
+    private readonly Dami.Contracts.Finance.IExpenseLedger expenses = Substitute.For<Dami.Contracts.Finance.IExpenseLedger>();
+
+    private WeeklyActivity Activity() => new(this.corpus, this.expenses, this.clock);
     private readonly DiscordOptions options = new()
     {
         Token = "t", OwnerUserId = "1", Enabled = true, CheckInConversationId = "dm-7",
@@ -28,7 +32,7 @@ public sealed class DiscordReliabilityNoticeTests
     private FakeTimeProvider clock = new(tuesdayAfterNine);
 
     private DiscordReliabilityNotice Subject() =>
-        new(this.report, this.channel, this.options, this.clock, this.state, NullLogger<DiscordReliabilityNotice>.Instance);
+        new(this.report, this.Activity(), this.channel, this.options, this.clock, this.state, NullLogger<DiscordReliabilityNotice>.Instance);
 
     private void Reads(params string[] problems) =>
         this.report.ReadAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
@@ -72,7 +76,8 @@ public sealed class DiscordReliabilityNoticeTests
         await this.report.Received(1).ReadAsync(sundayAfterNine.AddDays(-7), Arg.Any<CancellationToken>());
         await this.channel.Received(1).SendAsync(
             Arg.Is<OutboundContent>(content => content.Text.Contains("170", StringComparison.Ordinal)
-                && content.Text.Contains("nothing else went wrong", StringComparison.Ordinal)),
+                && content.Text.Contains("nothing else went wrong", StringComparison.Ordinal)
+                && content.Text.Contains("This week I answered 0 message(s)", StringComparison.Ordinal)),
             Arg.Any<CancellationToken>());
     }
 
@@ -120,7 +125,7 @@ public sealed class DiscordReliabilityNoticeTests
         {
             this.Reads("something broke");
             var subject = new DiscordReliabilityNotice(
-                this.report, this.channel, this.options, this.clock,
+                this.report, this.Activity(), this.channel, this.options, this.clock,
                 Path.Combine(locked.FullName, "sub", "reliability-notice"), NullLogger<DiscordReliabilityNotice>.Instance);
 
             Assert.True(await subject.TickAsync(CancellationToken.None));

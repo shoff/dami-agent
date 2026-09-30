@@ -20,6 +20,7 @@ namespace Dami.Host.Discord;
 public sealed class DiscordReliabilityNotice : BackgroundService
 {
     private readonly IReliabilityReport report;
+    private readonly WeeklyActivity activity;
     private readonly IEgressChannel channel;
     private readonly DiscordOptions options;
     private readonly TimeProvider clock;
@@ -29,11 +30,12 @@ public sealed class DiscordReliabilityNotice : BackgroundService
     /// <summary>Creates the notice, remembering the last day it spoke under <c>~/.local/state/dami</c>.</summary>
     public DiscordReliabilityNotice(
         IReliabilityReport report,
+        WeeklyActivity activity,
         IEgressChannel channel,
         DiscordOptions options,
         TimeProvider clock,
         ILogger<DiscordReliabilityNotice> logger)
-        : this(report, channel, options, clock, DefaultStatePath(), logger)
+        : this(report, activity, channel, options, clock, DefaultStatePath(), logger)
     {
     }
 
@@ -44,6 +46,7 @@ public sealed class DiscordReliabilityNotice : BackgroundService
     /// </remarks>
     public DiscordReliabilityNotice(
         IReliabilityReport report,
+        WeeklyActivity activity,
         IEgressChannel channel,
         DiscordOptions options,
         TimeProvider clock,
@@ -53,11 +56,13 @@ public sealed class DiscordReliabilityNotice : BackgroundService
         ArgumentException.ThrowIfNullOrWhiteSpace(statePath);
         this.statePath = statePath;
         ArgumentNullException.ThrowIfNull(report);
+        ArgumentNullException.ThrowIfNull(activity);
         ArgumentNullException.ThrowIfNull(channel);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
         this.report = report;
+        this.activity = activity;
         this.channel = channel;
         this.options = options;
         this.clock = clock;
@@ -83,8 +88,14 @@ public sealed class DiscordReliabilityNotice : BackgroundService
             return false;
         }
 
+        var text = Text(reading, weekly);
+        if (weekly)
+        {
+            text += "\n" + await this.activity.LineAsync(now.AddDays(-7), cancellationToken).ConfigureAwait(false);
+        }
+
         await this.channel.SendAsync(
-            new OutboundContent(this.options.CheckInConversationId, Text(reading, weekly), ContentProvenance.Operational, Guid.NewGuid()),
+            new OutboundContent(this.options.CheckInConversationId, text, ContentProvenance.Operational, Guid.NewGuid()),
             cancellationToken).ConfigureAwait(false);
         this.logger.LogInformation(
             "Reliability notice sent: {Count} problem(s): {Problems}", reading.Problems.Count, string.Join("; ", reading.Problems));

@@ -1,4 +1,5 @@
 using Dami.Contracts.Privacy;
+using Dami.Core.Reliability;
 using Dami.Gateway.Discord;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,6 +42,7 @@ public static class DiscordComposition
         // Once a day, the strongest pending surfacing to Steve's DM (ADR-0014 as amended 2026-09-29).
         services.AddHostedService<DiscordDailyCheckIn>();
         // What failed without anyone noticing, named in the DM (docs/agent-landscape-2026-09.md A1).
+        services.AddSingleton<WeeklyActivity>();
         services.AddHostedService<DiscordReliabilityNotice>();
         // A sidecar failing real work twice in a row, said within minutes (A4).
         services.AddHostedService<DiscordOutageAlarm>();
