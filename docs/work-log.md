@@ -11833,3 +11833,9 @@ Image fit theory failed compilation as expected (ImageViewport absent). Implemen
 - **D6** `f8be6b0`: migration 048 `dami.meals` (applied); `DiscordMealResponder` after receipts, before the frontier — a photo with a meal word is estimated by the local vision model (calories, protein), logged, and confirmed to Steve's DM with the day's totals (ProfileDerived). Declared egress holder. The prompt has not been tried on a real food photo; there is none on this host.
 - **B11** `1291772`: `lessons-review` (weekly) names lessons lapsing within 14 days, silent otherwise.
 - Deploy gate green, `/opt matches the staged build`, 54 migrations applied.
+
+### 2026-09-29 — Claude — upgrade list: A10 pause, H7 next, H4 audit (built, deployed)
+
+- **A10** `a24034c`: migration 049 `runtime_pause` (applied). While paused: no proactive pass, no job (each due job moved to its next occurrence, `LastRunStatus` "Skipped: paused (…)"), no check-in; replies and the outage alarm unaffected. Discord `pause`, `pause <n>m|h|d`, `resume`.
+- **H7** `1038bdc`: Discord `next` lists jobs, proactive services and the check-in over 7 days, pause first. The three exact text commands now share `IDiscordCommand`, tried in registration order (pinned by a composition test).
+- **H4 audit, no code**: 14 days of dami-host/dami-proactive journal (16.8 MB) grepped for each readable credential value (GeminiImages__ApiKey in host.env and proactive.env, LAN_PROXY_HASH, LAN_PROXY_ADDRESS): 0 matches each; Discord-token pattern: 0. `/etc/dami/discord.env` is root-only and was not read. A redaction layer is not warranted by current evidence.
