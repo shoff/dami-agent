@@ -102,6 +102,8 @@ public sealed class DiscordGatewayWorkerTests
 
         public Dami.Contracts.Finance.IExpenseLedger Expenses { get; init; } = Substitute.For<Dami.Contracts.Finance.IExpenseLedger>();
 
+        public Dami.Contracts.Nutrition.IMealLog Meals { get; init; } = Substitute.For<Dami.Contracts.Nutrition.IMealLog>();
+
         public DiscordOptions Options { get; set; } = Configured();
 
         private static IFrontierRecall RecallStub()
@@ -231,6 +233,9 @@ public sealed class DiscordGatewayWorkerTests
                 new DiscordReceiptResponder(
                     this.Vision, this.Rest, this.Expenses, this.Channel, this.Options, TimeProvider.System,
                     NullLogger<DiscordReceiptResponder>.Instance),
+                new DiscordMealResponder(
+                    this.Vision, this.Rest, this.Meals, this.Channel, this.Options, TimeProvider.System,
+                    NullLogger<DiscordMealResponder>.Instance),
                 Substitute.For<IProactiveRunHistory>(),
                 TimeProvider.System,
                 this.Options,
@@ -779,6 +784,25 @@ public sealed class DiscordGatewayWorkerTests
         await RunAsync(harness.Build());
 
         await harness.Expenses.Received(1).RecordAsync(Arg.Any<Dami.Contracts.Finance.Expense>(), Arg.Any<CancellationToken>());
+        await harness.Augmented.DidNotReceiveWithAnyArgs().StreamAsync(default!, default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task A_Meal_Photo_Should_Be_Logged_Locally_And_Never_Reach_The_Frontier()
+    {
+        var harness = Listening(new InboundMessage("owner", "chan-1", "lunch", DateTimeOffset.UnixEpoch)
+        {
+            Attachments = [new InboundAttachment("m.jpg", "https://cdn/m.jpg", "image/jpeg", 50_000)],
+        });
+        harness.Rest.DownloadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new byte[] { 1 });
+        harness.Vision.DescribeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("""{"food":"salad","calories":350,"protein":12}""");
+        harness.Meals.BetweenAsync(Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<Dami.Contracts.Nutrition.Meal>());
+
+        await RunAsync(harness.Build());
+
+        await harness.Meals.Received(1).RecordAsync(Arg.Any<Dami.Contracts.Nutrition.Meal>(), Arg.Any<CancellationToken>());
         await harness.Augmented.DidNotReceiveWithAnyArgs().StreamAsync(default!, default!, default!, default, default);
     }
 

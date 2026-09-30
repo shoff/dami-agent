@@ -58,6 +58,7 @@ public static class DiscordComposition
         services.AddSingleton<DiscordHearing>();
         // Receipts are read and logged on this host; the frontier never sees them (D4).
         services.AddSingleton<DiscordReceiptResponder>();
+        services.AddSingleton<DiscordMealResponder>();
         // "sources" / "why?": what the last answer drew on (B1).
         services.AddSingleton<DiscordLastTurns>();
         services.AddSingleton<DiscordSources>();

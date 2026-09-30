@@ -66,6 +66,9 @@ public sealed class EgressChannelTests
         // 2026-09-29 (Steve, A4): a sidecar's name and its probe error, and its recovery.
         // Operational only; ADR-0014 §2's smoke-detector class.
         "Dami.Host.Discord.DiscordOutageAlarm",
+        // 2026-09-29 (Steve, D6): one line about a meal Steve just photographed — the local
+        // estimate and the day's totals — as ProfileDerived, so his DM only (ADR-0025).
+        "Dami.Host.Discord.DiscordMealResponder",
     ];
 
     [Fact]

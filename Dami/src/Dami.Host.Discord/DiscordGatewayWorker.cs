@@ -25,6 +25,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
     private readonly DiscordHearing hearing;
     private readonly DiscordSources sources;
     private readonly DiscordReceiptResponder receipts;
+    private readonly DiscordMealResponder meals;
     private readonly IProactiveRunHistory history;
     private readonly TimeProvider clock;
     private readonly DiscordOptions options;
@@ -40,6 +41,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         DiscordHearing hearing,
         DiscordSources sources,
         DiscordReceiptResponder receipts,
+        DiscordMealResponder meals,
         IProactiveRunHistory history,
         TimeProvider clock,
         DiscordOptions options,
@@ -53,6 +55,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         ArgumentNullException.ThrowIfNull(hearing);
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(receipts);
+        ArgumentNullException.ThrowIfNull(meals);
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(options);
@@ -66,6 +69,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         this.hearing = hearing;
         this.sources = sources;
         this.receipts = receipts;
+        this.meals = meals;
         this.history = history;
         this.clock = clock;
         this.options = options;
@@ -182,9 +186,10 @@ public sealed class DiscordGatewayWorker : BackgroundService
     private async Task AnswerQuestionAsync(
         InboundMessage message, string question, CancellationToken cancellationToken)
     {
-        // A receipt never reaches the frontier; explicit picture requests take the fast
-        // path; everything else is the frontier's.
+        // Receipts and meals never reach the frontier; explicit picture requests take the
+        // fast path; everything else is the frontier's.
         if (await this.receipts.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false)
+            || await this.meals.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false)
             || await this.images.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false))
         {
             return;
