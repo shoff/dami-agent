@@ -92,6 +92,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<Dami.Contracts.Calendar.ICalendarStore, Calendar.PostgresCalendarStore>();
         services.TryAddSingleton<Dami.Contracts.Mail.IMailLedger, Mail.PostgresMailLedger>();
         services.TryAddSingleton<Dami.Contracts.Nutrition.IMealLog, Nutrition.PostgresMealLog>();
+        services.TryAddSingleton<Dami.Contracts.Runtime.IPauseSwitch, Runtime.PostgresPauseSwitch>();
     }
 
     private static void RegisterDomainAndSessionStores(IServiceCollection services)

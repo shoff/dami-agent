@@ -16,7 +16,7 @@ public sealed class ScheduledJobDispatcherTests
         var draft = Job(ScheduledJobStatus.Draft, null);
         var store = new StoreStub(due, future, draft);
         var runner = new RunnerStub();
-        var dispatcher = new ScheduledJobDispatcher(store, runner, new FixedTimeProvider(now));
+        var dispatcher = new ScheduledJobDispatcher(store, runner, new PauseStub(null), new FixedTimeProvider(now));
 
         await dispatcher.RunDueAsync(CancellationToken.None);
 
@@ -25,6 +25,31 @@ public sealed class ScheduledJobDispatcherTests
         Assert.Equal("Succeeded", updated.LastRunStatus);
         Assert.Equal(now, updated.LastRunAt);
         Assert.True(updated.NextRunAt > now);
+    }
+
+    [Fact]
+    public async Task While_Paused_A_Due_Job_Should_Not_Run_But_Should_Move_To_Its_Next_Occurrence()
+    {
+        // Resuming must not fire the backlog the pause built up.
+        var due = Job(ScheduledJobStatus.Active, now.AddMinutes(-1));
+        var store = new StoreStub(due);
+        var runner = new RunnerStub();
+
+        await new ScheduledJobDispatcher(
+                store, runner, new PauseStub(new Dami.Contracts.Runtime.PauseState(null, "away", now)), new FixedTimeProvider(now))
+            .RunDueAsync(CancellationToken.None);
+
+        Assert.Empty(runner.Ran);
+        var updated = Assert.Single(store.Updated);
+        Assert.Equal("Skipped: paused (away)", updated.LastRunStatus);
+        Assert.True(updated.NextRunAt > now);
+    }
+
+    private sealed class PauseStub(Dami.Contracts.Runtime.PauseState? state) : Dami.Contracts.Runtime.IPauseSwitch
+    {
+        public Task<Dami.Contracts.Runtime.PauseState?> CurrentAsync(DateTimeOffset now, CancellationToken cancellationToken) => Task.FromResult(state);
+        public Task PauseAsync(DateTimeOffset? until, string reason, DateTimeOffset now, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private static ScheduledJob Job(ScheduledJobStatus status, DateTimeOffset? next) => new(

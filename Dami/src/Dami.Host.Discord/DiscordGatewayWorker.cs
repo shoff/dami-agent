@@ -23,6 +23,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
     private readonly DiscordImageResponder images;
     private readonly DiscordTypingIndicator typing;
     private readonly DiscordHearing hearing;
+    private readonly DiscordPauseCommand pause;
     private readonly DiscordSources sources;
     private readonly DiscordReceiptResponder receipts;
     private readonly DiscordMealResponder meals;
@@ -39,6 +40,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         DiscordImageResponder images,
         DiscordTypingIndicator typing,
         DiscordHearing hearing,
+        DiscordPauseCommand pause,
         DiscordSources sources,
         DiscordReceiptResponder receipts,
         DiscordMealResponder meals,
@@ -53,6 +55,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(typing);
         ArgumentNullException.ThrowIfNull(hearing);
+        ArgumentNullException.ThrowIfNull(pause);
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(receipts);
         ArgumentNullException.ThrowIfNull(meals);
@@ -67,6 +70,7 @@ public sealed class DiscordGatewayWorker : BackgroundService
         this.images = images;
         this.typing = typing;
         this.hearing = hearing;
+        this.pause = pause;
         this.sources = sources;
         this.receipts = receipts;
         this.meals = meals;
@@ -166,7 +170,8 @@ public sealed class DiscordGatewayWorker : BackgroundService
     {
         // A voice note is words; everything after this sees the transcript as the text.
         var message = await this.hearing.HearAsync(received, cancellationToken).ConfigureAwait(false);
-        if (await this.sources.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false)
+        if (await this.pause.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false)
+            || await this.sources.TryAnswerAsync(message, cancellationToken).ConfigureAwait(false)
             || await this.TryOperationalAsync(message, cancellationToken).ConfigureAwait(false))
         {
             return;

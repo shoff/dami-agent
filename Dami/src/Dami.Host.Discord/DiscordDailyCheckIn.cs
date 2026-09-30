@@ -30,6 +30,7 @@ public sealed class DiscordDailyCheckIn : BackgroundService
     private readonly ISurfacingQueue surfacings;
     private readonly ISpeechClient speech;
     private readonly IEgressChannel channel;
+    private readonly Dami.Contracts.Runtime.IPauseSwitch pause;
     private readonly DiscordOptions options;
     private readonly TimeProvider clock;
     private readonly ILogger<DiscordDailyCheckIn> logger;
@@ -41,6 +42,7 @@ public sealed class DiscordDailyCheckIn : BackgroundService
         ISurfacingQueue surfacings,
         ISpeechClient speech,
         IEgressChannel channel,
+        Dami.Contracts.Runtime.IPauseSwitch pause,
         DiscordOptions options,
         TimeProvider clock,
         ILogger<DiscordDailyCheckIn> logger)
@@ -49,6 +51,7 @@ public sealed class DiscordDailyCheckIn : BackgroundService
         ArgumentNullException.ThrowIfNull(surfacings);
         ArgumentNullException.ThrowIfNull(speech);
         ArgumentNullException.ThrowIfNull(channel);
+        ArgumentNullException.ThrowIfNull(pause);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
@@ -56,6 +59,7 @@ public sealed class DiscordDailyCheckIn : BackgroundService
         this.surfacings = surfacings;
         this.speech = speech;
         this.channel = channel;
+        this.pause = pause;
         this.options = options;
         this.clock = clock;
         this.logger = logger;
@@ -65,14 +69,8 @@ public sealed class DiscordDailyCheckIn : BackgroundService
     /// <returns>True when a check-in reached Discord on this tick.</returns>
     public async Task<bool> TickAsync(CancellationToken cancellationToken)
     {
-        if (this.options.CheckInConversationId.Length == 0)
-        {
-            return false;
-        }
-
         var due = CheckInClock.DueToday(this.options, this.clock.GetUtcNow());
-        if (this.clock.GetUtcNow() < due || this.attemptedFor >= due
-            || await this.surfacings.LastPushedAtAsync(VIA, cancellationToken).ConfigureAwait(false) >= due)
+        if (!await this.IsDueAsync(due, cancellationToken).ConfigureAwait(false))
         {
             return false;
         }
@@ -119,6 +117,14 @@ public sealed class DiscordDailyCheckIn : BackgroundService
             this.logger.LogWarning(exception, "The check-in went out; its voice did not");
         }
     }
+
+    /// <summary>Configured, past the hour, not yet tried or sent today, and not paused (A10).</summary>
+    private async Task<bool> IsDueAsync(DateTimeOffset due, CancellationToken cancellationToken) =>
+        this.options.CheckInConversationId.Length > 0
+        && this.clock.GetUtcNow() >= due
+        && this.attemptedFor < due
+        && await this.pause.CurrentAsync(this.clock.GetUtcNow(), cancellationToken).ConfigureAwait(false) is null
+        && !(await this.surfacings.LastPushedAtAsync(VIA, cancellationToken).ConfigureAwait(false) >= due);
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

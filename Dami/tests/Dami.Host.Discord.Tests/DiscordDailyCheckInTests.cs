@@ -31,6 +31,7 @@ public sealed class DiscordDailyCheckInTests
     private readonly IObservationCorpus corpus = Substitute.For<IObservationCorpus>();
     private readonly ISurfacingQueue queue = Substitute.For<ISurfacingQueue>();
     private readonly ISpeechClient speech = Substitute.For<ISpeechClient>();
+    private readonly Dami.Contracts.Runtime.IPauseSwitch pause = Substitute.For<Dami.Contracts.Runtime.IPauseSwitch>();
     private FakeTimeProvider clock = new(afterNine);
     private readonly DiscordOptions options = new()
     {
@@ -158,6 +159,17 @@ public sealed class DiscordDailyCheckInTests
     }
 
     [Fact]
+    public async Task Should_Stay_Silent_While_Paused()
+    {
+        this.pause.CurrentAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new Dami.Contracts.Runtime.PauseState(null, "away", afterNine));
+
+        Assert.False(await this.Subject().TickAsync(CancellationToken.None));
+
+        await this.progressive.DidNotReceiveWithAnyArgs().BeginAsync(default!, default);
+    }
+
+    [Fact]
     public async Task Should_Wait_For_The_Hour()
     {
         this.clock = new FakeTimeProvider(beforeNine);
@@ -228,7 +240,7 @@ public sealed class DiscordDailyCheckInTests
             Substitute.For<IConversationSessionStore>(), this.turnStore, this.corpus, this.queue, new DiscordLastTurns(), lessons, this.clock,
             this.options, NullLogger<DiscordAnswerer>.Instance);
         return new DiscordDailyCheckIn(
-            answerer, this.queue, this.speech, this.channel, this.options, this.clock, NullLogger<DiscordDailyCheckIn>.Instance);
+            answerer, this.queue, this.speech, this.channel, this.pause, this.options, this.clock, NullLogger<DiscordDailyCheckIn>.Instance);
     }
 
     private static FrontierToolBundle Bundle()

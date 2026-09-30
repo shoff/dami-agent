@@ -26,6 +26,7 @@ public sealed class ProactiveScheduler
     private readonly IReadOnlyList<IProactiveService> services;
     private readonly ProactivePassRunner runner;
     private readonly IProactiveRunLog runLog;
+    private readonly Dami.Contracts.Runtime.IPauseSwitch pause;
     private readonly TimeProvider clock;
     private readonly ILogger<ProactiveScheduler> logger;
 
@@ -34,25 +35,35 @@ public sealed class ProactiveScheduler
         IEnumerable<IProactiveService> services,
         ProactivePassRunner runner,
         IProactiveRunLog runLog,
+        Dami.Contracts.Runtime.IPauseSwitch pause,
         TimeProvider clock,
         ILogger<ProactiveScheduler> logger)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(runner);
         ArgumentNullException.ThrowIfNull(runLog);
+        ArgumentNullException.ThrowIfNull(pause);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(logger);
 
         this.services = services.ToList();
         this.runner = runner;
         this.runLog = runLog;
+        this.pause = pause;
         this.clock = clock;
         this.logger = logger;
     }
 
     /// <summary>Runs every service whose cadence has elapsed. Returns how many ran.</summary>
+    /// <remarks>Nothing runs while paused (A10); each service catches up once on resume.</remarks>
     public async Task<int> RunDueAsync(CancellationToken cancellationToken)
     {
+        if (await this.pause.CurrentAsync(this.clock.GetUtcNow(), cancellationToken).ConfigureAwait(false) is { } paused)
+        {
+            this.logger.LogInformation("Paused ({Reason}); no proactive pass this tick", paused.Reason);
+            return 0;
+        }
+
         var ran = 0;
 
         foreach (var service in this.services)

@@ -104,6 +104,8 @@ public sealed class DiscordGatewayWorkerTests
 
         public Dami.Contracts.Nutrition.IMealLog Meals { get; init; } = Substitute.For<Dami.Contracts.Nutrition.IMealLog>();
 
+        public Dami.Contracts.Runtime.IPauseSwitch Pause { get; init; } = Substitute.For<Dami.Contracts.Runtime.IPauseSwitch>();
+
         public DiscordOptions Options { get; set; } = Configured();
 
         private static IFrontierRecall RecallStub()
@@ -229,6 +231,7 @@ public sealed class DiscordGatewayWorkerTests
                 new DiscordTypingIndicator(
                     this.Rest, this.Options, NullLogger<DiscordTypingIndicator>.Instance),
                 new DiscordHearing(this.Transcription, this.Rest, this.Options, NullLogger<DiscordHearing>.Instance),
+                new DiscordPauseCommand(this.Pause, this.Channel, TimeProvider.System, NullLogger<DiscordPauseCommand>.Instance),
                 new DiscordSources(this.LastTurns, this.Disclosures, this.Channel, NullLogger<DiscordSources>.Instance),
                 new DiscordReceiptResponder(
                     this.Vision, this.Rest, this.Expenses, this.Channel, this.Options, TimeProvider.System,
@@ -803,6 +806,17 @@ public sealed class DiscordGatewayWorkerTests
         await RunAsync(harness.Build());
 
         await harness.Meals.Received(1).RecordAsync(Arg.Any<Dami.Contracts.Nutrition.Meal>(), Arg.Any<CancellationToken>());
+        await harness.Augmented.DidNotReceiveWithAnyArgs().StreamAsync(default!, default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Pause_Should_Set_The_Switch_And_Never_Reach_The_Frontier()
+    {
+        var harness = Listening(From("pause 3h"));
+
+        await RunAsync(harness.Build());
+
+        await harness.Pause.Received(1).PauseAsync(Arg.Any<DateTimeOffset?>(), Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
         await harness.Augmented.DidNotReceiveWithAnyArgs().StreamAsync(default!, default!, default!, default, default);
     }
 

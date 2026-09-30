@@ -155,6 +155,22 @@ public sealed class ProactiveSchedulerTests
             Arg.Any<ProactiveContext>(), Arg.Any<CancellationToken>());
     }
 
+    private readonly Dami.Contracts.Runtime.IPauseSwitch pause = Substitute.For<Dami.Contracts.Runtime.IPauseSwitch>();
+
+    [Fact]
+    public async Task RunDueAsync_Should_Run_Nothing_While_Paused()
+    {
+        // A10: the switch that stops everything Dami starts on her own.
+        var scout = Scout();
+        this.pause.CurrentAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new Dami.Contracts.Runtime.PauseState(null, "away", now));
+
+        var ran = await this.CreateScheduler(scout).RunDueAsync(CancellationToken.None);
+
+        Assert.Equal(0, ran);
+        await scout.DidNotReceiveWithAnyArgs().RunPassAsync(default!, default);
+    }
+
     private static IProactiveService Scout()
     {
         var service = Substitute.For<IProactiveService>();
@@ -175,7 +191,7 @@ public sealed class ProactiveSchedulerTests
             NullLogger<ProactivePassRunner>.Instance);
 
         return new ProactiveScheduler(
-            services, runner, this.runLog, new FakeTimeProvider(now),
+            services, runner, this.runLog, this.pause, new FakeTimeProvider(now),
             NullLogger<ProactiveScheduler>.Instance);
     }
 

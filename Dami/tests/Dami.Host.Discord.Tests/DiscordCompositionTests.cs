@@ -81,6 +81,7 @@ public sealed class DiscordCompositionTests
         services.AddSingleton(Substitute.For<Dami.Core.Reliability.IReliabilityReport>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Finance.IExpenseLedger>());
         services.AddSingleton(Substitute.For<Dami.Contracts.Nutrition.IMealLog>());
+        services.AddSingleton(Substitute.For<Dami.Contracts.Runtime.IPauseSwitch>());
         services.AddSingleton(new TurnDisclosures());
         services.AddSingleton(Substitute.For<Dami.Contracts.Memory.IObservationCorpus>());
         services.AddSingleton(Substitute.For<IProactiveRunHistory>());
